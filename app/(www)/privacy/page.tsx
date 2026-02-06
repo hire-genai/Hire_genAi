@@ -1,0 +1,231 @@
+"use client"
+
+import Navbar from "@/components/layout/Navbar"
+import Link from "next/link"
+import {
+  Facebook,
+  Instagram,
+  Youtube,
+  Linkedin,
+  Lock,
+  Star,
+} from "lucide-react"
+
+export default function PrivacyPolicyPage() {
+  return (
+    <div className="min-h-screen bg-white">
+      <Navbar />
+
+      {/* Privacy Policy Content */}
+      <section className="py-20 bg-white">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-16">
+            <h1 className="text-5xl font-bold text-emerald-600 mb-4">Privacy Policy</h1>
+            <p className="text-lg text-slate-600">
+              Last updated: November 2024
+            </p>
+          </div>
+
+          <div className="space-y-12 text-slate-700 leading-relaxed">
+            {/* Responsible Party */}
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 mb-4">Responsible Party under Data Protection Laws</h2>
+              <div className="bg-slate-50 p-6 rounded-lg border border-slate-200">
+                <p className="font-semibold text-slate-800 mb-2">HireGenAI</p>
+                <p className="text-slate-600">support@hire-genai.com</p>
+              </div>
+            </div>
+
+            {/* Section 1 */}
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 mb-4">1. Collection and Storage of Personal Data</h2>
+              <p className="mb-4">
+                When you access our websites and use our AI-powered recruitment services, the browser on your device automatically sends information to our website server. This information is temporarily stored in a log file.
+              </p>
+              <ul className="list-disc list-inside space-y-2 mb-4 ml-4">
+                <li>IP address of the requesting computer</li>
+                <li>Date and time of access</li>
+                <li>Name and URL of the accessed file</li>
+                <li>Website from which access was made (referrer URL)</li>
+                <li>Browser used and operating system of your computer</li>
+              </ul>
+              <p className="font-semibold text-slate-800 mb-3">Data Processing Purposes:</p>
+              <ul className="list-disc list-inside space-y-2 mb-4 ml-4">
+                <li>Ensuring smooth connection establishment with the website</li>
+                <li>Ensuring comfortable use of our website and AI recruitment platform</li>
+                <li>Evaluating system security and stability</li>
+                <li>Conducting recruitment analytics and service optimization</li>
+              </ul>
+            </div>
+
+            {/* Section 2 */}
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 mb-4">2. Data Transfer</h2>
+              <p className="mb-4">
+                Your personal data will not be transferred to third parties for purposes other than those listed below. We only pass on your personal data to third parties if:
+              </p>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li>You have given your express consent in accordance with Art. 6 Para. 1 S. 1 lit. a GDPR</li>
+                <li>Disclosure is necessary for the assertion, exercise or defense of legal claims</li>
+                <li>There is a legal obligation to disclose in accordance with Art. 6 Para. 1 S. 1 lit. c GDPR</li>
+                <li>This is legally permissible and necessary for the processing of contractual relationships</li>
+              </ul>
+            </div>
+
+            {/* Section 3 */}
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 mb-4">3. Cookies</h2>
+              <p className="mb-4">
+                We use session cookies on our site. These are small files that your browser automatically creates and stores on your device when you visit our site. Cookies do not damage your device and do not contain viruses, Trojans, or other malware.
+              </p>
+              <p>
+                Most browsers accept cookies automatically. However, you can configure your browser so that no cookies are stored or you receive a notification before new cookies are created. Completely disabling cookies may prevent you from using all functions of our website.
+              </p>
+            </div>
+
+            {/* Section 4 */}
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 mb-4">4. Rights of Data Subjects</h2>
+              <p className="mb-4">You have the right:</p>
+              <ul className="list-disc list-inside space-y-2 ml-4">
+                <li>Pursuant to Art. 15 GDPR, to request information about your personal data processed by us</li>
+                <li>Pursuant to Art. 16 GDPR, to request immediate correction of incorrect data</li>
+                <li>Pursuant to Art. 17 GDPR, to request deletion of your personal data under certain conditions</li>
+                <li>Pursuant to Art. 18 GDPR, to request restriction of processing under certain conditions</li>
+                <li>Pursuant to Art. 20 GDPR, to receive your data in a structured, machine-readable format</li>
+                <li>Pursuant to Art. 7 Para. 3 GDPR, to revoke your consent at any time</li>
+                <li>To lodge a complaint with a supervisory authority pursuant to Art. 77 GDPR</li>
+              </ul>
+            </div>
+
+            {/* Section 5 */}
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 mb-4">5. Right to Object</h2>
+              <p>
+                If your personal data is processed based on legitimate interests pursuant to Art. 6 Para. 1 S. 1 lit. f GDPR, you have the right to object to this processing at any time for reasons arising from your particular situation. If you wish to exercise your right of revocation or objection, please send an email to support@hire-genai.com.
+              </p>
+            </div>
+
+            {/* Section 6 */}
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 mb-4">6. Data Security</h2>
+              <p className="mb-4">
+                We use SSL (Secure Socket Layer) encryption on our website with the highest encryption level supported by your browser (usually 256-bit). You can recognize encrypted transmission by the lock symbol in your browser address bar.
+              </p>
+              <p>
+                We implement appropriate technical and organizational security measures to protect your data against accidental or intentional manipulation, loss, destruction, or unauthorized access.
+              </p>
+            </div>
+
+            {/* Section 7 */}
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 mb-4">7. Third-Party Integrations and User Data</h2>
+              <p className="mb-4">
+                When you connect third-party accounts (such as Google) to our services for features like sign-in, calendar integration, or document processing, we access the following data only with your explicit consent:
+              </p>
+              <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-4">
+                <p className="font-semibold text-slate-800 mb-2">Profile Information:</p>
+                <p className="text-slate-600 mb-4">Name, email address, profile picture</p>
+                <p className="font-semibold text-slate-800 mb-2">Authentication Data:</p>
+                <p className="text-slate-600 mb-4">Account ID, access tokens</p>
+                <p className="font-semibold text-slate-800 mb-2">Service-Specific Data:</p>
+                <p className="text-slate-600">Depending on the integration (calendar events, documents, etc.)</p>
+              </div>
+              <p className="font-semibold text-slate-800 mb-2">Data Deletion:</p>
+              <p>
+                You can disconnect third-party integrations anytime through your account settings or by contacting support@hire-genai.com. We delete associated data within 30 days.
+              </p>
+            </div>
+
+            {/* Contact */}
+            <div className="bg-emerald-50 p-8 rounded-lg border border-emerald-200">
+              <h2 className="text-2xl font-bold text-slate-800 mb-4">Questions?</h2>
+              <p className="text-slate-700 mb-4">
+                If you have any questions about this Privacy Policy or our data practices, please contact us at:
+              </p>
+              <p className="text-lg font-semibold text-emerald-600">support@hire-genai.com</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-slate-900 text-white py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-12 mb-12">
+            <div className="md:col-span-3">
+              <h3 className="text-2xl font-bold mb-2">
+                <span className="text-white">Hire</span>
+                <span className="text-emerald-400">GenAI</span>
+              </h3>
+              <p className="text-sm text-slate-400 mb-4">By SKYGENAI</p>
+              <p className="text-slate-400 mb-6 text-sm leading-relaxed">
+                HireGenAI pre-screens and interviews candidates, helping you shortlist talent 20x faster.
+              </p>
+              <p className="text-slate-400 mb-6 text-sm font-medium">
+                Email: <a href="mailto:support@hire-genai.com" className="text-emerald-400 hover:text-emerald-300 transition-colors">support@hire-genai.com</a>
+              </p>
+              <div className="flex space-x-4">
+                <a href="#" className="text-slate-400 hover:text-emerald-400 transition-colors"><Facebook className="w-5 h-5" /></a>
+                <a href="#" className="text-slate-400 hover:text-emerald-400 transition-colors"><Instagram className="w-5 h-5" /></a>
+                <a href="#" className="text-slate-400 hover:text-emerald-400 transition-colors"><Youtube className="w-5 h-5" /></a>
+                <a href="https://www.linkedin.com/company/hire-genai" className="text-slate-400 hover:text-emerald-400 transition-colors"><Linkedin className="w-5 h-5" /></a>
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Product</h4>
+              <ul className="space-y-3 text-slate-400 text-sm">
+                <li><Link href="/demo-en" className="hover:text-emerald-400 transition-colors">Try the Demo</Link></li>
+                <li><Link href="/pricing" className="hover:text-emerald-400 transition-colors">Pricing</Link></li>
+                <li><Link href="/?scroll=assessment" className="hover:text-emerald-400 transition-colors cursor-pointer">Assessment</Link></li>
+                <li><Link href="/?scroll=faq" className="hover:text-emerald-400 transition-colors cursor-pointer">FAQs</Link></li>
+              </ul>
+            </div>
+
+            <div className="md:col-span-2">
+              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Company</h4>
+              <ul className="space-y-3 text-slate-400 text-sm">
+                <li><Link href="/about" className="hover:text-emerald-400 transition-colors">About us</Link></li>
+                <li><Link href="/contact" className="hover:text-emerald-400 transition-colors">Contact</Link></li>
+                <li><Link href="/book-meeting" className="hover:text-emerald-400 transition-colors">Book a Meeting</Link></li>
+                <li><Link href="/owner-login" className="hover:text-emerald-400 transition-colors">Admin</Link></li>
+              </ul>
+            </div>
+
+            <div className="md:col-span-2">
+              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Legal</h4>
+              <ul className="space-y-3 text-slate-400 text-sm">
+                <li><Link href="/privacy" className="text-emerald-400 font-medium">Privacy Policy</Link></li>
+                <li><Link href="/terms" className="hover:text-emerald-400 transition-colors">Terms and Conditions</Link></li>
+              </ul>
+            </div>
+
+            <div className="md:col-span-3">
+              <div className="space-y-4">
+                <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                  <p className="text-xs text-slate-400 mb-2 font-semibold">Trustpilot</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    {[...Array(5)].map((_, i) => (<Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />))}
+                  </div>
+                  <p className="text-sm font-semibold text-white">TrustScore 4.5</p>
+                </div>
+                <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Lock className="w-4 h-4 text-emerald-400" />
+                    <p className="text-sm font-semibold text-white">GDPR COMPLIANT</p>
+                  </div>
+                  <p className="text-xs text-slate-400">Your data is secure and compliant</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-800 pt-8 text-center text-slate-400 text-sm">
+            <p>&copy; 2025 HireGenAI. All rights reserved.</p>
+          </div>
+        </div>
+      </footer>
+    </div>
+  )
+}

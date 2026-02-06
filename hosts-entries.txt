@@ -1,0 +1,9 @@
+# Add these entries to your C:\Windows\System32\drivers\etc\hosts file
+# You'll need administrator privileges to edit this file
+
+127.0.0.1 www.hiregenai.local
+127.0.0.1 app.hiregenai.local
+
+# After adding these entries, restart your browser and test:
+# - www.hiregenai.local:3000 for marketing site
+# - app.hiregenai.local:3000 for application site
