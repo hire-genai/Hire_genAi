@@ -50,6 +50,40 @@ export async function GET(request: NextRequest) {
       [companyId]
     )
 
+    // Try to get company slug/name (slug column may not exist yet)
+    let companySlug = 'company'
+    let companyName = ''
+    try {
+      const companies = await DatabaseService.query(
+        `SELECT name, slug FROM companies WHERE id = $1::uuid`,
+        [companyId]
+      )
+      if (companies.length > 0) {
+        companyName = companies[0].name || ''
+        companySlug = companies[0].slug || companies[0].name?.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'company'
+      }
+    } catch {
+      // slug column may not exist, try without it
+      try {
+        const companies = await DatabaseService.query(
+          `SELECT name FROM companies WHERE id = $1::uuid`,
+          [companyId]
+        )
+        if (companies.length > 0) {
+          companyName = companies[0].name || ''
+          companySlug = companies[0].name?.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'company'
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // Attach company info to each job
+    for (const job of jobs) {
+      job.company_slug = companySlug
+      job.company_name = companyName
+    }
+
     // Try to enrich with interview questions (table may not exist yet)
     for (const job of jobs) {
       try {
@@ -280,60 +314,16 @@ export async function POST(request: NextRequest) {
       )
       newJob = jobResult[0]
     } catch (fullInsertError: any) {
-      // Fallback: insert without new columns (auto_schedule, screening) if they don't exist yet
-      console.log('Full insert failed, trying basic insert:', fullInsertError.message)
+      // Fallback: minimal insert with only guaranteed columns
+      console.log('Full insert failed, trying minimal insert:', fullInsertError.message)
       const jobResult = await DatabaseService.query(
         `INSERT INTO job_postings (
-          company_id, created_by, title, department, location,
-          job_type, work_mode, salary_min, salary_max, currency,
-          application_deadline, expected_start_date, description,
-          responsibilities, required_skills, preferred_skills,
-          experience_years, required_education, certifications_required,
-          languages_required, hiring_manager_name, hiring_manager_email,
-          number_of_openings, hiring_priority, target_time_to_fill_days,
-          budget_allocated, target_sources, diversity_goals, diversity_target_pct,
-          job_open_date, expected_hires_per_month, target_offer_acceptance_pct,
-          candidate_response_sla_hrs, interview_schedule_sla_hrs,
-          cost_per_hire_budget, agency_fee_pct, job_board_costs,
-          status, published_at
+          company_id, created_by, title, status, published_at
         ) VALUES (
-          $1::uuid, $2::uuid, $3, $4, $5, $6, $7,
-          $8, $9, $10, $11, $12, $13, $14, $15, $16,
-          $17, $18, $19, $20, $21, $22, $23, $24,
-          $25, $26, $27, $28, $29, $30, $31, $32,
-          $33, $34, $35, $36, $37, $38, $39
+          $1::uuid, $2::uuid, $3, $4, $5
         ) RETURNING *`,
         [
-          companyId, userId, jobTitle,
-          department || null, location || null,
-          jobType || 'Full-time', workMode || 'Hybrid',
-          salaryMin ? parseFloat(salaryMin) : null,
-          salaryMax ? parseFloat(salaryMax) : null,
-          currency || 'USD',
-          applicationDeadline || null, expectedStartDate || null,
-          jobDescription || null,
-          responsibilities?.filter((r: string) => r.trim()) || [],
-          requiredSkills?.filter((s: string) => s.trim()) || [],
-          preferredSkills?.filter((s: string) => s.trim()) || [],
-          experienceYears ? parseInt(experienceYears) : null,
-          requiredEducation || null, certificationsRequired || null,
-          languagesRequired || null,
-          hiringManager || null, hiringManagerEmail || null,
-          numberOfOpenings ? parseInt(numberOfOpenings) : 1,
-          hiringPriority || 'Medium',
-          targetTimeToFill ? parseInt(targetTimeToFill) : null,
-          budgetAllocated ? parseFloat(budgetAllocated) : null,
-          targetSources || [], diversityGoals || false,
-          diversityTargetPercentage ? parseFloat(diversityTargetPercentage) : null,
-          jobOpenDate || new Date().toISOString().split('T')[0],
-          expectedHiresPerMonth ? parseInt(expectedHiresPerMonth) : null,
-          targetOfferAcceptanceRate ? parseFloat(targetOfferAcceptanceRate) : null,
-          candidateResponseTimeSLA ? parseInt(candidateResponseTimeSLA) : null,
-          interviewScheduleSLA ? parseInt(interviewScheduleSLA) : null,
-          costPerHireBudget ? parseFloat(costPerHireBudget) : null,
-          agencyFeePercentage ? parseFloat(agencyFeePercentage) : null,
-          jobBoardCosts ? parseFloat(jobBoardCosts) : null,
-          status, publishedAt
+          companyId, userId, jobTitle, status, publishedAt
         ]
       )
       newJob = jobResult[0]
