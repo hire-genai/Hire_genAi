@@ -205,7 +205,7 @@ export default function PricingPage() {
                       className={`w-full ${plan.popular ? "sr-button-primary" : "sr-button-secondary"}`}
                       asChild
                     >
-                      <Link href={getAppUrl('/signup')} target="_blank" rel="noopener noreferrer">
+                      <Link href={getAppUrl('/signup')}>
                         {plan.cta}
                         <ArrowRight className="w-4 h-4 ml-2" />
                       </Link>

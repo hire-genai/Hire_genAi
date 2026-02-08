@@ -27,13 +27,29 @@ export function getDomainConfig() {
 }
 
 export function getAppUrl(path: string = '') {
+  // Server-side: use relative path to avoid hydration mismatch
+  if (typeof window === 'undefined') {
+    return path || '/'
+  }
+  // Local dev: use relative paths (www and app are same origin)
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return path || '/'
+  }
+  // Production: use full URL with app subdomain
   const { appDomain } = getDomainConfig()
-  const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http'
-  return `${protocol}//${appDomain}${path}`
+  return `${window.location.protocol}//${appDomain}${path}`
 }
 
 export function getWwwUrl(path: string = '') {
+  // Server-side: use relative path to avoid hydration mismatch
+  if (typeof window === 'undefined') {
+    return path || '/'
+  }
+  // Local dev: use relative paths (www and app are same origin)
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return path || '/'
+  }
+  // Production: use full URL with www subdomain
   const { wwwDomain } = getDomainConfig()
-  const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http'
-  return `${protocol}//${wwwDomain}${path}`
+  return `${window.location.protocol}//${wwwDomain}${path}`
 }

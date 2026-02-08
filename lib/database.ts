@@ -105,8 +105,32 @@ export class DatabaseService {
 
     const domain = email.split('@')[1]
 
-    // Use the size_band value from the request or set to null
-    const sizeBand = signupData.companySize || null
+    // Map UI company size values to DB ENUM values
+    // UI sends: '1-10 employees', '11-50 employees', etc.
+    // DB expects: '1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000', '10000+'
+    const mapSizeToEnum = (size?: string): string | null => {
+      if (!size) return null
+      const sizeMap: Record<string, string> = {
+        '1-10 employees': '1-10',
+        '11-50 employees': '11-50',
+        '51-200 employees': '51-200',
+        '201-500 employees': '201-500',
+        '501-1000 employees': '501-1000',
+        '1000+ employees': '10000+',
+        // Direct matches (if already in enum format)
+        '1-10': '1-10',
+        '11-50': '11-50',
+        '51-200': '51-200',
+        '201-500': '201-500',
+        '501-1000': '501-1000',
+        '1001-5000': '1001-5000',
+        '5001-10000': '5001-10000',
+        '10000+': '10000+',
+      }
+      return sizeMap[size] || null
+    }
+
+    const sizeBand = mapSizeToEnum(signupData.companySize)
 
     // Build headquarters from address fields (legacy field, kept for compatibility)
     const headquartersArray = [
@@ -355,6 +379,9 @@ export class DatabaseService {
       throw new Error('Database not configured. Please set DATABASE_URL in your .env.local file.')
     }
 
+    // Default principalType to 'user' since principal_type is NOT NULL in schema
+    const resolvedPrincipalType = principalType || 'user'
+
     const code = Math.floor(100000 + Math.random() * 900000).toString()
     const codeHash = await this.hashCode(code)
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
@@ -370,7 +397,7 @@ export class DatabaseService {
       `
       params = [
         email.toLowerCase(),
-        principalType,
+        resolvedPrincipalType,
         principalId,
         purpose,
         codeHash,
@@ -384,7 +411,7 @@ export class DatabaseService {
       `
       params = [
         email.toLowerCase(),
-        principalType,
+        resolvedPrincipalType,
         purpose,
         codeHash,
         expiresAt.toISOString()
@@ -521,6 +548,7 @@ export class DatabaseService {
     const insertIdentityQuery = `
       INSERT INTO email_identities (principal_type, principal_id, email, is_verified, created_at)
       VALUES ($1, $2::uuid, $3, true, NOW())
+      ON CONFLICT (email) DO UPDATE SET is_verified = true
       RETURNING *
     `
     const identity = await this.query(insertIdentityQuery, [principalType, principalId, email.toLowerCase()]) as any[]

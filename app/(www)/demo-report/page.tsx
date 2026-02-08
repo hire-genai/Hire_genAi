@@ -82,16 +82,16 @@ export default function DemoReport() {
               </nav>
             </div>
             <div className="flex items-center space-x-4">
-              <Link href={getAppUrl('/login')} target="_blank" rel="noopener noreferrer">
+              <Link href={getAppUrl('/login')}>
                 <Button
                   variant="ghost"
-                  className="text-gray-700 hover:text-emerald-600 font-medium"
+                  className="text-gray-700 hover:text-emerald-600 font-medium cursor-pointer"
                 >
                   Login
                 </Button>
               </Link>
-              <Link href={getAppUrl('/signup')} target="_blank" rel="noopener noreferrer">
-                <Button className="sr-button-primary">Get started</Button>
+              <Link href={getAppUrl('/signup')}>
+                <Button className="sr-button-primary cursor-pointer">Get started</Button>
               </Link>
             </div>
           </div>
@@ -137,7 +137,7 @@ export default function DemoReport() {
               <Card className="bg-gradient-to-r from-emerald-600 to-purple-600 text-white p-6 sm:p-8 text-center">
                 <h3 className="text-2xl font-bold mb-4">Ready to Transform Your Recruitment?</h3>
                 <p className="mb-6">Start your 14-day free trial and experience the power of AI-driven recruitment</p>
-                <Link href={getAppUrl('/signup?section=company')} target="_blank" rel="noopener noreferrer">
+                <Link href={getAppUrl('/signup?section=company')}>
                   <Button className="bg-white text-emerald-600 hover:bg-gray-100 font-bold px-8 py-6 text-lg rounded-full">
                     Start My 14-Day Free Trial
                   </Button>

@@ -135,7 +135,7 @@ export default function AboutPage() {
                     Book a Meeting
                   </Button>
                 </Link>
-                <Link href={getAppUrl('/login')} target="_blank" rel="noopener noreferrer">
+                <Link href={getAppUrl('/login')}>
                   <Button 
                     className="bg-white text-emerald-600 hover:bg-emerald-50 font-semibold px-7 py-2.5 h-auto rounded-lg transition-all duration-200 hover:shadow-lg"
                   >

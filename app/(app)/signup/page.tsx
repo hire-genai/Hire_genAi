@@ -384,7 +384,6 @@ export default function SignupPage() {
 
         <form onSubmit={onSubmit} className="mt-6">
           {step === 1 && (
-            <div className="max-w-2xl md:max-w-3xl mx-auto">
             <Card className="sr-card">
               <CardHeader className="text-center">
                 <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center">
@@ -397,12 +396,12 @@ export default function SignupPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="companyName">Company Name *</Label>
-                    <Input id="companyName" value={form.companyName} onChange={onField("companyName")} required />
+                    <Input id="companyName" value={form.companyName} onChange={onField("companyName")} required className="sr-input" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="industry">Industry *</Label>
                     <Select value={form.industry} onValueChange={(v) => setForm((f) => ({ ...f, industry: v }))}>
-                      <SelectTrigger id="industry"><SelectValue placeholder="Select industry" /></SelectTrigger>
+                      <SelectTrigger id="industry" className="sr-select w-full"><SelectValue placeholder="Select industry" /></SelectTrigger>
                       <SelectContent>
                         {industries.map((i) => (
                           <SelectItem key={i} value={i}>{i}</SelectItem>
@@ -415,7 +414,7 @@ export default function SignupPage() {
                   <div className="space-y-2">
                     <Label htmlFor="companySize">Company Size *</Label>
                     <Select value={form.companySize} onValueChange={(v) => setForm((f) => ({ ...f, companySize: v }))}>
-                      <SelectTrigger id="companySize"><SelectValue placeholder="Select company size" /></SelectTrigger>
+                      <SelectTrigger id="companySize" className="sr-select w-full"><SelectValue placeholder="Select company size" /></SelectTrigger>
                       <SelectContent>
                         {companySizes.map((s) => (
                           <SelectItem key={s} value={s}>{s}</SelectItem>
@@ -425,20 +424,18 @@ export default function SignupPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="website">Website</Label>
-                    <Input id="website" placeholder="https://www.example.com" value={form.website} onChange={onField("website")} />
+                    <Input id="website" placeholder="https://www.example.com" value={form.website} onChange={onField("website")} className="sr-input" />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="companyDescription">Company Description</Label>
-                  <Textarea id="companyDescription" placeholder="Brief description of your company and what you do..." value={form.companyDescription} onChange={onField("companyDescription")} />
+                  <Textarea id="companyDescription" placeholder="Brief description of your company and what you do..." value={form.companyDescription} onChange={onField("companyDescription")} className="sr-input" />
                 </div>
               </CardContent>
             </Card>
-            </div>
           )}
 
           {step === 2 && (
-            <div className="max-w-2xl md:max-w-3xl mx-auto">
             <Card className="sr-card">
               <CardHeader className="text-center">
                 <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center">
@@ -450,27 +447,27 @@ export default function SignupPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="street">Street Address *</Label>
-                  <Input id="street" value={form.street} onChange={onField("street")} required />
+                  <Input id="street" value={form.street} onChange={onField("street")} required className="sr-input" />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="city">City *</Label>
-                    <Input id="city" value={form.city} onChange={onField("city")} required />
+                    <Input id="city" value={form.city} onChange={onField("city")} required className="sr-input" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="state">State/Province *</Label>
-                    <Input id="state" value={form.state} onChange={onField("state")} required />
+                    <Input id="state" value={form.state} onChange={onField("state")} required className="sr-input" />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="postalCode">ZIP/Postal Code *</Label>
-                    <Input id="postalCode" value={form.postalCode} onChange={onField("postalCode")} required />
+                    <Input id="postalCode" value={form.postalCode} onChange={onField("postalCode")} required className="sr-input" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="country">Country *</Label>
                     <Select value={form.country} onValueChange={(v) => setForm((f) => ({ ...f, country: v }))}>
-                      <SelectTrigger id="country"><SelectValue placeholder="Select country" /></SelectTrigger>
+                      <SelectTrigger id="country" className="sr-select w-full"><SelectValue placeholder="Select country" /></SelectTrigger>
                       <SelectContent>
                         {countryOptions.map((c) => (
                           <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
@@ -481,15 +478,13 @@ export default function SignupPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" placeholder="+1 (555) 123-4567" value={form.phone} onChange={onField("phone")} />
+                  <Input id="phone" placeholder="+1 (555) 123-4567" value={form.phone} onChange={onField("phone")} className="sr-input" />
                 </div>
               </CardContent>
             </Card>
-            </div>
           )}
 
           {step === 3 && (
-            <div className="max-w-2xl md:max-w-3xl mx-auto">
             <Card className="sr-card">
               <CardHeader className="text-center">
                 <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center">
@@ -501,17 +496,17 @@ export default function SignupPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="legalCompanyName">Legal Company Name *</Label>
-                  <Input id="legalCompanyName" value={form.legalCompanyName} onChange={onField("legalCompanyName")} required />
+                  <Input id="legalCompanyName" value={form.legalCompanyName} onChange={onField("legalCompanyName")} required className="sr-input" />
                   <p className="text-xs text-slate-500">This should match your official business registration</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="taxId">Tax ID / EIN</Label>
-                    <Input id="taxId" value={form.taxId} onChange={onField("taxId")} />
+                    <Input id="taxId" value={form.taxId} onChange={onField("taxId")} className="sr-input" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="registrationNumber">Business Registration Number</Label>
-                    <Input id="registrationNumber" value={form.registrationNumber} onChange={onField("registrationNumber")} />
+                    <Input id="registrationNumber" value={form.registrationNumber} onChange={onField("registrationNumber")} className="sr-input" />
                   </div>
                 </div>
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 flex items-start gap-2">
@@ -520,11 +515,9 @@ export default function SignupPage() {
                 </div>
               </CardContent>
             </Card>
-            </div>
           )}
 
           {step === 4 && (
-            <div className="max-w-2xl md:max-w-3xl mx-auto">
             <Card className="sr-card">
               <CardHeader className="text-center">
                 <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-purple-100 flex items-center justify-center">
@@ -537,17 +530,17 @@ export default function SignupPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">First Name *</Label>
-                    <Input id="firstName" value={form.firstName} onChange={onField("firstName")} required />
+                    <Input id="firstName" value={form.firstName} onChange={onField("firstName")} required className="sr-input" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="lastName">Last Name *</Label>
-                    <Input id="lastName" value={form.lastName} onChange={onField("lastName")} required />
+                    <Input id="lastName" value={form.lastName} onChange={onField("lastName")} required className="sr-input" />
                   </div>
                 </div>
                 {/* Email + OTP Combined */}
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address *</Label>
-                  <Input id="email" type="email" value={form.email} onChange={onField("email")} required disabled={otpVerified} />
+                  <Input id="email" type="email" value={form.email} onChange={onField("email")} required disabled={otpVerified} className="sr-input" />
                   {!otpVerified && (
                     <div className="mt-2 grid grid-cols-1 md:grid-cols-6 gap-3 items-start">
                       <div className="md:col-span-3">
@@ -567,7 +560,7 @@ export default function SignupPage() {
                       <div className="md:col-span-1">
                         <div className="relative">
                           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
-                          <Input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="000000" maxLength={6} className="pl-9 text-center tracking-widest font-mono" />
+                          <Input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="000000" maxLength={6} className="pl-9 text-center tracking-widest font-mono sr-input" />
                         </div>
                       </div>
                       <div className="md:col-span-1">
@@ -585,15 +578,13 @@ export default function SignupPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="jobTitle">Job Title</Label>
-                  <Input id="jobTitle" placeholder="CEO, HR Director, etc." value={form.jobTitle} onChange={onField("jobTitle")} />
+                  <Input id="jobTitle" placeholder="CEO, HR Director, etc." value={form.jobTitle} onChange={onField("jobTitle")} className="sr-input" />
                 </div>
               </CardContent>
             </Card>
-            </div>
           )}
 
           {step === 5 && (
-            <div className="max-w-2xl md:max-w-3xl mx-auto">
             <Card className="sr-card">
               <CardHeader className="text-center">
                 <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center">
@@ -641,7 +632,6 @@ export default function SignupPage() {
                 </div>
               </CardContent>
             </Card>
-            </div>
           )}
 
           {/* Actions */}
