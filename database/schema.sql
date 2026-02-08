@@ -953,5 +953,108 @@ $$;
 
 
 -- ============================================================================
+-- ALTER STATEMENTS: Run these on Neon if job_postings table already exists
+-- but is missing columns. Safe to run multiple times (IF NOT EXISTS / IF EXISTS).
+-- ============================================================================
+
+-- Ensure enum types exist (ignore errors if they already exist)
+DO $$ BEGIN CREATE TYPE job_type AS ENUM ('Full-time', 'Part-time', 'Contract', 'Temporary'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE work_mode AS ENUM ('Remote', 'Hybrid', 'On-site'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE hiring_priority AS ENUM ('High', 'Medium', 'Low'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE job_status AS ENUM ('draft', 'open', 'closed', 'onhold', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Companies table: add slug column
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS slug TEXT;
+-- Backfill slug from company name (lowercase, replace spaces with hyphens)
+UPDATE companies SET slug = LOWER(REPLACE(REPLACE(name, ' ', '-'), '.', '')) WHERE slug IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_slug ON companies (slug);
+
+-- Basic info columns
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS department TEXT;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS location TEXT;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS salary_min NUMERIC(12,2);
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS salary_max NUMERIC(12,2);
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'USD';
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS application_deadline DATE;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS expected_start_date DATE;
+
+-- Job type & work mode (use TEXT if enum doesn't exist yet)
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS job_type TEXT DEFAULT 'Full-time';
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS work_mode TEXT DEFAULT 'Hybrid';
+
+-- Job details columns
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS responsibilities TEXT[];
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS required_skills TEXT[];
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS preferred_skills TEXT[];
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS experience_years INT;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS required_education TEXT;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS certifications_required TEXT;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS languages_required TEXT;
+
+-- Team & planning columns
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS recruiter_id UUID;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS hiring_manager_name TEXT;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS hiring_manager_email TEXT;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS number_of_openings INT DEFAULT 1;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS hiring_priority TEXT DEFAULT 'Medium';
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS target_time_to_fill_days INT;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS budget_allocated NUMERIC(12,2);
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS target_sources TEXT[];
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS diversity_goals BOOLEAN DEFAULT FALSE;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS diversity_target_pct NUMERIC(5,2);
+
+-- Metrics & tracking columns
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS job_open_date DATE;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS expected_hires_per_month INT;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS target_offer_acceptance_pct NUMERIC(5,2);
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS candidate_response_sla_hrs INT;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS interview_schedule_sla_hrs INT;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS cost_per_hire_budget NUMERIC(12,2);
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS agency_fee_pct NUMERIC(5,2);
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS job_board_costs NUMERIC(12,2);
+
+-- Auto interview scheduling
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS auto_schedule_interview BOOLEAN DEFAULT FALSE;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS interview_link_expiry_hours INT DEFAULT 48;
+
+-- Screening questions
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS enable_screening_questions BOOLEAN DEFAULT FALSE;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS screening_questions JSONB DEFAULT '{}';
+
+-- Status columns
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;
+
+-- Indexes (safe to run, will error silently if they exist)
+CREATE INDEX IF NOT EXISTS idx_job_postings_department ON job_postings (department);
+
+-- job_interview_questions table
+CREATE TABLE IF NOT EXISTS job_interview_questions (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  job_id            UUID NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE UNIQUE,
+  selected_criteria JSONB DEFAULT '[]',
+  questions         JSONB DEFAULT '[]',
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- candidate_screening_answers table (stores ONLY answers, not questions)
+-- Questions are derived from job.screening_questions config
+CREATE TABLE IF NOT EXISTS candidate_screening_answers (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  session_id        TEXT NOT NULL UNIQUE,
+  job_id            UUID NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
+  candidate_id      UUID REFERENCES candidates(id) ON DELETE SET NULL,
+  answers           JSONB NOT NULL DEFAULT '{}',
+  submitted_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_screening_answers_job_id ON candidate_screening_answers (job_id);
+CREATE INDEX IF NOT EXISTS idx_screening_answers_session_id ON candidate_screening_answers (session_id);
+CREATE INDEX IF NOT EXISTS idx_screening_answers_candidate_id ON candidate_screening_answers (candidate_id);
+
+-- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================

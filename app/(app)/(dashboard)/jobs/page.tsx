@@ -25,6 +25,8 @@ import {
 	Copy,
 	Loader2,
 	RefreshCw,
+	Share2,
+	Check,
 } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -48,6 +50,7 @@ interface Job {
 	status: string
 	recruiter: string
 	posted: string
+	companySlug: string
 	description?: string
 	stages: {
 		cvScreened: number
@@ -78,9 +81,24 @@ export default function JobsPage() {
 	const [jobs, setJobs] = useState<Job[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
+	const [copiedJobId, setCopiedJobId] = useState<string | null>(null)
 	
 	// Permission check - only recruiters can modify
 	const canModify = viewAsRole === 'recruiter'
+
+	// Copy JD link to clipboard
+	const copyJDLink = async (job: Job) => {
+		const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+		const jdLink = `${baseUrl}/jobs/${job.companySlug}/${job.id}`
+		
+		try {
+			await navigator.clipboard.writeText(jdLink)
+			setCopiedJobId(job.id)
+			setTimeout(() => setCopiedJobId(null), 2000) // Reset after 2 seconds
+		} catch (err) {
+			console.error('Failed to copy link:', err)
+		}
+	}
 
 	// Format date to relative time
 	const formatRelativeTime = (dateString: string) => {
@@ -133,6 +151,7 @@ export default function JobsPage() {
 				status: job.status || 'draft',
 				recruiter: job.recruiter_name || 'Unassigned',
 				posted: formatRelativeTime(job.created_at),
+				companySlug: job.company_slug || 'company',
 				description: job.description || '',
 				stages: {
 					cvScreened: parseInt(job.new_applications) || 0,
@@ -505,6 +524,29 @@ export default function JobsPage() {
 									</div>
 
 									<div className="flex gap-2">
+										{/* Share / Get JD Link Button */}
+										{job.status === 'open' && (
+											<Button 
+												variant="outline" 
+												size="sm"
+												title="Copy shareable JD link"
+												onClick={() => copyJDLink(job)}
+												className={copiedJobId === job.id ? 'bg-green-50 border-green-300' : ''}
+											>
+												{copiedJobId === job.id ? (
+													<>
+														<Check className="h-3 w-3 mr-1 text-green-600" />
+														<span className="text-green-600">Copied!</span>
+													</>
+												) : (
+													<>
+														<Share2 className="h-3 w-3 mr-1" />
+														Share
+													</>
+												)}
+											</Button>
+										)}
+										
 										<Button 
 											variant="outline" 
 											size="sm" 
