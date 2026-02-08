@@ -283,16 +283,50 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
     }))
   }
 
-  const handleSubmit = (isDraft: boolean) => {
-    const status = isDraft ? 'Draft' : 'Open'
-    alert(`Job posting ${isDraft ? 'saved as draft' : 'published'}!\n\nStatus: ${status}\nTitle: ${formData.jobTitle}\nDepartment: ${formData.department}`)
-    onClose()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmit = async (isDraft: boolean) => {
+    if (!formData.jobTitle.trim()) {
+      alert('Please enter a job title')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const response = await fetch('/api/jobs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...formData,
+          selectedCriteria,
+          interviewQuestions,
+          isDraft,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to save job posting')
+      }
+
+      alert(isDraft ? 'Job saved as draft!' : 'Job published successfully!')
+      onClose()
+    } catch (error) {
+      console.error('Error saving job:', error)
+      alert(error instanceof Error ? error.message : 'Failed to save job posting. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const steps = [
-    { number: 1, title: 'Job Description', fields: 10 },
-    { number: 2, title: 'Evaluation Criteria', fields: 5 },
-    { number: 3, title: 'Interview Questions', fields: 2 },
+    { number: 1, title: 'Basic Information', fields: 8 },
+    { number: 2, title: 'Job Description', fields: 6 },
+    { number: 3, title: 'Interview Questions', fields: 8 },
     { number: 4, title: 'Screening Questions', fields: 4 },
     { number: 5, title: 'Team & Planning', fields: 7 },
     { number: 6, title: 'Metrics', fields: 8 },
@@ -342,7 +376,7 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
           {/* Step 1: Basic Information */}
           {currentStep === 1 && (
             <div className="space-y-4">
-              <h4 className="font-semibold text-lg border-b pb-2">Basic Job Information</h4>
+              <h4 className="font-semibold text-lg border-b pb-2">Basic Information</h4>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -495,10 +529,10 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
             </div>
           )}
 
-          {/* Step 2: Job Details */}
+          {/* Step 2: Job Description */}
           {currentStep === 2 && (
             <div className="space-y-4">
-              <h4 className="font-semibold text-lg border-b pb-2">Job Details & Requirements</h4>
+              <h4 className="font-semibold text-lg border-b pb-2">Job Description</h4>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -609,45 +643,46 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
             </div>
           )}
 
-          {/* Step 2: Evaluation Criteria */}
-          {currentStep === 2 && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-lg">Evaluation Criteria</h4>
-                <span className="text-xs text-gray-500">{selectedCriteria.length}/5 selected</span>
-              </div>
-              <p className="text-sm text-gray-600">Select up to 5 criteria to evaluate candidates during interviews.</p>
-              
-              <div className="flex flex-wrap gap-2">
-                {EVALUATION_CRITERIA.map(criterion => {
-                  const isSelected = selectedCriteria.includes(criterion)
-                  const isDisabled = !isSelected && selectedCriteria.length >= 5
-                  
-                  return (
-                    <div
-                      key={criterion}
-                      onClick={() => !isDisabled && toggleCriterionSelection(criterion)}
-                      className={`px-3 py-1.5 border rounded-md cursor-pointer transition-all text-sm ${
-                        isSelected
-                          ? 'bg-blue-600 border-blue-600 text-white'
-                          : isDisabled
-                          ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                          : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400 hover:bg-blue-50'
-                      }`}
-                    >
-                      {criterion}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
+          
           {/* Step 3: Interview Questions */}
           {currentStep === 3 && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-lg">Interview Questions ({interviewQuestions.length})</h4>
+              {/* Evaluation Criteria Section */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-lg">Evaluation Criteria</h4>
+                  <span className="text-xs text-gray-500">{selectedCriteria.length}/5 selected</span>
+                </div>
+                <p className="text-sm text-gray-600">Select up to 5 criteria to evaluate candidates during interviews.</p>
+                
+                <div className="flex flex-wrap gap-2">
+                  {EVALUATION_CRITERIA.map(criterion => {
+                    const isSelected = selectedCriteria.includes(criterion)
+                    const isDisabled = !isSelected && selectedCriteria.length >= 5
+                    
+                    return (
+                      <div
+                        key={criterion}
+                        onClick={() => !isDisabled && toggleCriterionSelection(criterion)}
+                        className={`px-3 py-1.5 border rounded-md cursor-pointer transition-all text-sm ${
+                          isSelected
+                            ? 'bg-blue-600 border-blue-600 text-white'
+                            : isDisabled
+                            ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                            : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400 hover:bg-blue-50'
+                        }`}
+                      >
+                        {criterion}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Interview Questions Section */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-lg">Interview Questions ({interviewQuestions.length})</h4>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
@@ -797,6 +832,7 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
                     </p>
                   </div>
                 )}
+              </div>
               </div>
             </div>
           )}
@@ -1206,8 +1242,9 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
               variant="outline"
               onClick={() => handleSubmit(true)}
               className="bg-transparent"
+              disabled={isSubmitting}
             >
-              <Save className="h-4 w-4 mr-1" />
+              {isSubmitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
               Save as Draft
             </Button>
             {currentStep < steps.length ? (
@@ -1215,8 +1252,8 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
                 Next
               </Button>
             ) : (
-              <Button onClick={() => handleSubmit(false)}>
-                <Send className="h-4 w-4 mr-1" />
+              <Button onClick={() => handleSubmit(false)} disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
                 Publish Job
               </Button>
             )}

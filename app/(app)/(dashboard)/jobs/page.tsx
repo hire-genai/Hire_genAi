@@ -23,8 +23,10 @@ import {
 	Database,
 	Filter,
 	Copy,
+	Loader2,
+	RefreshCw,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -35,12 +37,27 @@ import { JobPostingForm } from '@/components/dashboard/job-posting-form'
 type JobStatusType = 'all' | 'open' | 'closed' | 'onhold' | 'cancelled' | 'draft'
 type UserRole = 'recruiter' | 'admin' | 'manager' | 'director'
 
-const recruiters = [
-  { id: '1', name: 'Sarah Johnson' },
-  { id: '2', name: 'Mike Davis' },
-  { id: '3', name: 'Emily Chen' },
-  { id: '4', name: 'John Williams' },
-]
+interface Job {
+	id: string
+	title: string
+	department: string
+	location: string
+	type: string
+	salary: string
+	applicants: number
+	status: string
+	recruiter: string
+	posted: string
+	description?: string
+	stages: {
+		cvScreened: number
+		aiInterview: number
+		hiringManager: number
+		offerStage: number
+		hired: number
+		rejected: number
+	}
+}
 
 export default function JobsPage() {
 	const [activeStatus, setActiveStatus] = useState<JobStatusType>('all')
@@ -57,11 +74,98 @@ export default function JobsPage() {
 	const [jobDialogMode, setJobDialogMode] = useState<'view' | 'edit'>('view')
 	const [jobDialogOpen, setJobDialogOpen] = useState(false)
 	
+	// Data fetching states
+	const [jobs, setJobs] = useState<Job[]>([])
+	const [isLoading, setIsLoading] = useState(true)
+	const [error, setError] = useState<string | null>(null)
+	
 	// Permission check - only recruiters can modify
 	const canModify = viewAsRole === 'recruiter'
 
+	// Format date to relative time
+	const formatRelativeTime = (dateString: string) => {
+		if (!dateString) return 'Just now'
+		const date = new Date(dateString)
+		const now = new Date()
+		const diffMs = now.getTime() - date.getTime()
+		const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+		
+		if (diffDays === 0) return 'Today'
+		if (diffDays === 1) return '1 day ago'
+		if (diffDays < 7) return `${diffDays} days ago`
+		if (diffDays < 14) return '1 week ago'
+		if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
+		return `${Math.floor(diffDays / 30)} months ago`
+	}
+
+	// Format salary range
+	const formatSalary = (min: number | null, max: number | null, currency: string) => {
+		if (!min && !max) return 'Not specified'
+		const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD', maximumFractionDigits: 0 })
+		if (min && max) return `${formatter.format(min)} - ${formatter.format(max)}`
+		if (min) return `From ${formatter.format(min)}`
+		if (max) return `Up to ${formatter.format(max)}`
+		return 'Not specified'
+	}
+
+	// Fetch jobs from API
+	const fetchJobs = useCallback(async () => {
+		setIsLoading(true)
+		setError(null)
+		
+		try {
+			const response = await fetch('/api/jobs')
+			const result = await response.json()
+			
+			if (!response.ok) {
+				throw new Error(result.error || 'Failed to fetch jobs')
+			}
+			
+			// Map API response to UI format
+			const mappedJobs: Job[] = (result.data || []).map((job: any) => ({
+				id: job.id,
+				title: job.title || 'Untitled Job',
+				department: job.department || 'General',
+				location: job.location || 'Not specified',
+				type: job.job_type || 'Full-time',
+				salary: formatSalary(job.salary_min, job.salary_max, job.currency),
+				applicants: parseInt(job.total_candidates) || 0,
+				status: job.status || 'draft',
+				recruiter: job.recruiter_name || 'Unassigned',
+				posted: formatRelativeTime(job.created_at),
+				description: job.description || '',
+				stages: {
+					cvScreened: parseInt(job.new_applications) || 0,
+					aiInterview: parseInt(job.in_interview) || 0,
+					hiringManager: 0,
+					offerStage: parseInt(job.in_offer) || 0,
+					hired: parseInt(job.hired) || 0,
+					rejected: 0,
+				}
+			}))
+			
+			setJobs(mappedJobs)
+		} catch (err) {
+			console.error('Error fetching jobs:', err)
+			setError(err instanceof Error ? err.message : 'Failed to load jobs')
+		} finally {
+			setIsLoading(false)
+		}
+	}, [])
+
+	// Fetch jobs on mount
+	useEffect(() => {
+		fetchJobs()
+	}, [fetchJobs])
+
+	// Handle job posting dialog close - refresh data
+	const handleJobPostingClose = () => {
+		setShowJobPostingDialog(false)
+		fetchJobs() // Refresh jobs list after adding new job
+	}
+
 	// Function to apply filters to jobs (excluding status filter)
-	const applyJobFilters = (jobList: any[]) => {
+	const applyJobFilters = (jobList: Job[]) => {
 		return jobList.filter(job => {
 			const matchesSearch = searchQuery === '' || 
 				job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -74,149 +178,6 @@ export default function JobsPage() {
 			return matchesSearch && matchesDepartment && matchesLocation && matchesRecruiter
 		})
 	}
-
-	const jobs = [
-		{
-			id: 1,
-			title: 'Senior Full Stack Developer',
-			department: 'Engineering',
-			location: 'San Francisco, CA',
-			type: 'Full-time',
-			salary: '$120k - $180k',
-			applicants: 45,
-			status: 'open',
-			recruiter: 'Sarah Johnson',
-			posted: '2 days ago',
-			stages: {
-				cvScreened: 18,
-				aiInterview: 12,
-				hiringManager: 8,
-				offerStage: 3,
-				hired: 2,
-				rejected: 2,
-			}
-		},
-		{
-			id: 2,
-			title: 'Product Manager',
-			department: 'Product',
-			location: 'Remote',
-			type: 'Full-time',
-			salary: '$100k - $150k',
-			applicants: 32,
-			status: 'open',
-			recruiter: 'Mike Davis',
-			posted: '5 days ago',
-			stages: {
-				cvScreened: 12,
-				aiInterview: 9,
-				hiringManager: 6,
-				offerStage: 2,
-				hired: 1,
-				rejected: 2,
-			}
-		},
-		{
-			id: 3,
-			title: 'UX/UI Designer',
-			department: 'Design',
-			location: 'New York, NY',
-			type: 'Full-time',
-			salary: '$90k - $130k',
-			applicants: 28,
-			status: 'open',
-			recruiter: 'Jennifer Chen',
-			posted: '1 week ago',
-			stages: {
-				cvScreened: 10,
-				aiInterview: 7,
-				hiringManager: 5,
-				offerStage: 2,
-				hired: 2,
-				rejected: 2,
-			}
-		},
-		{
-			id: 4,
-			title: 'Data Scientist',
-			department: 'Analytics',
-			location: 'Austin, TX',
-			type: 'Full-time',
-			salary: '$110k - $160k',
-			applicants: 19,
-			status: 'closed',
-			recruiter: 'Sarah Johnson',
-			posted: '3 days ago',
-			stages: {
-				cvScreened: 8,
-				aiInterview: 5,
-				hiringManager: 3,
-				offerStage: 1,
-				hired: 1,
-				rejected: 1,
-			}
-		},
-		{
-			id: 5,
-			title: 'DevOps Engineer',
-			department: 'Engineering',
-			location: 'Remote',
-			type: 'Contract',
-			salary: '$130k - $170k',
-			applicants: 15,
-			status: 'draft',
-			recruiter: 'Mike Davis',
-			posted: '1 day ago',
-			stages: {
-				cvScreened: 6,
-				aiInterview: 4,
-				hiringManager: 2,
-				offerStage: 1,
-				hired: 1,
-				rejected: 1,
-			}
-		},
-		{
-			id: 6,
-			title: 'Marketing Manager',
-			department: 'Marketing',
-			location: 'Los Angeles, CA',
-			type: 'Full-time',
-			salary: '$85k - $120k',
-			applicants: 41,
-			status: 'onhold',
-			recruiter: 'Jennifer Chen',
-			posted: '1 week ago',
-			stages: {
-				cvScreened: 15,
-				aiInterview: 11,
-				hiringManager: 7,
-				offerStage: 3,
-				hired: 2,
-				rejected: 3,
-			}
-		},
-		{
-			id: 7,
-			title: 'Sales Executive',
-			department: 'Sales',
-			location: 'Chicago, IL',
-			type: 'Full-time',
-			salary: '$70k - $100k',
-			applicants: 22,
-			status: 'cancelled',
-			recruiter: 'Sarah Johnson',
-			posted: '2 weeks ago',
-			stages: {
-				cvScreened: 8,
-				aiInterview: 4,
-				hiringManager: 2,
-				offerStage: 0,
-				hired: 0,
-				rejected: 8,
-			}
-		},
-	]
 
 	// Calculate dynamic counts for each status based on filters
 	const getFilteredJobCount = (status: JobStatusType) => {
@@ -309,7 +270,7 @@ export default function JobsPage() {
 								<SelectItem value="director">Director</SelectItem>
 							</SelectContent>
 						</Select>
-						{viewAsRole === 'recruiter' && (
+						{viewAsRole === 'recruiter' && recruiters.length > 0 && (
 							<>
 								<span className="text-sm text-gray-400">|</span>
 								<Select value={viewAsRecruiter} onValueChange={setViewAsRecruiter}>
@@ -319,9 +280,7 @@ export default function JobsPage() {
 									<SelectContent>
 										<SelectItem value="all">All Recruiters</SelectItem>
 										{recruiters.map(r => (
-											<SelectItem key={typeof r === 'string' ? r : r.id} value={typeof r === 'string' ? r : r.id}>
-												{typeof r === 'string' ? r : r.name}
-											</SelectItem>
+											<SelectItem key={r} value={r}>{r}</SelectItem>
 										))}
 									</SelectContent>
 								</Select>
@@ -370,9 +329,8 @@ export default function JobsPage() {
 					<Select
 						value={departmentFilter}
 						onValueChange={(e) => setDepartmentFilter(e)}
-						className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
 					>
-						<SelectTrigger>
+						<SelectTrigger className="w-[140px]">
 							<SelectValue placeholder="Select department" />
 						</SelectTrigger>
 						<SelectContent>
@@ -385,9 +343,8 @@ export default function JobsPage() {
 					<Select
 						value={locationFilter}
 						onValueChange={(e) => setLocationFilter(e)}
-						className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
 					>
-						<SelectTrigger>
+						<SelectTrigger className="w-[140px]">
 							<SelectValue placeholder="Select location" />
 						</SelectTrigger>
 						<SelectContent>
@@ -400,9 +357,8 @@ export default function JobsPage() {
 					<Select
 						value={recruiterFilter}
 						onValueChange={(e) => setRecruiterFilter(e)}
-						className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
 					>
-						<SelectTrigger>
+						<SelectTrigger className="w-[140px]">
 							<SelectValue placeholder="Select recruiter" />
 						</SelectTrigger>
 						<SelectContent>
@@ -460,12 +416,46 @@ export default function JobsPage() {
 
 			{/* Jobs List - Mobile Responsive */}
 			<div className="space-y-2 md:space-y-3">
-				{filteredJobs.length === 0 ? (
+				{isLoading ? (
+					<Card className="p-8 text-center">
+						<div className="text-gray-500">
+							<Loader2 className="h-8 w-8 mx-auto mb-3 animate-spin text-blue-600" />
+							<p className="text-base font-medium">Loading jobs...</p>
+						</div>
+					</Card>
+				) : error ? (
+					<Card className="p-6 text-center">
+						<div className="text-red-500">
+							<XCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
+							<p className="text-base font-medium">Failed to load jobs</p>
+							<p className="text-sm mt-1">{error}</p>
+							<Button 
+								variant="outline" 
+								size="sm" 
+								className="mt-3"
+								onClick={fetchJobs}
+							>
+								<RefreshCw className="h-3 w-3 mr-1" />
+								Try Again
+							</Button>
+						</div>
+					</Card>
+				) : filteredJobs.length === 0 ? (
 					<Card className="p-6 text-center">
 						<div className="text-gray-500">
 							<Briefcase className="h-10 w-10 mx-auto mb-3 opacity-50" />
-							<p className="text-base font-medium">No jobs found</p>
-							<p className="text-sm mt-1">Try adjusting your filters or search query</p>
+							<p className="text-base font-medium">{jobs.length === 0 ? 'No jobs yet' : 'No jobs found'}</p>
+							<p className="text-sm mt-1">{jobs.length === 0 ? 'Click "Post New Job" to create your first job posting' : 'Try adjusting your filters or search query'}</p>
+							{jobs.length === 0 && (
+								<Button 
+									size="sm" 
+									className="mt-3"
+									onClick={() => setShowJobPostingDialog(true)}
+								>
+									<Plus className="h-3 w-3 mr-1" />
+									Post New Job
+								</Button>
+							)}
 						</div>
 					</Card>
 				) : (
@@ -606,7 +596,7 @@ export default function JobsPage() {
 
 			{/* Job Posting Dialog */}
 			{showJobPostingDialog && (
-				<JobPostingForm onClose={() => setShowJobPostingDialog(false)} />
+				<JobPostingForm onClose={handleJobPostingClose} />
 			)}
 
 			{/* Job Details Dialog */}
