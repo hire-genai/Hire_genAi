@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       const user = users.find(u => u.email === normEmail)
       
       if (!user) {
-        return NextResponse.json({ error: 'No account found with this email. Please sign up first.' }, { status: 400 })
+        return NextResponse.json({ error: 'User does not exist. Please sign up first before trying to login.' }, { status: 400 })
       }
 
       // Generate a mock OTP for development
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
       const { challenge, code } = await DatabaseService.createOtpChallenge(
         normEmail, 
         'login', 
-        'demo', 
+        'user', 
         undefined // No specific user ID for demo mode
       )
 
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
       // Regular login mode - user must be registered under the company matching their email domain
       const user = await DatabaseService.findUserByEmailAndCompanyDomain(normEmail)
       if (!user) {
-        return NextResponse.json({ error: 'Please register first before signing in.' }, { status: 400 })
+        return NextResponse.json({ error: 'User does not exist. Please sign up first before trying to login.' }, { status: 400 })
       }
 
       // Clean up any existing challenges for this email to prevent conflicts

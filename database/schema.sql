@@ -43,12 +43,14 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- Company size bands (used in signup and company profile)
 -- Already referenced in lib/database.ts as company_size
 CREATE TYPE company_size AS ENUM (
-  '1-10 employees',
-  '11-50 employees',
-  '51-200 employees',
-  '201-500 employees',
-  '501-1000 employees',
-  '1000+ employees'
+  '1-10',
+  '11-50',
+  '51-200',
+  '201-500',
+  '501-1000',
+  '1001-5000',
+  '5001-10000',
+  '10000+'
 );
 
 -- Principal type for multi-entity auth (users vs future service accounts)
@@ -300,63 +302,30 @@ CREATE INDEX idx_sessions_principal ON sessions (principal_type, principal_id);
 CREATE INDEX idx_sessions_expires_at ON sessions (expires_at);
 
 
--- ============================================================================
--- 3. HOMEPAGE ASSESSMENT / QUESTIONNAIRE
--- ============================================================================
 
 -- ---------------------------------------------------------------------------
--- 3a. assessments
--- WHY: Stores assessment/questionnaire submissions from the homepage.
+-- 3c. recruitment_assessments
+-- WHY: Stores homepage recruitment questionnaire submissions as a single row.
 --      The RecruitmentQuestionnaire component submits to /api/assessments/submit.
---      Supports PARTIAL saves (anonymous users) and COMPLETED submissions.
---      Links to user_id when logged in, uses session_id for anonymous.
--- USED BY: homepage questionnaire, /questionnaire-results, dashboard analytics
+--      Stores contact info, all 10 answers as JSON, calculated efficiency score,
+--      plus IP address and user agent for tracking.
+-- USED BY: homepage questionnaire → /api/assessments/submit → /questionnaire-results
 -- ---------------------------------------------------------------------------
-CREATE TABLE assessments (
-  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  company_id      UUID REFERENCES companies(id) ON DELETE SET NULL,  -- NULL for anonymous
-  user_id         UUID REFERENCES users(id) ON DELETE SET NULL,      -- NULL for anonymous
-  session_id      TEXT,                              -- browser session ID for anonymous tracking
-  -- Contact info collected in questionnaire
-  contact_name    TEXT,
-  contact_email   TEXT,
-  contact_company TEXT,
-  contact_phone   TEXT,
-  -- Submission metadata
-  status          assessment_status NOT NULL DEFAULT 'partial',
-  score           NUMERIC(5,2),                      -- calculated overall score
-  score_breakdown JSONB,                             -- { category: score } breakdown
-  completed_at    TIMESTAMPTZ,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE recruitment_assessments (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name              VARCHAR(255) NOT NULL,
+  email             CITEXT NOT NULL,
+  company           VARCHAR(255) NOT NULL,
+  phone             VARCHAR(50),
+  answers           JSONB DEFAULT '{}',
+  efficiency_score  INTEGER,
+  created_at        TIMESTAMPTZ(6) DEFAULT NOW(),
+  ip_address        INET,
+  user_agent        TEXT
 );
 
-CREATE INDEX idx_assessments_user_id ON assessments (user_id);
-CREATE INDEX idx_assessments_contact_email ON assessments (contact_email);
-CREATE INDEX idx_assessments_session_id ON assessments (session_id);
-CREATE INDEX idx_assessments_status ON assessments (status);
-
-
--- ---------------------------------------------------------------------------
--- 3b. assessment_answers
--- WHY: Stores individual question answers for each assessment.
---      Normalized to support partial submissions (save one answer at a time).
---      Questions are identified by question_key to decouple from UI ordering.
--- USED BY: homepage questionnaire, questionnaire-results
--- ---------------------------------------------------------------------------
-CREATE TABLE assessment_answers (
-  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  assessment_id   UUID NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
-  question_key    TEXT NOT NULL,                      -- e.g. "q1", "q2", ... "q10"
-  question_text   TEXT NOT NULL,                      -- the actual question text for auditing
-  answer_value    TEXT NOT NULL,                      -- selected answer
-  answer_index    INT,                               -- 0-based index of selected option
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-  UNIQUE (assessment_id, question_key)
-);
-
-CREATE INDEX idx_assessment_answers_assessment_id ON assessment_answers (assessment_id);
+CREATE INDEX idx_recruitment_assessments_email ON recruitment_assessments (email);
+CREATE INDEX idx_recruitment_assessments_created_at ON recruitment_assessments (created_at);
 
 
 -- ============================================================================
@@ -448,6 +417,14 @@ CREATE TABLE job_postings (
   agency_fee_pct              NUMERIC(5,2),
   job_board_costs             NUMERIC(12,2),
 
+  -- Auto Interview Scheduling (48-hour link expiration)
+  auto_schedule_interview     BOOLEAN DEFAULT FALSE,
+  interview_link_expiry_hours INT DEFAULT 48,
+  
+  -- Screening Questions (JSONB for flexible storage)
+  enable_screening_questions  BOOLEAN DEFAULT FALSE,
+  screening_questions         JSONB DEFAULT '{"minExperience": null, "expectedSkills": [], "expectedSalary": null, "noticePeriodNegotiable": null}',
+
   -- Status
   status                      job_status NOT NULL DEFAULT 'draft',
   published_at                TIMESTAMPTZ,
@@ -461,6 +438,31 @@ CREATE INDEX idx_job_postings_status ON job_postings (status);
 CREATE INDEX idx_job_postings_recruiter_id ON job_postings (recruiter_id);
 CREATE INDEX idx_job_postings_department ON job_postings (department);
 CREATE INDEX idx_job_postings_created_at ON job_postings (created_at DESC);
+
+
+-- ---------------------------------------------------------------------------
+-- 5b. job_interview_questions
+-- WHY: Stores AI-generated interview questions for each job posting.
+--      Selected evaluation criteria stored as JSONB array (max 5 criteria names).
+--      Questions stored as JSONB array with criterion mapping.
+--      Criteria options: Technical Skills, Problem Solving, Communication,
+--        Experience, Culture Fit, Teamwork / Collaboration, Leadership,
+--        Adaptability / Learning, Work Ethic / Reliability
+-- USED BY: JobPostingForm (Step 3), AI Interview, Candidate evaluation
+-- ---------------------------------------------------------------------------
+CREATE TABLE job_interview_questions (
+  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  job_id              UUID NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
+  selected_criteria   JSONB NOT NULL DEFAULT '[]',     -- e.g. ["Technical Skills", "Problem Solving", "Communication"]
+  questions           JSONB NOT NULL DEFAULT '[]',     -- e.g. [{"id": 1, "question": "...", "criterion": "Technical Skills"}, ...]
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  UNIQUE (job_id)
+);
+
+CREATE INDEX idx_job_interview_questions_job_id ON job_interview_questions (job_id);
+CREATE INDEX idx_job_interview_questions_criteria ON job_interview_questions USING GIN (selected_criteria);
 
 
 -- ============================================================================

@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useMobileMenu } from './mobile-menu-context'
+import { useAuth } from '@/contexts/auth-context'
 
 const navigationItems = [
   {
@@ -52,6 +53,12 @@ const navigationItems = [
 export function DashboardSidebar() {
   const pathname = usePathname()
   const { isMobileOpen, setIsMobileOpen, isCollapsed, setIsCollapsed } = useMobileMenu()
+  const { user, signOut } = useAuth()
+
+  const userName = user?.full_name || 'User'
+  const userEmail = user?.email || ''
+  const userRole = user?.role?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Member'
+  const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 
   return (
     <>
@@ -136,22 +143,22 @@ export function DashboardSidebar() {
 
           {/* User Profile */}
           {!isCollapsed ? (
-            <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg mt-3">
+            <div className="flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded-lg mt-3">
               <div className="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-semibold text-[10px] flex-shrink-0">
-                JD
+                {userInitials}
               </div>
               <div className="flex-1 min-w-0">
-                <h4 className="font-semibold text-xs truncate leading-tight">John Doe</h4>
-                <p className="text-[10px] text-gray-500 truncate leading-tight">john@company.com</p>
+                <h4 className="font-semibold text-xs truncate leading-tight">{userName}</h4>
+                <p className="text-[10px] text-gray-500 truncate leading-tight">{userEmail}</p>
                 <Badge className="mt-1 bg-emerald-100 hover:bg-emerald-100 text-emerald-700 text-[10px] px-1 py-0.5 leading-tight">
-                  HR Manager
+                  {userRole}
                 </Badge>
               </div>
             </div>
           ) : (
-            <div className="flex justify-center mt-3">
+            <div className="flex justify-center mt-3" title={userName}>
               <div className="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-semibold text-[10px]">
-                JD
+                {userInitials}
               </div>
             </div>
           )}
@@ -204,9 +211,10 @@ export function DashboardSidebar() {
             <Button
               variant="outline"
               className="w-full justify-start border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white text-xs h-8"
-              onClick={() => {
+              onClick={async () => {
                 if (confirm('Are you sure you want to logout?')) {
-                  window.location.href = '/'
+                  await signOut()
+                  window.location.href = '/login'
                 }
               }}
             >
@@ -219,9 +227,10 @@ export function DashboardSidebar() {
               size="icon"
               className="w-8 h-8 mx-auto border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white"
               title="Logout"
-              onClick={() => {
+              onClick={async () => {
                 if (confirm('Are you sure you want to logout?')) {
-                  window.location.href = '/'
+                  await signOut()
+                  window.location.href = '/login'
                 }
               }}
             >

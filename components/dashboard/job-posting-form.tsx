@@ -4,14 +4,40 @@ import { useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { X, Plus, Minus, Save, Send, CheckCircle } from 'lucide-react'
+import { X, Plus, Minus, Save, Send, CheckCircle, Sparkles, Loader2, RefreshCw } from 'lucide-react'
 
 interface JobPostingFormProps {
   onClose: () => void
 }
 
+// Evaluation criteria - simple list of names only
+const EVALUATION_CRITERIA = [
+  'Technical Skills',
+  'Problem Solving',
+  'Communication',
+  'Experience',
+  'Culture Fit',
+  'Teamwork / Collaboration',
+  'Leadership',
+  'Adaptability / Learning',
+  'Work Ethic / Reliability',
+]
+
+interface InterviewQuestion {
+  id: number
+  question: string
+  criterion: string
+  isCustom?: boolean
+}
+
 export function JobPostingForm({ onClose }: JobPostingFormProps) {
   const [currentStep, setCurrentStep] = useState(1)
+  const [selectedCriteria, setSelectedCriteria] = useState<string[]>([])
+  const [interviewQuestions, setInterviewQuestions] = useState<InterviewQuestion[]>([])
+  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false)
+  const [customQuestionText, setCustomQuestionText] = useState('')
+  const [customQuestionCriterion, setCustomQuestionCriterion] = useState('')
+  const [isAddingCustomQuestion, setIsAddingCustomQuestion] = useState(false)
   const [formData, setFormData] = useState({
     // Basic Job Information
     jobTitle: '',
@@ -61,6 +87,23 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
     targetSources: [] as string[],
     diversityGoals: false,
     diversityTargetPercentage: '',
+    
+    // AI Interview Questions (Step 3)
+    selectedCriteriaIds: [] as string[],
+    generatedQuestions: [] as InterviewQuestion[],
+    
+    // Auto Schedule Interview
+    autoScheduleInterview: false,
+    interviewLinkExpiryHours: 48,
+    
+    // Screening Questions (Step 4)
+    enableScreeningQuestions: false,
+    screeningQuestions: {
+      minExperience: '',
+      expectedSkills: [] as string[],
+      expectedSalary: '',
+      noticePeriodNegotiable: null as boolean | null,
+    },
   })
 
   const updateField = (field: string, value: any) => {
@@ -97,6 +140,149 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
     }))
   }
 
+  const toggleCriterionSelection = (criterionName: string) => {
+    setSelectedCriteria(prev => {
+      if (prev.includes(criterionName)) {
+        return prev.filter(name => name !== criterionName)
+      } else if (prev.length < 5) {
+        return [...prev, criterionName]
+      }
+      return prev // Max 5 criteria
+    })
+  }
+
+
+  const generateInterviewQuestions = async () => {
+    if (selectedCriteria.length === 0) {
+      alert('Please select at least one evaluation criterion')
+      return
+    }
+    if (!formData.jobDescription) {
+      alert('Please fill in the job description in Step 2 first')
+      return
+    }
+
+    setIsGeneratingQuestions(true)
+    
+    try {
+      // Build criteria list for the prompt
+      const selectedCriteriaNames = selectedCriteria
+
+      // Simulate AI generation (replace with actual API call)
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Generate mock questions based on selected criteria
+      const mockQuestions: InterviewQuestion[] = []
+      let questionId = 1
+      
+      // Distribute 10 questions across selected criteria
+      const questionsPerCriterion = Math.floor(10 / selectedCriteria.length)
+      const remainder = 10 % selectedCriteria.length
+      
+      selectedCriteria.forEach((criterionName, index) => {
+        const numQuestions = questionsPerCriterion + (index < remainder ? 1 : 0)
+        
+        for (let i = 0; i < numQuestions; i++) {
+          mockQuestions.push({
+            id: questionId++,
+            question: getQuestionForCriterion(criterionName, i),
+            criterion: criterionName
+          })
+        }
+      })
+      
+      setInterviewQuestions(mockQuestions)
+    } catch (error) {
+      console.error('Error generating questions:', error)
+      alert('Failed to generate questions. Please try again.')
+    } finally {
+      setIsGeneratingQuestions(false)
+    }
+  }
+
+  const getQuestionForCriterion = (criterionName: string, index: number): string => {
+    const questionBank: Record<string, string[]> = {
+      'Technical Skills': [
+        'Tell me about a challenging technical problem you solved recently. What was your approach?',
+        'How do you stay updated with the latest technologies in your field?',
+        'Describe your experience with the core technologies mentioned in this role.',
+      ],
+      'Problem Solving': [
+        'Walk me through how you would debug a complex issue in production.',
+        'Describe a situation where you had to find a creative solution to a difficult problem.',
+        'How do you approach breaking down a large, ambiguous problem into manageable parts?',
+      ],
+      'Communication': [
+        'How do you explain complex technical concepts to non-technical stakeholders?',
+        'Tell me about a time when miscommunication caused an issue. How did you resolve it?',
+        'How do you ensure your written documentation is clear and helpful?',
+      ],
+      'Experience': [
+        'What aspects of your previous roles have best prepared you for this position?',
+        'Describe a project you\'re most proud of and your specific contributions.',
+        'How has your career progression led you to apply for this role?',
+      ],
+      'Culture Fit': [
+        'What kind of work environment helps you do your best work?',
+        'What motivates you to come to work every day?',
+        'How do you align your personal values with your professional work?',
+      ],
+      'Teamwork / Collaboration': [
+        'Tell me about a time you had to work with a difficult team member.',
+        'How do you handle disagreements within a team setting?',
+        'Describe your approach to sharing knowledge with teammates.',
+      ],
+      'Leadership': [
+        'Tell me about a time you led a project or initiative.',
+        'How do you motivate and support team members who are struggling?',
+        'Describe your approach to making decisions that affect your team.',
+      ],
+      'Adaptability / Learning': [
+        'Tell me about a time you had to quickly learn a new technology or process.',
+        'How do you handle sudden changes in project requirements?',
+        'Describe a situation where you had to step outside your comfort zone.',
+      ],
+      'Work Ethic / Reliability': [
+        'How do you manage competing priorities and tight deadlines?',
+        'Tell me about a time you went above and beyond to deliver results.',
+        'How do you ensure consistent quality in your work?',
+      ],
+    }
+    
+    const questions = questionBank[criterionName] || ['Tell me about your experience related to this area.']
+    return questions[index % questions.length]
+  }
+
+  const addCustomQuestion = () => {
+    if (!customQuestionText.trim() || !customQuestionCriterion) return
+    
+    const newQuestion: InterviewQuestion = {
+      id: interviewQuestions.length > 0 ? Math.max(...interviewQuestions.map(q => q.id)) + 1 : 1,
+      question: customQuestionText.trim(),
+      criterion: customQuestionCriterion,
+      isCustom: true,
+    }
+    
+    setInterviewQuestions(prev => [...prev, newQuestion])
+    setCustomQuestionText('')
+    setCustomQuestionCriterion('')
+    setIsAddingCustomQuestion(false)
+  }
+
+  const removeQuestion = (questionId: number) => {
+    setInterviewQuestions(prev => prev.filter(q => q.id !== questionId))
+  }
+
+  const updateScreeningField = (field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      screeningQuestions: {
+        ...prev.screeningQuestions,
+        [field]: value,
+      },
+    }))
+  }
+
   const handleSubmit = (isDraft: boolean) => {
     const status = isDraft ? 'Draft' : 'Open'
     alert(`Job posting ${isDraft ? 'saved as draft' : 'published'}!\n\nStatus: ${status}\nTitle: ${formData.jobTitle}\nDepartment: ${formData.department}`)
@@ -104,10 +290,12 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
   }
 
   const steps = [
-    { number: 1, title: 'Job Basics', fields: 10 },
-    { number: 2, title: 'Job Details', fields: 8 },
-    { number: 3, title: 'Team & Planning', fields: 7 },
-    { number: 4, title: 'Metrics & Tracking', fields: 8 },
+    { number: 1, title: 'Job Description', fields: 10 },
+    { number: 2, title: 'Evaluation Criteria', fields: 5 },
+    { number: 3, title: 'Interview Questions', fields: 2 },
+    { number: 4, title: 'Screening Questions', fields: 4 },
+    { number: 5, title: 'Team & Planning', fields: 7 },
+    { number: 6, title: 'Metrics', fields: 8 },
   ]
 
   return (
@@ -421,8 +609,311 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
             </div>
           )}
 
-          {/* Step 3: Team & Planning */}
+          {/* Step 2: Evaluation Criteria */}
+          {currentStep === 2 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-lg">Evaluation Criteria</h4>
+                <span className="text-xs text-gray-500">{selectedCriteria.length}/5 selected</span>
+              </div>
+              <p className="text-sm text-gray-600">Select up to 5 criteria to evaluate candidates during interviews.</p>
+              
+              <div className="flex flex-wrap gap-2">
+                {EVALUATION_CRITERIA.map(criterion => {
+                  const isSelected = selectedCriteria.includes(criterion)
+                  const isDisabled = !isSelected && selectedCriteria.length >= 5
+                  
+                  return (
+                    <div
+                      key={criterion}
+                      onClick={() => !isDisabled && toggleCriterionSelection(criterion)}
+                      className={`px-3 py-1.5 border rounded-md cursor-pointer transition-all text-sm ${
+                        isSelected
+                          ? 'bg-blue-600 border-blue-600 text-white'
+                          : isDisabled
+                          ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                          : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400 hover:bg-blue-50'
+                      }`}
+                    >
+                      {criterion}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Interview Questions */}
           {currentStep === 3 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-lg">Interview Questions ({interviewQuestions.length})</h4>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsAddingCustomQuestion(true)}
+                    className="bg-transparent flex items-center gap-1.5 text-sm"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Custom
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={generateInterviewQuestions}
+                    disabled={selectedCriteria.length === 0 || isGeneratingQuestions}
+                    className="bg-transparent flex items-center gap-1.5 text-sm"
+                  >
+                    {isGeneratingQuestions ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-3.5 w-3.5" />
+                        AI Generate
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Custom Question Input */}
+              {isAddingCustomQuestion && (
+                <div className="border rounded-lg p-3 bg-blue-50">
+                  <h5 className="text-sm font-semibold text-gray-700 mb-2">Add Custom Interview Question</h5>
+                  
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Question <span className="text-red-500">*</span></label>
+                      <div className="flex gap-2 items-start">
+                        <textarea
+                          value={customQuestionText}
+                          onChange={(e) => setCustomQuestionText(e.target.value)}
+                          rows={2}
+                          className="flex-1 px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Type your custom interview question..."
+                          autoFocus
+                        />
+                        <select
+                          value={customQuestionCriterion}
+                          onChange={(e) => setCustomQuestionCriterion(e.target.value)}
+                          className="w-32 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0"
+                        >
+                          <option value="">Criteria...</option>
+                          {EVALUATION_CRITERIA.map(criterion => (
+                            <option key={criterion} value={criterion}>{criterion}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <Button 
+                        size="sm" 
+                        onClick={addCustomQuestion} 
+                        disabled={!customQuestionText.trim() || !customQuestionCriterion}
+                      >
+                        <Plus className="h-3.5 w-3.5 mr-1" />
+                        Add Question
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => { 
+                          setIsAddingCustomQuestion(false)
+                          setCustomQuestionText('')
+                          setCustomQuestionCriterion('')
+                        }} 
+                        className="bg-transparent"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Questions List */}
+              {interviewQuestions.length === 0 && !isAddingCustomQuestion ? (
+                <div className="border border-dashed rounded-lg p-6 text-center">
+                  <p className="text-gray-500 text-sm">No questions added yet</p>
+                  <p className="text-gray-400 text-xs mt-1">Click "AI Generate" to auto-generate questions or "Add Custom" to add manually</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 bg-transparent text-sm"
+                    onClick={() => setIsAddingCustomQuestion(true)}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Add a custom question...
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {interviewQuestions.map((q, index) => (
+                    <div key={q.id} className="flex items-start gap-2 p-2 bg-gray-50 border rounded group">
+                      <span className={`flex-shrink-0 w-5 h-5 ${q.isCustom ? 'bg-green-600' : 'bg-blue-600'} text-white rounded-full flex items-center justify-center text-xs font-medium`}>
+                        {index + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-800">{q.question}</p>
+                        <span className="text-[10px] text-gray-500 mt-0.5 inline-block">{q.criterion}</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeQuestion(q.id)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 bg-transparent"
+                      >
+                        <X className="h-3.5 w-3.5 text-gray-400 hover:text-red-500" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Auto Schedule Interview */}
+              <div className="border-t pt-4 mt-4">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="autoScheduleInterview"
+                    checked={formData.autoScheduleInterview}
+                    onChange={(e) => updateField('autoScheduleInterview', e.target.checked)}
+                    className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  />
+                  <label htmlFor="autoScheduleInterview" className="text-sm font-medium text-gray-700">
+                    Auto Schedule Interview
+                  </label>
+                </div>
+                {formData.autoScheduleInterview && (
+                  <div className="mt-3 ml-7 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-xs text-green-800">
+                      <strong>Enabled:</strong> Qualified candidates will automatically receive an interview link valid for <strong>48 hours</strong>. 
+                      No calendar events will be created - candidates can start the interview anytime within the window.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Screening Questions */}
+          {currentStep === 4 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-lg">Screening Questions</h4>
+              </div>
+              
+              {/* Enable Screening Questions Toggle */}
+              <div className="flex items-center gap-3 p-3 bg-gray-50 border rounded-lg">
+                <input
+                  type="checkbox"
+                  id="enableScreeningQuestions"
+                  checked={formData.enableScreeningQuestions}
+                  onChange={(e) => updateField('enableScreeningQuestions', e.target.checked)}
+                  className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                />
+                <label htmlFor="enableScreeningQuestions" className="text-sm font-medium text-gray-700">
+                  Enable Screening Questions
+                </label>
+              </div>
+
+              {!formData.enableScreeningQuestions ? (
+                <div className="border border-dashed rounded-lg p-6 text-center">
+                  <p className="text-gray-500 text-sm">Screening questions are disabled</p>
+                  <p className="text-gray-400 text-xs mt-1">Enable the checkbox above to collect pre-interview information from candidates</p>
+                </div>
+              ) : (
+                <div className="space-y-4 p-4 border rounded-lg bg-blue-50/50">
+                  <p className="text-xs text-gray-600">These questions will be shown to candidates before they can access the interview.</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Total Work Experience (in years) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.screeningQuestions.minExperience}
+                        onChange={(e) => updateScreeningField('minExperience', e.target.value)}
+                        className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        placeholder="Minimum years required"
+                        min="0"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Expected Salary <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.screeningQuestions.expectedSalary}
+                        onChange={(e) => updateScreeningField('expectedSalary', e.target.value)}
+                        className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        placeholder="Expected salary range"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Expected Skills <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={formData.screeningQuestions.expectedSkills.join(', ')}
+                      onChange={(e) => updateScreeningField('expectedSkills', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                      rows={2}
+                      className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      placeholder="Enter skills separated by commas (e.g., React, Node.js, TypeScript)"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Is your notice period negotiable? <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="noticePeriodNegotiable"
+                          checked={formData.screeningQuestions.noticePeriodNegotiable === true}
+                          onChange={() => updateScreeningField('noticePeriodNegotiable', true)}
+                          className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">Yes</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="noticePeriodNegotiable"
+                          checked={formData.screeningQuestions.noticePeriodNegotiable === false}
+                          onChange={() => updateScreeningField('noticePeriodNegotiable', false)}
+                          className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">No</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-xs text-amber-800">
+                      <strong>Note:</strong> These screening questions are used for quick candidate filtering. 
+                      Candidates must answer these before proceeding to the interview.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 5: Team & Planning */}
+          {currentStep === 5 && (
             <div className="space-y-4">
               <h4 className="font-semibold text-lg border-b pb-2">Hiring Team & Planning</h4>
               
@@ -545,8 +1036,8 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
             </div>
           )}
 
-          {/* Step 4: Metrics & Tracking */}
-          {currentStep === 4 && (
+          {/* Step 6: Metrics & Tracking */}
+          {currentStep === 6 && (
             <div className="space-y-4">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                 <h5 className="text-sm font-semibold text-blue-900 mb-1">Dashboard KPI Tracking</h5>

@@ -12,6 +12,7 @@ export default function QuestionnaireResults() {
   const searchParams = useSearchParams()
   const [score, setScore] = useState(0)
   const [contactInfo, setContactInfo] = useState({ name: "", email: "", company: "" })
+  const [answers, setAnswers] = useState<Record<string, string>>({})
 
   useEffect(() => {
     // Get data from URL params or localStorage
@@ -29,14 +30,24 @@ export default function QuestionnaireResults() {
       })
     } else {
       // Fallback to localStorage if no params
-      const storedScore = localStorage.getItem('questionnaireScore')
-      const storedContact = localStorage.getItem('questionnaireContact')
+      if (typeof window !== 'undefined') {
+        const storedScore = window.localStorage.getItem('questionnaireScore')
+        const storedContact = window.localStorage.getItem('questionnaireContact')
+        const storedAnswers = window.localStorage.getItem('questionnaireAnswers')
 
-      if (storedScore) {
-        setScore(parseInt(storedScore))
-      }
-      if (storedContact) {
-        setContactInfo(JSON.parse(storedContact))
+        if (storedScore) {
+          setScore(parseInt(storedScore))
+        }
+        if (storedContact) {
+          setContactInfo(JSON.parse(storedContact))
+        }
+        if (storedAnswers) {
+          try {
+            setAnswers(JSON.parse(storedAnswers))
+          } catch (e) {
+            console.warn('Failed to parse stored questionnaireAnswers', e)
+          }
+        }
       }
     }
   }, [searchParams])
@@ -67,9 +78,6 @@ export default function QuestionnaireResults() {
 
   const getRecommendations = () => {
     const recommendations: string[] = []
-
-    // Get answers from localStorage or URL params
-    const answers = JSON.parse(localStorage.getItem('questionnaireAnswers') || '{}')
 
     if (answers["question-2"] && parseInt(answers["question-2"]) >= 3) {
       recommendations.push("Implement AI-powered CV screening to reduce manual review time by up to 80%")
@@ -158,16 +166,16 @@ export default function QuestionnaireResults() {
               </nav>
             </div>
             <div className="flex items-center space-x-4">
-              <Link href={getAppUrl('/login')} target="_blank" rel="noopener noreferrer">
+              <Link href={getAppUrl('/login')}>
                 <Button
                   variant="ghost"
-                  className="text-gray-700 hover:text-emerald-600 font-medium"
+                  className="text-gray-700 hover:text-emerald-600 font-medium cursor-pointer"
                 >
                   Login
                 </Button>
               </Link>
-              <Link href={getAppUrl('/signup')} target="_blank" rel="noopener noreferrer">
-                <Button className="sr-button-primary">Get started</Button>
+              <Link href={getAppUrl('/signup')}>
+                <Button className="sr-button-primary cursor-pointer">Get started</Button>
               </Link>
             </div>
           </div>

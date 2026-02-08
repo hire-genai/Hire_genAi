@@ -319,7 +319,9 @@ export default function JobsPage() {
 									<SelectContent>
 										<SelectItem value="all">All Recruiters</SelectItem>
 										{recruiters.map(r => (
-											<SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+											<SelectItem key={typeof r === 'string' ? r : r.id} value={typeof r === 'string' ? r : r.id}>
+												{typeof r === 'string' ? r : r.name}
+											</SelectItem>
 										))}
 									</SelectContent>
 								</Select>
