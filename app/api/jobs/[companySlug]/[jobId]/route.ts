@@ -92,7 +92,20 @@ export async function GET(
 
     // Check if screening is enabled
     const screeningEnabled = job.enable_screening_questions === true
-    const screeningConfig = job.screening_questions || {}
+    let screeningConfig = job.screening_questions || {}
+
+    // Parse if string
+    if (typeof screeningConfig === 'string') {
+      try { screeningConfig = JSON.parse(screeningConfig) } catch { screeningConfig = {} }
+    }
+
+    // Normalize expectedSkills: split any multiline strings into individual items
+    if (screeningConfig && Array.isArray(screeningConfig.expectedSkills)) {
+      screeningConfig.expectedSkills = screeningConfig.expectedSkills
+        .flatMap((s: string) => s.split('\n'))
+        .map((s: string) => s.trim())
+        .filter((s: string) => s.length > 0)
+    }
 
     return NextResponse.json({
       success: true,
@@ -118,6 +131,7 @@ export async function GET(
         expectedStartDate: job.expected_start_date,
         status: job.status,
         publishedAt: job.published_at,
+        clientCompanyName: job.client_company_name || null,
         // Screening config
         screeningEnabled,
         screeningConfig,

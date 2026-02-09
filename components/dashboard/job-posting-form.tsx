@@ -67,6 +67,9 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
     certificationsRequired: '',
     languagesRequired: '',
     
+    // Client Company
+    clientCompanyName: '',
+    
     // Capacity & Planning
     numberOfOpenings: '1',
     hiringPriority: 'Medium',
@@ -103,6 +106,8 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
       expectedSkills: [] as string[],
       expectedSalary: '',
       noticePeriodNegotiable: null as boolean | null,
+      workAuthorization: '' as string,
+      noticePeriod: '',
     },
   })
 
@@ -301,6 +306,15 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
         },
         body: JSON.stringify({
           ...formData,
+          // Merge fetched values into screeningQuestions before saving
+          screeningQuestions: formData.enableScreeningQuestions ? {
+            ...formData.screeningQuestions,
+            minExperience: formData.screeningQuestions.minExperience || formData.experienceYears,
+            expectedSalary: formData.screeningQuestions.expectedSalary || formData.salaryMax,
+            expectedSkills: formData.screeningQuestions.expectedSkills.length > 0 
+              ? formData.screeningQuestions.expectedSkills 
+              : formData.requiredSkills.filter((s: string) => s.trim()),
+          } : formData.screeningQuestions,
           selectedCriteria,
           interviewQuestions,
           isDraft,
@@ -647,6 +661,28 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
           {/* Step 3: Interview Questions */}
           {currentStep === 3 && (
             <div className="space-y-4">
+              {/* Auto Schedule Interview - moved to top */}
+              <div className="flex items-center gap-3 p-3 bg-gray-50 border rounded-lg">
+                <input
+                  type="checkbox"
+                  id="autoScheduleInterview"
+                  checked={formData.autoScheduleInterview}
+                  onChange={(e) => updateField('autoScheduleInterview', e.target.checked)}
+                  className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                />
+                <label htmlFor="autoScheduleInterview" className="text-sm font-medium text-gray-700">
+                  Auto Schedule Interview
+                </label>
+              </div>
+              {formData.autoScheduleInterview && (
+                <div className="ml-0 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-xs text-green-800">
+                    <strong>Enabled:</strong> Qualified candidates will automatically receive an interview link valid for <strong>48 hours</strong>. 
+                    No calendar events will be created - candidates can start the interview anytime within the window.
+                  </p>
+                </div>
+              )}
+
               {/* Evaluation Criteria Section */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -810,29 +846,6 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
                 </div>
               )}
 
-              {/* Auto Schedule Interview */}
-              <div className="border-t pt-4 mt-4">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    id="autoScheduleInterview"
-                    checked={formData.autoScheduleInterview}
-                    onChange={(e) => updateField('autoScheduleInterview', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                  />
-                  <label htmlFor="autoScheduleInterview" className="text-sm font-medium text-gray-700">
-                    Auto Schedule Interview
-                  </label>
-                </div>
-                {formData.autoScheduleInterview && (
-                  <div className="mt-3 ml-7 p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <p className="text-xs text-green-800">
-                      <strong>Enabled:</strong> Qualified candidates will automatically receive an interview link valid for <strong>48 hours</strong>. 
-                      No calendar events will be created - candidates can start the interview anytime within the window.
-                    </p>
-                  </div>
-                )}
-              </div>
               </div>
             </div>
           )}
@@ -870,69 +883,124 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Total Work Experience (in years) <span className="text-red-500">*</span>
+                        Year of Experience <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="number"
-                        value={formData.screeningQuestions.minExperience}
+                        value={formData.screeningQuestions.minExperience || formData.experienceYears}
                         onChange={(e) => updateScreeningField('minExperience', e.target.value)}
                         className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                        placeholder="Minimum years required"
-                        min="0"
+                        placeholder="e.g. 3"
                       />
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Expected Salary <span className="text-red-500">*</span>
+                        Max Salary Offer <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="number"
-                        value={formData.screeningQuestions.expectedSalary}
+                        value={formData.screeningQuestions.expectedSalary || formData.salaryMax}
                         onChange={(e) => updateScreeningField('expectedSalary', e.target.value)}
                         className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                        placeholder="Expected salary range"
+                        placeholder="e.g. 80000"
                       />
                     </div>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Expected Skills <span className="text-red-500">*</span>
+                      Required Skills <span className="text-red-500">*</span>
                     </label>
                     <textarea
-                      value={formData.screeningQuestions.expectedSkills.join(', ')}
-                      onChange={(e) => updateScreeningField('expectedSkills', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-                      rows={2}
+                      value={formData.screeningQuestions.expectedSkills.length > 0 ? formData.screeningQuestions.expectedSkills.join('\n') : formData.requiredSkills.filter(s => s.trim()).join('\n')}
+                      onChange={(e) => updateScreeningField('expectedSkills', e.target.value.split('\n').map((s: string) => s.trim()).filter(Boolean))}
+                      rows={4}
                       className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      placeholder="Enter skills separated by commas (e.g., React, Node.js, TypeScript)"
+                      placeholder={"Enter each skill on a new line, e.g.:\nReact\nNode.js\nSQL"}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Is your notice period negotiable? <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Client Company Name
                     </label>
-                    <div className="flex gap-4">
+                    <input
+                      type="text"
+                      value={formData.clientCompanyName}
+                      onChange={(e) => updateField('clientCompanyName', e.target.value)}
+                      className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      placeholder="e.g. TCS, Infosys"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Notice Period <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.screeningQuestions.noticePeriod}
+                        onChange={(e) => updateScreeningField('noticePeriod', e.target.value)}
+                        className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        placeholder="e.g. 30 days, 2 months, Immediate"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Is notice period negotiable? <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="noticePeriodNegotiable"
+                            checked={formData.screeningQuestions.noticePeriodNegotiable === true}
+                            onChange={() => updateScreeningField('noticePeriodNegotiable', true)}
+                            className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">Yes</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="noticePeriodNegotiable"
+                            checked={formData.screeningQuestions.noticePeriodNegotiable === false}
+                            onChange={() => updateScreeningField('noticePeriodNegotiable', false)}
+                            className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">No</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Work Authorization <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex gap-6">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="radio"
-                          name="noticePeriodNegotiable"
-                          checked={formData.screeningQuestions.noticePeriodNegotiable === true}
-                          onChange={() => updateScreeningField('noticePeriodNegotiable', true)}
+                          name="workAuthorization"
+                          checked={formData.screeningQuestions.workAuthorization === 'visa_sponsorship'}
+                          onChange={() => updateScreeningField('workAuthorization', 'visa_sponsorship')}
                           className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
                         />
-                        <span className="text-sm text-gray-700">Yes</span>
+                        <span className="text-sm text-gray-700">Visa sponsorship available</span>
                       </label>
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="radio"
-                          name="noticePeriodNegotiable"
-                          checked={formData.screeningQuestions.noticePeriodNegotiable === false}
-                          onChange={() => updateScreeningField('noticePeriodNegotiable', false)}
+                          name="workAuthorization"
+                          checked={formData.screeningQuestions.workAuthorization === 'must_have_authorization'}
+                          onChange={() => updateScreeningField('workAuthorization', 'must_have_authorization')}
                           className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
                         />
-                        <span className="text-sm text-gray-700">No</span>
+                        <span className="text-sm text-gray-700">Must already have work authorization</span>
                       </label>
                     </div>
                   </div>
@@ -954,6 +1022,20 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
               <h4 className="font-semibold text-lg border-b pb-2">Hiring Team & Planning</h4>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Client Company Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.clientCompanyName}
+                    onChange={(e) => updateField('clientCompanyName', e.target.value)}
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g. TCS, Infosys"
+                    required
+                  />
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Recruiter Assigned <span className="text-red-500">*</span>

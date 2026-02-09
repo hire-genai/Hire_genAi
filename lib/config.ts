@@ -24,3 +24,23 @@ export const config = {
 export function getConfig() {
   return config
 }
+
+export function getBillingPrices() {
+  return {
+    cvParsingCost: parseFloat(process.env.COST_PER_CV_PARSING || '0.50'),
+    questionGenerationCostPer10: parseFloat(process.env.COST_PER_10_QUESTIONS || '0.30'),
+    videoInterviewCostPerMinute: parseFloat(process.env.COST_PER_VIDEO_MINUTE || '0.10'),
+  }
+}
+
+export function getCVParsingCost(): number {
+  return parseFloat(process.env.COST_PER_CV_PARSING || '0.50')
+}
+
+export function getQuestionGenerationCostPer10(): number {
+  return parseFloat(process.env.COST_PER_10_QUESTIONS || '0.30')
+}
+
+export function getVideoInterviewCostPerMinute(): number {
+  return parseFloat(process.env.COST_PER_VIDEO_MINUTE || '0.10')
+}

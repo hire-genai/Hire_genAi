@@ -164,7 +164,7 @@ export class DatabaseService {
       const projectDescription = `Project for ${finalCompanyName}${signupData.industry ? ` - ${signupData.industry}` : ''}`
       console.log(`[Company Signup] 📝 Project description: ${projectDescription}`)
       
-      const project = await createOpenAIProject(finalCompanyName, projectDescription)
+      const project = await createOpenAIProject(finalCompanyName)
       console.log(`[Company Signup] 📦 Received project response:`, project)
       
       if (project?.id) {
@@ -178,9 +178,9 @@ export class DatabaseService {
         const serviceAccount = await createServiceAccount(project.id)
         console.log(`[Company Signup] 📦 Received service account response:`, serviceAccount)
         
-        if (serviceAccount?.api_key) {
+        if (serviceAccount?.apiKey) {
           // Encrypt the API key before storing
-          openaiServiceAccountKey = encrypt(serviceAccount.api_key)
+          openaiServiceAccountKey = encrypt(serviceAccount.apiKey)
           console.log(`[Company Signup] ✅ Service account created and encrypted for project: ${project.id}`)
         } else {
           console.warn(`[Company Signup] ⚠️ Service account creation returned null for project: ${project.id}`)
@@ -374,7 +374,7 @@ export class DatabaseService {
   }
 
   // Create OTP challenge
-  static async createOtpChallenge(email: string, purpose: 'signup' | 'login', principalType?: string, principalId?: string) {
+  static async createOtpChallenge(email: string, purpose: 'signup' | 'login' | 'email_verification', principalType?: string, principalId?: string) {
     if (!this.isDatabaseConfigured()) {
       throw new Error('Database not configured. Please set DATABASE_URL in your .env.local file.')
     }
@@ -4187,20 +4187,6 @@ export class DatabaseService {
     }
     
     return null
-  }
-
-  // Ensure openai_project_id column exists
-  static async ensureOpenAIProjectIdColumn() {
-    if (!this.isDatabaseConfigured()) {
-      throw new Error('Database not configured')
-    }
-
-    const query = `
-      ALTER TABLE companies 
-      ADD COLUMN IF NOT EXISTS openai_project_id TEXT
-    `
-
-    await this.query(query, [])
   }
 
   // Get all companies without OpenAI projects

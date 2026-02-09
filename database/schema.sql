@@ -140,6 +140,7 @@ CREATE TABLE companies (
   legal_company_name          TEXT,
   tax_id_ein                  TEXT,
   business_registration_number TEXT,
+  slug                        TEXT UNIQUE,
   openai_project_id           TEXT,
   openai_service_account_key  TEXT,
   created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -147,6 +148,7 @@ CREATE TABLE companies (
 );
 
 CREATE INDEX idx_companies_status ON companies (status);
+CREATE INDEX idx_companies_slug ON companies (slug);
 
 
 -- ---------------------------------------------------------------------------
@@ -399,6 +401,7 @@ CREATE TABLE job_postings (
   recruiter_id                UUID REFERENCES users(id) ON DELETE SET NULL,
   hiring_manager_name         TEXT,
   hiring_manager_email        TEXT,
+  client_company_name         TEXT,
   number_of_openings          INT NOT NULL DEFAULT 1,
   hiring_priority             hiring_priority DEFAULT 'Medium',
   target_time_to_fill_days    INT,
@@ -480,6 +483,8 @@ CREATE TABLE candidates (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   full_name       TEXT NOT NULL,
+  first_name      TEXT,
+  last_name       TEXT,
   email           TEXT NOT NULL,
   phone           TEXT,
   location        TEXT,
@@ -488,6 +493,7 @@ CREATE TABLE candidates (
   experience_years INT,
   linkedin_url    TEXT,
   resume_url      TEXT,                              -- S3/blob URL to uploaded CV
+  photo_url       TEXT,                              -- Webcam captured photo URL
   source          TEXT,                              -- LinkedIn, Referral, Job Board, etc.
   notes           TEXT,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -580,6 +586,21 @@ CREATE TABLE applications (
   rejection_reason        TEXT,
   rejection_stage         application_stage,
   rejected_at             TIMESTAMPTZ,
+
+  -- Application form data
+  expected_salary         NUMERIC(12,2),
+  salary_currency         TEXT DEFAULT 'USD',
+  salary_period           TEXT DEFAULT 'month',
+  location                TEXT,
+  linkedin_url            TEXT,
+  portfolio_url           TEXT,
+  available_start_date    DATE,
+  willing_to_relocate     BOOLEAN DEFAULT FALSE,
+  languages               JSONB,                      -- [{language, proficiency}]
+  photo_url               TEXT,                        -- Webcam captured photo URL
+  cover_letter            TEXT,
+  source                  TEXT DEFAULT 'direct_application',
+  confirmation_status     TEXT,                        -- agree / disagree
 
   -- General
   remarks                 TEXT,
@@ -952,83 +973,6 @@ END;
 $$;
 
 
--- ============================================================================
--- ALTER STATEMENTS: Run these on Neon if job_postings table already exists
--- but is missing columns. Safe to run multiple times (IF NOT EXISTS / IF EXISTS).
--- ============================================================================
-
--- Ensure enum types exist (ignore errors if they already exist)
-DO $$ BEGIN CREATE TYPE job_type AS ENUM ('Full-time', 'Part-time', 'Contract', 'Temporary'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN CREATE TYPE work_mode AS ENUM ('Remote', 'Hybrid', 'On-site'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN CREATE TYPE hiring_priority AS ENUM ('High', 'Medium', 'Low'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN CREATE TYPE job_status AS ENUM ('draft', 'open', 'closed', 'onhold', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
--- Companies table: add slug column
-ALTER TABLE companies ADD COLUMN IF NOT EXISTS slug TEXT;
--- Backfill slug from company name (lowercase, replace spaces with hyphens)
-UPDATE companies SET slug = LOWER(REPLACE(REPLACE(name, ' ', '-'), '.', '')) WHERE slug IS NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_slug ON companies (slug);
-
--- Basic info columns
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS department TEXT;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS location TEXT;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS salary_min NUMERIC(12,2);
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS salary_max NUMERIC(12,2);
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'USD';
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS application_deadline DATE;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS expected_start_date DATE;
-
--- Job type & work mode (use TEXT if enum doesn't exist yet)
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS job_type TEXT DEFAULT 'Full-time';
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS work_mode TEXT DEFAULT 'Hybrid';
-
--- Job details columns
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS description TEXT;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS responsibilities TEXT[];
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS required_skills TEXT[];
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS preferred_skills TEXT[];
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS experience_years INT;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS required_education TEXT;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS certifications_required TEXT;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS languages_required TEXT;
-
--- Team & planning columns
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS recruiter_id UUID;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS hiring_manager_name TEXT;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS hiring_manager_email TEXT;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS number_of_openings INT DEFAULT 1;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS hiring_priority TEXT DEFAULT 'Medium';
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS target_time_to_fill_days INT;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS budget_allocated NUMERIC(12,2);
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS target_sources TEXT[];
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS diversity_goals BOOLEAN DEFAULT FALSE;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS diversity_target_pct NUMERIC(5,2);
-
--- Metrics & tracking columns
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS job_open_date DATE;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS expected_hires_per_month INT;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS target_offer_acceptance_pct NUMERIC(5,2);
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS candidate_response_sla_hrs INT;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS interview_schedule_sla_hrs INT;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS cost_per_hire_budget NUMERIC(12,2);
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS agency_fee_pct NUMERIC(5,2);
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS job_board_costs NUMERIC(12,2);
-
--- Auto interview scheduling
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS auto_schedule_interview BOOLEAN DEFAULT FALSE;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS interview_link_expiry_hours INT DEFAULT 48;
-
--- Screening questions
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS enable_screening_questions BOOLEAN DEFAULT FALSE;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS screening_questions JSONB DEFAULT '{}';
-
--- Status columns
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
-ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;
-
--- Indexes (safe to run, will error silently if they exist)
-CREATE INDEX IF NOT EXISTS idx_job_postings_department ON job_postings (department);
-
 -- job_interview_questions table
 CREATE TABLE IF NOT EXISTS job_interview_questions (
   id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -1039,21 +983,46 @@ CREATE TABLE IF NOT EXISTS job_interview_questions (
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- candidate_screening_answers table (stores ONLY answers, not questions)
--- Questions are derived from job.screening_questions config
-CREATE TABLE IF NOT EXISTS candidate_screening_answers (
-  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  session_id        TEXT NOT NULL UNIQUE,
-  job_id            UUID NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
-  candidate_id      UUID REFERENCES candidates(id) ON DELETE SET NULL,
-  answers           JSONB NOT NULL DEFAULT '{}',
-  submitted_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+-- ---------------------------------------------------------------------------
+-- screening_submissions
+-- WHY: Stores all candidate screening form data with explicit columns.
+--      Validates candidate eligibility against recruiter-set criteria.
+--      Acts as an eligibility gate before the main application form.
+-- USED BY: /jobs/[companySlug]/[jobId]/screening, /api/screening/submit
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS screening_submissions (
+  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  job_id                  UUID NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
+  candidate_name          TEXT NOT NULL,
+  candidate_email         TEXT NOT NULL,
+  experience_years        INT,
+  expected_salary         NUMERIC(12,2),
+  notice_period           TEXT,
+  notice_period_negotiable BOOLEAN,
+  work_authorization      TEXT,
+  selected_skills         TEXT[] DEFAULT '{}',
+  additional_info         TEXT,
+
+  -- Eligibility evaluation
+  is_eligible             BOOLEAN NOT NULL DEFAULT FALSE,
+  reason                  TEXT,                           -- Single reason for eligibility status
+  non_eligible_reasons    TEXT[] DEFAULT '{}',
+  matched_skills_count    INT DEFAULT 0,
+  required_skills_count   INT DEFAULT 0,
+
+  -- Recruiter criteria snapshot (for audit)
+  recruiter_min_experience  INT,
+  recruiter_max_salary      NUMERIC(12,2),
+  recruiter_expected_skills TEXT[] DEFAULT '{}',
+  recruiter_work_authorization TEXT,
+
+  submitted_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_screening_answers_job_id ON candidate_screening_answers (job_id);
-CREATE INDEX IF NOT EXISTS idx_screening_answers_session_id ON candidate_screening_answers (session_id);
-CREATE INDEX IF NOT EXISTS idx_screening_answers_candidate_id ON candidate_screening_answers (candidate_id);
+CREATE INDEX IF NOT EXISTS idx_screening_sub_job_id ON screening_submissions (job_id);
+CREATE INDEX IF NOT EXISTS idx_screening_sub_email ON screening_submissions (candidate_email);
+CREATE INDEX IF NOT EXISTS idx_screening_sub_eligible ON screening_submissions (is_eligible);
 
 -- ============================================================================
 -- END OF SCHEMA

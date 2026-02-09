@@ -207,6 +207,7 @@ export async function POST(request: NextRequest) {
       certificationsRequired,
       languagesRequired,
       // Team & Planning
+      clientCompanyName,
       hiringManager,
       hiringManagerEmail,
       numberOfOpenings,
@@ -248,7 +249,7 @@ export async function POST(request: NextRequest) {
     const status = isDraft ? 'draft' : 'open'
     const publishedAt = isDraft ? null : new Date().toISOString()
 
-    // Insert job posting - try full insert, fallback to basic if new columns don't exist
+    // Insert job posting
     let newJob: any
     try {
       const jobResult = await DatabaseService.query(
@@ -266,6 +267,7 @@ export async function POST(request: NextRequest) {
           cost_per_hire_budget, agency_fee_pct, job_board_costs,
           auto_schedule_interview, interview_link_expiry_hours,
           enable_screening_questions, screening_questions,
+          client_company_name,
           status, published_at
         ) VALUES (
           $1::uuid, $2::uuid, $3, $4, $5, $6, $7,
@@ -273,7 +275,8 @@ export async function POST(request: NextRequest) {
           $17, $18, $19, $20, $21, $22, $23, $24,
           $25, $26, $27, $28, $29, $30, $31, $32,
           $33, $34, $35, $36, $37, $38, $39, $40,
-          $41, $42, $43
+          $41, $42, $43, $44,
+          $45, $46
         ) RETURNING *`,
         [
           companyId, userId, jobTitle,
@@ -309,6 +312,7 @@ export async function POST(request: NextRequest) {
           interviewLinkExpiryHours || 48,
           enableScreeningQuestions || false,
           JSON.stringify(screeningQuestions || {}),
+          clientCompanyName || null,
           status, publishedAt
         ]
       )
