@@ -147,3 +147,41 @@ export async function GET(
     )
   }
 }
+
+// PATCH - Update job status
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ companySlug: string; jobId: string }> }
+) {
+  try {
+    const { companySlug, jobId } = await params
+
+    // Get body
+    const body = await request.json()
+    const { status } = body
+
+    if (!status) {
+      return NextResponse.json(
+        { error: 'Status is required' },
+        { status: 400 }
+      )
+    }
+
+    // Update job status
+    await DatabaseService.query(
+      `UPDATE job_postings SET status = $1, updated_at = NOW() WHERE id = $2::uuid`,
+      [status, jobId]
+    )
+
+    return NextResponse.json({
+      success: true,
+      message: 'Job status updated successfully'
+    })
+  } catch (error) {
+    console.error('Error updating job:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}

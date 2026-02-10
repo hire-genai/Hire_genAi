@@ -6,6 +6,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  serverExternalPackages: ['pdf-parse', 'mammoth'],
 }
 
 export default nextConfig
