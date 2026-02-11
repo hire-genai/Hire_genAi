@@ -38,9 +38,14 @@ ADD COLUMN IF NOT EXISTS confirmation_status TEXT;
 -- 3. Add columns for CV parsing and evaluation
 ALTER TABLE applications
 ADD COLUMN IF NOT EXISTS resume_text TEXT,
-ADD COLUMN IF NOT EXISTS qualification_score INTEGER,
+ADD COLUMN IF NOT EXISTS ai_cv_score NUMERIC(5,2),
 ADD COLUMN IF NOT EXISTS is_qualified BOOLEAN,
 ADD COLUMN IF NOT EXISTS qualification_explanations JSONB;
+
+-- 3b. Rename qualification_score to ai_cv_score if it exists
+-- Run this if you previously had qualification_score column:
+-- ALTER TABLE applications RENAME COLUMN qualification_score TO ai_cv_score;
+-- ALTER TABLE applications ALTER COLUMN ai_cv_score TYPE NUMERIC(5,2);
 
 -- ================================================================
 -- VERIFICATION QUERIES (Optional - run to verify columns added)
@@ -62,7 +67,7 @@ WHERE table_name = 'applications'
     'linkedin_url', 'portfolio_url', 'available_start_date',
     'willing_to_relocate', 'languages', 'photo_url', 'cover_letter',
     'source', 'confirmation_status',
-    'resume_text', 'qualification_score', 'is_qualified', 'qualification_explanations'
+    'resume_text', 'ai_cv_score', 'is_qualified', 'qualification_explanations'
   )
 ORDER BY column_name;
 
@@ -72,7 +77,7 @@ ORDER BY column_name;
 -- 1. Run these commands in your Neon database console
 -- 2. All ALTER statements use IF NOT EXISTS, so they're safe to run multiple times
 -- 3. resume_text stores the full extracted text from the uploaded CV
--- 4. qualification_score stores the AI evaluation score (0-100)
+-- 4. ai_cv_score stores the AI evaluation score (0-100) as NUMERIC(5,2)
 -- 5. is_qualified stores whether the candidate passed the threshold
 -- 6. qualification_explanations stores the full JSON evaluation breakdown
 -- 7. The photo_url column stores path to uploaded photos in /public/uploads/photos/

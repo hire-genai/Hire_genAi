@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { DatabaseService } from '@/lib/database'
 import { getAppUrl } from '@/lib/domain-config'
 
 // Marketing routes allowed on www.domain.com
@@ -55,21 +54,6 @@ function getSubdomain(host: string): 'www' | 'app' | 'local' {
   return 'www'
 }
 
-async function validateSession(userId: string): Promise<boolean> {
-  if (!DatabaseService.isDatabaseConfigured()) return true // allow in local dev
-
-  try {
-    const sessions = await DatabaseService.query(
-      `SELECT id FROM sessions WHERE principal_id = $1::uuid AND expires_at > NOW() LIMIT 1`,
-      [userId]
-    )
-    return sessions.length > 0
-  } catch (e) {
-    console.error('Session validation error:', e)
-    return false
-  }
-}
-
 export async function middleware(request: NextRequest) {
   const host = request.headers.get('host') || ''
   const subdomain = getSubdomain(host)
@@ -92,27 +76,6 @@ export async function middleware(request: NextRequest) {
   // Local development: allow all routes (both www and app)
   if (subdomain === 'local') {
     return NextResponse.next()
-  }
-
-  // For app subdomain, validate session on protected routes
-  if (subdomain === 'app' && !APP_ROUTES.has(pathname) && pathname !== '/') {
-    const sessionCookie = request.cookies.get('session')
-    if (!sessionCookie) {
-      return NextResponse.redirect(new URL(getAppUrl('/login'), request.url))
-    }
-    try {
-      const session = JSON.parse(sessionCookie.value)
-      const userId = session.userId || session.user?.id
-      if (!userId || !await validateSession(userId)) {
-        const response = NextResponse.redirect(new URL(getAppUrl('/login'), request.url))
-        response.cookies.delete('session')
-        return response
-      }
-    } catch (e) {
-      const response = NextResponse.redirect(new URL(getAppUrl('/login'), request.url))
-      response.cookies.delete('session')
-      return response
-    }
   }
 
   // --- WWW subdomain enforcement ---

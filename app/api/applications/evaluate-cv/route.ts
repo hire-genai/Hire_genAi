@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
           `SELECT column_name FROM information_schema.columns
            WHERE table_schema = 'public' 
              AND table_name = 'applications'
-             AND column_name IN ('qualification_score', 'is_qualified', 'qualification_explanations')`,
+             AND column_name IN ('ai_cv_score', 'is_qualified', 'qualification_explanations')`,
           []
         )
         const cols = new Set((checkCols || []).map((r: any) => r.column_name))
@@ -73,8 +73,8 @@ export async function POST(request: NextRequest) {
           const params: any[] = []
           let p = 1
 
-          if (cols.has('qualification_score')) {
-            updates.push(`qualification_score = $${p++}`)
+          if (cols.has('ai_cv_score')) {
+            updates.push(`ai_cv_score = $${p++}`)
             params.push(Math.round(evaluation.overall.score_percent))
           }
           if (cols.has('is_qualified')) {
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Try to set a qualified-like status when candidate is qualified
+        // Try to set a qualified-like status and advance stage when candidate is qualified
         try {
           if (evaluation?.overall?.qualified) {
             const enumRows = await DatabaseService.query(
@@ -128,9 +128,33 @@ export async function POST(request: NextRequest) {
               )
               console.log(`[CV Evaluator] Application status set to ${chosen}`)
             }
+
+            // Advance stage to AI Interview if still in screening
+            const prevStageRows = await DatabaseService.query(
+              `SELECT current_stage FROM applications WHERE id = $1::uuid`,
+              [applicationId]
+            )
+            const prevStage = prevStageRows?.[0]?.current_stage
+
+            const stageUpdate = await DatabaseService.query(
+              `UPDATE applications
+               SET current_stage = 'ai_interview'
+               WHERE id = $1::uuid AND current_stage = 'screening'
+               RETURNING current_stage`,
+              [applicationId]
+            )
+
+            if (stageUpdate && stageUpdate.length > 0) {
+              await DatabaseService.query(
+                `INSERT INTO application_stage_history (application_id, from_stage, to_stage, changed_by)
+                 VALUES ($1::uuid, $2::application_stage, 'ai_interview', NULL)`,
+                [applicationId, prevStage || null]
+              )
+              console.log('[CV Evaluator] Stage advanced to ai_interview')
+            }
           }
         } catch (setStatusErr) {
-          console.warn('[CV Evaluator] Could not set qualified status:', setStatusErr)
+          console.warn('[CV Evaluator] Could not set qualified status/stage:', setStatusErr)
         }
       } catch (dbError) {
         console.warn('[CV Evaluator] Failed to save to database:', dbError)

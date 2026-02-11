@@ -23,6 +23,7 @@ interface CandidateActionDialogProps {
   onOpenChange: (open: boolean) => void
   candidate: any
   bucketType: string
+  onMoved?: () => void
   canModify?: boolean
 }
 
@@ -31,6 +32,7 @@ export function CandidateActionDialog({
   onOpenChange,
   candidate,
   bucketType,
+  onMoved,
   canModify = true,
 }: CandidateActionDialogProps) {
   const [remarks, setRemarks] = useState('')
@@ -68,6 +70,7 @@ export function CandidateActionDialog({
   const [offerStatus, setOfferStatus] = useState(candidate?.offerStatus || 'Not Sent Yet')
   const [interviewType, setInterviewType] = useState('')
   const [interviewerName, setInterviewerName] = useState('')
+  const [moveLoading, setMoveLoading] = useState(false)
 
   // Reset ALL states when dialog opens or bucketType changes
   useEffect(() => {
@@ -129,9 +132,36 @@ export function CandidateActionDialog({
     }
   }, [open])
 
-  const handleMove = () => {
-    console.log('[v0] Moving candidate to:', moveToStage, 'with remarks:', remarks)
-    onOpenChange(false)
+  const handleMove = async () => {
+    if (!moveToStage || !remarks || !candidate?.id) return
+    try {
+      setMoveLoading(true)
+      const res = await fetch('/api/applications/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicationId: candidate.id,
+          moveToStage,
+          remarks,
+          changedByEmail: candidate?.email || candidate?.candidateEmail || null,
+        })
+      })
+
+      const data = await res.json()
+      if (!res.ok || data?.error) {
+        console.error('Move failed:', data?.error)
+        alert(data?.error || 'Failed to move application')
+        return
+      }
+
+      onOpenChange(false)
+      if (onMoved) onMoved()
+    } catch (err) {
+      console.error('Move error:', err)
+      alert('Failed to move application')
+    } finally {
+      setMoveLoading(false)
+    }
   }
 
   const handleSendInterviewEmail = () => {
@@ -209,6 +239,9 @@ Talent Acquisition Team`)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="sr-only">Candidate Details</DialogTitle>
+        </DialogHeader>
         <div className="space-y-6 overflow-y-auto flex-1 pr-2">
           {/* Candidate Info */}
           <Card className="p-4 bg-gray-50">
@@ -1104,10 +1137,10 @@ Recruitment Team`)
 
               <Button 
                 onClick={handleMove} 
-                disabled={!moveToStage || !remarks}
+                disabled={!moveToStage || !remarks || moveLoading}
                 className="w-full"
               >
-                Move Application
+                {moveLoading ? 'Moving...' : 'Move Application'}
               </Button>
             </div>
           )}

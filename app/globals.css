@@ -117,10 +117,26 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
+
+  /* Ensure clickable elements show pointer cursor globally */
+  button:not(:disabled),
+  [role="button"],
+  a,
+  .cursor-pointer,
+  [data-clickable="true"] {
+    cursor: pointer;
+  }
+
+  /* Disabled states should show not-allowed */
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground outline-ring/50;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }

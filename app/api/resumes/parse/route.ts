@@ -227,7 +227,7 @@ export async function POST(request: NextRequest) {
                       `SELECT column_name FROM information_schema.columns
                        WHERE table_schema = 'public' 
                          AND table_name = 'applications'
-                         AND column_name IN ('qualification_score', 'is_qualified', 'qualification_explanations')`,
+                         AND column_name IN ('ai_cv_score', 'is_qualified', 'qualification_explanations')`,
                       []
                     )
                     const cols = new Set((checkCols || []).map((r: any) => r.column_name))
@@ -237,11 +237,11 @@ export async function POST(request: NextRequest) {
                       const params: any[] = []
                       let p = 1
 
-                      if (cols.has('qualification_score')) {
-                        updates.push(`qualification_score = $${p++}`)
+                      if (cols.has('ai_cv_score')) {
+                        updates.push(`ai_cv_score = $${p++}`)
                         const scoreToSave = Math.round(evaluation.overall.score_percent)
                         params.push(scoreToSave)
-                        console.log('[Resume Parse] 💾 Saving qualification_score:', scoreToSave)
+                        console.log('[Resume Parse] 💾 Saving ai_cv_score:', scoreToSave)
                       }
                       if (cols.has('is_qualified')) {
                         updates.push(`is_qualified = $${p++}`)
