@@ -74,6 +74,79 @@ If you didn't request this code, please ignore this email.
   }
 
   /**
+   * Send OTP email for screening verification
+   */
+  static async sendScreeningOtp({
+    email,
+    candidateName,
+    otp,
+    jobTitle,
+  }: {
+    email: string;
+    candidateName: string;
+    otp: string;
+    jobTitle?: string;
+  }) {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #10b981 0%, #047857 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">Email Verification</h1>
+          ${jobTitle ? `<p style="color: #d1fae5; margin: 8px 0 0; font-size: 14px;">Application Screening for ${jobTitle}</p>` : ''}
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef;">
+          <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <h2 style="color: #333; margin-top: 0;">Hello ${candidateName}!</h2>
+            <p style="color: #666; line-height: 1.6;">
+              Please verify your email address to proceed with the screening process. Use the verification code below:
+            </p>
+          </div>
+          
+          <div style="background: white; padding: 30px; border-radius: 8px; text-align: center; margin-bottom: 20px;">
+            <p style="color: #666; margin-bottom: 15px; font-size: 16px;">Your verification code is:</p>
+            <div style="background: #ecfdf5; border: 2px solid #10b981; border-radius: 8px; padding: 20px; display: inline-block;">
+              <span style="font-size: 32px; font-weight: bold; color: #047857; letter-spacing: 4px;">${otp}</span>
+            </div>
+            <p style="color: #666; margin-top: 15px; font-size: 14px;">This code will expire in 10 minutes</p>
+          </div>
+          
+          <div style="background: #fef3c7; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b;">
+            <p style="margin: 0; color: #92400e; font-size: 14px;">
+              <strong>Security Note:</strong> Never share this code with anyone. If you didn't initiate this screening, please ignore this email.
+            </p>
+          </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px; color: #6c757d; font-size: 12px;">
+          <p>If you didn't request this code, please ignore this email.</p>
+        </div>
+      </div>`;
+
+    const text = `
+Email Verification - Application Screening${jobTitle ? ` for ${jobTitle}` : ''}
+
+Hello ${candidateName}!
+
+Please verify your email address to proceed with the screening process. Use the verification code below:
+
+Your verification code: ${otp}
+
+This code will expire in 10 minutes.
+
+Security Note: Never share this code with anyone. If you didn't initiate this screening, please ignore this email.
+
+If you didn't request this code, please ignore this email.
+    `;
+
+    return await sendMail({
+      to: email,
+      subject: `Your Screening Verification Code: ${otp}`,
+      html,
+      text,
+    });
+  }
+
+  /**
    * Send OTP email for login
    */
   static async sendLoginOtp({
