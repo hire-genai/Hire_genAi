@@ -568,7 +568,7 @@ export class DatabaseService {
 
     const refreshToken = this.generateToken()
     const refreshTokenHash = await this.hashCode(refreshToken)
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
 
     const insertSessionQuery = `
       INSERT INTO sessions (principal_type, principal_id, refresh_token_hash, issued_at, expires_at, last_seen_at)
