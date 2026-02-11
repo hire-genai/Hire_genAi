@@ -71,6 +71,8 @@ export function CandidateActionDialog({
   const [interviewType, setInterviewType] = useState('')
   const [interviewerName, setInterviewerName] = useState('')
   const [moveLoading, setMoveLoading] = useState(false)
+  const [emailLoading, setEmailLoading] = useState(false)
+  const [emailSending, setEmailSending] = useState(false)
 
   // Reset ALL states when dialog opens or bucketType changes
   useEffect(() => {
@@ -164,67 +166,80 @@ export function CandidateActionDialog({
     }
   }
 
-  const handleSendInterviewEmail = () => {
-    console.log('[v0] Sending interview email to:', candidate?.name)
-    setEmailTo(candidate?.email || '')
-    setEmailCc('recruiter@company.com')
-    setEmailSubject(`Invitation: AI Interview for ${candidate?.position} Position`)
-    setEmailContent(`Dear ${candidate?.name},
-
-Thank you for your interest in the ${candidate?.position} position at our organization. We have carefully reviewed your application and are impressed by your qualifications and experience.
-
-Your profile demonstrates strong alignment with our requirements, and we would like to invite you to the next stage of our selection process - an AI-powered interview assessment.
-
-NEXT STEPS:
-Please click the link below to access your personalized interview:
-Interview Link: https://app.hiregenai.com/interview/abc123
-
-IMPORTANT DETAILS:
-• Time Commitment: Approximately 30-45 minutes
-• Deadline: Please complete within 48 hours
-• Technical Requirements: Stable internet connection, webcam, and microphone
-• Link Expiry: The interview link will expire after 48 hours
-
-This AI interview will help us better understand your skills, experience, and fit for the role. The assessment is designed to be conversational and will cover technical competencies and behavioral aspects relevant to the position.
-
-Should you have any questions or require any accommodations, please don't hesitate to reach out to us.
-
-We look forward to learning more about you through this interview.
-
-Best regards,
-Talent Acquisition Team`)
-    setShowEmailTemplate(true)
+  const handleSendInterviewEmail = async () => {
+    if (!candidate?.email) {
+      alert('Candidate email is missing')
+      return
+    }
+    try {
+      setEmailLoading(true)
+      const res = await fetch('/api/interview/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: candidate.email,
+          candidateName: candidate.name,
+          position: candidate.position,
+          interviewId: candidate.id,
+          preview: true,
+        })
+      })
+      const data = await res.json()
+      if (!res.ok || data?.error) {
+        console.error('Interview email failed:', data?.error)
+        alert(data?.error || 'Failed to send interview email')
+        return
+      }
+      const link = data?.link
+      setEmailTo(candidate.email)
+      setEmailCc('')
+      setEmailSubject(`Invitation: AI Interview for ${candidate?.position} Position`)
+      setEmailContent(`Dear ${candidate?.name || 'Candidate'},\n\nThank you for your interest in the ${candidate?.position} position at our organization. We have carefully reviewed your application and are impressed by your qualifications and experience.\n\nYour profile demonstrates strong alignment with our requirements, and we would like to invite you to the next stage of our selection process - an AI-powered interview assessment.\n\nNEXT STEPS:\nPlease click the link below to access your personalized interview:\n${link}\n\nIMPORTANT DETAILS:\n• Time Commitment: Approximately 30-45 minutes\n• Deadline: Please complete within 48 hours\n• Technical Requirements: Stable internet connection, webcam, and microphone\n• Link Expiry: The interview link will expire after 48 hours\n\nThis AI interview will help us better understand your skills, experience, and fit for the role. The assessment is designed to be conversational and will cover technical competencies and behavioral aspects relevant to the position.\n\nShould you have any questions or require any accommodations, please don't hesitate to reach out to us.\n\nWe look forward to learning more about you through this interview.\n\nBest regards,\nTalent Acquisition Team`)
+      setShowEmailTemplate(true)
+    } catch (err) {
+      console.error('Interview email error:', err)
+      alert('Failed to send interview email')
+    } finally {
+      setEmailLoading(false)
+    }
   }
 
-  const handleResendInterviewEmail = () => {
-    console.log('[v0] Resending interview email to:', candidate?.name)
-    setEmailTo(candidate?.email || '')
-    setEmailCc('recruiter@company.com')
-    setEmailSubject(`Reminder: Complete Your AI Interview for ${candidate?.position} Position`)
-    setEmailContent(`Dear ${candidate?.name},
-
-We hope this message finds you well. This is a friendly reminder regarding the AI-powered interview for the ${candidate?.position} position at our organization.
-
-We noticed that you haven't yet completed the interview assessment we sent earlier. Your application remains active and we are still very interested in considering you for this opportunity.
-
-INTERVIEW LINK:
-https://app.hiregenai.com/interview/abc123
-
-IMPORTANT REMINDERS:
-• Time Required: 30-45 minutes
-• Deadline: Please complete within the next 48 hours
-• Link Status: This interview link will expire soon
-• Technical Setup: Ensure you have a stable internet connection, working webcam, and microphone
-
-Your professional background and qualifications caught our attention, and we believe this interview will be an excellent opportunity for us to learn more about your capabilities and for you to showcase your skills.
-
-If you're experiencing any technical difficulties or have questions about the interview process, please reach out to us immediately so we can assist you.
-
-We look forward to receiving your completed interview assessment.
-
-Best regards,
-Talent Acquisition Team`)
-    setShowEmailTemplate(true)
+  const handleResendInterviewEmail = async () => {
+    if (!candidate?.email) {
+      alert('Candidate email is missing')
+      return
+    }
+    try {
+      setEmailLoading(true)
+      const res = await fetch('/api/interview/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: candidate.email,
+          candidateName: candidate.name,
+          position: candidate.position,
+          interviewId: candidate.id,
+          preview: true,
+        })
+      })
+      const data = await res.json()
+      if (!res.ok || data?.error) {
+        console.error('Interview email failed:', data?.error)
+        alert(data?.error || 'Failed to resend interview email')
+        return
+      }
+      const link = data?.link
+      setEmailTo(candidate.email)
+      setEmailCc('')
+      setEmailSubject(`Reminder: Complete Your AI Interview for ${candidate?.position} Position`)
+      setEmailContent(`Dear ${candidate?.name || 'Candidate'},\n\nWe hope this message finds you well. This is a friendly reminder regarding the AI-powered interview for the ${candidate?.position} position at our organization.\n\nWe noticed that you haven't yet completed the interview assessment we sent earlier. Your application remains active and we are still very interested in considering you for this opportunity.\n\nINTERVIEW LINK:\n${link}\n\nIMPORTANT REMINDERS:\n• Time Required: 30-45 minutes\n• Deadline: Please complete within the next 48 hours\n• Link Status: This interview link will expire soon\n• Technical Setup: Ensure you have a stable internet connection, working webcam, and microphone\n\nYour professional background and qualifications caught our attention, and we believe this interview will be an excellent opportunity for us to learn more about your capabilities and for you to showcase your skills.\n\nIf you're experiencing any technical difficulties or have questions about the interview process, please reach out to us immediately so we can assist you.\n\nWe look forward to receiving your completed interview assessment.\n\nBest regards,\nTalent Acquisition Team`)
+      setShowEmailTemplate(true)
+    } catch (err) {
+      console.error('Interview email error:', err)
+      alert('Failed to resend interview email')
+    } finally {
+      setEmailLoading(false)
+    }
   }
 
   const handleUpdateOfferStatus = () => {
@@ -327,16 +342,16 @@ Talent Acquisition Team`)
 
               {/* Email buttons based on interview status */}
               {candidate?.interviewStatus === 'Not Scheduled' && (
-                <Button onClick={handleSendInterviewEmail} className="w-full gap-2">
+                <Button onClick={handleSendInterviewEmail} className="w-full gap-2" disabled={emailLoading}>
                   <Send className="h-4 w-4" />
-                  Send Interview Email
+                  {emailLoading ? 'Preparing...' : 'Preview Interview Email'}
                 </Button>
               )}
 
               {candidate?.interviewStatus === 'Scheduled' && (
-                <Button onClick={handleResendInterviewEmail} className="w-full gap-2">
+                <Button onClick={handleResendInterviewEmail} className="w-full gap-2" disabled={emailLoading}>
                   <Mail className="h-4 w-4" />
-                  Resend Interview Email
+                  {emailLoading ? 'Preparing...' : 'Preview & Resend Email'}
                 </Button>
               )}
             </div>
@@ -832,7 +847,46 @@ Talent Acquisition Team`)
               </div>
 
               <div className="flex gap-2 mt-3">
-                <Button className="flex-1">Send Email</Button>
+                <Button 
+                  className="flex-1" 
+                  disabled={emailSending}
+                  onClick={async () => {
+                    if (!candidate?.email) return
+                    try {
+                      setEmailSending(true)
+                      const res = await fetch('/api/interview/send', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          to: candidate.email,
+                          candidateName: candidate.name,
+                          position: candidate.position,
+                          interviewId: candidate.id,
+                          preview: false,
+                        })
+                      })
+                      const data = await res.json()
+                      if (!res.ok || data?.error) {
+                        alert(data?.error || 'Failed to send email')
+                        return
+                      }
+                      alert('Interview email sent')
+                      // Optimistically update status in UI
+                      if (candidate) {
+                        candidate.interviewStatus = 'Scheduled'
+                      }
+                      if (onMoved) onMoved()
+                      setShowEmailTemplate(false)
+                    } catch (err) {
+                      console.error('Send email error:', err)
+                      alert('Failed to send email')
+                    } finally {
+                      setEmailSending(false)
+                    }
+                  }}
+                >
+                  {emailSending ? 'Sending...' : 'Send Email'}
+                </Button>
                 <Button variant="outline" onClick={() => setShowEmailTemplate(false)} className="bg-transparent">Cancel</Button>
               </div>
             </Card>
