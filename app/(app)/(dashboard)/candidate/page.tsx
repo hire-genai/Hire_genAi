@@ -18,65 +18,40 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Users, Filter, Calendar, UserCheck, FileText, CheckCircle, XCircle, Database, Download, FileTextIcon, Search } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { CandidateActionDialog } from '@/components/dashboard/candidate-action-dialogs'
 import { useMobileMenu } from '@/components/dashboard/mobile-menu-context'
 
 type BucketType = 'all' | 'screening' | 'interview' | 'hiringManager' | 'offer' | 'hired' | 'rejected'
 
-const bucketData = {
-  screening: { count: 10, icon: Filter, color: 'amber', label: 'CV Screening', description: 'Under review' },
-  interview: { count: 8, icon: Calendar, color: 'orange', label: 'AI Interview', description: 'Scheduled' },
-  hiringManager: { count: 6, icon: UserCheck, color: 'pink', label: 'Hiring Manager', description: 'Awaiting feedback' },
-  offer: { count: 5, icon: FileText, color: 'green', label: 'Offer Stage', description: 'Negotiation' },
-  hired: { count: 8, icon: CheckCircle, color: 'emerald', label: 'Hired', description: 'Completed' },
-  rejected: { count: 12, icon: XCircle, color: 'red', label: 'Rejected', description: 'Not proceeding' },
-  all: { count: 49, icon: Database, color: 'slate', label: 'Total Applicants', description: 'All statuses' }
+const defaultBucketData = {
+  screening: { count: 0, icon: Filter, color: 'amber', label: 'CV Screening', description: 'Under review' },
+  interview: { count: 0, icon: Calendar, color: 'orange', label: 'AI Interview', description: 'Scheduled' },
+  hiringManager: { count: 0, icon: UserCheck, color: 'pink', label: 'Hiring Manager', description: 'Awaiting feedback' },
+  offer: { count: 0, icon: FileText, color: 'green', label: 'Offer Stage', description: 'Negotiation' },
+  hired: { count: 0, icon: CheckCircle, color: 'emerald', label: 'Hired', description: 'Completed' },
+  rejected: { count: 0, icon: XCircle, color: 'red', label: 'Rejected', description: 'Not proceeding' },
+  all: { count: 0, icon: Database, color: 'slate', label: 'Total Applicants', description: 'All statuses' }
 }
 
-const applicationsData = {
-  all: [
-    { name: 'John Smith', position: 'Senior Frontend Developer', appliedDate: 'Jan 20, 2024', status: 'CV Screening', source: 'LinkedIn' },
-    { name: 'Emma Wilson', position: 'Product Manager', appliedDate: 'Jan 18, 2024', status: 'AI Interview', source: 'Indeed' },
-    { name: 'Michael Chen', position: 'DevOps Engineer', appliedDate: 'Jan 22, 2024', status: 'Hiring Manager', source: 'Referral' }
-  ],
-  screening: [
-    { name: 'Emma Wilson', position: 'Product Manager', appliedDate: 'Jan 18, 2024', source: 'LinkedIn', screeningScore: '85/100', screeningStatus: 'Qualified' },
-    { name: 'Robert Brown', position: 'QA Engineer', appliedDate: 'Jan 19, 2024', source: 'Indeed', screeningScore: '78/100', screeningStatus: 'Unqualified' },
-    { name: 'Jessica Taylor', position: 'DevOps Engineer', appliedDate: 'Jan 17, 2024', source: 'Company Website', screeningScore: '92/100', screeningStatus: 'Qualified' }
-  ],
-  interview: [
-    { name: 'Michael Chen', position: 'DevOps Engineer', appliedDate: 'Jan 22, 2024', source: 'Referral', cvScore: '88/100', interviewScore: '92/100', interviewStatus: 'Completed', interviewResult: 'Qualified', comments: 'Recruiter - Jan 23, 2024 10:30 AM - Strong technical background' },
-    { name: 'Jennifer Garcia', position: 'Full Stack Developer', appliedDate: 'Jan 21, 2024', source: 'LinkedIn', cvScore: '91/100', interviewScore: 'N/A', interviewStatus: 'Scheduled', interviewResult: 'Pending', comments: 'Recruiter - Jan 22, 2024 2:15 PM - Interview email sent' },
-    { name: 'Daniel Martinez', position: 'Backend Engineer', appliedDate: 'Jan 20, 2024', source: 'Indeed', cvScore: '76/100', interviewScore: 'N/A', interviewStatus: 'Not Scheduled', interviewResult: 'Not Attempted', comments: '' }
-  ],
-  hiringManager: [
-    { name: 'John Smith', position: 'Senior Frontend Developer', appliedDate: 'Jan 15, 2024', source: 'LinkedIn', cvScore: '94/100', hiringManager: 'Sarah Johnson', daysWithHM: '4 days', hmStatus: 'Waiting for HM feedback', comments: 'Recruiter - Jan 23, 2024 9:00 AM - Sent profile to HM for review' },
-    { name: 'Amanda Martinez', position: 'Engineering Manager', appliedDate: 'Jan 16, 2024', source: 'Referral', cvScore: '89/100', hiringManager: 'Mike Davis', daysWithHM: '2 days', hmStatus: 'Approved', comments: 'HM - Jan 24, 2024 3:30 PM - Excellent candidate, proceed to offer' }
-  ],
-  offer: [
-    { name: 'Sarah Johnson', position: 'UX Designer', appliedDate: 'Jan 10, 2024', source: 'LinkedIn', cvScore: '87/100', offerAmount: '$95,000', offerStatus: 'Under Review', comments: 'Recruiter - Jan 24, 2024 11:00 AM - Offer sent, waiting for candidate response' },
-    { name: 'Chris Williams', position: 'Product Designer', appliedDate: 'Jan 12, 2024', source: 'Indeed', cvScore: '90/100', offerAmount: '$88,000', offerStatus: 'Negotiating', comments: 'Candidate - Jan 25, 2024 4:15 PM - Requested higher base salary' },
-    { name: 'Jessica Brown', position: 'Senior Developer', appliedDate: 'Jan 14, 2024', source: 'LinkedIn', cvScore: '91/100', offerAmount: '$105,000', offerStatus: 'Not Sent Yet', comments: 'Recruiter - Jan 26, 2024 2:00 PM - Preparing offer package' }
-  ],
-  hired: [
-    { name: 'Tom Harris', position: 'Software Engineer', appliedDate: 'Jan 5, 2024', source: 'Referral', cvScore: '93/100', offerAmount: '$110,000', hireDate: 'Jan 10, 2024', startDate: 'Feb 1, 2024', hireStatus: 'Awaiting Onboarding', comments: 'Recruiter - Jan 26, 2024 10:00 AM - Documents sent to HR' },
-    { name: 'Rachel Green', position: 'Senior Developer', appliedDate: 'Jan 3, 2024', source: 'LinkedIn', cvScore: '95/100', offerAmount: '$125,000', hireDate: 'Jan 8, 2024', startDate: 'Jan 29, 2024', hireStatus: 'Onboarded', comments: 'HR - Jan 29, 2024 9:00 AM - Successfully onboarded' }
-  ],
-  rejected: [
-    { name: 'Chris Taylor', position: 'Marketing Manager', appliedDate: 'Jan 12, 2024', source: 'LinkedIn', rejectionStage: 'CV Screening', rejectionReason: 'Insufficient experience' },
-    { name: 'Alex Kim', position: 'Sales Rep', appliedDate: 'Jan 14, 2024', source: 'Indeed', rejectionStage: 'AI Interview', rejectionReason: 'Culture fit concerns' }
-  ]
+const defaultApplicationsData: Record<string, any[]> = {
+  all: [],
+  screening: [],
+  interview: [],
+  hiringManager: [],
+  offer: [],
+  hired: [],
+  rejected: []
 }
 
-const bucketStats = {
-  all: { inPipeline: 28, hired: 8, rejected: 12 },
-  screening: { totalScreened: 10, qualified: 6, unqualified: 4, successRate: 60 },
-  interview: { totalInterviewed: 8, qualified: 5, unqualified: 3, successRate: 63 },
-  hiringManager: { totalSentToHM: 6, approved: 4, rejected: 2, successRate: 67 },
-  offer: { totalOfferSent: 4, accepted: 3, declined: 1, successRate: 75 },
-  hired: { totalHires: 8, onboarded: 7, awaitingOnboard: 1, successRate: 88 },
-  rejected: { totalRejected: 12, fromScreening: 4, fromInterview: 5, fromOther: 3 }
+const defaultBucketStats: Record<string, any> = {
+  all: { inPipeline: 0, hired: 0, rejected: 0 },
+  screening: { totalScreened: 0, qualified: 0, unqualified: 0, successRate: 0 },
+  interview: { totalInterviewed: 0, qualified: 0, unqualified: 0, successRate: 0 },
+  hiringManager: { totalSentToHM: 0, approved: 0, rejected: 0, successRate: 0 },
+  offer: { totalOfferSent: 0, accepted: 0, declined: 0, successRate: 0 },
+  hired: { totalHires: 0, onboarded: 0, awaitingOnboard: 0, successRate: 0 },
+  rejected: { totalRejected: 0, fromScreening: 0, fromInterview: 0, fromOther: 0 }
 }
 
 type UserRole = 'recruiter' | 'admin' | 'manager' | 'director'
@@ -103,6 +78,43 @@ export default function CandidatesPage() {
   const [dateFilter, setDateFilter] = useState('')
   const [viewAsRole, setViewAsRole] = useState<UserRole>('recruiter')
   const [viewAsRecruiter, setViewAsRecruiter] = useState('1')
+
+  // Data state from API
+  const [bucketData, setBucketData] = useState(defaultBucketData)
+  const [applicationsData, setApplicationsData] = useState<Record<string, any[]>>(defaultApplicationsData)
+  const [bucketStats, setBucketStats] = useState<Record<string, any>>(defaultBucketStats)
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Fetch data from API
+  const fetchCandidates = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      const res = await fetch('/api/candidates')
+      const data = await res.json()
+      if (data.ok) {
+        // Update bucket counts while preserving icons/colors/labels
+        setBucketData(prev => ({
+          screening: { ...prev.screening, count: data.bucketData?.screening?.count || 0 },
+          interview: { ...prev.interview, count: data.bucketData?.interview?.count || 0 },
+          hiringManager: { ...prev.hiringManager, count: data.bucketData?.hiringManager?.count || 0 },
+          offer: { ...prev.offer, count: data.bucketData?.offer?.count || 0 },
+          hired: { ...prev.hired, count: data.bucketData?.hired?.count || 0 },
+          rejected: { ...prev.rejected, count: data.bucketData?.rejected?.count || 0 },
+          all: { ...prev.all, count: data.bucketData?.all?.count || 0 }
+        }))
+        setApplicationsData(data.applicationsData || defaultApplicationsData)
+        setBucketStats(data.bucketStats || defaultBucketStats)
+      }
+    } catch (err) {
+      console.error('Failed to fetch candidates:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchCandidates()
+  }, [fetchCandidates])
   
   // Permission check - only recruiters can modify
   const canModify = viewAsRole === 'recruiter'
@@ -653,6 +665,7 @@ export default function CandidatesPage() {
         onOpenChange={setDialogOpen}
         candidate={selectedCandidate}
         bucketType={activeBucket}
+        onMoved={fetchCandidates}
         canModify={canModify}
       />
 

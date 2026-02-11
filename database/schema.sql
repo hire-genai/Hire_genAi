@@ -429,7 +429,7 @@ CREATE TABLE job_postings (
   screening_questions         JSONB DEFAULT '{"minExperience": null, "expectedSkills": [], "expectedSalary": null, "noticePeriodNegotiable": null}',
 
   -- Status
-  status                      job_status NOT NULL DEFAULT 'draft',
+  status                      job_status NOT NULL DEFAULT 'open',
   published_at                TIMESTAMPTZ,
   closed_at                   TIMESTAMPTZ,
   created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -541,7 +541,6 @@ CREATE TABLE applications (
   applied_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   -- CV Screening
-  cv_score                NUMERIC(5,2),
   screening_date          DATE,
   screening_remarks       TEXT,
 
@@ -601,6 +600,12 @@ CREATE TABLE applications (
   cover_letter            TEXT,
   source                  TEXT DEFAULT 'direct_application',
   confirmation_status     TEXT,                        -- agree / disagree
+
+  -- CV Parsing & Evaluation
+  resume_text             TEXT,                        -- Full extracted text from uploaded CV
+  ai_cv_score             NUMERIC(5,2),                -- AI CV/qualification score (0-100)
+  is_qualified            BOOLEAN,                     -- Whether candidate passed threshold
+  qualification_explanations JSONB,                    -- Full evaluation breakdown JSON
 
   -- General
   remarks                 TEXT,

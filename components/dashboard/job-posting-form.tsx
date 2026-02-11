@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -8,6 +8,84 @@ import { X, Plus, Minus, Save, Send, CheckCircle, Sparkles, Loader2, RefreshCw }
 
 interface JobPostingFormProps {
   onClose: () => void
+  initialData?: Partial<JobFormData>
+  mode?: 'create' | 'view'
+  jobId?: string
+  companySlug?: string
+}
+
+type JobFormData = {
+  // Basic Job Information
+  jobTitle: string
+  department: string
+  location: string
+  jobType: string
+  workMode: string
+  jobStatus: string
+  salaryMin: string
+  salaryMax: string
+  currency: string
+  applicationDeadline: string
+  expectedStartDate: string
+
+  // Hiring Team & Ownership
+  recruiterAssigned: string
+  hiringManager: string
+  hiringManagerEmail: string
+  interviewPanelMembers: string[]
+
+  // Job Details
+  jobDescription: string
+  responsibilities: string[]
+  requiredSkills: string[]
+  preferredSkills: string[]
+  experienceYears: string
+  requiredEducation: string
+  certificationsRequired: string
+  languagesRequired: string
+
+  // Client Company
+  clientCompanyName: string
+
+  // Capacity & Planning
+  numberOfOpenings: string
+  hiringPriority: string
+  targetTimeToFill: string
+  budgetAllocated: string
+
+  // Dashboard Metrics & Tracking
+  jobOpenDate: string
+  expectedHiresPerMonth: string
+  targetOfferAcceptanceRate: string
+  candidateResponseTimeSLA: string
+  interviewScheduleSLA: string
+  costPerHireBudget: string
+  agencyFeePercentage: string
+  jobBoardCosts: string
+
+  // Sourcing Strategy
+  targetSources: string[]
+  diversityGoals: boolean
+  diversityTargetPercentage: string
+
+  // AI Interview Questions (Step 3)
+  selectedCriteriaIds: string[]
+  generatedQuestions: InterviewQuestion[]
+
+  // Auto Schedule Interview
+  autoScheduleInterview: boolean
+  interviewLinkExpiryHours: number
+
+  // Screening Questions (Step 4)
+  enableScreeningQuestions: boolean
+  screeningQuestions: {
+    minExperience: string
+    expectedSkills: string[]
+    expectedSalary: string
+    noticePeriodNegotiable: boolean | null
+    workAuthorization: string
+    noticePeriod: string
+  }
 }
 
 // Evaluation criteria - simple list of names only
@@ -30,7 +108,7 @@ interface InterviewQuestion {
   isCustom?: boolean
 }
 
-export function JobPostingForm({ onClose }: JobPostingFormProps) {
+export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, companySlug }: JobPostingFormProps) {
   const [currentStep, setCurrentStep] = useState(1)
   const [selectedCriteria, setSelectedCriteria] = useState<string[]>([])
   const [interviewQuestions, setInterviewQuestions] = useState<InterviewQuestion[]>([])
@@ -38,13 +116,15 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
   const [customQuestionText, setCustomQuestionText] = useState('')
   const [customQuestionCriterion, setCustomQuestionCriterion] = useState('')
   const [isAddingCustomQuestion, setIsAddingCustomQuestion] = useState(false)
-  const [formData, setFormData] = useState({
+  const isViewMode = mode === 'view'
+  const defaultFormData: JobFormData = {
     // Basic Job Information
     jobTitle: '',
     department: '',
     location: '',
     jobType: 'Full-time',
     workMode: 'Hybrid',
+    jobStatus: 'open',
     salaryMin: '',
     salaryMax: '',
     currency: 'USD',
@@ -105,11 +185,32 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
       minExperience: '',
       expectedSkills: [] as string[],
       expectedSalary: '',
-      noticePeriodNegotiable: null as boolean | null,
-      workAuthorization: '' as string,
+      noticePeriodNegotiable: null,
+      workAuthorization: '',
       noticePeriod: '',
     },
+  }
+
+  const [formData, setFormData] = useState<JobFormData>({
+    ...defaultFormData,
+    ...(initialData || {}),
   })
+
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        ...defaultFormData,
+        ...initialData,
+      })
+      if (initialData.generatedQuestions || (initialData as any).questions) {
+        setInterviewQuestions(initialData.generatedQuestions || (initialData as any).questions || [])
+      }
+      if (initialData.selectedCriteriaIds || (initialData as any).selectedCriteria) {
+        setSelectedCriteria(initialData.selectedCriteriaIds || (initialData as any).selectedCriteria || [])
+      }
+      setCurrentStep(1)
+    }
+  }, [initialData])
 
   const updateField = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -291,6 +392,37 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (isDraft: boolean) => {
+    if (isViewMode) {
+      if (!jobId) {
+        alert('Missing job id for status update')
+        return
+      }
+      if (!companySlug) {
+        alert('Missing company slug for status update')
+        return
+      }
+      setIsSubmitting(true)
+      try {
+        const response = await fetch(`/api/jobs/${companySlug}/${jobId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: formData.jobStatus }),
+        })
+        const result = await response.json()
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to update status')
+        }
+        alert('Job status updated')
+        onClose()
+      } catch (error) {
+        console.error('Error updating job status:', error)
+        alert(error instanceof Error ? error.message : 'Failed to update job status')
+      } finally {
+        setIsSubmitting(false)
+      }
+      return
+    }
+
     if (!formData.jobTitle.trim()) {
       alert('Please enter a job title')
       return
@@ -352,19 +484,42 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
         {/* Header */}
         <div className="sticky top-0 z-10 p-4 border-b flex items-center justify-between bg-white">
           <div>
-            <h3 className="text-xl font-semibold">Post New Job</h3>
-            <p className="text-sm text-gray-600">Capture all details for accurate tracking and reporting</p>
+            <h3 className="text-xl font-semibold">{mode === 'view' ? 'View Job' : 'Post New Job'}</h3>
+            <p className="text-sm text-gray-600">
+              {isViewMode ? 'Only status can be changed in this mode' : 'Capture all details for accurate tracking and reporting'}
+            </p>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="bg-transparent">
-            <X className="h-5 w-5" />
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+              <span>Job Status</span>
+              <select
+                value={formData.jobStatus}
+                onChange={(e) => updateField('jobStatus', e.target.value)}
+                className="px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="open">Open</option>
+                <option value="closed">Closed</option>
+                <option value="onhold">On Hold</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <Button variant="ghost" size="icon" onClick={onClose} className="bg-transparent">
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         {/* Progress Steps */}
         <div className="p-4 bg-gray-50 border-b">
           <div className="flex items-center justify-between max-w-2xl mx-auto">
             {steps.map((step, index) => (
-              <div key={step.number} className="flex items-center flex-1">
+              <div
+                key={step.number}
+                className="flex items-center flex-1 cursor-pointer"
+                onClick={() => {
+                  if (isViewMode) setCurrentStep(step.number)
+                }}
+              >
                 <div className="flex flex-col items-center flex-1">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
                     currentStep >= step.number 
@@ -387,6 +542,7 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
 
         {/* Form Content */}
         <div className="p-6 space-y-6">
+          <fieldset disabled={isViewMode} className={isViewMode ? 'opacity-95' : ''}>
           {/* Step 1: Basic Information */}
           {currentStep === 1 && (
             <div className="space-y-4">
@@ -921,19 +1077,6 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Client Company Name
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.clientCompanyName}
-                      onChange={(e) => updateField('clientCompanyName', e.target.value)}
-                      className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      placeholder="e.g. TCS, Infosys"
-                    />
-                  </div>
-
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1303,6 +1446,8 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
               </div>
             </div>
           )}
+
+          </fieldset>
         </div>
 
         {/* Footer Actions */}
@@ -1320,24 +1465,41 @@ export function JobPostingForm({ onClose }: JobPostingFormProps) {
                 Previous
               </Button>
             )}
-            <Button
-              variant="outline"
-              onClick={() => handleSubmit(true)}
-              className="bg-transparent"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
-              Save as Draft
-            </Button>
-            {currentStep < steps.length ? (
-              <Button onClick={() => setCurrentStep(currentStep + 1)}>
-                Next
-              </Button>
+
+            {isViewMode ? (
+              <>
+                {currentStep < steps.length && (
+                  <Button onClick={() => setCurrentStep(currentStep + 1)}>
+                    Next
+                  </Button>
+                )}
+                <Button onClick={() => handleSubmit(false)} disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
+                  Save Status
+                </Button>
+              </>
             ) : (
-              <Button onClick={() => handleSubmit(false)} disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
-                Publish Job
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => handleSubmit(true)}
+                  className="bg-transparent"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                  Save as Draft
+                </Button>
+                {currentStep < steps.length ? (
+                  <Button onClick={() => setCurrentStep(currentStep + 1)}>
+                    Next
+                  </Button>
+                ) : (
+                  <Button onClick={() => handleSubmit(false)} disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
+                    Publish Job
+                  </Button>
+                )}
+              </>
             )}
           </div>
         </div>

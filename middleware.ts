@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAppUrl } from '@/lib/domain-config'
 
 // Marketing routes allowed on www.domain.com
 const WWW_ROUTES = new Set([

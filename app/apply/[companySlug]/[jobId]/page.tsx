@@ -13,7 +13,8 @@ import {
   Plus,
   X,
   Upload,
-  FileText
+  FileText,
+  CheckCircle2
 } from 'lucide-react'
 import WebcamCapture from '@/components/webcam-capture'
 
@@ -22,7 +23,9 @@ interface JobData {
   title: string
   location?: string
   clientCompanyName?: string | null
+  description?: string
   company: {
+    id?: string
     name: string
     slug: string
   }
@@ -46,6 +49,9 @@ export default function ApplyPage() {
   const [confirmationStatus, setConfirmationStatus] = useState<'agree' | 'disagree' | ''>('')
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null)
   const [infoCorrectChecked, setInfoCorrectChecked] = useState(false)
+  const [parsingOpen, setParsingOpen] = useState(false)
+  const [parseStep, setParseStep] = useState<'idle' | 'uploading' | 'parsing' | 'evaluating' | 'done'>('idle')
+  const appRootRef = useRef<HTMLDivElement | null>(null)
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -237,6 +243,95 @@ export default function ApplyPage() {
         throw new Error(submitData?.error || 'Failed to submit application')
       }
 
+      // --- CV Upload → Parse → Evaluate pipeline with progress overlay ---
+      if (resumeFile && submitData?.applicationId) {
+        setParsingOpen(true)
+        setParseStep('uploading')
+        try {
+          // Step 1: Upload resume file
+          const uploadFormData = new FormData()
+          uploadFormData.append('file', resumeFile)
+          if (submitData.candidateId) {
+            uploadFormData.append('candidateId', submitData.candidateId)
+          }
+
+          const uploadRes = await fetch('/api/resumes/upload', {
+            method: 'POST',
+            body: uploadFormData,
+          })
+          let resumeFileUrl: string | null = null
+          if (uploadRes.ok) {
+            const uploadData = await uploadRes.json()
+            resumeFileUrl = uploadData.fileUrl || null
+            console.log('[Apply] Resume uploaded successfully:', resumeFileUrl)
+          }
+
+          // Step 2: Parse resume to extract text + auto-evaluate
+          setParseStep('parsing')
+          const parseFormData = new FormData()
+          parseFormData.append('file', resumeFile)
+          parseFormData.append('applicationId', submitData.applicationId)
+          if (submitData.candidateId) {
+            parseFormData.append('candidateId', submitData.candidateId)
+          }
+
+          const parseRes = await fetch('/api/resumes/parse', {
+            method: 'POST',
+            body: parseFormData,
+          })
+
+          let resumeTextForEval = ''
+          if (parseRes.ok) {
+            const parseData = await parseRes.json()
+            resumeTextForEval = parseData.parsed?.rawText || ''
+            console.log('[Apply] Resume parsed, skills found:', parseData.parsed?.skills?.length || 0)
+          }
+
+          // If parsing produced little text, build fallback from form fields
+          if (!resumeTextForEval || resumeTextForEval.trim().length < 50) {
+            resumeTextForEval = [
+              `[Name] ${fullName}`,
+              `[Email] ${formData.email}`,
+              `[Phone] ${formData.phone}`,
+              `[Location] ${formData.location || ''}`,
+              `[Cover Letter] ${formData.coverLetter || ''}`,
+            ].filter(Boolean).join('\n')
+          }
+
+          // Step 3: Evaluate CV against JD
+          setParseStep('evaluating')
+          try {
+            const evalRes = await fetch('/api/applications/evaluate-cv', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                applicationId: submitData.applicationId,
+                resumeText: resumeTextForEval,
+                jobDescription: job?.description || '',
+                passThreshold: 40,
+                companyId: job?.company?.id || null,
+              })
+            })
+
+            if (evalRes.ok) {
+              const evalData = await evalRes.json()
+              console.log('[Apply] CV Evaluation:', evalData.evaluation?.overall)
+            }
+          } catch (evalErr) {
+            console.warn('[Apply] CV evaluation failed (non-fatal):', evalErr)
+          }
+
+          // Done
+          setParseStep('done')
+          await new Promise(r => setTimeout(r, 1200))
+        } catch (pipelineErr) {
+          console.warn('[Apply] Resume pipeline error (non-fatal):', pipelineErr)
+        } finally {
+          setParsingOpen(false)
+          setParseStep('idle')
+        }
+      }
+
       setSubmitted(true)
     } catch (error: any) {
       console.error('Application submission error:', error)
@@ -296,411 +391,264 @@ export default function ApplyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-emerald-50/40">
-      <div className="mx-auto max-w-6xl px-4 py-10">
-        {/* Green heading card */}
-        <section className="mb-6 rounded-2xl bg-emerald-600/95 text-white shadow-lg hover:shadow-2xl ring-1 ring-transparent hover:ring-emerald-300 ring-offset-1 ring-offset-emerald-700/20 motion-safe:transition-shadow motion-safe:duration-300 overflow-hidden relative z-10">
-          <div className="px-6 py-6 md:px-8 md:py-8">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Apply for this position</h1>
-            <p className="mt-2 text-emerald-50">Please fill out all required fields to submit your application.</p>
-            <div className="mt-4 inline-flex items-center gap-3 text-emerald-100 text-sm">
-              <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 transition-colors hover:bg-white/20">{job.title}</span>
-              {job.location && (
-                <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 transition-colors hover:bg-white/20">{job.location}</span>
-              )}
-              <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 transition-colors hover:bg-white/20">{job.company.name}</span>
-            </div>
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-emerald-50/40" ref={appRootRef}>
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        {/* Compact heading */}
+        <div className="mb-6 rounded-xl bg-emerald-600 text-white shadow-md px-5 py-4">
+          <h1 className="text-xl font-bold tracking-tight">Apply for this position</h1>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-emerald-100">
+            <span className="rounded-full bg-white/15 px-2.5 py-0.5">{job.title}</span>
+            {job.location && <span className="rounded-full bg-white/15 px-2.5 py-0.5">{job.location}</span>}
+            <span className="rounded-full bg-white/15 px-2.5 py-0.5">{job.company.name}</span>
           </div>
-        </section>
+        </div>
 
-        {/* Form card */}
-        <section className="mt-10 w-full rounded-2xl border border-emerald-200 bg-white shadow-lg hover:shadow-2xl ring-1 ring-transparent hover:ring-emerald-300 ring-offset-1 ring-offset-white motion-safe:transition-shadow motion-safe:duration-300 overflow-hidden relative z-0">
-          <div className="border-b border-emerald-100 bg-emerald-50/60 px-6 py-4 md:px-8">
-            <h2 className="font-semibold text-slate-900">Application Form</h2>
-            <p className="text-sm text-emerald-700">Role: <span className="font-medium">{job.title}</span></p>
-          </div>
-          <div className="p-6 md:p-8">
-            <form onSubmit={handleSubmit} className="max-w-3xl mx-auto space-y-8">
-              {/* General Information */}
-              <section>
-                <h3 className="font-semibold text-slate-900 border-b border-slate-200 pb-3 mb-4">General Information (all required)</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First name *</Label>
-                    <Input 
-                      id="firstName" 
-                      value={formData.firstName} 
-                      onChange={(e) => setFormData(p => ({ ...p, firstName: e.target.value }))} 
-                      placeholder="John" 
-                      className="border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 transition-colors duration-200 hover:border-emerald-400" 
-                      required 
-                      disabled={isSubmitting} 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Last name *</Label>
-                    <Input 
-                      id="lastName" 
-                      value={formData.lastName} 
-                      onChange={(e) => setFormData(p => ({ ...p, lastName: e.target.value }))} 
-                      placeholder="Doe" 
-                      className="border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 transition-colors duration-200 hover:border-emerald-400" 
-                      required 
-                      disabled={isSubmitting} 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      value={formData.email} 
-                      onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))} 
-                      placeholder="you@example.com" 
-                      className="border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 transition-colors duration-200 hover:border-emerald-400" 
-                      required 
-                      disabled={isSubmitting} 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone *</Label>
-                    <Input 
-                      id="phone" 
-                      type="tel" 
-                      value={formData.phone} 
-                      onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))} 
-                      placeholder="+1 555 000 1111" 
-                      className="border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 transition-colors duration-200 hover:border-emerald-400" 
-                      required 
-                      disabled={isSubmitting} 
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Expected salary *</Label>
-                    <div className="grid grid-cols-[120px_1fr_auto] gap-2">
-                      <select 
-                        value={formData.expectedCurrency} 
-                        onChange={(e) => setFormData(p => ({ ...p, expectedCurrency: e.target.value }))}
-                        className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none transition-colors duration-200 hover:border-emerald-400"
-                      >
-                        <option value="USD">USD</option>
-                        <option value="EUR">EUR</option>
-                        <option value="INR">INR</option>
-                      </select>
-                      <Input 
-                        inputMode="decimal" 
-                        value={formData.expectedSalary} 
-                        onChange={(e) => setFormData(p => ({ ...p, expectedSalary: e.target.value }))} 
-                        placeholder="1000" 
-                        className="border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 transition-colors duration-200 hover:border-emerald-400" 
-                        required 
-                        disabled={isSubmitting} 
-                      />
-                      <div className="flex items-center text-slate-500 px-2">/month</div>
-                    </div>
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="location">Location *</Label>
-                    <Input 
-                      id="location" 
-                      value={formData.location} 
-                      onChange={(e) => setFormData(p => ({ ...p, location: e.target.value }))} 
-                      placeholder="Berlin, Germany" 
-                      className="border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 transition-colors duration-200 hover:border-emerald-400" 
-                      required 
-                      disabled={isSubmitting} 
-                    />
-                  </div>
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* General Information */}
+          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="font-semibold text-sm text-slate-900 mb-3">General Information</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="firstName" className="text-xs">First name *</Label>
+                <Input id="firstName" value={formData.firstName} onChange={(e) => setFormData(p => ({ ...p, firstName: e.target.value }))} placeholder="John" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="lastName" className="text-xs">Last name *</Label>
+                <Input id="lastName" value={formData.lastName} onChange={(e) => setFormData(p => ({ ...p, lastName: e.target.value }))} placeholder="Doe" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="email" className="text-xs">Email *</Label>
+                <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))} placeholder="you@example.com" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="phone" className="text-xs">Phone *</Label>
+                <Input id="phone" type="tel" value={formData.phone} onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))} placeholder="+1 555 000 1111" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
+              </div>
+              <div className="col-span-2 space-y-1">
+                <Label className="text-xs">Expected salary *</Label>
+                <div className="grid grid-cols-[100px_1fr_auto] gap-2">
+                  <select value={formData.expectedCurrency} onChange={(e) => setFormData(p => ({ ...p, expectedCurrency: e.target.value }))} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none">
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="INR">INR</option>
+                  </select>
+                  <Input inputMode="decimal" value={formData.expectedSalary} onChange={(e) => setFormData(p => ({ ...p, expectedSalary: e.target.value }))} placeholder="1000" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
+                  <span className="flex items-center text-xs text-slate-500">/month</span>
                 </div>
-              </section>
+              </div>
+              <div className="col-span-2 space-y-1">
+                <Label htmlFor="location" className="text-xs">Location *</Label>
+                <Input id="location" value={formData.location} onChange={(e) => setFormData(p => ({ ...p, location: e.target.value }))} placeholder="Berlin, Germany" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
+              </div>
+            </div>
+          </section>
 
-              {/* Resume & Documents */}
-              <section>
-                <h3 className="font-semibold text-slate-900 border-b border-slate-200 pb-3 mb-4">Resume & Documents (required)</h3>
+          {/* Resume Upload + Photo — merged into one card */}
+          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="font-semibold text-sm text-slate-900 mb-3">Resume & Photo</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Resume — compact file picker */}
+              <div>
+                <Label className="text-xs mb-1.5 block">Upload Resume *</Label>
                 <div
-                  className={`rounded-md border border-dashed p-6 cursor-pointer shadow-sm hover:shadow-lg ring-1 ring-transparent hover:ring-emerald-300 ring-offset-1 ring-offset-white motion-safe:transition-shadow motion-safe:duration-300 overflow-hidden ${
-                    isDragging 
-                      ? 'border-emerald-500 bg-emerald-50/60' 
-                      : 'border-slate-300 hover:border-emerald-400/70 hover:bg-emerald-50/40'
+                  className={`flex items-center gap-3 rounded-lg border border-dashed px-3 py-3 cursor-pointer transition-colors ${
+                    isDragging ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 hover:border-emerald-400 hover:bg-emerald-50/40'
                   }`}
-                  role="button"
-                  aria-label="Upload resume"
                   onClick={() => fileInputRef.current?.click()}
                   onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
                   onDragLeave={() => setIsDragging(false)}
-                  onDrop={(e) => {
-                    e.preventDefault()
-                    setIsDragging(false)
-                    const f = e.dataTransfer.files?.[0]
-                    if (f) handleFileSelect(f)
-                  }}
+                  onDrop={(e) => { e.preventDefault(); setIsDragging(false); const f = e.dataTransfer.files?.[0]; if (f) handleFileSelect(f) }}
                 >
-                  <div className="block text-center text-slate-600 select-none pointer-events-none">
-                    <Upload className="h-8 w-8 text-emerald-500 mx-auto mb-3" />
-                    <div className="mb-3">Drag & drop file here</div>
-                    <div className="inline-flex items-center rounded-md bg-emerald-600 text-white px-3 py-1 text-sm font-semibold">or click to select a file</div>
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pdf,.doc,.docx,.txt"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0]
-                      if (f) handleFileSelect(f)
-                    }}
-                  />
-                  {resumeFile && (
-                    <div className="mt-3 text-sm text-slate-700 flex items-center justify-center gap-2">
-                      <span className="inline-flex items-center rounded-md bg-emerald-50 px-2.5 py-1 text-emerald-700 border border-emerald-200">
-                        <FileText className="h-3.5 w-3.5 mr-1" />
-                        {resumeFile.name}
-                      </span>
-                      <span className="text-slate-400">•</span>
-                      <span>{Math.round(resumeFile.size / 1024)} KB</span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setResumeFile(null)
-                          if (fileInputRef.current) fileInputRef.current.value = ''
-                        }}
-                        className="ml-2 inline-flex items-center rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-50"
-                      >
-                        × Remove
+                  <Upload className="h-5 w-5 text-emerald-500 shrink-0" />
+                  {resumeFile ? (
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <FileText className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <span className="text-sm text-slate-700 truncate">{resumeFile.name}</span>
+                      <span className="text-xs text-slate-400 shrink-0">{Math.round(resumeFile.size / 1024)} KB</span>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setResumeFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }} className="ml-auto text-xs text-slate-400 hover:text-red-500 shrink-0">
+                        <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
+                  ) : (
+                    <span className="text-sm text-slate-500">Drop file or <span className="text-emerald-600 font-medium">browse</span></span>
                   )}
+                  <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileSelect(f) }} />
                 </div>
-              </section>
+                <p className="text-[10px] text-slate-400 mt-1">PDF, DOC, DOCX, TXT — max 10 MB</p>
+              </div>
 
-              {/* Webcam Photo Capture */}
-              <section>
+              {/* Photo — compact webcam */}
+              <div>
+                <Label className="text-xs mb-1.5 block">Capture Photo *</Label>
                 <WebcamCapture
                   onCapture={(imageData) => setCapturedPhoto(imageData)}
                   capturedImage={capturedPhoto}
                   onClear={() => setCapturedPhoto(null)}
                   disabled={isSubmitting}
                 />
-              </section>
-
-              {/* Cover Letter */}
-              <section>
-                <h3 className="font-semibold text-slate-900 border-b border-slate-200 pb-3 mb-4">Cover Letter</h3>
-                <textarea 
-                  value={formData.coverLetter} 
-                  onChange={(e) => setFormData(p => ({ ...p, coverLetter: e.target.value }))} 
-                  placeholder="Tell us why you're interested in this role and what makes you a great fit..." 
-                  rows={5} 
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 text-sm cursor-text resize-y transition-colors duration-200 hover:border-emerald-400" 
-                  disabled={isSubmitting} 
-                />
-              </section>
-
-              {/* Language and Proficiency */}
-              <section>
-                <h3 className="font-semibold text-slate-900 border-b border-slate-200 pb-3 mb-4">Language and Proficiency Levels</h3>
-                <div className="space-y-3">
-                  {languages.map((lang, index) => (
-                    <div key={index} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
-                      <div className="space-y-2">
-                        <Label>Language</Label>
-                        <select 
-                          value={lang.language} 
-                          onChange={(e) => updateLanguage(index, 'language', e.target.value)}
-                          disabled={isSubmitting}
-                          className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none transition-colors duration-200 hover:border-emerald-400"
-                        >
-                          <option value="">Select language</option>
-                          {languageOptions.map((option) => (
-                            <option key={option} value={option}>{option}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Proficiency Level</Label>
-                        <select 
-                          value={lang.proficiency} 
-                          onChange={(e) => updateLanguage(index, 'proficiency', e.target.value)}
-                          disabled={isSubmitting}
-                          className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none transition-colors duration-200 hover:border-emerald-400"
-                        >
-                          <option value="">Select proficiency</option>
-                          {proficiencyLevels.map((level) => (
-                            <option key={level.value} value={level.value}>{level.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => removeLanguage(index)}
-                        disabled={isSubmitting || languages.length === 1}
-                        className="border-slate-300 text-slate-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-colors duration-200"
-                        title="Remove language"
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={addLanguage}
-                    disabled={isSubmitting}
-                    className="mt-2 border-slate-300 text-emerald-600 hover:text-emerald-700 hover:border-emerald-400 hover:bg-emerald-50 transition-colors duration-200"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Another Language
-                  </Button>
-                </div>
-              </section>
-
-              {/* Additional Information */}
-              <section>
-                <h3 className="font-semibold text-slate-900 border-b border-slate-200 pb-3 mb-4">Additional Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="linkedin">LinkedIn URL</Label>
-                    <Input 
-                      id="linkedin" 
-                      value={formData.linkedinUrl} 
-                      onChange={(e) => setFormData(p => ({ ...p, linkedinUrl: e.target.value }))} 
-                      placeholder="https://linkedin.com/in/yourprofile" 
-                      className="border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 transition-colors duration-200 hover:border-emerald-400" 
-                      disabled={isSubmitting} 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="portfolio">Portfolio/Website</Label>
-                    <Input 
-                      id="portfolio" 
-                      value={formData.portfolioUrl} 
-                      onChange={(e) => setFormData(p => ({ ...p, portfolioUrl: e.target.value }))} 
-                      placeholder="https://yourportfolio.com" 
-                      className="border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 transition-colors duration-200 hover:border-emerald-400" 
-                      disabled={isSubmitting} 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="start">Available Start Date *</Label>
-                    <Input 
-                      id="start" 
-                      type="date" 
-                      value={formData.availableStartDate} 
-                      onChange={(e) => setFormData(p => ({ ...p, availableStartDate: e.target.value }))} 
-                      className="border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 transition-colors duration-200 hover:border-emerald-400" 
-                      required 
-                      disabled={isSubmitting} 
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 md:col-span-2">
-                    <input 
-                      id="relocate" 
-                      type="checkbox" 
-                      checked={formData.relocate} 
-                      onChange={(e) => setFormData(p => ({ ...p, relocate: e.target.checked }))} 
-                      className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-600 transition-transform duration-150 hover:scale-105" 
-                    />
-                    <Label htmlFor="relocate" className="cursor-pointer">I am willing to relocate for this position</Label>
-                  </div>
-                </div>
-              </section>
-
-              {/* Confirmation - Agree / Disagree */}
-              <section className="pt-2">
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
-                  <p className="text-sm text-slate-700 leading-relaxed">
-                    If you are interested in the application process, kindly check your previous applications (past LinkedIn applications and email threads) and confirm that you have not applied to <strong>{job.clientCompanyName || job.company.name}</strong> in the last 12 months (whether direct or through another agency).
-                  </p>
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setConfirmationStatus('agree')}
-                      className={`inline-flex items-center gap-1.5 rounded-lg border px-5 py-2 text-sm font-medium cursor-pointer transition-all duration-150 ${
-                        confirmationStatus === 'agree'
-                          ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
-                          : 'bg-white border-slate-300 text-slate-700 hover:border-emerald-400 hover:bg-emerald-50'
-                      }`}
-                    >
-                      Agree
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmationStatus('disagree')}
-                      className={`inline-flex items-center gap-1.5 rounded-lg border px-5 py-2 text-sm font-medium cursor-pointer transition-all duration-150 ${
-                        confirmationStatus === 'disagree'
-                          ? 'bg-red-600 border-red-600 text-white shadow-sm'
-                          : 'bg-white border-slate-300 text-slate-700 hover:border-red-400 hover:bg-red-50'
-                      }`}
-                    >
-                      Disagree
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              {/* Information Correctness Checkbox */}
-              <section className="pt-1">
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                  <label className="flex items-start gap-3 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={infoCorrectChecked}
-                      onChange={(e) => setInfoCorrectChecked(e.target.checked)}
-                      disabled={isSubmitting}
-                      className="mt-0.5 h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-600 transition-transform duration-150 hover:scale-105 shrink-0"
-                    />
-                    <span className="text-sm text-slate-700 leading-relaxed">
-                      All the information must be correct and must not change during later rounds of Interview or Negotiation.
-                    </span>
-                  </label>
-                </div>
-              </section>
-
-              {/* Submit bar */}
-              <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-200">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="rounded-md border-slate-300 text-slate-700 hover:bg-slate-50 shadow-sm hover:shadow-md motion-safe:transition-shadow motion-safe:duration-200" 
-                  onClick={() => router.back()} 
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  className="bg-emerald-600 hover:bg-emerald-600/90 text-white text-base px-5 py-3 rounded-md font-semibold shadow-lg hover:shadow-2xl ring-1 ring-transparent hover:ring-emerald-300 ring-offset-1 ring-offset-white motion-safe:transition-shadow motion-safe:duration-300"
-                  disabled={isSubmitting || confirmationStatus !== 'agree' || !infoCorrectChecked}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-5 h-5 mr-2" />
-                      Submit Application
-                    </>
-                  )}
-                </Button>
               </div>
-            </form>
-
-            <div className="max-w-3xl mx-auto mt-6 p-4 bg-slate-50 rounded-md border">
-              <h4 className="font-semibold mb-2">What happens next?</h4>
-              <ul className="text-sm text-slate-700 space-y-1">
-                <li>• Your application will be reviewed by our team</li>
-                <li>• If qualified, you&apos;ll be contacted for the next steps</li>
-                <li>• The process includes multiple stages tailored to this role</li>
-                <li>• You&apos;ll receive updates on your application status</li>
-              </ul>
             </div>
+          </section>
+
+          {/* Cover Letter */}
+          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="font-semibold text-sm text-slate-900 mb-3">Cover Letter</h3>
+            <textarea value={formData.coverLetter} onChange={(e) => setFormData(p => ({ ...p, coverLetter: e.target.value }))} placeholder="Tell us why you're interested in this role..." rows={3} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 text-sm resize-y hover:border-emerald-400" disabled={isSubmitting} />
+          </section>
+
+          {/* Languages */}
+          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="font-semibold text-sm text-slate-900 mb-3">Languages</h3>
+            <div className="space-y-2">
+              {languages.map((lang, index) => (
+                <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                  <select value={lang.language} onChange={(e) => updateLanguage(index, 'language', e.target.value)} disabled={isSubmitting} className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none">
+                    <option value="">Language</option>
+                    {languageOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                  <select value={lang.proficiency} onChange={(e) => updateLanguage(index, 'proficiency', e.target.value)} disabled={isSubmitting} className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none">
+                    <option value="">Proficiency</option>
+                    {proficiencyLevels.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+                  </select>
+                  <Button type="button" variant="outline" size="icon" onClick={() => removeLanguage(index)} disabled={isSubmitting || languages.length === 1} className="h-9 w-9 border-slate-300 text-slate-400 hover:text-red-500 hover:border-red-300"><X className="w-3.5 h-3.5" /></Button>
+                </div>
+              ))}
+              <Button type="button" variant="outline" onClick={addLanguage} disabled={isSubmitting} className="h-8 text-xs border-slate-300 text-emerald-600 hover:text-emerald-700 hover:border-emerald-400 hover:bg-emerald-50">
+                <Plus className="w-3.5 h-3.5 mr-1" /> Add Language
+              </Button>
+            </div>
+          </section>
+
+          {/* Additional Info */}
+          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="font-semibold text-sm text-slate-900 mb-3">Additional Information</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="linkedin" className="text-xs">LinkedIn URL</Label>
+                <Input id="linkedin" value={formData.linkedinUrl} onChange={(e) => setFormData(p => ({ ...p, linkedinUrl: e.target.value }))} placeholder="https://linkedin.com/in/..." className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" disabled={isSubmitting} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="portfolio" className="text-xs">Portfolio / Website</Label>
+                <Input id="portfolio" value={formData.portfolioUrl} onChange={(e) => setFormData(p => ({ ...p, portfolioUrl: e.target.value }))} placeholder="https://yoursite.com" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" disabled={isSubmitting} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="start" className="text-xs">Available Start Date *</Label>
+                <Input id="start" type="date" value={formData.availableStartDate} onChange={(e) => setFormData(p => ({ ...p, availableStartDate: e.target.value }))} className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
+              </div>
+              <div className="flex items-end pb-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input id="relocate" type="checkbox" checked={formData.relocate} onChange={(e) => setFormData(p => ({ ...p, relocate: e.target.checked }))} className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-600" />
+                  <span className="text-xs text-slate-700">Willing to relocate</span>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          {/* Confirmation */}
+          <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm space-y-3">
+            <p className="text-xs text-slate-700 leading-relaxed">
+              Kindly confirm that you have not applied to <strong>{job.clientCompanyName || job.company.name}</strong> in the last 12 months (whether direct or through another agency).
+            </p>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setConfirmationStatus('agree')} className={`rounded-md border px-4 py-1.5 text-xs font-medium transition-all ${confirmationStatus === 'agree' ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-600 hover:border-emerald-400'}`}>Agree</button>
+              <button type="button" onClick={() => setConfirmationStatus('disagree')} className={`rounded-md border px-4 py-1.5 text-xs font-medium transition-all ${confirmationStatus === 'disagree' ? 'bg-red-600 border-red-600 text-white' : 'bg-white border-slate-300 text-slate-600 hover:border-red-400'}`}>Disagree</button>
+            </div>
+          </section>
+
+          {/* Info correctness */}
+          <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              <input type="checkbox" checked={infoCorrectChecked} onChange={(e) => setInfoCorrectChecked(e.target.checked)} disabled={isSubmitting} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-600 shrink-0" />
+              <span className="text-xs text-slate-700 leading-relaxed">All the information must be correct and must not change during later rounds of Interview or Negotiation.</span>
+            </label>
+          </section>
+
+          {/* Submit */}
+          <div className="flex items-center justify-end gap-3 pt-1">
+            <Button type="button" variant="outline" className="h-9 text-sm border-slate-300 text-slate-700 hover:bg-slate-50" onClick={() => router.back()} disabled={isSubmitting}>Cancel</Button>
+            <Button type="submit" className="h-10 bg-emerald-600 hover:bg-emerald-700 text-white text-sm px-6 font-semibold shadow-md hover:shadow-lg" disabled={isSubmitting || confirmationStatus !== 'agree' || !infoCorrectChecked}>
+              {isSubmitting ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processing...</>) : (<><Send className="w-4 h-4 mr-2" />Submit Application</>)}
+            </Button>
           </div>
-        </section>
+        </form>
+
+        {/* What happens next */}
+        <div className="mt-5 p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600">
+          <h4 className="font-semibold text-slate-800 mb-1.5 text-sm">What happens next?</h4>
+          <ul className="space-y-0.5">
+            <li>• Your application will be reviewed by our team</li>
+            <li>• If qualified, you&apos;ll be contacted for the next steps</li>
+            <li>• The process includes multiple stages tailored to this role</li>
+            <li>• You&apos;ll receive updates on your application status</li>
+          </ul>
+        </div>
+      </div>
+
+      {/* Parsing Overlay */}
+      {parsingOpen && <ParsingOverlay step={parseStep} />}
+    </div>
+  )
+}
+
+function ParsingOverlay({ step }: { step: 'idle' | 'uploading' | 'parsing' | 'evaluating' | 'done' }) {
+  const steps = [
+    { key: 'uploading', label: 'Uploading Resume' },
+    { key: 'parsing', label: 'Parsing Resume' },
+    { key: 'evaluating', label: 'Evaluating CV' },
+    { key: 'done', label: 'Completed' },
+  ] as const
+
+  const order: Record<string, number> = { idle: -1, uploading: 0, parsing: 1, evaluating: 2, done: 3 }
+  const curIndex = order[step] ?? -1
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+      <div className="relative w-[90%] max-w-md rounded-2xl border border-white/20 bg-white shadow-2xl p-6">
+        <div className="flex items-start gap-3 mb-5">
+          <div className="p-2.5 rounded-full bg-emerald-100 shrink-0">
+            {step === 'done' ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            ) : (
+              <Loader2 className="w-5 h-5 text-emerald-600 animate-spin" />
+            )}
+          </div>
+          <div>
+            <h2 className="text-slate-900 font-semibold text-base">
+              {step === 'done' ? 'All done!' : "We're processing your resume"}
+            </h2>
+            <p className="text-slate-500 text-xs mt-0.5">
+              {step === 'done' ? 'Your application has been processed successfully.' : 'This takes ~10-20 seconds. Please wait.'}
+            </p>
+          </div>
+        </div>
+
+        {/* Stepper */}
+        <div className="flex items-center justify-between gap-1">
+          {steps.map((s, i) => {
+            const myIndex = order[s.key]
+            const status = myIndex < curIndex ? 'done' : myIndex === curIndex ? 'active' : 'pending'
+            return (
+              <div key={s.key} className="flex-1 flex flex-col items-center min-w-0">
+                <div className="flex items-center w-full">
+                  {i !== 0 && <div className={`h-0.5 flex-1 rounded ${myIndex <= curIndex ? 'bg-emerald-500' : 'bg-slate-200'}`} />}
+                  <div className={`flex items-center justify-center h-7 w-7 rounded-full border text-[10px] font-bold transition-all shrink-0 ${
+                    status === 'done' ? 'bg-emerald-600 text-white border-emerald-600' :
+                    status === 'active' ? 'bg-white text-emerald-700 border-emerald-500 shadow-md' :
+                    'bg-white text-slate-400 border-slate-300'
+                  }`}>
+                    {status === 'done' ? <CheckCircle2 className="w-3.5 h-3.5" /> : i + 1}
+                  </div>
+                  {i !== steps.length - 1 && <div className={`h-0.5 flex-1 rounded ${myIndex < curIndex ? 'bg-emerald-500' : 'bg-slate-200'}`} />}
+                </div>
+                <span className={`mt-1.5 text-[10px] font-medium text-center truncate max-w-[5rem] ${status === 'active' ? 'text-emerald-700' : status === 'done' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                  {s.label}
+                </span>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

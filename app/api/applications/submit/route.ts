@@ -63,8 +63,7 @@ export async function POST(req: NextRequest) {
           location = $5,
           linkedin_url = $6,
           resume_url = COALESCE($7, resume_url),
-          photo_url = COALESCE($8, photo_url),
-          updated_at = NOW()
+          photo_url = COALESCE($8, photo_url)
         WHERE id = $9::uuid`,
         [
           fullName,

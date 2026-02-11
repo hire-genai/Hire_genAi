@@ -13,8 +13,6 @@ import {
 	Users,
 	Clock,
 	Eye,
-	Edit,
-	MoreHorizontal,
 	FolderOpen,
 	FolderClosed,
 	PauseCircle,
@@ -22,7 +20,6 @@ import {
 	FileEdit,
 	Database,
 	Filter,
-	Copy,
 	Loader2,
 	RefreshCw,
 	Share2,
@@ -30,9 +27,6 @@ import {
 } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { useMobileMenu } from '@/components/dashboard/mobile-menu-context'
 import { JobPostingForm } from '@/components/dashboard/job-posting-form'
 
@@ -52,6 +46,44 @@ interface Job {
 	posted: string
 	companySlug: string
 	description?: string
+	workMode?: string
+	jobOpenDate?: string
+	applicationDeadline?: string
+	expectedStartDate?: string
+	salaryMin?: number | null
+	salaryMax?: number | null
+	currency?: string
+	responsibilities?: string[]
+	requiredSkills?: string[]
+	preferredSkills?: string[]
+	experienceYears?: string
+	requiredEducation?: string
+	certificationsRequired?: string
+	languagesRequired?: string
+	recruiterAssigned?: string
+	hiringManager?: string
+	hiringManagerEmail?: string
+	interviewPanelMembers?: string[]
+	numberOfOpenings?: string
+	hiringPriority?: string
+	targetTimeToFill?: string
+	budgetAllocated?: string
+	targetSources?: string[]
+	diversityGoals?: boolean
+	diversityTargetPercentage?: string
+	selectedCriteriaIds?: string[]
+	generatedQuestions?: any[]
+	expectedHiresPerMonth?: string
+	targetOfferAcceptanceRate?: string
+	candidateResponseTimeSLA?: string
+	interviewScheduleSLA?: string
+	costPerHireBudget?: string
+	agencyFeePercentage?: string
+	jobBoardCosts?: string
+	autoScheduleInterview?: boolean
+	interviewLinkExpiryHours?: number
+	enableScreeningQuestions?: boolean
+	screeningQuestions?: any
 	stages: {
 		cvScreened: number
 		aiInterview: number
@@ -69,13 +101,13 @@ export default function JobsPage() {
 	const [locationFilter, setLocationFilter] = useState('all')
 	const [recruiterFilter, setRecruiterFilter] = useState('all')
 	const { setIsCollapsed } = useMobileMenu()
-	const [isCollapsedState, setIsCollapsedState] = useState(false)
 	const [showJobPostingDialog, setShowJobPostingDialog] = useState(false)
 	const [viewAsRole, setViewAsRole] = useState<UserRole>('recruiter')
 	const [viewAsRecruiter, setViewAsRecruiter] = useState('all')
-	const [selectedJob, setSelectedJob] = useState<any>(null)
-	const [jobDialogMode, setJobDialogMode] = useState<'view' | 'edit'>('view')
-	const [jobDialogOpen, setJobDialogOpen] = useState(false)
+	const [jobFormInitialData, setJobFormInitialData] = useState<any>(null)
+	const [jobFormMode, setJobFormMode] = useState<'create' | 'view'>('create')
+	const [jobFormJobId, setJobFormJobId] = useState<string | null>(null)
+	const [jobFormCompanySlug, setJobFormCompanySlug] = useState<string | null>(null)
 	
 	// Data fetching states
 	const [jobs, setJobs] = useState<Job[]>([])
@@ -153,13 +185,51 @@ export default function JobsPage() {
 				posted: formatRelativeTime(job.created_at),
 				companySlug: job.company_slug || 'company',
 				description: job.description || '',
+				workMode: job.work_mode || 'Hybrid',
+				jobOpenDate: job.job_open_date,
+				applicationDeadline: job.application_deadline,
+				expectedStartDate: job.expected_start_date,
+				salaryMin: job.salary_min,
+				salaryMax: job.salary_max,
+				currency: job.currency,
+				responsibilities: job.responsibilities || [],
+				requiredSkills: job.required_skills || [],
+				preferredSkills: job.preferred_skills || [],
+				experienceYears: job.experience_years || '',
+				requiredEducation: job.required_education || '',
+				certificationsRequired: job.certifications_required || '',
+				languagesRequired: job.languages_required || '',
+				recruiterAssigned: job.recruiter_name || '',
+				hiringManager: job.hiring_manager_name || '',
+				hiringManagerEmail: job.hiring_manager_email || '',
+				interviewPanelMembers: job.interview_panel_members || [],
+				numberOfOpenings: job.number_of_openings?.toString?.() || '1',
+				hiringPriority: job.hiring_priority || 'Medium',
+				targetTimeToFill: job.target_time_to_fill_days?.toString?.() || '30',
+				budgetAllocated: job.budget_allocated?.toString?.() || '',
+				targetSources: job.target_sources || [],
+				diversityGoals: job.diversity_goals || false,
+				diversityTargetPercentage: job.diversity_target_pct?.toString?.() || '',
+				selectedCriteriaIds: job.selected_criteria_ids || job.selected_criteria || [],
+				generatedQuestions: job.interview_questions || job.questions || [],
+				expectedHiresPerMonth: job.expected_hires_per_month?.toString?.() || '',
+				targetOfferAcceptanceRate: job.target_offer_acceptance_pct?.toString?.() || '',
+				candidateResponseTimeSLA: job.candidate_response_sla_hrs?.toString?.() || '',
+				interviewScheduleSLA: job.interview_schedule_sla_hrs?.toString?.() || '',
+				costPerHireBudget: job.cost_per_hire_budget?.toString?.() || '',
+				agencyFeePercentage: job.agency_fee_pct?.toString?.() || '',
+				jobBoardCosts: job.job_board_costs?.toString?.() || '',
+				autoScheduleInterview: job.auto_schedule_interview ?? false,
+				interviewLinkExpiryHours: job.interview_link_expiry_hours ?? 48,
+				enableScreeningQuestions: job.enable_screening_questions ?? false,
+				screeningQuestions: job.screening_questions || undefined,
 				stages: {
-					cvScreened: parseInt(job.new_applications) || 0,
-					aiInterview: parseInt(job.in_interview) || 0,
-					hiringManager: 0,
-					offerStage: parseInt(job.in_offer) || 0,
-					hired: parseInt(job.hired) || 0,
-					rejected: 0,
+					cvScreened: parseInt(job.screening_count) || 0,
+					aiInterview: parseInt(job.ai_interview_count) || 0,
+					hiringManager: parseInt(job.hiring_manager_count) || 0,
+					offerStage: parseInt(job.offer_count) || 0,
+					hired: parseInt(job.hired_count) || 0,
+					rejected: parseInt(job.rejected_count) || 0,
 				}
 			}))
 			
@@ -180,7 +250,11 @@ export default function JobsPage() {
 	// Handle job posting dialog close - refresh data
 	const handleJobPostingClose = () => {
 		setShowJobPostingDialog(false)
-		fetchJobs() // Refresh jobs list after adding new job
+		setJobFormInitialData(null)
+		setJobFormMode('create')
+		setJobFormJobId(null)
+		setJobFormCompanySlug(null)
+		fetchJobs() // Refresh jobs list after add/update
 	}
 
 	// Function to apply filters to jobs (excluding status filter)
@@ -306,7 +380,16 @@ export default function JobsPage() {
 							</>
 						)}
 					</div>
-					<Button className="gap-2" size="sm" onClick={() => setShowJobPostingDialog(true)}>
+					<Button
+						className="gap-2"
+						size="sm"
+						onClick={() => {
+							setJobFormInitialData(null)
+							setJobFormMode('create')
+							setJobFormJobId(null)
+							setShowJobPostingDialog(true)
+						}}
+					>
 						<Plus className="h-3 w-3" />
 						Post New Job
 					</Button>
@@ -416,11 +499,10 @@ export default function JobsPage() {
 							}`}
 							onClick={() => {
 								setActiveStatus(status)
-								setIsCollapsedState(true)
 							}}
 						>
 							<div className="flex flex-col items-center text-center gap-1">
-								<div className={`w-7 h-7 rounded-full bg-${data.color}-100 flex items-center justify-center`}>
+								<div className={`w-7 h-7 rounded-full bg-${data.color}-100 flex items-center justify-center shrink-0`}>
 									<Icon className={`h-4 w-4 text-${data.color}-600`} />
 								</div>
 								<div>
@@ -469,7 +551,12 @@ export default function JobsPage() {
 								<Button 
 									size="sm" 
 									className="mt-3"
-									onClick={() => setShowJobPostingDialog(true)}
+									onClick={() => {
+										setJobFormInitialData(null)
+										setJobFormMode('create')
+										setJobFormJobId(null)
+										setShowJobPostingDialog(true)
+									}}
 								>
 									<Plus className="h-3 w-3 mr-1" />
 									Post New Job
@@ -503,7 +590,7 @@ export default function JobsPage() {
 													</Badge>
 												</div>
 												<p className="text-xs text-gray-600">{job.department}</p>
-												<p className="text-xs text-gray-500 mt-0.5">Recruiter: {job.recruiter}</p>
+												<p className="text-xs text-gray-500 mt-0.5">Recruiter: {job.recruiterAssigned || job.recruiter}</p>
 											</div>
 										</div>
 										
@@ -552,45 +639,59 @@ export default function JobsPage() {
 											size="sm" 
 											title="View job details"
 											onClick={() => {
-												setSelectedJob(job)
-												setJobDialogMode('view')
-												setJobDialogOpen(true)
+												setJobFormInitialData({
+													jobTitle: job.title,
+													department: job.department,
+													location: job.location,
+													jobType: job.type,
+													jobStatus: job.status,
+													workMode: job.workMode || 'Hybrid',
+													recruiterAssigned: job.recruiterAssigned || job.recruiter,
+													jobDescription: job.description || '',
+													responsibilities: job.responsibilities || [],
+													requiredSkills: job.requiredSkills || [],
+													preferredSkills: job.preferredSkills || [],
+													experienceYears: job.experienceYears || '',
+													requiredEducation: job.requiredEducation || '',
+													certificationsRequired: job.certificationsRequired || '',
+													languagesRequired: job.languagesRequired || '',
+													interviewPanelMembers: job.interviewPanelMembers || [],
+													numberOfOpenings: job.numberOfOpenings || '1',
+													hiringPriority: job.hiringPriority || 'Medium',
+													targetTimeToFill: job.targetTimeToFill || '30',
+													budgetAllocated: job.budgetAllocated || '',
+													targetSources: job.targetSources || [],
+													diversityGoals: job.diversityGoals || false,
+													diversityTargetPercentage: job.diversityTargetPercentage || '',
+													jobOpenDate: job.jobOpenDate,
+													salaryMin: job.salaryMin?.toString?.() || '',
+													salaryMax: job.salaryMax?.toString?.() || '',
+													currency: job.currency,
+													applicationDeadline: job.applicationDeadline,
+													expectedStartDate: job.expectedStartDate,
+													selectedCriteriaIds: job.selectedCriteriaIds || [],
+													generatedQuestions: job.generatedQuestions || job.interviewQuestions || [],
+													expectedHiresPerMonth: job.expectedHiresPerMonth || '',
+													targetOfferAcceptanceRate: job.targetOfferAcceptanceRate || '',
+													candidateResponseTimeSLA: job.candidateResponseTimeSLA || '',
+													interviewScheduleSLA: job.interviewScheduleSLA || '',
+													costPerHireBudget: job.costPerHireBudget || '',
+													agencyFeePercentage: job.agencyFeePercentage || '',
+													jobBoardCosts: job.jobBoardCosts || '',
+													autoScheduleInterview: job.autoScheduleInterview ?? false,
+													interviewLinkExpiryHours: job.interviewLinkExpiryHours ?? 48,
+													enableScreeningQuestions: job.enableScreeningQuestions ?? false,
+													screeningQuestions: job.screeningQuestions,
+												})
+												setJobFormMode('view')
+												setJobFormJobId(job.id)
+												setJobFormCompanySlug(job.companySlug)
+												setShowJobPostingDialog(true)
 											}}
 										>
 											<Eye className="h-3 w-3 mr-1" />
 											View
 										</Button>
-										
-										{/* Edit button - Different logic per bucket */}
-										{job.status === 'closed' || job.status === 'cancelled' ? (
-											<Button 
-												variant="outline" 
-												size="sm"
-												onClick={() => {
-													console.log('[v0] Cloning job:', job.title)
-													// Clone functionality
-												}}
-												title="Clone this job posting"
-											>
-												<Copy className="h-3 w-3 mr-1" />
-												Clone
-											</Button>
-										) : (
-											<Button 
-												variant="outline" 
-												size="sm"
-												disabled={!canModify}
-												title={!canModify ? 'View-only mode: Only recruiters can edit' : 'Edit job'}
-												onClick={() => {
-													setSelectedJob(job)
-													setJobDialogMode('edit')
-													setJobDialogOpen(true)
-												}}
-											>
-												<Edit className="h-3 w-3 mr-1" />
-												Edit
-											</Button>
-										)}
 									</div>
 								</div>
 
@@ -636,239 +737,16 @@ export default function JobsPage() {
 				)}
 			</div>
 
-			{/* Job Posting Dialog */}
+			{/* Job Posting Dialog (create / prefilled view) */}
 			{showJobPostingDialog && (
-				<JobPostingForm onClose={handleJobPostingClose} />
+				<JobPostingForm
+					onClose={handleJobPostingClose}
+					initialData={jobFormInitialData || undefined}
+					mode={jobFormMode}
+					jobId={jobFormJobId || undefined}
+					companySlug={jobFormCompanySlug || undefined}
+				/>
 			)}
-
-			{/* Job Details Dialog */}
-			<Dialog open={jobDialogOpen} onOpenChange={setJobDialogOpen}>
-				<DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-					<DialogHeader>
-						<DialogTitle className="text-2xl">
-							{jobDialogMode === 'view' ? 'Job Description' : 'Edit Job Description'}
-						</DialogTitle>
-					</DialogHeader>
-					{selectedJob && (
-						<div className="space-y-4 py-4">
-							{/* Job Basic Info */}
-							<div className="space-y-3">
-								<div className="space-y-2">
-									<Label htmlFor="job-title">Job Title</Label>
-									<Input 
-										id="job-title"
-										value={selectedJob.title}
-										disabled={jobDialogMode === 'view' || selectedJob.status === 'closed' || selectedJob.status === 'cancelled'}
-										onChange={(e) => setSelectedJob({...selectedJob, title: e.target.value})}
-									/>
-								</div>
-
-								<div className="grid grid-cols-2 gap-3">
-									<div className="space-y-2">
-										<Label htmlFor="job-department">Department</Label>
-										<Input 
-											id="job-department"
-											value={selectedJob.department}
-											disabled={jobDialogMode === 'view' || selectedJob.status === 'closed' || selectedJob.status === 'cancelled'}
-											onChange={(e) => setSelectedJob({...selectedJob, department: e.target.value})}
-										/>
-									</div>
-									<div className="space-y-2">
-										<Label htmlFor="job-location">Location</Label>
-										<Input 
-											id="job-location"
-											value={selectedJob.location}
-											disabled={jobDialogMode === 'view' || selectedJob.status === 'closed' || selectedJob.status === 'cancelled'}
-											onChange={(e) => setSelectedJob({...selectedJob, location: e.target.value})}
-										/>
-									</div>
-								</div>
-
-								<div className="grid grid-cols-2 gap-3">
-									<div className="space-y-2">
-										<Label htmlFor="job-type">Employment Type</Label>
-										<Input 
-											id="job-type"
-											value={selectedJob.type}
-											disabled={jobDialogMode === 'view' || selectedJob.status === 'closed' || selectedJob.status === 'cancelled'}
-											onChange={(e) => setSelectedJob({...selectedJob, type: e.target.value})}
-										/>
-									</div>
-									<div className="space-y-2">
-										<Label htmlFor="job-salary">Salary Range</Label>
-										<Input 
-											id="job-salary"
-											value={selectedJob.salary}
-											disabled={jobDialogMode === 'view' || selectedJob.status === 'closed' || selectedJob.status === 'cancelled'}
-											onChange={(e) => setSelectedJob({...selectedJob, salary: e.target.value})}
-										/>
-									</div>
-								</div>
-
-								{/* Status Field - Different permissions per bucket */}
-								<div className="space-y-2">
-									<Label htmlFor="job-status">Job Status</Label>
-									{selectedJob.status === 'open' ? (
-										// Open jobs - can change to Close, On Hold, Cancelled
-										<Select 
-											value={selectedJob.status} 
-											onValueChange={(value) => setSelectedJob({...selectedJob, status: value})}
-											disabled={jobDialogMode === 'view'}
-										>
-											<SelectTrigger id="job-status">
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="open">Open</SelectItem>
-												<SelectItem value="closed">Closed</SelectItem>
-												<SelectItem value="onhold">On Hold</SelectItem>
-												<SelectItem value="cancelled">Cancelled</SelectItem>
-											</SelectContent>
-										</Select>
-									) : selectedJob.status === 'closed' || selectedJob.status === 'cancelled' ? (
-										// Closed & Cancelled - View only
-										<Input 
-											id="job-status"
-											value={selectedJob.status.charAt(0).toUpperCase() + selectedJob.status.slice(1)}
-											disabled
-											className="bg-gray-100"
-										/>
-									) : selectedJob.status === 'onhold' ? (
-										// On Hold - can change status
-										<Select 
-											value={selectedJob.status} 
-											onValueChange={(value) => setSelectedJob({...selectedJob, status: value})}
-											disabled={jobDialogMode === 'view'}
-										>
-											<SelectTrigger id="job-status">
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="onhold">On Hold</SelectItem>
-												<SelectItem value="open">Open</SelectItem>
-												<SelectItem value="closed">Closed</SelectItem>
-												<SelectItem value="cancelled">Cancelled</SelectItem>
-											</SelectContent>
-										</Select>
-									) : selectedJob.status === 'draft' ? (
-										// Draft - can change to Open, Close, Cancelled
-										<Select 
-											value={selectedJob.status} 
-											onValueChange={(value) => setSelectedJob({...selectedJob, status: value})}
-											disabled={jobDialogMode === 'view'}
-										>
-											<SelectTrigger id="job-status">
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="draft">Draft</SelectItem>
-												<SelectItem value="open">Open</SelectItem>
-												<SelectItem value="closed">Closed</SelectItem>
-												<SelectItem value="cancelled">Cancelled</SelectItem>
-											</SelectContent>
-										</Select>
-									) : (
-										<Input 
-											id="job-status"
-											value={selectedJob.status}
-											disabled
-										/>
-									)}
-								</div>
-							</div>
-
-							{/* Job Description */}
-							<div className="space-y-2">
-								<Label htmlFor="job-description">Job Description</Label>
-								<Textarea 
-									id="job-description"
-									rows={6}
-									defaultValue={`We are looking for a talented ${selectedJob.title} to join our ${selectedJob.department} team.
-
-Key Responsibilities:
-• Lead technical projects and mentor junior developers
-• Design and implement scalable solutions
-• Collaborate with cross-functional teams
-• Ensure code quality and best practices
-
-Requirements:
-• 5+ years of professional experience
-• Strong technical skills and problem-solving abilities
-• Excellent communication and teamwork
-• Bachelor's degree in Computer Science or related field
-
-Benefits:
-• Competitive salary and equity package
-• Health, dental, and vision insurance
-• 401(k) with company match
-• Flexible work arrangements
-• Professional development budget`}
-									disabled={jobDialogMode === 'view' || selectedJob.status === 'closed' || selectedJob.status === 'cancelled'}
-								/>
-							</div>
-
-							{/* Recruiter Assignment */}
-							<div className="space-y-2">
-								<Label htmlFor="job-recruiter">Assigned Recruiter</Label>
-								<Input 
-									id="job-recruiter"
-									value={selectedJob.recruiter}
-									disabled={jobDialogMode === 'view' || selectedJob.status === 'closed' || selectedJob.status === 'cancelled'}
-									onChange={(e) => setSelectedJob({...selectedJob, recruiter: e.target.value})}
-								/>
-							</div>
-
-							{/* Action Buttons */}
-							<div className="flex gap-3 pt-4 border-t">
-								{selectedJob.status === 'closed' || selectedJob.status === 'cancelled' ? (
-									<>
-										<Button 
-											onClick={() => {
-												console.log('[v0] Cloning job:', selectedJob.title)
-												setJobDialogOpen(false)
-											}} 
-											className="flex-1"
-										>
-											<Copy className="h-4 w-4 mr-2" />
-											Clone Job
-										</Button>
-										<Button 
-											variant="outline" 
-											onClick={() => setJobDialogOpen(false)} 
-											className="flex-1 bg-transparent"
-										>
-											Close
-										</Button>
-									</>
-								) : jobDialogMode === 'view' ? (
-									<Button onClick={() => setJobDialogOpen(false)} className="w-full">
-										Close
-									</Button>
-								) : (
-									<>
-										<Button 
-											onClick={() => {
-												console.log('[v0] Saving job changes:', selectedJob)
-												setJobDialogOpen(false)
-											}} 
-											className="flex-1"
-										>
-											Save Changes
-										</Button>
-										<Button 
-											variant="outline" 
-											onClick={() => setJobDialogOpen(false)} 
-											className="flex-1 bg-transparent"
-										>
-											Cancel
-										</Button>
-									</>
-								)}
-							</div>
-						</div>
-					)}
-				</DialogContent>
-			</Dialog>
 		</div>
 	)
 }

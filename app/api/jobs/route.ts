@@ -118,12 +118,58 @@ export async function GET(request: NextRequest) {
       // Try to get candidate counts
       try {
         const counts = await DatabaseService.query(
-          `SELECT COUNT(*) as total FROM candidates WHERE job_id = $1::uuid`,
+          `SELECT COUNT(*) as total FROM applications WHERE job_id = $1::uuid`,
           [job.id]
         )
         job.total_candidates = counts[0]?.total || 0
       } catch {
         job.total_candidates = 0
+      }
+
+      // Try to get application stage counts
+      try {
+        const stageCounts = await DatabaseService.query(
+          `SELECT current_stage, COUNT(*) as count FROM applications WHERE job_id = $1::uuid GROUP BY current_stage`,
+          [job.id]
+        )
+        // Initialize all to 0
+        job.screening_count = 0
+        job.ai_interview_count = 0
+        job.hiring_manager_count = 0
+        job.offer_count = 0
+        job.hired_count = 0
+        job.rejected_count = 0
+        // Map the counts
+        stageCounts.forEach((sc: any) => {
+          switch (sc.current_stage) {
+            case 'screening':
+              job.screening_count = parseInt(sc.count)
+              break
+            case 'ai_interview':
+              job.ai_interview_count = parseInt(sc.count)
+              break
+            case 'hiring_manager':
+              job.hiring_manager_count = parseInt(sc.count)
+              break
+            case 'offer':
+              job.offer_count = parseInt(sc.count)
+              break
+            case 'hired':
+              job.hired_count = parseInt(sc.count)
+              break
+            case 'rejected':
+              job.rejected_count = parseInt(sc.count)
+              break
+          }
+        })
+      } catch (err) {
+        console.log('Could not get stage counts:', err)
+        job.screening_count = 0
+        job.ai_interview_count = 0
+        job.hiring_manager_count = 0
+        job.offer_count = 0
+        job.hired_count = 0
+        job.rejected_count = 0
       }
     }
 
