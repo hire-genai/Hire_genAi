@@ -1029,6 +1029,41 @@ CREATE INDEX IF NOT EXISTS idx_screening_sub_job_id ON screening_submissions (jo
 CREATE INDEX IF NOT EXISTS idx_screening_sub_email ON screening_submissions (candidate_email);
 CREATE INDEX IF NOT EXISTS idx_screening_sub_eligible ON screening_submissions (is_eligible);
 
+-- ---------------------------------------------------------------------------
+-- 10. screening_otps
+-- WHY: Persists OTP codes for interview identity verification.
+--      Required because serverless API routes don't share in-memory state.
+-- USED BY: /api/interview/verify/send-otp, /api/interview/verify/verify-otp
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS screening_otps (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email           TEXT NOT NULL,
+  application_id  UUID NOT NULL,
+  otp             TEXT NOT NULL,
+  verified        BOOLEAN DEFAULT FALSE,
+  expires_at      TIMESTAMPTZ NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(email, application_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_screening_otps_email ON screening_otps (email);
+CREATE INDEX IF NOT EXISTS idx_screening_otps_expires ON screening_otps (expires_at);
+
+
+-- ---------------------------------------------------------------------------
+-- ALTER TABLE: applications — add photo verification columns
+-- WHY: Stores identity verification result from /interview/{id}/verify page.
+--      verification_photo_url = captured webcam photo during verify step
+--      photo_verified = BOOLEAN result of face comparison
+--      photo_match_score = Euclidean distance (internal logs only)
+--      verified_at = timestamp of successful verification
+-- ---------------------------------------------------------------------------
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS verification_photo_url TEXT;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS photo_verified BOOLEAN;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS photo_match_score NUMERIC(5,4);
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+
+
 -- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================
