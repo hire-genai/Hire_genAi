@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     // Get bucket counts
     const bucketCountsQuery = `
       SELECT 
-        COUNT(*) FILTER (WHERE current_stage = 'screening') AS screening,
+        COUNT(*) FILTER (WHERE ai_cv_score IS NOT NULL) AS screening,
         COUNT(*) FILTER (WHERE current_stage = 'ai_interview') AS interview,
         COUNT(*) FILTER (WHERE current_stage = 'hiring_manager') AS hiring_manager,
         COUNT(*) FILTER (WHERE current_stage = 'offer') AS offer,
@@ -204,7 +204,7 @@ async function getScreeningStats() {
       COUNT(*) AS total,
       COUNT(*) FILTER (WHERE is_qualified = true) AS qualified,
       COUNT(*) FILTER (WHERE is_qualified = false) AS unqualified
-    FROM applications WHERE current_stage = 'screening'
+    FROM applications WHERE ai_cv_score IS NOT NULL
   `, [])
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0

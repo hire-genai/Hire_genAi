@@ -214,7 +214,7 @@ export function DashboardSidebar() {
               onClick={async () => {
                 if (confirm('Are you sure you want to logout?')) {
                   await signOut()
-                  window.location.href = '/login'
+                  window.location.replace('/login')
                 }
               }}
             >
@@ -230,7 +230,7 @@ export function DashboardSidebar() {
               onClick={async () => {
                 if (confirm('Are you sure you want to logout?')) {
                   await signOut()
-                  window.location.href = '/login'
+                  window.location.replace('/login')
                 }
               }}
             >

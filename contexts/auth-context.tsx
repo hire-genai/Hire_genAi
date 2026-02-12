@@ -1,9 +1,10 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useState, useEffect } from "react"
+import { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { MockAuthService } from "@/lib/mock-auth"
 import { RoleManagementService, UserRole } from "@/lib/role-management-service"
+import { SessionManager } from "@/utils/session"
 
 interface User {
   id: string
@@ -49,11 +50,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [company, setCompany] = useState<Company | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Handle session expiry - logout and redirect
+  const handleSessionExpiry = useCallback(() => {
+    console.log("⏰ Session expired, logging out...")
+    SessionManager.clearSession()
+    setUser(null)
+    setCompany(null)
+    // Show expiry message and redirect
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('sessionExpiredMessage', SessionManager.getExpiryMessage())
+      window.location.replace('/login')
+    }
+  }, [])
+
+  // Session timeout checker
+  useEffect(() => {
+    if (!user) return
+
+    // Check session validity every minute
+    const checkSession = () => {
+      if (!SessionManager.isSessionValid()) {
+        handleSessionExpiry()
+      }
+    }
+
+    const intervalId = setInterval(checkSession, 60 * 1000) // Check every minute
+    
+    // Also check immediately
+    checkSession()
+
+    return () => clearInterval(intervalId)
+  }, [user, handleSessionExpiry])
+
   useEffect(() => {
     // Initialize the auth system
     const initAuth = async () => {
       try {
         console.log("🔄 Initializing auth system...")
+
+        // Check if session has expired
+        if (!SessionManager.isSessionValid() && SessionManager.getRemainingTime() === 0 && localStorage.getItem('mockAuth')) {
+          console.log("⏰ Session expired on init, clearing...")
+          SessionManager.clearSession()
+          MockAuthService.signOut()
+          setLoading(false)
+          return
+        }
 
         // Initialize mock users and storage
         MockAuthService.initializeUsers()
@@ -135,6 +177,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         setUser(newUser)
         setCompany(newCompany)
+        // Start session timer
+        SessionManager.startSession()
       }
       return {}
     } catch (error) {
@@ -176,6 +220,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           setUser(newUser)
           setCompany(newCompany)
+          // Start session timer
+          SessionManager.startSession()
           console.log("✅ Sign up successful for:", currentUser.user.email)
         }
       }
@@ -216,6 +262,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         setUser(newUser)
         setCompany(newCompany)
+        // Start session timer
+        SessionManager.startSession()
       }
       return {}
     } catch (error) {
@@ -231,6 +279,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("🚪 Signing out user")
 
       await MockAuthService.signOut()
+      // Clear session timer
+      SessionManager.clearSession()
       setUser(null)
       setCompany(null)
 
@@ -264,6 +314,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       MockAuthService.setSessionFromServer(mockUser, mockCompany)
       setUser(userObj)
       setCompany(companyObj)
+      // Start session timer
+      SessionManager.startSession()
     } catch (e) {
       console.error("Failed to set auth session:", e)
     }

@@ -193,6 +193,30 @@ export class DatabaseService {
       // Continue with company creation even if OpenAI project fails
     }
 
+    // Generate unique slug from company name
+    const generateSlug = (name: string): string => {
+      return name
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s-]/g, '') // Remove special characters
+        .replace(/\s+/g, '-') // Replace spaces with hyphens
+        .replace(/-+/g, '-') // Replace multiple hyphens with single
+        .substring(0, 50) // Limit length
+    }
+
+    let baseSlug = generateSlug(finalCompanyName)
+    let slug = baseSlug
+    let slugSuffix = 0
+
+    // Check slug uniqueness and append number if needed
+    const checkSlugQuery = `SELECT COUNT(*) as count FROM companies WHERE slug = $1`
+    let slugCheck = await this.query(checkSlugQuery, [slug]) as any[]
+    while (slugCheck[0].count > 0) {
+      slugSuffix++
+      slug = `${baseSlug}-${slugSuffix}`
+      slugCheck = await this.query(checkSlugQuery, [slug]) as any[]
+    }
+
     const insertCompanyQuery = `
       INSERT INTO companies (
         name, 
@@ -208,11 +232,12 @@ export class DatabaseService {
         legal_company_name,
         tax_id_ein,
         business_registration_number,
+        slug,
         openai_project_id,
         openai_service_account_key,
         created_at
       )
-      VALUES ($1, 'active', false, $2, $3, $4, $5::company_size, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+      VALUES ($1, 'active', false, $2, $3, $4, $5::company_size, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
       RETURNING *
     `
     const newCompany = await this.query(insertCompanyQuery, [
@@ -227,6 +252,7 @@ export class DatabaseService {
       signupData.legalCompanyName || null,
       signupData.taxId || null,
       signupData.registrationNumber || null,
+      slug,
       openaiProjectId,
       openaiServiceAccountKey,
     ]) as any[]
@@ -497,14 +523,14 @@ export class DatabaseService {
     }
 
     if (challenge.length === 0) {
-      throw new Error('No valid OTP found for this email')
+      throw new Error('OTP expired or not found. Please request a new verification code.')
     }
 
     const challengeRecord = challenge[0]
 
     // Check if max tries exceeded
     if (challengeRecord.tries_used >= challengeRecord.max_tries) {
-      throw new Error('Maximum OTP attempts exceeded')
+      throw new Error('Too many incorrect attempts. Please request a new verification code.')
     }
 
     // Verify code
@@ -517,15 +543,21 @@ export class DatabaseService {
       `
       await this.query(incrementTriesQuery, [challengeRecord.id])
       
+      const remainingTries = challengeRecord.max_tries - challengeRecord.tries_used - 1
+      
       // Debug logging in development
       if (process.env.NODE_ENV === 'development') {
         console.log('OTP Verification Failed:')
         console.log('Expected hash:', challengeRecord.code_hash)
         console.log('Received hash:', codeHash)
         console.log('Original OTP:', otp)
+        console.log('Remaining tries:', remainingTries)
       }
       
-      throw new Error('Invalid OTP code')
+      if (remainingTries <= 0) {
+        throw new Error('Incorrect OTP. No attempts remaining. Please request a new code.')
+      }
+      throw new Error(`Incorrect OTP. ${remainingTries} attempt${remainingTries === 1 ? '' : 's'} remaining.`)
     }
 
     // Mark as consumed
@@ -568,7 +600,7 @@ export class DatabaseService {
 
     const refreshToken = this.generateToken()
     const refreshTokenHash = await this.hashCode(refreshToken)
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
 
     const insertSessionQuery = `
       INSERT INTO sessions (principal_type, principal_id, refresh_token_hash, issued_at, expires_at, last_seen_at)

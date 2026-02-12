@@ -433,7 +433,9 @@ export class MockAuthService {
       if (typeof window !== "undefined") {
         localStorage.removeItem(this.STORAGE_KEY)
         localStorage.removeItem(`${this.STORAGE_KEY}_backup`)
-        console.log("✅ Session cleared")
+        // Set flag to prevent session restoration on next load
+        sessionStorage.setItem('skipAuthRestore', 'true')
+        console.log("✅ Session cleared and skip flag set")
       }
       return { error: null }
     } catch (error) {

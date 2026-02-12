@@ -104,6 +104,8 @@ export default function SignupPage() {
   const [otpVerified, setOtpVerified] = useState(false)
   const [countdown, setCountdown] = useState(0)
   const [otpLoading, setOtpLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const totalSteps = 5
   const progressPct = useMemo(() => Math.round(((step - 1) / (totalSteps - 1)) * 100), [step])
@@ -243,6 +245,7 @@ export default function SignupPage() {
   const handleSendOtp = async () => {
     if (!form.email || !form.firstName || !form.lastName) return
     setOtpLoading(true)
+    setErrorMessage(null)
     try {
       const fullName = `${form.firstName} ${form.lastName}`.trim()
       const res = await fetch('/api/otp/send', {
@@ -256,6 +259,7 @@ export default function SignupPage() {
       setCountdown(30)
     } catch (e) {
       console.error('Send OTP failed', e)
+      setErrorMessage(e instanceof Error ? e.message : 'Failed to send verification code')
     } finally {
       setOtpLoading(false)
     }
@@ -264,6 +268,7 @@ export default function SignupPage() {
   const handleVerifyOtp = async () => {
     if (!otp || !form.email) return
     setOtpLoading(true)
+    setErrorMessage(null)
     try {
       // Just verify the OTP is valid, don't create user/company yet
       // That will happen in onSubmit with all the form data
@@ -278,7 +283,7 @@ export default function SignupPage() {
       setCountdown(0)
     } catch (e) {
       console.error('Verify OTP failed', e)
-      alert(e instanceof Error ? e.message : 'Failed to verify OTP')
+      setErrorMessage(e instanceof Error ? e.message : 'Failed to verify OTP')
     } finally {
       setOtpLoading(false)
     }
@@ -288,14 +293,19 @@ export default function SignupPage() {
     e.preventDefault()
     
     if (!otpVerified) {
-      alert('Please verify your email first')
+      setErrorMessage('Please verify your email first')
       return
     }
 
     if (!form.agreeTos || !form.agreePrivacy) {
-      alert('Please agree to Terms of Service and Privacy Policy')
+      setErrorMessage('Please agree to Terms of Service and Privacy Policy')
       return
     }
+
+    // Prevent multiple submissions
+    if (submitting) return
+    setSubmitting(true)
+    setErrorMessage(null)
 
     try {
       const res = await fetch('/api/signup/complete', {
@@ -342,11 +352,14 @@ export default function SignupPage() {
         localStorage.setItem('refreshToken', data.session.refreshToken)
       }
 
-      // Redirect to dashboard
-      router.push("/dashboard")
+      // Show success message and redirect to login
+      alert('Signup successful! Please login to continue.')
+      router.push("/login")
     } catch (error: any) {
       console.error('Signup error:', error)
-      alert(error?.message || 'Failed to complete signup. Please try again.')
+      setErrorMessage(error?.message || 'Failed to complete signup. Please try again.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -381,6 +394,23 @@ export default function SignupPage() {
       <div className="max-w-2xl md:max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <h1 className="text-3xl md:text-4xl font-bold text-slate-800 tracking-tight">Company Registration</h1>
         <p className="text-slate-600 mt-1">Complete all steps to set up your HireGenAI account</p>
+
+        {/* Error Message Display */}
+        {errorMessage && (
+          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+            <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="text-red-700 text-sm font-medium">{errorMessage}</span>
+            <button 
+              type="button"
+              onClick={() => setErrorMessage(null)}
+              className="ml-auto text-red-500 hover:text-red-700"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         <form onSubmit={onSubmit} className="mt-6">
           {step === 1 && (
@@ -644,8 +674,15 @@ export default function SignupPage() {
                 Next <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             ) : (
-              <Button type="submit" className="sr-button-primary" disabled={!form.agreeTos || !form.agreePrivacy}>
-                Complete Registration
+              <Button type="submit" className="sr-button-primary" disabled={!form.agreeTos || !form.agreePrivacy || submitting}>
+                {submitting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Completing Registration...
+                  </>
+                ) : (
+                  'Complete Registration'
+                )}
               </Button>
             )}
           </div>

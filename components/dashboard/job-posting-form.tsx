@@ -101,10 +101,26 @@ const EVALUATION_CRITERIA = [
   'Work Ethic / Reliability',
 ]
 
+type QuestionDifficulty = 'High' | 'Medium' | 'Low'
+
+const DIFFICULTY_MARKS: Record<QuestionDifficulty, number> = {
+  High: 15,
+  Medium: 10,
+  Low: 5,
+}
+
+const DIFFICULTY_COLORS: Record<QuestionDifficulty, { bg: string; text: string; border: string }> = {
+  High: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
+  Medium: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
+  Low: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
+}
+
 interface InterviewQuestion {
   id: number
   question: string
   criterion: string
+  difficulty: QuestionDifficulty
+  marks: number
   isCustom?: boolean
 }
 
@@ -115,6 +131,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false)
   const [customQuestionText, setCustomQuestionText] = useState('')
   const [customQuestionCriterion, setCustomQuestionCriterion] = useState('')
+  const [customQuestionDifficulty, setCustomQuestionDifficulty] = useState<QuestionDifficulty>('Medium')
   const [isAddingCustomQuestion, setIsAddingCustomQuestion] = useState(false)
   const isViewMode = mode === 'view'
   const defaultFormData: JobFormData = {
@@ -203,7 +220,14 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
         ...initialData,
       })
       if (initialData.generatedQuestions || (initialData as any).questions) {
-        setInterviewQuestions(initialData.generatedQuestions || (initialData as any).questions || [])
+        const rawQuestions = initialData.generatedQuestions || (initialData as any).questions || []
+        // Backward compatibility: add difficulty & marks if missing from old data
+        const migratedQuestions = rawQuestions.map((q: any) => ({
+          ...q,
+          difficulty: q.difficulty || 'Medium' as QuestionDifficulty,
+          marks: q.marks ?? DIFFICULTY_MARKS[(q.difficulty || 'Medium') as QuestionDifficulty],
+        }))
+        setInterviewQuestions(migratedQuestions)
       }
       if (initialData.selectedCriteriaIds || (initialData as any).selectedCriteria) {
         setSelectedCriteria(initialData.selectedCriteriaIds || (initialData as any).selectedCriteria || [])
@@ -271,13 +295,10 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
     setIsGeneratingQuestions(true)
     
     try {
-      // Build criteria list for the prompt
-      const selectedCriteriaNames = selectedCriteria
-
       // Simulate AI generation (replace with actual API call)
       await new Promise(resolve => setTimeout(resolve, 2000))
       
-      // Generate mock questions based on selected criteria
+      // Generate questions with difficulty distribution: ~30% High, ~40% Medium, ~30% Low
       const mockQuestions: InterviewQuestion[] = []
       let questionId = 1
       
@@ -285,15 +306,23 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
       const questionsPerCriterion = Math.floor(10 / selectedCriteria.length)
       const remainder = 10 % selectedCriteria.length
       
+      // Difficulty pattern per criterion: cycles through High → Medium → Low
+      const difficultyPattern: QuestionDifficulty[] = ['High', 'Medium', 'Low', 'Medium', 'High', 'Low', 'Medium', 'Medium', 'High', 'Low']
+      let difficultyIndex = 0
+      
       selectedCriteria.forEach((criterionName, index) => {
         const numQuestions = questionsPerCriterion + (index < remainder ? 1 : 0)
         
         for (let i = 0; i < numQuestions; i++) {
+          const difficulty = difficultyPattern[difficultyIndex % difficultyPattern.length]
           mockQuestions.push({
             id: questionId++,
             question: getQuestionForCriterion(criterionName, i),
-            criterion: criterionName
+            criterion: criterionName,
+            difficulty,
+            marks: DIFFICULTY_MARKS[difficulty],
           })
+          difficultyIndex++
         }
       })
       
@@ -366,14 +395,27 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
       id: interviewQuestions.length > 0 ? Math.max(...interviewQuestions.map(q => q.id)) + 1 : 1,
       question: customQuestionText.trim(),
       criterion: customQuestionCriterion,
+      difficulty: customQuestionDifficulty,
+      marks: DIFFICULTY_MARKS[customQuestionDifficulty],
       isCustom: true,
     }
     
     setInterviewQuestions(prev => [...prev, newQuestion])
     setCustomQuestionText('')
     setCustomQuestionCriterion('')
+    setCustomQuestionDifficulty('Medium')
     setIsAddingCustomQuestion(false)
   }
+
+  const updateQuestionDifficulty = (questionId: number, difficulty: QuestionDifficulty) => {
+    setInterviewQuestions(prev => prev.map(q => 
+      q.id === questionId 
+        ? { ...q, difficulty, marks: DIFFICULTY_MARKS[difficulty] } 
+        : q
+    ))
+  }
+
+  const totalMarks = interviewQuestions.reduce((sum, q) => sum + q.marks, 0)
 
   const removeQuestion = (questionId: number) => {
     setInterviewQuestions(prev => prev.filter(q => q.id !== questionId))
@@ -874,7 +916,17 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
               {/* Interview Questions Section */}
               <div className="border-t pt-4">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-semibold text-lg">Interview Questions ({interviewQuestions.length})</h4>
+                  <div>
+                    <h4 className="font-semibold text-lg">Interview Questions ({interviewQuestions.length})</h4>
+                    {interviewQuestions.length > 0 && (
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-xs font-medium text-gray-600">Total: <strong>{totalMarks} marks</strong></span>
+                        <span className="text-xs text-red-600">{interviewQuestions.filter(q => q.difficulty === 'High').length} High ({interviewQuestions.filter(q => q.difficulty === 'High').length * 15})</span>
+                        <span className="text-xs text-amber-600">{interviewQuestions.filter(q => q.difficulty === 'Medium').length} Med ({interviewQuestions.filter(q => q.difficulty === 'Medium').length * 10})</span>
+                        <span className="text-xs text-green-600">{interviewQuestions.filter(q => q.difficulty === 'Low').length} Low ({interviewQuestions.filter(q => q.difficulty === 'Low').length * 5})</span>
+                      </div>
+                    )}
+                  </div>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
@@ -924,16 +976,27 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                           placeholder="Type your custom interview question..."
                           autoFocus
                         />
-                        <select
-                          value={customQuestionCriterion}
-                          onChange={(e) => setCustomQuestionCriterion(e.target.value)}
-                          className="w-32 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0"
-                        >
-                          <option value="">Criteria...</option>
-                          {EVALUATION_CRITERIA.map(criterion => (
-                            <option key={criterion} value={criterion}>{criterion}</option>
-                          ))}
-                        </select>
+                        <div className="flex flex-col gap-1.5 flex-shrink-0">
+                          <select
+                            value={customQuestionCriterion}
+                            onChange={(e) => setCustomQuestionCriterion(e.target.value)}
+                            className="w-32 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="">Criteria...</option>
+                            {EVALUATION_CRITERIA.map(criterion => (
+                              <option key={criterion} value={criterion}>{criterion}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={customQuestionDifficulty}
+                            onChange={(e) => setCustomQuestionDifficulty(e.target.value as QuestionDifficulty)}
+                            className="w-32 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="High">High (15 marks)</option>
+                            <option value="Medium">Medium (10 marks)</option>
+                            <option value="Low">Low (5 marks)</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
 
@@ -953,6 +1016,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                           setIsAddingCustomQuestion(false)
                           setCustomQuestionText('')
                           setCustomQuestionCriterion('')
+                          setCustomQuestionDifficulty('Medium')
                         }} 
                         className="bg-transparent"
                       >
@@ -980,25 +1044,40 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {interviewQuestions.map((q, index) => (
-                    <div key={q.id} className="flex items-start gap-2 p-2 bg-gray-50 border rounded group">
-                      <span className={`flex-shrink-0 w-5 h-5 ${q.isCustom ? 'bg-green-600' : 'bg-blue-600'} text-white rounded-full flex items-center justify-center text-xs font-medium`}>
-                        {index + 1}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-gray-800">{q.question}</p>
-                        <span className="text-[10px] text-gray-500 mt-0.5 inline-block">{q.criterion}</span>
+                  {interviewQuestions.map((q, index) => {
+                    const colors = DIFFICULTY_COLORS[q.difficulty] || DIFFICULTY_COLORS['Medium']
+                    return (
+                      <div key={q.id} className={`flex items-start gap-2 p-2 border rounded group ${colors.bg} ${colors.border}`}>
+                        <span className={`flex-shrink-0 w-5 h-5 ${q.isCustom ? 'bg-green-600' : 'bg-blue-600'} text-white rounded-full flex items-center justify-center text-xs font-medium`}>
+                          {index + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-800">{q.question}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] text-gray-500">{q.criterion}</span>
+                            <select
+                              value={q.difficulty}
+                              onChange={(e) => updateQuestionDifficulty(q.id, e.target.value as QuestionDifficulty)}
+                              className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${colors.text} ${colors.border} bg-white cursor-pointer`}
+                            >
+                              <option value="High">High</option>
+                              <option value="Medium">Medium</option>
+                              <option value="Low">Low</option>
+                            </select>
+                            <span className={`text-[10px] font-bold ${colors.text}`}>{q.marks} marks</span>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeQuestion(q.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 bg-transparent"
+                        >
+                          <X className="h-3.5 w-3.5 text-gray-400 hover:text-red-500" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeQuestion(q.id)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 bg-transparent"
-                      >
-                        <X className="h-3.5 w-3.5 text-gray-400 hover:text-red-500" />
-                      </Button>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
 

@@ -447,17 +447,18 @@ CREATE INDEX idx_job_postings_created_at ON job_postings (created_at DESC);
 -- 5b. job_interview_questions
 -- WHY: Stores AI-generated interview questions for each job posting.
 --      Selected evaluation criteria stored as JSONB array (max 5 criteria names).
---      Questions stored as JSONB array with criterion mapping.
+--      Questions stored as JSONB array with criterion mapping, difficulty & marks.
 --      Criteria options: Technical Skills, Problem Solving, Communication,
 --        Experience, Culture Fit, Teamwork / Collaboration, Leadership,
 --        Adaptability / Learning, Work Ethic / Reliability
+--      Difficulty levels: High (15 marks), Medium (10 marks), Low (5 marks)
 -- USED BY: JobPostingForm (Step 3), AI Interview, Candidate evaluation
 -- ---------------------------------------------------------------------------
 CREATE TABLE job_interview_questions (
   id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   job_id              UUID NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
   selected_criteria   JSONB NOT NULL DEFAULT '[]',     -- e.g. ["Technical Skills", "Problem Solving", "Communication"]
-  questions           JSONB NOT NULL DEFAULT '[]',     -- e.g. [{"id": 1, "question": "...", "criterion": "Technical Skills"}, ...]
+  questions           JSONB NOT NULL DEFAULT '[]',     -- e.g. [{"id": 1, "question": "...", "criterion": "Technical Skills", "difficulty": "High", "marks": 15}, ...]
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
