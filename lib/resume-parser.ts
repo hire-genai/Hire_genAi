@@ -1,67 +1,40 @@
 import { generateText } from "ai"
 import { openai, createOpenAI } from "@ai-sdk/openai"
-import { createRequire } from 'module'
-import { fileURLToPath } from 'url'
-import path from 'path'
 
-// Cache for loaded libraries
-let librariesCache: { mammoth: any; pdfParse: any } | null = null
+// Direct require() at module level - simple and reliable
+// pdf-parse v2 exports PDFParse class; mammoth exports an object
+let PDFParseClass: any = null
+let mammoth: any = null
 
-/**
- * Load parsing libraries using Node.js native require via createRequire
- */
-async function loadParsingLibrariesAsync(): Promise<{ mammoth: any; pdfParse: any }> {
-  if (typeof window !== 'undefined') {
-    return { mammoth: null, pdfParse: null }
-  }
-  
-  if (librariesCache) {
-    return librariesCache
-  }
-  
-  let mammoth = null
-  let pdfParse = null
-  
-  // Create a native require function that bypasses bundler
-  let nativeRequire: NodeRequire
+if (typeof window === 'undefined') {
   try {
-    // Use createRequire with a file URL
-    const __filename = fileURLToPath(import.meta.url)
-    nativeRequire = createRequire(__filename)
-  } catch {
-    // Fallback: try with process.cwd()
-    nativeRequire = createRequire(path.join(process.cwd(), 'package.json'))
-  }
-  
-  // Load mammoth
-  try {
-    mammoth = nativeRequire("mammoth")
-    console.log('[loadParsingLibraries] mammoth loaded successfully')
-  } catch (err) {
-    console.warn("Failed to load mammoth library:", err)
-  }
-  
-  // Load pdf-parse using native require
-  try {
-    const pdfModule = nativeRequire("pdf-parse")
-    console.log('[loadParsingLibraries] pdf-parse loaded, type:', typeof pdfModule)
-    
-    if (typeof pdfModule === 'function') {
-      pdfParse = pdfModule
-      console.log('[loadParsingLibraries] ✅ pdf-parse is a function')
+    const pdfModule = require('pdf-parse')
+    // pdf-parse v2: named export PDFParse (class)
+    // pdf-parse v1: direct function export
+    if (typeof pdfModule?.PDFParse === 'function') {
+      PDFParseClass = pdfModule.PDFParse
+      console.log('✅ pdf-parse v2 loaded (PDFParse class)')
+    } else if (typeof pdfModule === 'function') {
+      PDFParseClass = pdfModule
+      console.log('✅ pdf-parse v1 loaded (direct function)')
     } else if (typeof pdfModule?.default === 'function') {
-      pdfParse = pdfModule.default
-      console.log('[loadParsingLibraries] ✅ pdf-parse.default is a function')
+      PDFParseClass = pdfModule.default
+      console.log('✅ pdf-parse loaded (.default)')
     } else {
-      console.warn('[loadParsingLibraries] pdf-parse not a function, module keys:', Object.keys(pdfModule || {}))
-      pdfParse = null
+      console.error('❌ pdf-parse loaded but no callable export found. Keys:', Object.keys(pdfModule || {}))
     }
   } catch (err: any) {
-    console.warn("Failed to load pdf-parse library:", err.message)
+    console.error('❌ Failed to load pdf-parse:', err.message)
+    console.error('   Run: npm install pdf-parse')
   }
-  
-  librariesCache = { mammoth, pdfParse }
-  return librariesCache
+
+  try {
+    mammoth = require('mammoth')
+    console.log('✅ mammoth loaded')
+  } catch (err: any) {
+    console.error('❌ Failed to load mammoth:', err.message)
+    console.error('   Run: npm install mammoth')
+  }
 }
 
 export interface ParsedResume {
@@ -134,10 +107,12 @@ function isBinaryContent(text: string): boolean {
 async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
   const type = (mimeType || "").toLowerCase()
   
-  // Load libraries asynchronously first
-  const libs = await loadParsingLibrariesAsync()
-  
-  console.log('[extractText] Starting extraction, mimeType:', type, 'bufferSize:', buffer.length)
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  console.log('📄 EXTRACTION START')
+  console.log('   MIME Type:', type)
+  console.log('   Buffer Size:', buffer.length, 'bytes')
+  console.log('   First 20 bytes (hex):', buffer.slice(0, 20).toString('hex'))
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
   
   let rawText = ""
   let extractionMethod = "unknown"
@@ -146,23 +121,45 @@ async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
     // PDF extraction
     if (type.includes("pdf") || type.includes("application/pdf")) {
       extractionMethod = "pdf-parse"
-      if (!libs.pdfParse) {
-        console.error('[extractText] pdf-parse library not loaded!')
-        throw new Error("PDF parsing library not available. Please ensure pdf-parse is installed.")
+      
+      if (!PDFParseClass) {
+        throw new Error("pdf-parse library not loaded. Install it with: npm install pdf-parse")
       }
 
-      console.log('[extractText] Using pdf-parse for PDF extraction...')
+      console.log('🔧 Using pdf-parse, PDFParseClass type:', typeof PDFParseClass)
       
-      // The async loader already ensures pdfParse is a function
-      const data = await libs.pdfParse(buffer)
+      let data: any
+      
+      // pdf-parse v2: class-based API (PDFParse is a class)
+      // pdf-parse v1: function-based API (pdfParse is a function)
+      const isV2 = PDFParseClass.toString().startsWith('class')
+      
+      if (isV2) {
+        const parser = new PDFParseClass({ data: buffer })
+        const result = await parser.getText()
+        // v2 getText() returns { pages, text, total }
+        data = {
+          text: result?.text || '',
+          numpages: result?.total || 0,
+          info: {},
+        }
+        if (typeof parser.destroy === 'function') {
+          await parser.destroy()
+        }
+      } else {
+        // v1: pdfParse(buffer) returns { text, numpages, info, ... }
+        data = await PDFParseClass(buffer)
+      }
+      
+      console.log('📊 PDF Parse Result:')
+      console.log('   numpages:', data?.numpages)
+      console.log('   info:', JSON.stringify(data?.info))
+      console.log('   text length:', data?.text?.length)
       
       rawText = (data?.text || "").trim()
-      console.log('[extractText] pdf-parse extracted', rawText.length, 'characters')
       
-      // Validate extracted text
       if (!rawText || rawText.length < 20) {
-        console.warn('[extractText] PDF extraction returned very little text:', rawText.length)
-        throw new Error("PDF text extraction returned insufficient content")
+        console.warn(`⚠️ PDF extraction returned only ${rawText.length} chars. Pages: ${data?.numpages || 0}. May be image-based or corrupted.`)
       }
     }
     // DOCX/DOC extraction
@@ -173,32 +170,34 @@ async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
       type.includes("officedocument")
     ) {
       extractionMethod = "mammoth"
-      if (!libs.mammoth) {
-        console.error('[extractText] mammoth library not loaded!')
-        throw new Error("DOCX parsing library not available. Please ensure mammoth is installed.")
+      
+      if (!mammoth) {
+        throw new Error("mammoth library not loaded. Install it with: npm install mammoth")
       }
       
-      console.log('[extractText] Using mammoth for DOCX extraction...')
-      const { value } = await libs.mammoth.extractRawText({ buffer })
-      rawText = (value || "").trim()
-      console.log('[extractText] mammoth extracted', rawText.length, 'characters')
+      console.log('🔧 Using mammoth...')
+      const result = await mammoth.extractRawText({ buffer })
+      
+      console.log('📊 Mammoth Result:')
+      console.log('   value length:', result?.value?.length)
+      console.log('   messages:', result?.messages)
+      
+      rawText = (result?.value || "").trim()
       
       if (!rawText || rawText.length < 20) {
-        console.warn('[extractText] DOCX extraction returned very little text:', rawText.length)
-        throw new Error("DOCX text extraction returned insufficient content")
+        console.warn(`⚠️ DOCX extraction returned only ${rawText.length} chars. May be empty or corrupted.`)
       }
     }
     // Plain text
     else if (type.includes("text") || type.includes("txt")) {
       extractionMethod = "plain-text"
-      console.log('[extractText] Using plain text extraction...')
+      console.log('🔧 Using plain text extraction...')
       rawText = buffer.toString("utf8").trim()
-      console.log('[extractText] Plain text extracted', rawText.length, 'characters')
     }
     // Unknown type - try plain text but validate
     else {
       extractionMethod = "fallback-utf8"
-      console.warn('[extractText] Unknown mimeType, attempting UTF-8 decode:', type)
+      console.warn('⚠️ Unknown MIME type, attempting UTF-8:', type)
       rawText = buffer.toString("utf8").trim()
     }
     
@@ -207,26 +206,33 @@ async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
     
     // CRITICAL: Validate that we didn't extract binary garbage
     if (isBinaryContent(rawText)) {
-      console.error('[extractText] BINARY CONTENT DETECTED! Method:', extractionMethod)
-      console.error('[extractText] First 200 chars:', rawText.substring(0, 200))
+      console.error('❌ BINARY CONTENT DETECTED! Method:', extractionMethod)
+      console.error('   First 200 chars:', rawText.substring(0, 200))
       throw new Error(`Text extraction produced binary content. The ${extractionMethod} library may have failed.`)
     }
     
-    console.log('[extractText] ✅ Successfully extracted', rawText.length, 'chars using', extractionMethod)
-    console.log('[extractText] First 300 chars preview:', rawText.substring(0, 300))
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.log('✅ EXTRACTION SUCCESS')
+    console.log('   Method:', extractionMethod)
+    console.log('   Characters:', rawText.length)
+    console.log('   First 300 chars:')
+    console.log('   ' + rawText.substring(0, 300).replace(/\n/g, '\n   '))
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
     
     return rawText
     
   } catch (error) {
-    console.error('[extractText] ❌ Extraction failed:', error)
-    console.error('[extractText] Method attempted:', extractionMethod)
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.error('❌ EXTRACTION FAILED')
+    console.error('   Method:', extractionMethod)
+    console.error('   MIME Type:', type)
+    console.error('   Error:', error instanceof Error ? error.message : error)
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
     
-    // DO NOT fall back to buffer.toString() for binary files - that's what causes the bug!
-    // Instead, throw a clear error
+    // DO NOT fall back to buffer.toString() for binary files - that causes the bug!
     throw new Error(
       `Failed to extract text from ${type || 'unknown'} file using ${extractionMethod}: ` +
-      `${error instanceof Error ? error.message : 'Unknown error'}. ` +
-      `Please ensure the file is a valid document.`
+      `${error instanceof Error ? error.message : 'Unknown error'}`
     )
   }
 }
@@ -276,21 +282,26 @@ export async function parseResume(
   try {
     const { text, usage } = await generateText({
       model: openaiProvider("gpt-4o"),
-      system: `You are a resume parser. Extract structured information from resumes and return valid JSON only.`,
-      prompt: `
-Parse this resume and extract all relevant information. Return ONLY valid JSON with no markdown formatting.
+      system: `You are an expert resume parser. Extract structured information and return valid JSON only. No markdown, no explanations.`,
+      prompt: `Parse this resume and extract all information. Return ONLY valid JSON (no markdown, no code fences, no explanations).
 
 RESUME TEXT:
 ${truncatedText}
 
-Return this exact JSON structure:
+Return this JSON structure:
 {
   "name": "Full Name",
   "email": "email@example.com",
   "phone": "+1234567890",
-  "location": "City, Country",
-  "summary": "Professional summary or objective",
-  "skills": ["skill1", "skill2", "skill3"],
+  "location": "City, State/Country",
+  "summary": "Professional summary or objective statement",
+  "skills": [
+    "JavaScript",
+    "React",
+    "Node.js",
+    "Communication",
+    "Leadership"
+  ],
   "experience": [
     {
       "company": "Company Name",
@@ -298,7 +309,7 @@ Return this exact JSON structure:
       "location": "City, Country",
       "startDate": "Jan 2020",
       "endDate": "Present",
-      "description": "Job responsibilities and achievements"
+      "description": "Detailed job responsibilities, achievements, and impact. Include bullet points from resume."
     }
   ],
   "education": [
@@ -310,22 +321,31 @@ Return this exact JSON structure:
       "endYear": "2020"
     }
   ],
-  "certifications": ["AWS Certified", "PMP"],
-  "languages": ["English", "Spanish"],
+  "certifications": [
+    "AWS Certified Solutions Architect",
+    "PMP Certification"
+  ],
+  "languages": [
+    "English (Native)",
+    "Spanish (Fluent)",
+    "French (Intermediate)"
+  ],
   "links": [
-    {"type": "linkedin", "url": "https://linkedin.com/in/username"},
-    {"type": "github", "url": "https://github.com/username"}
+    { "type": "linkedin", "url": "https://linkedin.com/in/username" },
+    { "type": "github", "url": "https://github.com/username" },
+    { "type": "portfolio", "url": "https://myportfolio.com" }
   ]
 }
 
-Rules:
-- Extract ALL skills mentioned (technical, soft skills, tools, frameworks, languages)
-- Include all work experience with dates
-- Parse education history
-- Find LinkedIn, GitHub, portfolio URLs
-- If a field is not found, omit it or use null
-- Return ONLY the JSON object, no markdown code blocks
-      `.trim(),
+RULES:
+- Read the resume text carefully and extract ALL relevant information.
+- Be thorough; include all skills (technical, tools, frameworks, certifications, soft skills).
+- Include ALL jobs/internships/volunteer work with dates; use "Present" for current roles.
+- Extract education with school, degree, field, and years.
+- Extract certifications, languages (with proficiency if available), and links (linkedin/github/portfolio/etc.).
+- Dates should be consistent (e.g., "Jan 2020", "2020-01", "Present").
+- If a field is missing, omit it or set it to null.
+- Return ONLY valid JSON. No markdown, no extra text.`.trim(),
     })
 
     let jsonText = text.trim()

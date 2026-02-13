@@ -606,6 +606,14 @@ CREATE TABLE applications (
   is_qualified            BOOLEAN,                     -- Whether candidate passed threshold
   qualification_explanations JSONB,                    -- Full evaluation breakdown JSON
 
+  -- Interview Screenshots & Verification
+  during_interview_screenshot           TEXT,                        -- Screenshot captured silently during interview (last question or closing)
+  during_interview_screenshot_captured_at TIMESTAMPTZ,                -- Timestamp when during-interview screenshot was captured
+  post_interview_screenshot             TEXT,                        -- Screenshot captured after interview completion
+  post_interview_screenshot_captured_at TIMESTAMPTZ,                -- Timestamp when post-interview screenshot was captured
+  post_interview_photo_url              TEXT,                        -- Photo URL from post-verify page
+  post_interview_photo_captured_at      TIMESTAMPTZ,                -- Timestamp when post-verify photo was captured
+
   -- General
   remarks                 TEXT,
   created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -617,6 +625,9 @@ CREATE INDEX idx_applications_job_id ON applications (job_id);
 CREATE INDEX idx_applications_candidate_id ON applications (candidate_id);
 CREATE INDEX idx_applications_current_stage ON applications (current_stage);
 CREATE INDEX idx_applications_offer_status ON applications (offer_status);
+CREATE INDEX idx_applications_during_interview_screenshot ON applications (during_interview_screenshot) WHERE during_interview_screenshot IS NOT NULL;
+CREATE INDEX idx_applications_post_interview_screenshot ON applications (post_interview_screenshot) WHERE post_interview_screenshot IS NOT NULL;
+CREATE INDEX idx_applications_post_interview_photo ON applications (post_interview_photo_url) WHERE post_interview_photo_url IS NOT NULL;
 CREATE UNIQUE INDEX idx_applications_job_candidate ON applications (job_id, candidate_id);
 
 

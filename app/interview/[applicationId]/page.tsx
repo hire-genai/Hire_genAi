@@ -35,6 +35,8 @@ export default function InterviewPage() {
   const [isInterviewClosing, setIsInterviewClosing] = useState(false)
   const autoEndTimerRef = useRef<NodeJS.Timeout | null>(null)
   const [closingCountdown, setClosingCountdown] = useState<number | null>(null)
+  const screenshotCapturedRef = useRef<boolean>(false)
+  const screenshotDataRef = useRef<string | null>(null)
 
   const [conversation, setConversation] = useState<{ role: "agent" | "user"; text: string; t: number }[]>([])
   const [interviewCompleted, setInterviewCompleted] = useState(false)
@@ -61,6 +63,67 @@ export default function InterviewPage() {
       })
       .filter(Boolean)
       .join("\n")
+  }
+
+  // Silent screenshot capture function - captures from user's video and stores in ref
+  const captureScreenshotSilently = async () => {
+    console.log('📸 [SCREENSHOT] captureScreenshotSilently called')
+    
+    // Only capture once
+    if (screenshotCapturedRef.current) {
+      console.log('📸 [SCREENSHOT] Already captured, skipping')
+      return
+    }
+    screenshotCapturedRef.current = true
+    
+    try {
+      const videoElement = userVideoRef.current
+      console.log('📸 [SCREENSHOT] Video element:', videoElement ? 'exists' : 'null')
+      
+      if (!videoElement || !videoElement.srcObject) {
+        console.log('📸 [SCREENSHOT] No video element or srcObject - aborting')
+        screenshotCapturedRef.current = false
+        return
+      }
+      
+      // Create a canvas to capture the video frame
+      const canvas = document.createElement('canvas')
+      canvas.width = videoElement.videoWidth || 1280
+      canvas.height = videoElement.videoHeight || 720
+      console.log('📸 [SCREENSHOT] Canvas size:', canvas.width, 'x', canvas.height)
+      
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        console.log('📸 [SCREENSHOT] Failed to get canvas context')
+        return
+      }
+      
+      // Draw the current video frame to canvas (mirror it back since video is mirrored)
+      ctx.save()
+      ctx.scale(-1, 1)
+      ctx.drawImage(videoElement, -canvas.width, 0, canvas.width, canvas.height)
+      ctx.restore()
+      
+      // Convert to base64 and store in ref
+      const screenshot = canvas.toDataURL('image/jpeg', 0.8)
+      screenshotDataRef.current = screenshot
+      console.log('📸 [SCREENSHOT] Screenshot captured and stored, size:', screenshot.length, 'bytes')
+      
+      // Send to backend
+      try {
+        await fetch(`/api/applications/${encodeURIComponent(applicationId)}/interview-screenshot`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ screenshot, type: 'during_interview' })
+        })
+        console.log('📸 [SCREENSHOT] Screenshot uploaded to server')
+      } catch (uploadErr) {
+        console.error('📸 [SCREENSHOT] Failed to upload screenshot:', uploadErr)
+      }
+      
+    } catch (err) {
+      console.error('📸 [SCREENSHOT] Capture error:', err)
+    }
   }
 
   const handleTranscriptionCompleted = (event: any) => {
@@ -106,6 +169,9 @@ export default function InterviewPage() {
             console.log("🏁 [CLOSING] Detected closing message - starting 20-second auto-end timer")
             setIsInterviewClosing(true)
             setClosingCountdown(20)
+            
+            // Capture silent screenshot when closing detected
+            captureScreenshotSilently()
 
             if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current)
 
@@ -499,6 +565,9 @@ Once the candidate answers the LAST question:
       clearTimeout(autoEndTimerRef.current)
       autoEndTimerRef.current = null
     }
+
+    // Force capture screenshot before ending (if not already captured)
+    await captureScreenshotSilently()
 
     streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null

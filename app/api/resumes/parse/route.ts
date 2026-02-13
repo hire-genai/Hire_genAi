@@ -83,6 +83,70 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(arrayBuffer)
     console.log('[Resume Parse] Buffer created, size:', buffer.length)
 
+    // Upload file to storage and get URL
+    let fileUrl: string | null = null
+    try {
+      const timestamp = Date.now()
+      const randomStr = Math.random().toString(36).substring(2, 9)
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const fileName = `resumes/${candidateId || 'candidate'}-${timestamp}-${randomStr}-${safeName}`
+
+      // Upload to Vercel Blob
+      const { put } = await import('@vercel/blob')
+      const blob = await put(fileName, file, {
+        access: 'public',
+        addRandomSuffix: false,
+      })
+      fileUrl = blob.url
+      console.log(`[Resume Parse] ✅ Uploaded to Vercel Blob: ${fileUrl}`)
+    } catch (blobErr: any) {
+      console.error('[Resume Parse] ❌ Blob upload failed:', blobErr.message)
+      // Continue without URL - text extraction still works
+    }
+
+    // Update candidate.resume_url if we have a URL
+    if (fileUrl) {
+      let targetCandidateId = candidateId
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+      // Validate candidateId is a real UUID; if not, clear it so we fetch from application
+      if (targetCandidateId && !uuidRegex.test(targetCandidateId)) {
+        console.warn(`[Resume Parse] candidateId "${targetCandidateId}" is not a valid UUID, will fetch from application`)
+        targetCandidateId = null
+      }
+      
+      // Fetch candidateId from application if we don't have a valid one
+      if (!targetCandidateId && applicationId) {
+        try {
+          const appInfo = await DatabaseService.query(
+            `SELECT candidate_id FROM applications WHERE id = $1::uuid`,
+            [applicationId]
+          )
+          if (appInfo?.[0]?.candidate_id) {
+            targetCandidateId = appInfo[0].candidate_id
+            console.log(`[Resume Parse] Fetched candidateId from application: ${targetCandidateId}`)
+          }
+        } catch (fetchErr) {
+          console.warn('[Resume Parse] Failed to fetch candidateId from application:', fetchErr)
+        }
+      }
+      
+      // Update candidate.resume_url
+      if (targetCandidateId && uuidRegex.test(targetCandidateId)) {
+        try {
+          await DatabaseService.query(
+            `UPDATE candidates SET resume_url = $1 WHERE id = $2::uuid`,
+            [fileUrl, targetCandidateId]
+          )
+          console.log(`[Resume Parse] ✅ Updated candidates.resume_url for ${targetCandidateId}: ${fileUrl}`)
+        } catch (updateErr: any) {
+          console.error('[Resume Parse] ❌ Failed to update candidate resume_url:', updateErr?.message || updateErr)
+        }
+      } else {
+        console.warn('[Resume Parse] No valid candidateId available for updating resume_url. candidateId:', candidateId, 'applicationId:', applicationId)
+      }
+    }
+
     // Track company and job for billing
     let companyIdForBilling: string | null = null
     let jobIdForBilling: string | null = null
@@ -422,6 +486,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      fileUrl,  // Include the uploaded file URL
       parsed: {
         name: parsed.name,
         email: parsed.email,
