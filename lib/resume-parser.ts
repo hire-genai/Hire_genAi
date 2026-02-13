@@ -1,5 +1,5 @@
 import { generateText } from "ai"
-import { openai } from "@ai-sdk/openai"
+import { openai, createOpenAI } from "@ai-sdk/openai"
 
 // Cache for loaded libraries
 let librariesCache: { mammoth: any; pdfParse: any } | null = null
@@ -202,7 +202,8 @@ async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
  */
 export async function parseResume(
   fileBuffer: Buffer,
-  mimeType: string
+  mimeType: string,
+  options?: { apiKey?: string }
 ): Promise<ParsedResume> {
   const rawText = await extractText(fileBuffer, mimeType)
   
@@ -210,7 +211,8 @@ export async function parseResume(
     throw new Error("Could not extract meaningful text from resume")
   }
 
-  const hasOpenAI = !!(process.env as any)?.OPENAI_API_KEY
+  const companyApiKey = options?.apiKey
+  const hasOpenAI = !!companyApiKey || !!(process.env as any)?.OPENAI_API_KEY
   
   if (!hasOpenAI) {
     return {
@@ -221,6 +223,11 @@ export async function parseResume(
     }
   }
 
+  // Use company-specific key if provided, otherwise default env key
+  const openaiProvider = companyApiKey
+    ? createOpenAI({ apiKey: companyApiKey })
+    : openai
+
   const maxChars = 20000
   const truncatedText = rawText.length > maxChars 
     ? rawText.substring(0, maxChars) + "\n\n[Resume truncated due to length...]"
@@ -228,7 +235,7 @@ export async function parseResume(
 
   try {
     const { text, usage } = await generateText({
-      model: openai("gpt-4o"),
+      model: openaiProvider("gpt-4o"),
       system: `You are a resume parser. Extract structured information from resumes and return valid JSON only.`,
       prompt: `
 Parse this resume and extract all relevant information. Return ONLY valid JSON with no markdown formatting.

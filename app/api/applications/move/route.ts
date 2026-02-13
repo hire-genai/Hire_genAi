@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { applicationId, moveToStage, remarks = '', changedBy, changedByEmail } = body || {}
+    const { applicationId, moveToStage, remarks = '', changedBy, changedByEmail, companyId } = body || {}
 
     if (!applicationId) {
       return NextResponse.json({ error: 'applicationId is required' }, { status: 400 })
@@ -50,10 +50,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Get current stage
+    // Get current stage and verify company ownership
     const currentRows = await DatabaseService.query(
-      `SELECT current_stage FROM applications WHERE id = $1::uuid LIMIT 1`,
-      [applicationId]
+      companyId
+        ? `SELECT current_stage, company_id FROM applications WHERE id = $1::uuid AND company_id = $2::uuid LIMIT 1`
+        : `SELECT current_stage, company_id FROM applications WHERE id = $1::uuid LIMIT 1`,
+      companyId ? [applicationId, companyId] : [applicationId]
     )
     const currentStage = currentRows?.[0]?.current_stage
 

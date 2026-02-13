@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
+import { cookies } from 'next/headers'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -10,7 +11,27 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 })
     }
 
-    // Get bucket counts
+    // Get companyId from query param or session cookie
+    let companyId: string | null = req.nextUrl.searchParams.get('companyId')
+
+    if (!companyId) {
+      try {
+        const cookieStore = await cookies()
+        const sessionCookie = cookieStore.get('session')
+        if (sessionCookie?.value) {
+          const session = JSON.parse(sessionCookie.value)
+          companyId = session.companyId || session.company?.id || null
+        }
+      } catch {
+        console.log('Failed to parse session cookie for candidates')
+      }
+    }
+
+    if (!companyId) {
+      return NextResponse.json({ error: 'Company ID is required' }, { status: 400 })
+    }
+
+    // Get bucket counts filtered by company_id
     const bucketCountsQuery = `
       SELECT 
         COUNT(*) FILTER (WHERE ai_cv_score IS NOT NULL) AS screening,
@@ -21,8 +42,9 @@ export async function GET(req: NextRequest) {
         COUNT(*) FILTER (WHERE current_stage = 'rejected') AS rejected,
         COUNT(*) AS total
       FROM applications
+      WHERE company_id = $1::uuid
     `
-    const bucketCountsResult = await DatabaseService.query(bucketCountsQuery, [])
+    const bucketCountsResult = await DatabaseService.query(bucketCountsQuery, [companyId])
     const counts = bucketCountsResult?.[0] || {}
 
     const bucketData = {
@@ -73,9 +95,10 @@ export async function GET(req: NextRequest) {
       FROM applications a
       JOIN candidates c ON a.candidate_id = c.id
       JOIN job_postings j ON a.job_id = j.id
+      WHERE a.company_id = $1::uuid
       ORDER BY a.applied_at DESC
     `
-    const applicationsResult = await DatabaseService.query(applicationsQuery, [])
+    const applicationsResult = await DatabaseService.query(applicationsQuery, [companyId])
 
     // Organize applications by bucket
     const applicationsData: Record<string, any[]> = {
@@ -135,12 +158,12 @@ export async function GET(req: NextRequest) {
         hired: bucketData.hired.count,
         rejected: bucketData.rejected.count
       },
-      screening: await getScreeningStats(),
-      interview: await getInterviewStats(),
-      hiringManager: await getHiringManagerStats(),
-      offer: await getOfferStats(),
-      hired: await getHiredStats(),
-      rejected: await getRejectedStats()
+      screening: await getScreeningStats(companyId),
+      interview: await getInterviewStats(companyId),
+      hiringManager: await getHiringManagerStats(companyId),
+      offer: await getOfferStats(companyId),
+      hired: await getHiredStats(companyId),
+      rejected: await getRejectedStats(companyId)
     }
 
     return NextResponse.json({
@@ -198,14 +221,14 @@ function formatOfferStatus(status: string | null): string {
   return map[status] || status
 }
 
-async function getScreeningStats() {
+async function getScreeningStats(companyId: string) {
   const result = await DatabaseService.query(`
     SELECT 
       COUNT(*) AS total,
       COUNT(*) FILTER (WHERE is_qualified = true) AS qualified,
       COUNT(*) FILTER (WHERE is_qualified = false) AS unqualified
-    FROM applications WHERE ai_cv_score IS NOT NULL
-  `, [])
+    FROM applications WHERE ai_cv_score IS NOT NULL AND company_id = $1::uuid
+  `, [companyId])
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
   const qualified = parseInt(r.qualified) || 0
@@ -218,14 +241,14 @@ async function getScreeningStats() {
   }
 }
 
-async function getInterviewStats() {
+async function getInterviewStats(companyId: string) {
   const result = await DatabaseService.query(`
     SELECT 
       COUNT(*) AS total,
       COUNT(*) FILTER (WHERE interview_recommendation IN ('Strongly Recommend', 'Recommend')) AS qualified,
       COUNT(*) FILTER (WHERE interview_recommendation IN ('Reject', 'On Hold')) AS unqualified
-    FROM applications WHERE current_stage = 'ai_interview'
-  `, [])
+    FROM applications WHERE current_stage = 'ai_interview' AND company_id = $1::uuid
+  `, [companyId])
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
   const qualified = parseInt(r.qualified) || 0
@@ -238,14 +261,14 @@ async function getInterviewStats() {
   }
 }
 
-async function getHiringManagerStats() {
+async function getHiringManagerStats(companyId: string) {
   const result = await DatabaseService.query(`
     SELECT 
       COUNT(*) AS total,
       COUNT(*) FILTER (WHERE hm_status = 'Approved') AS approved,
       COUNT(*) FILTER (WHERE hm_status = 'Rejected') AS rejected
-    FROM applications WHERE current_stage = 'hiring_manager'
-  `, [])
+    FROM applications WHERE current_stage = 'hiring_manager' AND company_id = $1::uuid
+  `, [companyId])
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
   const approved = parseInt(r.approved) || 0
@@ -258,14 +281,14 @@ async function getHiringManagerStats() {
   }
 }
 
-async function getOfferStats() {
+async function getOfferStats(companyId: string) {
   const result = await DatabaseService.query(`
     SELECT 
       COUNT(*) AS total,
       COUNT(*) FILTER (WHERE offer_status = 'accepted') AS accepted,
       COUNT(*) FILTER (WHERE offer_status = 'declined') AS declined
-    FROM applications WHERE current_stage = 'offer'
-  `, [])
+    FROM applications WHERE current_stage = 'offer' AND company_id = $1::uuid
+  `, [companyId])
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
   const accepted = parseInt(r.accepted) || 0
@@ -278,14 +301,14 @@ async function getOfferStats() {
   }
 }
 
-async function getHiredStats() {
+async function getHiredStats(companyId: string) {
   const result = await DatabaseService.query(`
     SELECT 
       COUNT(*) AS total,
       COUNT(*) FILTER (WHERE onboarding_status = 'Complete') AS onboarded,
       COUNT(*) FILTER (WHERE onboarding_status IS NULL OR onboarding_status != 'Complete') AS awaiting
-    FROM applications WHERE current_stage = 'hired'
-  `, [])
+    FROM applications WHERE current_stage = 'hired' AND company_id = $1::uuid
+  `, [companyId])
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
   const onboarded = parseInt(r.onboarded) || 0
@@ -298,15 +321,15 @@ async function getHiredStats() {
   }
 }
 
-async function getRejectedStats() {
+async function getRejectedStats(companyId: string) {
   const result = await DatabaseService.query(`
     SELECT 
       COUNT(*) AS total,
       COUNT(*) FILTER (WHERE rejection_stage = 'screening') AS from_screening,
       COUNT(*) FILTER (WHERE rejection_stage = 'ai_interview') AS from_interview,
       COUNT(*) FILTER (WHERE rejection_stage NOT IN ('screening', 'ai_interview') OR rejection_stage IS NULL) AS from_other
-    FROM applications WHERE current_stage = 'rejected'
-  `, [])
+    FROM applications WHERE current_stage = 'rejected' AND company_id = $1::uuid
+  `, [companyId])
   const r = result?.[0] || {}
   return {
     totalRejected: parseInt(r.total) || 0,

@@ -1,5 +1,5 @@
 import { generateText } from "ai"
-import { openai } from "@ai-sdk/openai"
+import { openai, createOpenAI } from "@ai-sdk/openai"
 
 // ============================================================================
 // NEW CV EVALUATION SYSTEM v2.0
@@ -1065,34 +1065,27 @@ export class CVEvaluator {
         throw new Error('No OpenAI API key configured')
       }
 
-      // Call LLM for extraction
-      const originalKey = process.env.OPENAI_API_KEY
-      process.env.OPENAI_API_KEY = apiKey
-      
+      // Use company-specific key via createOpenAI, or default env key
+      const openaiProvider = (openaiClient?.apiKey)
+        ? createOpenAI({ apiKey: openaiClient.apiKey })
+        : openai
+
       let llmResponse: LLMExtractionResponse
       
-      try {
-        const response = await generateText({
-          model: openai("gpt-4o"),
-          system: SYSTEM_PROMPT,
-          prompt: userPrompt,
-          temperature: 0.1,
-        })
-        
-        const cleaned = response.text.trim()
-          .replace(/^```(?:json)?/i, '')
-          .replace(/```$/i, '')
-          .trim()
-        
-        llmResponse = JSON.parse(cleaned)
-        console.log('✅ [CV EVALUATOR] LLM extraction complete')
-      } finally {
-        if (originalKey) {
-          process.env.OPENAI_API_KEY = originalKey
-        } else {
-          delete process.env.OPENAI_API_KEY
-        }
-      }
+      const response = await generateText({
+        model: openaiProvider("gpt-4o"),
+        system: SYSTEM_PROMPT,
+        prompt: userPrompt,
+        temperature: 0.1,
+      })
+      
+      const cleaned = response.text.trim()
+        .replace(/^```(?:json)?/i, '')
+        .replace(/```$/i, '')
+        .trim()
+      
+      llmResponse = JSON.parse(cleaned)
+      console.log('✅ [CV EVALUATOR] LLM extraction complete')
 
       // PHASE 0: Run eligibility gates
       const eligibility = this.runEligibilityGates(

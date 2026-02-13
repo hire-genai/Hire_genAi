@@ -29,6 +29,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useMobileMenu } from '@/components/dashboard/mobile-menu-context'
 import { JobPostingForm } from '@/components/dashboard/job-posting-form'
+import { useAuth } from '@/contexts/auth-context'
 
 type JobStatusType = 'all' | 'open' | 'closed' | 'onhold' | 'cancelled' | 'draft'
 type UserRole = 'recruiter' | 'admin' | 'manager' | 'director'
@@ -95,6 +96,7 @@ interface Job {
 }
 
 export default function JobsPage() {
+	const { company } = useAuth()
 	const [activeStatus, setActiveStatus] = useState<JobStatusType>('all')
 	const [searchQuery, setSearchQuery] = useState('')
 	const [departmentFilter, setDepartmentFilter] = useState('all')
@@ -160,11 +162,12 @@ export default function JobsPage() {
 
 	// Fetch jobs from API
 	const fetchJobs = useCallback(async () => {
+		if (!company?.id) return
 		setIsLoading(true)
 		setError(null)
 		
 		try {
-			const response = await fetch('/api/jobs')
+			const response = await fetch(`/api/jobs?companyId=${company.id}`)
 			const result = await response.json()
 			
 			if (!response.ok) {
@@ -240,7 +243,7 @@ export default function JobsPage() {
 		} finally {
 			setIsLoading(false)
 		}
-	}, [])
+	}, [company?.id])
 
 	// Fetch jobs on mount
 	useEffect(() => {

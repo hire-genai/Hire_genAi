@@ -167,6 +167,21 @@ export async function PATCH(
       )
     }
 
+    // Verify job belongs to the company (via companySlug) before updating
+    const jobCheck = await DatabaseService.query(
+      `SELECT jp.id FROM job_postings jp
+       JOIN companies c ON jp.company_id = c.id
+       WHERE jp.id = $1::uuid AND (c.slug = $2 OR LOWER(REPLACE(c.name, ' ', '-')) = $2)
+       LIMIT 1`,
+      [jobId, companySlug]
+    )
+    if (!jobCheck || jobCheck.length === 0) {
+      return NextResponse.json(
+        { error: 'Job not found or company mismatch' },
+        { status: 404 }
+      )
+    }
+
     // Update job status
     await DatabaseService.query(
       `UPDATE job_postings SET status = $1, updated_at = NOW() WHERE id = $2::uuid`,

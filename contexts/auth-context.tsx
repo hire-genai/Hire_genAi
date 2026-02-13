@@ -82,6 +82,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(intervalId)
   }, [user, handleSessionExpiry])
 
+  // Activity-based session extension
+  useEffect(() => {
+    if (!user) return
+
+    let lastActivityTime = Date.now()
+    const ACTIVITY_THROTTLE_MS = 30 * 1000 // Only extend session every 30 seconds max
+
+    const handleActivity = () => {
+      const now = Date.now()
+      // Throttle to avoid too many localStorage writes
+      if (now - lastActivityTime > ACTIVITY_THROTTLE_MS) {
+        lastActivityTime = now
+        SessionManager.extendSession()
+      }
+    }
+
+    // Activity events to track
+    const activityEvents = ['mousemove', 'click', 'keypress', 'scroll', 'touchstart']
+    
+    // Add listeners
+    activityEvents.forEach(event => {
+      window.addEventListener(event, handleActivity, { passive: true })
+    })
+
+    // Extend session on API calls (via fetch interceptor)
+    const originalFetch = window.fetch
+    window.fetch = async (...args) => {
+      handleActivity()
+      return originalFetch.apply(window, args)
+    }
+
+    return () => {
+      // Remove listeners
+      activityEvents.forEach(event => {
+        window.removeEventListener(event, handleActivity)
+      })
+      // Restore original fetch
+      window.fetch = originalFetch
+    }
+  }, [user])
+
   useEffect(() => {
     // Initialize the auth system
     const initAuth = async () => {

@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card } from '@/components/ui/card'
 import { useState, useEffect } from 'react'
 import { Download, FileText, Mail, Send } from 'lucide-react'
+import { useAuth } from '@/contexts/auth-context'
 
 interface CandidateActionDialogProps {
   open: boolean
@@ -35,6 +36,7 @@ export function CandidateActionDialog({
   onMoved,
   canModify = true,
 }: CandidateActionDialogProps) {
+  const { company } = useAuth()
   const [remarks, setRemarks] = useState('')
   const [moveToStage, setMoveToStage] = useState('')
   const [sendEmailToHM, setSendEmailToHM] = useState(false)
@@ -146,6 +148,7 @@ export function CandidateActionDialog({
           moveToStage,
           remarks,
           changedByEmail: candidate?.email || candidate?.candidateEmail || null,
+          companyId: company?.id || null,
         })
       })
 

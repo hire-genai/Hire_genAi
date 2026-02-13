@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { parseResume, cleanText } from '@/lib/resume-parser'
 import { CVEvaluator } from '@/lib/cv-evaluator'
 import { DatabaseService } from '@/lib/database'
+import { decrypt } from '@/lib/encryption'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -82,30 +83,14 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(arrayBuffer)
     console.log('[Resume Parse] Buffer created, size:', buffer.length)
 
-    // Parse the resume
-    console.log('[Resume Parse] Starting parseResume function...')
-    let parsed
-    try {
-      parsed = await parseResume(buffer, file.type)
-      console.log('[Resume Parse] Parse complete, skills found:', parsed.skills?.length || 0)
-    } catch (parseError: any) {
-      console.error('[Resume Parse] Parsing failed, using fallback:', parseError.message)
-      parsed = {
-        rawText: '',
-        skills: [],
-        experience: [],
-        education: [],
-      }
-    }
-
     // Track company and job for billing
     let companyIdForBilling: string | null = null
     let jobIdForBilling: string | null = null
+    let companyOpenAIKey: string | undefined
 
-    // Optionally save parsed data to database
-    if (applicationId && parsed.rawText) {
+    // Fetch company's service key BEFORE parsing so we use the company-specific key
+    if (applicationId) {
       try {
-        // Get company_id and job_id from application
         const appInfo = await DatabaseService.query(
           `SELECT a.job_id, jp.company_id 
            FROM applications a
@@ -117,6 +102,65 @@ export async function POST(request: NextRequest) {
           companyIdForBilling = appInfo[0].company_id
           jobIdForBilling = appInfo[0].job_id
         }
+
+        // Fetch company's OpenAI service key from DB
+        if (companyIdForBilling) {
+          try {
+            const companyData = await DatabaseService.query(
+              `SELECT openai_service_account_key FROM companies WHERE id = $1::uuid LIMIT 1`,
+              [companyIdForBilling]
+            ) as any[]
+
+            if (companyData?.[0]?.openai_service_account_key) {
+              try {
+                const decryptedKey = decrypt(companyData[0].openai_service_account_key).trim()
+                if (decryptedKey.startsWith("{")) {
+                  const keyObj = JSON.parse(decryptedKey)
+                  companyOpenAIKey = keyObj.value || keyObj.apiKey || keyObj.api_key || keyObj.key || undefined
+                } else {
+                  companyOpenAIKey = decryptedKey
+                }
+                console.log('[Resume Parse] Using company service account key for companyId:', companyIdForBilling)
+              } catch (e) {
+                console.warn('[Resume Parse] Failed to decrypt company key:', e)
+              }
+            }
+          } catch (e) {
+            console.warn('[Resume Parse] Failed to fetch company key:', e)
+          }
+
+          // Fallback to env var
+          if (!companyOpenAIKey) {
+            companyOpenAIKey = process.env.OPENAI_API_KEY || process.env.OPENAI_EVAL_KEY || undefined
+            if (companyOpenAIKey) {
+              console.log('[Resume Parse] Using environment OPENAI_API_KEY as fallback')
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[Resume Parse] Failed to fetch company info:', e)
+      }
+    }
+
+    // Parse the resume using company-specific key
+    console.log('[Resume Parse] Starting parseResume function...')
+    let parsed
+    try {
+      parsed = await parseResume(buffer, file.type, companyOpenAIKey ? { apiKey: companyOpenAIKey } : undefined)
+      console.log('[Resume Parse] Parse complete, skills found:', parsed.skills?.length || 0)
+    } catch (parseError: any) {
+      console.error('[Resume Parse] Parsing failed, using fallback:', parseError.message)
+      parsed = {
+        rawText: '',
+        skills: [],
+        experience: [],
+        education: [],
+      }
+    }
+
+    // Optionally save parsed data to database
+    if (applicationId && parsed.rawText) {
+      try {
 
         // Check if resume_text column exists in applications table
         const checkCol = await DatabaseService.query(
@@ -212,7 +256,9 @@ export async function POST(request: NextRequest) {
                   const evaluation = await CVEvaluator.evaluateCandidate(
                     resumeForEval,
                     jdForEval,
-                    passThreshold
+                    passThreshold,
+                    companyIdForBilling || undefined,
+                    companyOpenAIKey ? { apiKey: companyOpenAIKey } : undefined
                   )
 
                   console.log('[Resume Parse] ✅ CV Evaluation completed:', {

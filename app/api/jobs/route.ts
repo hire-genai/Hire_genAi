@@ -9,34 +9,20 @@ export async function GET(request: NextRequest) {
     const cookieStore = await cookies()
     const sessionCookie = cookieStore.get('session')
     
-    let companyId: string | null = null
+    let companyId: string | null = request.nextUrl.searchParams.get('companyId')
     let userId: string | null = null
 
     if (sessionCookie?.value) {
       try {
         const session = JSON.parse(sessionCookie.value)
-        companyId = session.companyId || session.company?.id
+        if (!companyId) companyId = session.companyId || session.company?.id
         userId = session.userId || session.user?.id
       } catch {
         console.log('Failed to parse session cookie')
       }
     }
 
-    // If no session, lookup the first company from DB as fallback
-    if (!companyId) {
-      try {
-        const companies = await DatabaseService.query(
-          `SELECT id FROM companies ORDER BY created_at ASC LIMIT 1`
-        )
-        if (companies.length > 0) {
-          companyId = companies[0].id
-        }
-      } catch {
-        console.log('Could not lookup fallback company')
-      }
-    }
-
-    // If still no company, return empty list
+    // If no company, return empty list — never fallback to another company's data
     if (!companyId) {
       return NextResponse.json({ success: true, data: [] })
     }
@@ -196,6 +182,8 @@ export async function POST(request: NextRequest) {
     let userId: string | null = null
     let companyId: string | null = null
 
+    const body = await request.json()
+
     if (sessionCookie?.value) {
       try {
         const session = JSON.parse(sessionCookie.value)
@@ -206,21 +194,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Fallback: lookup first user and company from DB
-    if (!companyId || !userId) {
-      try {
-        const users = await DatabaseService.query(
-          `SELECT u.id as user_id, u.company_id 
-           FROM users u 
-           ORDER BY u.created_at ASC LIMIT 1`
-        )
-        if (users.length > 0) {
-          if (!userId) userId = users[0].user_id
-          if (!companyId) companyId = users[0].company_id
-        }
-      } catch {
-        console.log('Could not lookup fallback user/company')
-      }
+    // Fallback to request body for userId and companyId (mock auth uses localStorage, not cookies)
+    if (!companyId) {
+      companyId = body.companyId || null
+    }
+    if (!userId) {
+      userId = body.userId || null
     }
 
     if (!userId || !companyId) {
@@ -229,8 +208,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-
-    const body = await request.json()
     const {
       // Basic Info
       jobTitle,
@@ -275,6 +252,7 @@ export async function POST(request: NextRequest) {
       // Interview Questions
       selectedCriteria,
       interviewQuestions,
+      draftJobId,
       autoScheduleInterview,
       interviewLinkExpiryHours,
       // Screening Questions
@@ -283,6 +261,43 @@ export async function POST(request: NextRequest) {
       // Status
       isDraft
     } = body
+
+    // Validate company/user exist to avoid FK failures
+    try {
+      const companyExists = await DatabaseService.query(
+        `SELECT id FROM companies WHERE id = $1::uuid LIMIT 1`,
+        [companyId]
+      )
+      if (companyExists.length === 0) {
+        return NextResponse.json(
+          { error: 'Company not found. Please sign in again.' },
+          { status: 400 }
+        )
+      }
+
+      const userExists = await DatabaseService.query(
+        `SELECT id FROM users WHERE id = $1::uuid LIMIT 1`,
+        [userId]
+      )
+      if (userExists.length === 0) {
+        return NextResponse.json(
+          { error: 'User not found. Please sign in again.' },
+          { status: 400 }
+        )
+      }
+    } catch (fkCheckError) {
+      console.error('Failed to validate user/company before insert:', fkCheckError)
+      return NextResponse.json(
+        { error: 'Unable to validate user/company. Please try again.' },
+        { status: 400 }
+      )
+    }
+
+    // Normalize enums to valid values
+    const allowedJobTypes = ['Full-time', 'Part-time', 'Contract', 'Temporary']
+    const allowedWorkModes = ['Remote', 'Hybrid', 'On-site']
+    const normalizedJobType = allowedJobTypes.includes(jobType) ? jobType : 'Full-time'
+    const normalizedWorkMode = allowedWorkModes.includes(workMode) ? workMode : 'Hybrid'
 
     // Validate required fields
     if (!jobTitle) {
@@ -327,7 +342,7 @@ export async function POST(request: NextRequest) {
         [
           companyId, userId, jobTitle,
           department || null, location || null,
-          jobType || 'Full-time', workMode || 'Hybrid',
+          normalizedJobType, normalizedWorkMode,
           salaryMin ? parseFloat(salaryMin) : null,
           salaryMax ? parseFloat(salaryMax) : null,
           currency || 'USD',
@@ -364,16 +379,22 @@ export async function POST(request: NextRequest) {
       )
       newJob = jobResult[0]
     } catch (fullInsertError: any) {
-      // Fallback: minimal insert with only guaranteed columns
+      // Fallback: minimal insert but still satisfy NOT NULL columns (job_type, work_mode)
       console.log('Full insert failed, trying minimal insert:', fullInsertError.message)
       const jobResult = await DatabaseService.query(
         `INSERT INTO job_postings (
-          company_id, created_by, title, status, published_at
+          company_id, created_by, title, job_type, work_mode, status, published_at
         ) VALUES (
-          $1::uuid, $2::uuid, $3, $4, $5
+          $1::uuid, $2::uuid, $3, $4::job_type, $5::work_mode, $6, $7
         ) RETURNING *`,
         [
-          companyId, userId, jobTitle, status, publishedAt
+          companyId,
+          userId,
+          jobTitle,
+          normalizedJobType,
+          normalizedWorkMode,
+          status,
+          publishedAt
         ]
       )
       newJob = jobResult[0]
@@ -397,6 +418,16 @@ export async function POST(request: NextRequest) {
         )
       } catch (iqError) {
         console.log('Could not save interview questions (table may not exist):', iqError)
+      }
+    }
+
+    // Reconcile draft question generation usage with real job_id
+    if (draftJobId && newJob?.id) {
+      try {
+        await DatabaseService.reconcileDraftQuestionUsage(draftJobId, newJob.id)
+        console.log('[Jobs POST] Reconciled question usage: draft', draftJobId, '→ job', newJob.id)
+      } catch (reconcileErr) {
+        console.warn('[Jobs POST] Failed to reconcile question usage:', reconcileErr)
       }
     }
 

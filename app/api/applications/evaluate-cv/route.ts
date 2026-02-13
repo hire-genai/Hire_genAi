@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { CVEvaluator } from '@/lib/cv-evaluator'
 import { DatabaseService } from '@/lib/database'
+import { decrypt } from '@/lib/encryption'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,12 +22,43 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Use environment variable for OpenAI API key
-    const openaiApiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_EVAL_KEY
-    if (openaiApiKey) {
-      console.log('[CV Evaluator] Using environment OPENAI_API_KEY for evaluation')
-    } else {
-      console.log('[CV Evaluator] No OpenAI API key configured')
+    // Fetch company's OpenAI service account key from DB
+    let openaiApiKey: string | undefined
+
+    if (companyId) {
+      try {
+        const companyData = await DatabaseService.query(
+          `SELECT openai_service_account_key FROM companies WHERE id = $1::uuid LIMIT 1`,
+          [companyId]
+        ) as any[]
+
+        if (companyData?.[0]?.openai_service_account_key) {
+          try {
+            const decryptedKey = decrypt(companyData[0].openai_service_account_key).trim()
+            if (decryptedKey.startsWith("{")) {
+              const keyObj = JSON.parse(decryptedKey)
+              openaiApiKey = keyObj.value || keyObj.apiKey || keyObj.api_key || keyObj.key || undefined
+            } else {
+              openaiApiKey = decryptedKey
+            }
+            console.log('[CV Evaluator] Using company service account key for companyId:', companyId)
+          } catch (e) {
+            console.warn('[CV Evaluator] Failed to decrypt company key:', e)
+          }
+        }
+      } catch (e) {
+        console.warn('[CV Evaluator] Failed to fetch company key:', e)
+      }
+    }
+
+    // Fallback to environment variable
+    if (!openaiApiKey) {
+      openaiApiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_EVAL_KEY
+      if (openaiApiKey) {
+        console.log('[CV Evaluator] Using environment OPENAI_API_KEY for evaluation')
+      } else {
+        console.log('[CV Evaluator] No OpenAI API key configured')
+      }
     }
 
     // Truncate resume text if too long (max 15000 chars to stay under token limits)
@@ -41,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     console.log('[CV Evaluator] Resume length:', truncatedResume.length, 'JD length:', truncatedJD.length)
 
-    // Evaluate using strict rubric
+    // Evaluate using strict rubric with company-specific key
     const evaluation = await CVEvaluator.evaluateCandidate(
       truncatedResume,
       truncatedJD,
@@ -54,6 +86,29 @@ export async function POST(request: NextRequest) {
       score: evaluation.overall.score_percent,
       qualified: evaluation.overall.qualified
     })
+
+    // Record CV evaluation usage for billing
+    if (companyId && applicationId) {
+      try {
+        const appInfo = await DatabaseService.query(
+          `SELECT job_id FROM applications WHERE id = $1::uuid`,
+          [applicationId]
+        ) as any[]
+        const jobId = appInfo?.[0]?.job_id
+        if (jobId) {
+          await DatabaseService.recordCVParsingUsage({
+            companyId,
+            jobId,
+            candidateId: undefined,
+            parseSuccessful: true,
+            successRate: evaluation.overall.score_percent || 0,
+          })
+          console.log('[CV Evaluator] Usage recorded for billing')
+        }
+      } catch (usageErr) {
+        console.warn('[CV Evaluator] Failed to record usage:', usageErr)
+      }
+    }
 
     // Save evaluation to database if applicationId provided
     if (applicationId) {
