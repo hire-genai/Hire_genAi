@@ -381,16 +381,56 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
         throw new Error(result.error || 'Failed to generate questions')
       }
 
-      const aiQuestions: InterviewQuestion[] = (result.questions || []).map((q: any) => ({
-        id: q.id,
+      const aiQuestions: InterviewQuestion[] = (result.questions || []).map((q: any, idx: number) => ({
+        id: typeof q.id === 'number' && !Number.isNaN(q.id) ? q.id : idx + 1,
         question: q.question,
         criterion: q.criterion,
         difficulty: q.difficulty as QuestionDifficulty,
         marks: 0, // Will be recalculated
       }))
 
+      // Ensure at least 3 Technical Skills questions if that criterion is selected
+      const enforceTechnicalMinimum = (questions: InterviewQuestion[]): InterviewQuestion[] => {
+        if (!selectedCriteria.includes('Technical Skills')) return questions
+        const technicalCount = questions.filter(q => q.criterion === 'Technical Skills').length
+        if (technicalCount >= 3) return questions
+        const needed = 3 - technicalCount
+        const baseId = questions.reduce((maxId, q) => {
+          const numericId = typeof q.id === 'number' && !Number.isNaN(q.id) ? q.id : 0
+          return Math.max(maxId, numericId)
+        }, 0)
+        const filled: InterviewQuestion[] = [...questions]
+        for (let i = 0; i < needed; i++) {
+          filled.push({
+            id: baseId + i + 1,
+            question: getQuestionForCriterion('Technical Skills', technicalCount + i),
+            criterion: 'Technical Skills',
+            difficulty: 'Medium',
+            marks: 0,
+          })
+        }
+        return filled
+      }
+
+      const enforceQuestionCount = (questions: InterviewQuestion[], targetCount = 10): InterviewQuestion[] => {
+        if (questions.length <= targetCount) return questions
+        const technical = questions.filter(q => q.criterion === 'Technical Skills')
+        const nonTechnical = questions.filter(q => q.criterion !== 'Technical Skills')
+        const keptTechnical = technical.slice(0, targetCount) // preserve up to target but min ensured earlier
+        const remainingSlots = targetCount - keptTechnical.length
+        const keptNonTechnical = remainingSlots > 0 ? nonTechnical.slice(0, remainingSlots) : []
+        return [...keptTechnical, ...keptNonTechnical]
+      }
+
+      const reindexQuestions = (questions: InterviewQuestion[]): InterviewQuestion[] =>
+        questions.map((q, idx) => ({ ...q, id: idx + 1 }))
+
+      const adjustedQuestions = enforceTechnicalMinimum(aiQuestions)
+      const sizedQuestions = enforceQuestionCount(adjustedQuestions, 10)
+      const finalQuestions = reindexQuestions(sizedQuestions)
+
       // Recalculate marks so total = 100
-      setInterviewQuestions(recalculateAllMarks(aiQuestions))
+      setInterviewQuestions(recalculateAllMarks(finalQuestions))
       if (result.draftJobId) setDraftJobId(result.draftJobId)
     } catch (error) {
       console.error('Error generating questions:', error)
@@ -487,6 +527,19 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
 
   const totalMarks = interviewQuestions.reduce((sum, q) => sum + q.marks, 0)
 
+  // Step validation
+  const isBasicInfoValid =
+    formData.jobTitle.trim().length > 0 &&
+    formData.department.trim().length > 0 &&
+    formData.location.trim().length > 0 &&
+    formData.jobType.trim().length > 0 &&
+    formData.workMode.trim().length > 0
+
+  const isJobDescriptionValid =
+    formData.jobDescription.trim().length > 0 &&
+    formData.requiredSkills.filter((s) => s.trim()).length > 0 &&
+    formData.experienceYears.trim().length > 0
+
   const removeQuestion = (questionId: number) => {
     setInterviewQuestions(prev => {
       const filtered = prev.filter(q => q.id !== questionId)
@@ -513,74 +566,50 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
       return
     }
 
-    if (isViewMode) {
-      if (!jobId) {
-        alert('Missing job id for status update')
-        return
-      }
-      if (!companySlug) {
-        alert('Missing company slug for status update')
-        return
-      }
-      setIsSubmitting(true)
-      try {
-        const response = await fetch(`/api/jobs/${companySlug}/${jobId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: formData.jobStatus }),
-        })
-        const result = await response.json()
-        if (!response.ok) {
-          throw new Error(result.error || 'Failed to update status')
-        }
-        alert('Job status updated')
-        onClose()
-      } catch (error) {
-        console.error('Error updating job status:', error)
-        alert(error instanceof Error ? error.message : 'Failed to update job status')
-      } finally {
-        setIsSubmitting(false)
-      }
-      return
-    }
-
     if (!formData.jobTitle.trim()) {
       alert('Please enter a job title')
       return
     }
 
-    setIsSubmitting(true)
+    const status = isDraft ? 'draft' : 'open'
 
-    try {
-      const response = await fetch('/api/jobs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          companyId: company?.id || null,
-          userId: user?.id || null,
-          jobType: formData.jobType || 'Full-time',
-          workMode: formData.workMode || 'Hybrid',
-          // Merge fetched values into screeningQuestions before saving
-          screeningQuestions: formData.enableScreeningQuestions ? {
+    const payload = {
+      ...formData,
+      companyId: company?.id || null,
+      userId: user?.id || null,
+      jobType: formData.jobType || 'Full-time',
+      workMode: formData.workMode || 'Hybrid',
+      status,
+      // Merge fetched values into screeningQuestions before saving
+      screeningQuestions: formData.enableScreeningQuestions
+        ? {
             ...formData.screeningQuestions,
             minExperience: formData.screeningQuestions.minExperience || formData.experienceYears,
             expectedSalary: formData.screeningQuestions.expectedSalary || formData.salaryMax,
-            expectedSkills: formData.screeningQuestions.expectedSkills.length > 0 
-              ? formData.screeningQuestions.expectedSkills 
-              : formData.requiredSkills.filter((s: string) => s.trim()),
-          } : formData.screeningQuestions,
-          selectedCriteria,
-          interviewQuestions,
-          draftJobId,
-          isDraft,
-        }),
+            expectedSkills:
+              formData.screeningQuestions.expectedSkills.length > 0
+                ? formData.screeningQuestions.expectedSkills
+                : formData.requiredSkills.filter((s: string) => s.trim()),
+          }
+        : formData.screeningQuestions,
+      selectedCriteria,
+      interviewQuestions,
+      draftJobId,
+      isDraft,
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const isUpdate = Boolean(jobId && companySlug)
+      const slug = companySlug || 'company'
+      const response = await fetch(isUpdate ? `/api/jobs/${slug}/${jobId}` : '/api/jobs', {
+        method: isUpdate ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       })
 
       const result = await response.json()
-
       if (!response.ok) {
         throw new Error(result.error || 'Failed to save job posting')
       }
@@ -589,12 +618,11 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
       onClose()
     } catch (error) {
       console.error('Error saving job:', error)
-      alert(error instanceof Error ? error.message : 'Failed to save job posting. Please try again.')
+      alert(error instanceof Error ? error.message : 'Failed to save job')
     } finally {
       setIsSubmitting(false)
     }
   }
-
   const steps = [
     { number: 1, title: 'Basic Information', fields: 8 },
     { number: 2, title: 'Job Description', fields: 6 },
@@ -1654,7 +1682,15 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   Save as Draft
                 </Button>
                 {currentStep < steps.length ? (
-                  <Button onClick={() => setCurrentStep(currentStep + 1)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <Button
+                    onClick={() => {
+                      if (currentStep === 1 && !isBasicInfoValid) return
+                      if (currentStep === 2 && !isJobDescriptionValid) return
+                      setCurrentStep(currentStep + 1)
+                    }}
+                    disabled={(currentStep === 1 && !isBasicInfoValid) || (currentStep === 2 && !isJobDescriptionValid)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
                     Next
                   </Button>
                 ) : (

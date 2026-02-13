@@ -1066,9 +1066,14 @@ export class CVEvaluator {
       }
 
       // Use company-specific key via createOpenAI, or default env key
-      const openaiProvider = (openaiClient?.apiKey)
+      const usingCompanyKey = !!openaiClient?.apiKey
+      const openaiProvider = usingCompanyKey
         ? createOpenAI({ apiKey: openaiClient.apiKey })
         : openai
+
+      console.log('🤖 [CV EVALUATOR] Making OpenAI API call...')
+      console.log('🔑 [CV EVALUATOR] API Key Source:', usingCompanyKey ? 'Company Service Account (Database)' : '.env file')
+      console.log('📝 [CV EVALUATOR] Model: gpt-4o')
 
       let llmResponse: LLMExtractionResponse
       

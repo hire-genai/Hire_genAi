@@ -3250,24 +3250,28 @@ export class DatabaseService {
     fileSizeKb?: number
     parseSuccessful?: boolean
     successRate?: number
+    apiKeySource?: 'database' | 'env' // Track where OpenAI key came from
   }) {
     if (!this.isDatabaseConfigured()) {
       throw new Error('Database not configured')
     }
 
+    const apiKeySourceLabel = data.apiKeySource === 'database' ? 'Company Service Account (Database)' : '.env file'
+    
     console.log('\n' + '='.repeat(70))
     console.log('🎯 [CV PARSING] Starting billing calculation...')
     console.log('📋 Company ID:', data.companyId)
     console.log('💼 Job ID:', data.jobId)
     console.log('👤 Candidate ID:', data.candidateId || 'N/A')
     console.log('📄 File Size:', data.fileSizeKb || 0, 'KB')
+    console.log('🔑 OpenAI API Key Source:', apiKeySourceLabel)
     console.log('='.repeat(70))
 
     // Get pricing from .env file ONLY (no OpenAI API, no external sources)
     const { getCVParsingCost } = await import('./config')
     const cvCost = getCVParsingCost()
     
-    console.log('💰 [CV PARSING] Using .env pricing: $' + cvCost.toFixed(2) + ' (COST_PER_CV_PARSING)')
+    console.log('💰 [CV PARSING] Using pricing: $' + cvCost.toFixed(2) + ' (from COST_PER_CV_PARSING)')
     
     const finalCost = cvCost
     
@@ -3305,7 +3309,8 @@ export class DatabaseService {
 
     console.log('💾 [CV PARSING] Cost stored in database successfully')
     console.log('💰 Final Cost: $' + finalCost.toFixed(2))
-    console.log('🏷️  Source: .env (COST_PER_CV_PARSING)')
+    console.log('🏷️  Pricing Source: COST_PER_CV_PARSING (.env)')
+    console.log('🔑 OpenAI Key Source:', apiKeySourceLabel)
 
     // ========================================
     // WALLET DEDUCTION & LEDGER ENTRY

@@ -1,13 +1,16 @@
 import { generateText } from "ai"
 import { openai, createOpenAI } from "@ai-sdk/openai"
+import { createRequire } from 'module'
+import { fileURLToPath } from 'url'
+import path from 'path'
 
 // Cache for loaded libraries
 let librariesCache: { mammoth: any; pdfParse: any } | null = null
 
 /**
- * Load parsing libraries using require (server-side only)
+ * Load parsing libraries using Node.js native require via createRequire
  */
-function loadParsingLibraries() {
+async function loadParsingLibrariesAsync(): Promise<{ mammoth: any; pdfParse: any }> {
   if (typeof window !== 'undefined') {
     return { mammoth: null, pdfParse: null }
   }
@@ -19,16 +22,42 @@ function loadParsingLibraries() {
   let mammoth = null
   let pdfParse = null
   
+  // Create a native require function that bypasses bundler
+  let nativeRequire: NodeRequire
   try {
-    mammoth = require("mammoth")
+    // Use createRequire with a file URL
+    const __filename = fileURLToPath(import.meta.url)
+    nativeRequire = createRequire(__filename)
+  } catch {
+    // Fallback: try with process.cwd()
+    nativeRequire = createRequire(path.join(process.cwd(), 'package.json'))
+  }
+  
+  // Load mammoth
+  try {
+    mammoth = nativeRequire("mammoth")
+    console.log('[loadParsingLibraries] mammoth loaded successfully')
   } catch (err) {
     console.warn("Failed to load mammoth library:", err)
   }
   
+  // Load pdf-parse using native require
   try {
-    pdfParse = require("pdf-parse")
-  } catch (err) {
-    console.warn("Failed to load pdf-parse library:", err)
+    const pdfModule = nativeRequire("pdf-parse")
+    console.log('[loadParsingLibraries] pdf-parse loaded, type:', typeof pdfModule)
+    
+    if (typeof pdfModule === 'function') {
+      pdfParse = pdfModule
+      console.log('[loadParsingLibraries] ✅ pdf-parse is a function')
+    } else if (typeof pdfModule?.default === 'function') {
+      pdfParse = pdfModule.default
+      console.log('[loadParsingLibraries] ✅ pdf-parse.default is a function')
+    } else {
+      console.warn('[loadParsingLibraries] pdf-parse not a function, module keys:', Object.keys(pdfModule || {}))
+      pdfParse = null
+    }
+  } catch (err: any) {
+    console.warn("Failed to load pdf-parse library:", err.message)
   }
   
   librariesCache = { mammoth, pdfParse }
@@ -104,7 +133,9 @@ function isBinaryContent(text: string): boolean {
  */
 async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
   const type = (mimeType || "").toLowerCase()
-  const libs = loadParsingLibraries()
+  
+  // Load libraries asynchronously first
+  const libs = await loadParsingLibrariesAsync()
   
   console.log('[extractText] Starting extraction, mimeType:', type, 'bufferSize:', buffer.length)
   
@@ -119,10 +150,13 @@ async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
         console.error('[extractText] pdf-parse library not loaded!')
         throw new Error("PDF parsing library not available. Please ensure pdf-parse is installed.")
       }
-      
+
       console.log('[extractText] Using pdf-parse for PDF extraction...')
+      
+      // The async loader already ensures pdfParse is a function
       const data = await libs.pdfParse(buffer)
-      rawText = (data.text || "").trim()
+      
+      rawText = (data?.text || "").trim()
       console.log('[extractText] pdf-parse extracted', rawText.length, 'characters')
       
       // Validate extracted text
@@ -224,6 +258,12 @@ export async function parseResume(
   }
 
   // Use company-specific key if provided, otherwise default env key
+  if (companyApiKey) {
+    console.log('[Resume Parse] Using company service account key for OpenAI provider')
+  } else if ((process.env as any)?.OPENAI_API_KEY) {
+    console.log('[Resume Parse] Using environment OPENAI_API_KEY for OpenAI provider')
+  }
+
   const openaiProvider = companyApiKey
     ? createOpenAI({ apiKey: companyApiKey })
     : openai

@@ -262,17 +262,26 @@ export async function POST(request: NextRequest) {
       isDraft
     } = body
 
-    // Validate company/user exist to avoid FK failures
+    // Validate company/user exist; for mock auth, auto-create placeholders if missing
     try {
       const companyExists = await DatabaseService.query(
         `SELECT id FROM companies WHERE id = $1::uuid LIMIT 1`,
         [companyId]
       )
       if (companyExists.length === 0) {
-        return NextResponse.json(
-          { error: 'Company not found. Please sign in again.' },
-          { status: 400 }
-        )
+        // Create a lightweight company record for mock auth sessions
+        try {
+          await DatabaseService.query(
+            `INSERT INTO companies (id, name) VALUES ($1::uuid, $2) ON CONFLICT (id) DO NOTHING`,
+            [companyId, 'Mock Company']
+          )
+        } catch (createCompanyError) {
+          console.error('Failed to create placeholder company:', createCompanyError)
+          return NextResponse.json(
+            { error: 'Company not found. Please sign in again.' },
+            { status: 400 }
+          )
+        }
       }
 
       const userExists = await DatabaseService.query(
@@ -280,10 +289,21 @@ export async function POST(request: NextRequest) {
         [userId]
       )
       if (userExists.length === 0) {
-        return NextResponse.json(
-          { error: 'User not found. Please sign in again.' },
-          { status: 400 }
-        )
+        // Create a lightweight user record for mock auth sessions
+        const placeholderEmail = `mock_${userId}@example.com`
+        try {
+          await DatabaseService.query(
+            `INSERT INTO users (id, company_id, email, full_name, status) VALUES ($1::uuid, $2::uuid, $3, $4, 'active')
+             ON CONFLICT (id) DO NOTHING`,
+            [userId, companyId, placeholderEmail, 'Mock User']
+          )
+        } catch (createUserError) {
+          console.error('Failed to create placeholder user:', createUserError)
+          return NextResponse.json(
+            { error: 'User not found. Please sign in again.' },
+            { status: 400 }
+          )
+        }
       }
     } catch (fkCheckError) {
       console.error('Failed to validate user/company before insert:', fkCheckError)

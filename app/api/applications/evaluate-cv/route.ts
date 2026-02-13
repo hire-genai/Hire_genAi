@@ -24,12 +24,33 @@ export async function POST(request: NextRequest) {
 
     // Fetch company's OpenAI service account key from DB
     let openaiApiKey: string | undefined
+    let resolvedCompanyId = companyId
+    let apiKeySource: 'database' | 'env' = 'env'
 
-    if (companyId) {
+    // If companyId not provided but applicationId is, fetch companyId from application
+    if (!resolvedCompanyId && applicationId) {
+      try {
+        const appInfo = await DatabaseService.query(
+          `SELECT jp.company_id 
+           FROM applications a
+           JOIN job_postings jp ON a.job_id = jp.id
+           WHERE a.id = $1::uuid`,
+          [applicationId]
+        ) as any[]
+        if (appInfo?.[0]?.company_id) {
+          resolvedCompanyId = appInfo[0].company_id
+          console.log('[CV Evaluator] Resolved companyId from application:', resolvedCompanyId)
+        }
+      } catch (e) {
+        console.warn('[CV Evaluator] Failed to resolve companyId from application:', e)
+      }
+    }
+
+    if (resolvedCompanyId) {
       try {
         const companyData = await DatabaseService.query(
           `SELECT openai_service_account_key FROM companies WHERE id = $1::uuid LIMIT 1`,
-          [companyId]
+          [resolvedCompanyId]
         ) as any[]
 
         if (companyData?.[0]?.openai_service_account_key) {
@@ -41,7 +62,8 @@ export async function POST(request: NextRequest) {
             } else {
               openaiApiKey = decryptedKey
             }
-            console.log('[CV Evaluator] Using company service account key for companyId:', companyId)
+            apiKeySource = 'database'
+            console.log('[CV Evaluator] ✅ Using company service account key from DATABASE for companyId:', resolvedCompanyId)
           } catch (e) {
             console.warn('[CV Evaluator] Failed to decrypt company key:', e)
           }
@@ -78,7 +100,7 @@ export async function POST(request: NextRequest) {
       truncatedResume,
       truncatedJD,
       passThreshold,
-      companyId,
+      resolvedCompanyId,
       openaiApiKey ? { apiKey: openaiApiKey } : undefined
     )
 
@@ -88,20 +110,22 @@ export async function POST(request: NextRequest) {
     })
 
     // Record CV evaluation usage for billing
-    if (companyId && applicationId) {
+    if (resolvedCompanyId && applicationId) {
       try {
         const appInfo = await DatabaseService.query(
-          `SELECT job_id FROM applications WHERE id = $1::uuid`,
+          `SELECT job_id, candidate_id FROM applications WHERE id = $1::uuid`,
           [applicationId]
         ) as any[]
         const jobId = appInfo?.[0]?.job_id
+        const candidateId = appInfo?.[0]?.candidate_id
         if (jobId) {
           await DatabaseService.recordCVParsingUsage({
-            companyId,
+            companyId: resolvedCompanyId,
             jobId,
-            candidateId: undefined,
+            candidateId: candidateId || undefined,
             parseSuccessful: true,
             successRate: evaluation.overall.score_percent || 0,
+            apiKeySource,
           })
           console.log('[CV Evaluator] Usage recorded for billing')
         }
