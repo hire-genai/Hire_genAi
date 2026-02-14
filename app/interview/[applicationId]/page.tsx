@@ -599,24 +599,31 @@ Once the candidate answers the LAST question:
         return null
       })
 
-      if (response) {
+      if (response && response.ok) {
         const result = await response.json()
         console.log("✅ Interview marked as completed:", result)
 
-        // Trigger evaluation
-        await fetch(`/api/applications/${encodeURIComponent(applicationId)}/evaluate`, {
+        // Trigger evaluation (non-blocking)
+        fetch(`/api/applications/${encodeURIComponent(applicationId)}/evaluate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ transcript, companyId }),
         }).catch((e) => {
           console.error("❌ Failed to run evaluation:", e)
         })
+
+        // Immediate redirect to post-verify page
+        console.log("🔄 Redirecting to post-verify page...")
+        router.push(`/interview/${encodeURIComponent(applicationId)}/post-verify`)
+        return
+      } else {
+        console.error("❌ Failed to mark interview as completed")
       }
+    } catch (error) {
+      console.error("❌ Error ending interview:", error)
+    }
 
-      router.push(`/interview/${encodeURIComponent(applicationId)}/success`)
-      return
-    } catch {}
-
+    // Fallback redirect on error
     router.push("/")
   }
 

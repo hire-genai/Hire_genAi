@@ -10,7 +10,7 @@ export async function POST(
 ) {
   try {
     const { applicationId } = await params
-    const { screenshot, type } = await req.json()
+    const { screenshot } = await req.json()
 
     if (!applicationId) {
       return NextResponse.json({ ok: false, error: 'Application ID is required' }, { status: 400 })
@@ -20,7 +20,7 @@ export async function POST(
       return NextResponse.json({ ok: false, error: 'Screenshot is required' }, { status: 400 })
     }
 
-    console.log(`[Interview Screenshot] Saving ${type || 'during_interview'} screenshot for application ${applicationId}`)
+    console.log(`[Interview Screenshot] Saving during_interview screenshot for application ${applicationId}`)
 
     // Detect image format from base64 header
     let imageFormat = 'jpg'
@@ -43,8 +43,7 @@ export async function POST(
 
     // Generate unique filename with correct extension
     const timestamp = Date.now()
-    const screenshotType = type === 'post_interview' ? 'post' : 'during'
-    const filename = `interview-screenshots/${applicationId}/${screenshotType}-${timestamp}.${imageFormat}`
+    const filename = `interview-screenshots/${applicationId}/during-${timestamp}.${imageFormat}`
 
     let screenshotUrl: string
 
@@ -63,14 +62,6 @@ export async function POST(
       screenshotUrl = screenshot
     }
 
-    // Determine which column to update based on type
-    const columnName = type === 'post_interview' 
-      ? 'post_interview_screenshot' 
-      : 'during_interview_screenshot'
-    const timestampColumn = type === 'post_interview'
-      ? 'post_interview_screenshot_captured_at'
-      : 'during_interview_screenshot_captured_at'
-
     // First ensure the columns exist
     try {
       const checkCol = await DatabaseService.query(
@@ -78,9 +69,9 @@ export async function POST(
           SELECT 1 FROM information_schema.columns 
           WHERE table_schema = 'public' 
             AND table_name = 'applications' 
-            AND column_name = $1
+            AND column_name = 'during_interview_screenshot'
         ) as exists`,
-        [columnName]
+        []
       )
       
       if (!checkCol?.[0]?.exists) {
@@ -88,9 +79,7 @@ export async function POST(
         await DatabaseService.query(`
           ALTER TABLE applications 
           ADD COLUMN IF NOT EXISTS during_interview_screenshot TEXT,
-          ADD COLUMN IF NOT EXISTS during_interview_screenshot_captured_at TIMESTAMP WITH TIME ZONE,
-          ADD COLUMN IF NOT EXISTS post_interview_screenshot TEXT,
-          ADD COLUMN IF NOT EXISTS post_interview_screenshot_captured_at TIMESTAMP WITH TIME ZONE
+          ADD COLUMN IF NOT EXISTS during_interview_screenshot_captured_at TIMESTAMP WITH TIME ZONE
         `, [])
       }
     } catch (colErr) {
@@ -101,11 +90,11 @@ export async function POST(
     try {
       await DatabaseService.query(
         `UPDATE applications 
-         SET ${columnName} = $1, ${timestampColumn} = NOW()
+         SET during_interview_screenshot = $1, during_interview_screenshot_captured_at = NOW()
          WHERE id = $2::uuid`,
         [screenshotUrl, applicationId]
       )
-      console.log(`[Interview Screenshot] Saved ${type || 'during_interview'} screenshot for application ${applicationId}`)
+      console.log(`[Interview Screenshot] Saved during_interview screenshot for application ${applicationId}`)
     } catch (dbError: any) {
       console.error('[Interview Screenshot] Database error:', dbError.message)
       
@@ -114,14 +103,12 @@ export async function POST(
         await DatabaseService.query(`
           ALTER TABLE applications 
           ADD COLUMN IF NOT EXISTS during_interview_screenshot TEXT,
-          ADD COLUMN IF NOT EXISTS during_interview_screenshot_captured_at TIMESTAMP WITH TIME ZONE,
-          ADD COLUMN IF NOT EXISTS post_interview_screenshot TEXT,
-          ADD COLUMN IF NOT EXISTS post_interview_screenshot_captured_at TIMESTAMP WITH TIME ZONE
+          ADD COLUMN IF NOT EXISTS during_interview_screenshot_captured_at TIMESTAMP WITH TIME ZONE
         `, [])
         
         await DatabaseService.query(
           `UPDATE applications 
-           SET ${columnName} = $1, ${timestampColumn} = NOW()
+           SET during_interview_screenshot = $1, during_interview_screenshot_captured_at = NOW()
            WHERE id = $2::uuid`,
           [screenshotUrl, applicationId]
         )
@@ -134,7 +121,7 @@ export async function POST(
       ok: true, 
       message: 'Screenshot saved successfully',
       applicationId,
-      type: type || 'during_interview'
+      type: 'during_interview'
     })
 
   } catch (error: any) {

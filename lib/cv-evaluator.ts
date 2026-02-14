@@ -60,11 +60,8 @@ export interface CVEvaluationResult {
 
   eligibility: {
     domain_fit: EligibilityStatus
-    must_have_fit: EligibilityStatus
     experience_fit: EligibilityStatus
-    language_fit: EligibilityStatus
     fail_reasons: string[]
-    missing_must_have: string[]  // NEW: Exposed missing must-have skills
   }
 
   scores: {
@@ -160,6 +157,16 @@ export interface CVEvaluationResult {
     phone: string | null
     location: string | null
     total_experience_years_estimate: number | null
+    relevant_experience_years: number | null
+    relevant_experience_breakdown: Array<{
+      title: string
+      company: string
+      duration_years: number
+      relevance_to_jd: "high" | "medium" | "low" | "none"
+      relevance_percentage: 0 | 25 | 50 | 100
+      counted_years: number
+      reasoning: string
+    }>
     titles: string[]
     skills: string[]
     education: Array<{
@@ -252,7 +259,97 @@ const WEIGHTS = {
 // ============================================================================
 
 export class CVEvaluator {
-  
+
+  // =========================================================================
+  // JD ASSEMBLY FROM DATABASE FIELDS
+  // =========================================================================
+
+  /**
+   * Assembles a structured JD string from job_posting table fields
+   * Runs at runtime - DO NOT store assembled JD in database
+   * 
+   * @param job - Job posting data from database
+   * @returns Formatted JD string for evaluation
+   */
+  private static buildJDFromJobPosting(job: {
+    title: string
+    description?: string | null
+    required_skills?: string | string[] | null
+    preferred_skills?: string | string[] | null
+    experience_years?: number | string | null
+    required_education?: string | null
+    certifications_required?: string | null
+    location?: string | null
+    work_mode?: string | null
+    job_type?: string | null
+  }): string {
+    
+    const sections: string[] = []
+    
+    // 1. Title (mandatory)
+    if (job.title) {
+      sections.push(`Job Title: ${job.title}`)
+    }
+    
+    // 2. Description (optional - may not exist in all schemas)
+    if (job.description) {
+      sections.push(`\nJob Description:\n${job.description}`)
+    }
+    
+    // 3. Required Skills (mandatory for evaluation)
+    if (job.required_skills) {
+      const skills = Array.isArray(job.required_skills)
+        ? job.required_skills
+        : typeof job.required_skills === 'string'
+          ? job.required_skills.split(',').map(s => s.trim()).filter(Boolean)
+          : []
+      
+      if (skills.length > 0) {
+        sections.push(`\nRequired Skills:\n${skills.map(s => `- ${s}`).join('\n')}`)
+      }
+    }
+    
+    // 4. Preferred Skills (recommended)
+    if (job.preferred_skills) {
+      const skills = Array.isArray(job.preferred_skills)
+        ? job.preferred_skills
+        : typeof job.preferred_skills === 'string'
+          ? job.preferred_skills.split(',').map(s => s.trim()).filter(Boolean)
+          : []
+      
+      if (skills.length > 0) {
+        sections.push(`\nPreferred Skills:\n${skills.map(s => `- ${s}`).join('\n')}`)
+      }
+    }
+    
+    // 5. Experience (mandatory for evaluation)
+    if (job.experience_years !== null && job.experience_years !== undefined) {
+      sections.push(`\nExperience Required:\n${job.experience_years} years`)
+    }
+    
+    // 6. Education (recommended)
+    if (job.required_education) {
+      sections.push(`\nEducation Required:\n${job.required_education}`)
+    }
+    
+    // 7. Certifications (recommended)
+    if (job.certifications_required) {
+      sections.push(`\nCertifications Required:\n${job.certifications_required}`)
+    }
+    
+    // 8. Location + Work Mode (recommended)
+    if (job.location) {
+      sections.push(`\nLocation:\n${job.location}${job.work_mode ? ` (${job.work_mode})` : ''}`)
+    }
+    
+    // 9. Job Type (optional)
+    if (job.job_type) {
+      sections.push(`\nJob Type:\n${job.job_type}`)
+    }
+    
+    return sections.join('\n')
+  }
+
   // =========================================================================
   // PHASE 0: ELIGIBILITY GATES (Deterministic)
   // Domain-agnostic: Works for RPA, Full-stack, Data, DevOps, or any domain
@@ -320,6 +417,42 @@ export class CVEvaluator {
       }
     }
     
+    // Handle "X or Y or Z" format in required skills sections (e.g., "UiPath or Blue Prism or Automation Anywhere")
+    const orSeparatedSections = jd.match(/(?:required\s+skills?|must\s+have|essential)[:\s]*([^]*?)(?=\n\n|preferred|nice\s+to|$)/gi)
+    
+    if (orSeparatedSections) {
+      for (const section of orSeparatedSections) {
+        // Extract platforms separated by "or" or "/"
+        const orPlatformMatches = section.matchAll(/\b([a-z][a-z0-9\s.#+\-]+?)\s+(?:or|\/)\s+/gi)
+        
+        for (const match of orPlatformMatches) {
+          const potentialPlatform = match[1].toLowerCase().trim()
+          
+          // Check if it's a known platform
+          if (knownPlatforms.some(kp => 
+            potentialPlatform.includes(kp) || kp.includes(potentialPlatform)
+          )) {
+            if (!criticalPlatforms.includes(potentialPlatform)) {
+              criticalPlatforms.push(potentialPlatform)
+            }
+          }
+        }
+        
+        // Also extract the LAST item after final "or" in the line
+        const lastOrMatch = section.match(/\s+or\s+([a-z][a-z0-9\s.#+\-]+?)(?:\s|$|,|\.)/i)
+        if (lastOrMatch) {
+          const lastPlatform = lastOrMatch[1].toLowerCase().trim()
+          if (knownPlatforms.some(kp => 
+            lastPlatform.includes(kp) || kp.includes(lastPlatform)
+          )) {
+            if (!criticalPlatforms.includes(lastPlatform)) {
+              criticalPlatforms.push(lastPlatform)
+            }
+          }
+        }
+      }
+    }
+    
     return criticalPlatforms.slice(0, 5) // Limit to top 5
   }
 
@@ -372,49 +505,50 @@ export class CVEvaluator {
   }
 
   /**
-   * DOMAIN-AGNOSTIC: Check domain fit
-   * If JD specifies critical platforms, check if resume has ANY equivalent tool
-   * Example: JD says "UiPath required" but resume has "Automation Anywhere" → PASS (same RPA domain)
+   * DOMAIN-AGNOSTIC: Check if resume matches JD domain
+   * Supports equivalent tools and handles poorly written JDs
+   * 
+   * @returns Object with pass/fail, detected platforms, and confidence level
    */
   private static checkDomainFit(resumeText: string, jd: string): {
     pass: boolean
     criticalPlatforms: string[]
     foundPlatforms: string[]
     reason: string | null
+    confidence: 'high' | 'low'
   } {
     const criticalPlatforms = this.extractCriticalPlatforms(jd)
     const textLower = resumeText.toLowerCase()
     const jdLower = jd.toLowerCase()
+    
+    // Determine confidence based on platform detection
+    const confidence: 'high' | 'low' = criticalPlatforms.length > 0 ? 'high' : 'low'
     
     // Direct matches
     const foundPlatforms = criticalPlatforms.filter(p => textLower.includes(p))
     
     // If direct match found, pass immediately
     if (foundPlatforms.length > 0) {
-      return { pass: true, criticalPlatforms, foundPlatforms, reason: null }
+      return { pass: true, criticalPlatforms, foundPlatforms, reason: null, confidence }
     }
     
     // If no direct match, check for equivalent tools
     if (criticalPlatforms.length > 0) {
-      // For each critical platform, check if resume has ANY equivalent tool
       for (const platform of criticalPlatforms) {
         const equivalentTools = this.getEquivalentTools(platform)
         
-        // Check if resume has any equivalent tool
         for (const eqTool of equivalentTools) {
           if (textLower.includes(eqTool)) {
-            // Found an equivalent tool - check if JD also mentions this category broadly
-            // or if JD lists multiple options (e.g., "UiPath/Automation Anywhere")
             const jdMentionsEquivalent = equivalentTools.some(t => jdLower.includes(t))
             
             if (jdMentionsEquivalent) {
-              // JD mentions tools from same category, so equivalent is acceptable
               foundPlatforms.push(eqTool)
               return { 
                 pass: true, 
                 criticalPlatforms, 
                 foundPlatforms: [eqTool],
-                reason: null 
+                reason: null,
+                confidence 
               }
             }
           }
@@ -426,11 +560,26 @@ export class CVEvaluator {
         pass: false,
         criticalPlatforms,
         foundPlatforms: [],
-        reason: `Domain mismatch: JD requires ${criticalPlatforms.slice(0, 3).join('/')} but resume shows none of these`
+        reason: `Domain mismatch: JD requires ${criticalPlatforms.slice(0, 3).join('/')} but resume shows none of these`,
+        confidence
       }
     }
     
-    return { pass: true, criticalPlatforms, foundPlatforms, reason: null }
+    // If no platforms detected but JD mentions technical requirements
+    // Don't auto-pass - signal low confidence (LLM must validate)
+    const hasTechnicalMention = /skills?|technologies?|tools?|platforms?|experience\s+(?:with|in)/i.test(jd)
+    
+    if (hasTechnicalMention) {
+      return {
+        pass: true,  // Allow to proceed to LLM validation
+        criticalPlatforms: [],
+        foundPlatforms: [],
+        reason: null,
+        confidence: 'low'
+      }
+    }
+    
+    return { pass: true, criticalPlatforms, foundPlatforms, reason: null, confidence }
   }
 
   /**
@@ -467,10 +616,20 @@ export class CVEvaluator {
    */
   private static extractExperienceRequirement(jd: string): { min: number; max: number | null; raw: string } | null {
     const patterns = [
-      /(\d+)\s*[-–to]+\s*(\d+)\s*(?:\+)?\s*years?/i,  // "3-5 years", "3 to 5 years"
-      /(\d+)\s*\+\s*years?/i,                          // "5+ years"
-      /(?:minimum|min|at least)\s*(\d+)\s*years?/i,    // "minimum 3 years"
-      /(\d+)\s*years?\s*(?:of)?\s*experience/i         // "3 years experience"
+      // Range with various dash types: "2-5 years", "2–5 years", "2—5 years", "2 to 5 years"
+      /(\d+)\s*[\-–—\s]*(?:to|\-|–|—)\s*(\d+)\s*(?:\+)?\s*years?/i,
+      // Plus format: "5+ years"
+      /(\d+)\s*\+\s*years?/i,
+      // Minimum format: "minimum 3 years", "at least 5 years"
+      /(?:minimum|min|at least)\s*(\d+)\s*years?/i,
+      // Simple format: "3 years experience", "5 years of experience"
+      /(\d+)\s*years?\s*(?:of)?\s*experience/i,
+      // Context-aware: "Experience Required: 2-5 years"
+      /experience[^.]*?(\d+)\s*[\-–—to]+\s*(\d+)\s*years?/i,
+      // Context-aware: "Years of Experience Required\n2-5 years"  
+      /years?\s+(?:of\s+)?experience[^.]*?(\d+)\s*[\-–—to]+\s*(\d+)/i,
+      // Single value from DB assembly: "Experience Required:\n2 years"
+      /experience\s*required[:\s]+(\d+)\s*years?/i
     ]
     
     for (const pattern of patterns) {
@@ -618,17 +777,16 @@ export class CVEvaluator {
 
   /**
    * DOMAIN-AGNOSTIC: Run all eligibility gates
-   * FIX A: Uses new critical/important must-have split (preserved)
-   * FIX B: Experience buffer reduced to 0.5 years (preserved)
+   * Uses RELEVANT experience for comparison when available (critical for domain-specific roles)
    * Works for ANY domain - no RPA-specific logic
    */
   private static runEligibilityGates(
     resumeText: string, 
     jd: string, 
-    yearsActual: number | null
+    yearsActual: number | null,
+    relevantYearsActual: number | null
   ): CVEvaluationResult['eligibility'] {
     const failReasons: string[] = []
-    let missingMustHave: string[] = []
     
     // Gate 1: Domain Fit (DOMAIN-AGNOSTIC)
     const domainCheck = this.checkDomainFit(resumeText, jd)
@@ -637,41 +795,29 @@ export class CVEvaluator {
       failReasons.push(domainCheck.reason)
     }
     
-    // Gate 2: Must-Have Skills (FIX A: Critical skills cause immediate failure)
-    const mustHaveSkills = this.extractMustHaveSkills(jd)
-    const mustHaveCheck = this.checkMustHaveSkills(resumeText, mustHaveSkills)
-    const mustHaveFit: EligibilityStatus = mustHaveCheck.pass ? "PASS" : "FAIL"
-    if (mustHaveFit === "FAIL") {
-      failReasons.push(`Missing critical skills: ${mustHaveCheck.missingCritical.join(', ')}`)
-    }
-    // Expose all missing must-haves (critical + important)
-    missingMustHave = [...mustHaveCheck.missingCritical, ...mustHaveCheck.missingImportant]
-    
-    // Gate 3: Experience Fit (FIX B: Only 0.5 year buffer allowed)
+    // Gate 2: Experience Fit (use RELEVANT experience - critical fix!)
     const expReq = this.extractExperienceRequirement(jd)
     let experienceFit: EligibilityStatus = "PASS"
-    if (expReq && yearsActual !== null) {
-      if (yearsActual < expReq.min - 0.5) { // FIX B: Reduced from 1 year to 0.5 years
-        experienceFit = "FAIL"
-        failReasons.push(`Experience below requirement: ${yearsActual} years vs ${expReq.raw} required (min ${expReq.min - 0.5} allowed)`)
-      }
-    }
     
-    // Gate 4: Language Fit (binary compliance only - no scoring)
-    const requiredLang = this.extractRequiredLanguage(jd)
-    let languageFit: EligibilityStatus = "PASS"
-    if (requiredLang && !this.hasLanguage(resumeText, requiredLang)) {
-      languageFit = "FAIL"
-      failReasons.push(`Required language not found: ${requiredLang}`)
+    if (expReq) {
+      // Use relevant experience if available, otherwise total
+      const yearsToCheck = relevantYearsActual ?? yearsActual
+      
+      if (yearsToCheck !== null) {
+        const buffer = Math.max(0.5, expReq.min * 0.2)
+        if (yearsToCheck < expReq.min - buffer) {
+          experienceFit = "FAIL"
+          failReasons.push(
+            `Relevant domain experience below requirement: ${yearsToCheck} years vs ${expReq.raw} required (min ${(expReq.min - buffer).toFixed(1)} years allowed)`
+          )
+        }
+      }
     }
     
     return {
       domain_fit: domainFit,
-      must_have_fit: mustHaveFit,
       experience_fit: experienceFit,
-      language_fit: languageFit,
-      fail_reasons: failReasons,
-      missing_must_have: missingMustHave
+      fail_reasons: failReasons
     }
   }
 
@@ -681,31 +827,59 @@ export class CVEvaluator {
 
   /**
    * Rule-based experience score calculation
+   * Uses RELEVANT experience for comparison when available (critical for domain-specific roles)
    */
   private static calculateExperienceScore(
-    yearsActual: number | null, 
+    yearsActual: number | null,
+    relevantYearsActual: number | null,
     jd: string
   ): { score: number; matchLevel: MatchLevel; yearsRequired: string } {
     const expReq = this.extractExperienceRequirement(jd)
     
+    // Use relevant experience if available, otherwise fall back to total
+    const experienceToScore = relevantYearsActual ?? yearsActual
+    
     if (!expReq) {
-      return { score: 70, matchLevel: "Within", yearsRequired: "Not specified" }
+      // Requirement not detected - use tier-based scoring by absolute experience level
+      if (experienceToScore === null) {
+        return { score: 50, matchLevel: "Within", yearsRequired: "Not specified" }
+      }
+      
+      // Tier-based scoring by absolute experience level
+      if (experienceToScore < 1) {
+        // Fresher (< 1 year) - low score
+        const score = Math.max(20, Math.round(experienceToScore * 30))
+        return { score, matchLevel: "Below", yearsRequired: "Not specified" }
+      } else if (experienceToScore < 2) {
+        // Junior (1-2 years)
+        return { score: 50, matchLevel: "Within", yearsRequired: "Not specified" }
+      } else if (experienceToScore < 5) {
+        // Mid-level (2-5 years)
+        return { score: 70, matchLevel: "Within", yearsRequired: "Not specified" }
+      } else {
+        // Senior (5+ years)
+        return { score: 80, matchLevel: "Within", yearsRequired: "Not specified" }
+      }
     }
     
-    if (yearsActual === null) {
+    // Use relevant experience for comparison (critical fix!)
+    const yearsToCompare = relevantYearsActual ?? yearsActual
+    
+    if (yearsToCompare === null) {
       return { score: 50, matchLevel: "Within", yearsRequired: expReq.raw }
     }
     
     const { min, max } = expReq
     
-    if (yearsActual < min - 0.5) {
-      // Below minimum (FIX B: only 0.5 year buffer allowed)
-      const ratio = yearsActual / min
+    const buffer = Math.max(0.5, min * 0.2)
+    if (yearsToCompare < min - buffer) {
+      // Below minimum (20% buffer, min 0.5 years)
+      const ratio = yearsToCompare / min
       return { score: Math.max(20, Math.round(ratio * 60)), matchLevel: "Below", yearsRequired: expReq.raw }
-    } else if (max && yearsActual > max + 2) {
+    } else if (max && yearsToCompare > max + 2) {
       // Overqualified (more than 2 years over max)
       return { score: 75, matchLevel: "Above", yearsRequired: expReq.raw }
-    } else if (yearsActual >= min && (!max || yearsActual <= max)) {
+    } else if (yearsToCompare >= min && (!max || yearsToCompare <= max)) {
       // Within range
       return { score: 95, matchLevel: "Within", yearsRequired: expReq.raw }
     } else {
@@ -794,11 +968,6 @@ export class CVEvaluator {
     const riskFlags: string[] = []
     let scoreCap: number | null = null
     
-    // Check for critical missing skills
-    if (scores.skill_match.missing_critical.length > 0) {
-      criticalGaps.push(`Missing critical skills: ${scores.skill_match.missing_critical.join(', ')}`)
-    }
-    
     // Risk flags from LLM extraction (DOMAIN-AGNOSTIC)
     if (!llmData.has_debugging_experience) {
       riskFlags.push("No debugging/maintenance experience mentioned")
@@ -824,15 +993,31 @@ export class CVEvaluator {
     // Apply score caps
     let finalScore = rawScore
     
-    // Cap at 75 if critical skills missing
-    if (criticalGaps.length > 0) {
-      if (finalScore > 75) {
-        finalScore = 75
-        scoreCap = 75
+    // Strict score caps based on missing critical skills (SOFT PENALTY ONLY)
+    // This does NOT block in eligibility - skill matching affects score only
+    // Low scores naturally lead to "Reject" verdict via thresholds (<55)
+    if (scores.skill_match.missing_critical.length >= 2) {
+      // 2+ critical missing → Force low score (max 54, triggers "Reject" verdict)
+      if (finalScore > 54) {
+        finalScore = 54
+        scoreCap = 54
       }
+      riskFlags.push(`${scores.skill_match.missing_critical.length} critical skills missing: ${scores.skill_match.missing_critical.slice(0, 3).join(', ')}`)
+    } else if (scores.skill_match.missing_critical.length === 1) {
+      // 1 critical missing → Force borderline score (max 64, triggers "Borderline" verdict)
+      if (finalScore > 64) {
+        finalScore = 64
+        scoreCap = 64
+      }
+      riskFlags.push(`1 critical skill missing: ${scores.skill_match.missing_critical[0]}`)
     }
     
-    // FIX C: Cap at 65 if production role but no production experience
+    // Add to criticalGaps for transparency in results
+    if (scores.skill_match.missing_critical.length > 0) {
+      criticalGaps.push(`Missing critical skills: ${scores.skill_match.missing_critical.join(', ')}`)
+    }
+    
+    // Cap at 65 if production role but no production experience
     if (isProductionRole && !llmData.has_production_deployment) {
       if (finalScore > 65) {
         finalScore = 65
@@ -895,7 +1080,7 @@ export class CVEvaluator {
         evidence.push(desc)
       }
     }
-    
+
     // Also use LLM detection
     const hasProdExperience = llmData.has_production_deployment || evidence.length > 0
     
@@ -956,8 +1141,22 @@ export class CVEvaluator {
 
   /**
    * Determine final verdict based on score and eligibility
-   * FIX D: < 55 = Reject (Borderline is 55-64 only)
-   * FIX E: missing_critical blocks Strong Match
+   * 
+   * Verdict Logic:
+   * - 80+ with no missing critical = Strong Match
+   * - 80+ with missing critical = Good Match (protected by FIX E)
+   * - 65-79 = Good Match
+   * - 55-64 = Borderline (requires manual review)
+   * - <55 = Reject
+   * 
+   * Note: Score caps in applyRiskAdjustments() enforce these ranges:
+   * - 2+ critical skills missing → capped at 54 (Forces "Reject" verdict)
+   * - 1 critical skill missing → capped at 64 (Forces "Borderline" verdict)
+   * - Production role + no prod exp → capped at 65
+   * - 3+ risk flags → capped at 65
+   * 
+   * Skill matching affects SCORING only, not eligibility gates.
+   * Low scores naturally lead to rejection via verdict thresholds.
    */
   private static determineVerdict(
     score: number, 
@@ -1051,7 +1250,7 @@ export class CVEvaluator {
       console.log('❌ [CV EVALUATOR] Hard reject: Domain mismatch')
       return this.createRejectionResult(
         domainCheck.reason || "Domain mismatch: Required platforms/tools not found in resume",
-        { domain_fit: "FAIL", must_have_fit: "PASS", experience_fit: "PASS", language_fit: "PASS", fail_reasons: [domainCheck.reason || "Required platforms not found"], missing_must_have: domainCheck.criticalPlatforms }
+        { domain_fit: "FAIL", experience_fit: "PASS", fail_reasons: [domainCheck.reason || "Required platforms not found"] }
       )
     }
 
@@ -1096,13 +1295,15 @@ export class CVEvaluator {
       const eligibility = this.runEligibilityGates(
         resumeText, 
         jobDescription, 
-        llmResponse.extracted.total_experience_years_estimate
+        llmResponse.extracted.total_experience_years_estimate,
+        llmResponse.extracted.relevant_experience_years ?? null
       )
       console.log(`📋 [CV EVALUATOR] Eligibility: ${eligibility.fail_reasons.length === 0 ? 'PASS' : 'FAIL - ' + eligibility.fail_reasons.join('; ')}`)
 
       // PHASE 1: Calculate scores
       const expScore = this.calculateExperienceScore(
         llmResponse.extracted.total_experience_years_estimate,
+        llmResponse.extracted.relevant_experience_years ?? null,
         jobDescription
       )
       
@@ -1228,6 +1429,72 @@ export class CVEvaluator {
   }
 
   // =========================================================================
+  // APPLICATION-LEVEL EVALUATION (Fetches JD from DB)
+  // =========================================================================
+
+  /**
+   * Evaluate a candidate's resume for a job application
+   * Fetches job posting data from job_postings table and assembles JD string at runtime
+   * 
+   * @param resumeText - The candidate's resume text
+   * @param applicationId - ID of the application record
+   * @param dbQuery - Database query function (e.g., DatabaseService.query)
+   * @param companyId - Optional company ID for API key lookup
+   * @param openaiClient - Optional OpenAI client with custom API key
+   * @returns Complete evaluation result with scores and verdict
+   */
+  static async evaluateApplication(
+    resumeText: string,
+    applicationId: string,
+    dbQuery: (sql: string, params: any[]) => Promise<any[]>,
+    companyId?: string,
+    openaiClient?: any
+  ): Promise<CVEvaluationResult> {
+    
+    console.log('🔍 [CV EVALUATOR] Fetching job posting data for application:', applicationId)
+    
+    // Fetch job posting data via application → job_posting join
+    const rows = await dbQuery(
+      `SELECT jp.title,
+              jp.description,
+              jp.required_skills,
+              jp.preferred_skills,
+              jp.experience_years,
+              jp.required_education,
+              jp.certifications_required,
+              jp.location,
+              jp.work_mode,
+              jp.job_type
+       FROM applications a
+       JOIN job_posting jp ON a.job_id = jp.id
+       WHERE a.id = $1::uuid`,
+      [applicationId]
+    )
+    
+    if (!rows || rows.length === 0) {
+      throw new Error(`Job posting not found for application: ${applicationId}`)
+    }
+    
+    const job = rows[0]
+    console.log(`📋 [CV EVALUATOR] Job posting found: ${job.title}`)
+    
+    // Assemble JD string at runtime (not stored in DB)
+    const jdString = this.buildJDFromJobPosting(job)
+    
+    console.log('🔨 [CV EVALUATOR] JD assembled, starting evaluation...')
+    console.log('📝 [CV EVALUATOR] Assembled JD preview:', jdString.substring(0, 200) + '...')
+    
+    // Run evaluation with assembled JD
+    return this.evaluateCandidate(
+      resumeText,
+      jdString,
+      50,  // passThreshold
+      companyId,
+      openaiClient
+    )
+  }
+
+  // =========================================================================
   // HELPER METHODS
   // =========================================================================
 
@@ -1249,6 +1516,29 @@ ${resumeText}
 3. Score project_relevance (0-100): How relevant are recent projects to the JD?
 4. Score resume_quality (0-100): Clarity, structure, completeness
 5. Identify platforms/tools, languages, and experience flags
+
+[CRITICAL - DOMAIN-RELEVANT EXPERIENCE CALCULATION]
+
+Calculate TWO types of experience:
+
+1. **total_experience_years_estimate**: Sum of ALL work durations (all jobs, all domains)
+
+2. **relevant_experience_years**: Sum of ONLY job experience where the role, responsibilities, 
+   and skills DIRECTLY MATCH the requirements in the JD.
+
+For EACH job in work history, assign a relevance percentage:
+- 100% (high): Job title/role directly matches JD + major skill overlap (>70%)
+- 50% (medium): Partial domain overlap or transferable skills
+- 25% (low): Minimal overlap, tangential skills
+- 0% (none): Completely different domain, no skill overlap
+
+Calculate: relevant_experience_years = Sum of (job_duration × relevance_percentage)
+
+Example: JD requires "RPA Developer - UiPath"
+- RPA Developer (2 years, UiPath) → 100% → 2.0 years counted
+- Process Analyst (1 year, no RPA) → 50% → 0.5 years counted
+- Full Stack Dev (3 years, React) → 0% → 0 years counted
+Result: total=6, relevant=2.5
 
 [OUTPUT SCHEMA - RETURN ONLY JSON]
 {
@@ -1281,6 +1571,8 @@ ${resumeText}
     "phone": string|null,
     "location": string|null,
     "total_experience_years_estimate": number|null,
+    "relevant_experience_years": number|null,
+    "relevant_experience_breakdown": [{"title": string, "company": string, "duration_years": number, "relevance_to_jd": "high"|"medium"|"low"|"none", "relevance_percentage": 0|25|50|100, "counted_years": number, "reasoning": string}],
     "titles": string[],
     "skills": string[],
     "education": [{"degree": string|null, "field": string|null, "institution": string|null, "year": string|null}],
@@ -1400,7 +1692,7 @@ ${resumeText}
    */
   private static createRejectionResult(
     reason: string,
-    eligibility: Omit<CVEvaluationResult['eligibility'], 'missing_must_have'> & { missing_must_have?: string[] }
+    eligibility: CVEvaluationResult['eligibility']
   ): CVEvaluationResult {
     const scores = {
       skill_match: { score: 10, weight: 30 as const, matched_critical: [], matched_important: [], missing_critical: ['Required Platform'], evidence: [] },
@@ -1418,10 +1710,7 @@ ${resumeText}
         verdict: "Reject",
         reason_summary: reason
       },
-      eligibility: {
-        ...eligibility,
-        missing_must_have: eligibility.missing_must_have || ['Required Platform']
-      },
+      eligibility,
       scores,
       risk_adjustments: {
         critical_gaps: ['Required platform/skill not found'],
@@ -1439,7 +1728,10 @@ ${resumeText}
       explainable_score: this.calculateExplainableScore(scores),
       extracted: {
         name: null, email: null, phone: null, location: null,
-        total_experience_years_estimate: null, titles: [], skills: [],
+        total_experience_years_estimate: null,
+        relevant_experience_years: null,
+        relevant_experience_breakdown: [],
+        titles: [], skills: [],
         education: [], work_experience: [], certifications: [], languages: [], recent_projects: []
       }
     }
@@ -1470,11 +1762,8 @@ ${resumeText}
       },
       eligibility: {
         domain_fit: "PASS",
-        must_have_fit: "PASS",
         experience_fit: "PASS",
-        language_fit: "PASS",
         fail_reasons: ["API error - manual review required"],
-        missing_must_have: []
       },
       scores,
       risk_adjustments: {
@@ -1493,7 +1782,10 @@ ${resumeText}
       explainable_score: this.calculateExplainableScore(scores),
       extracted: {
         name: null, email: null, phone: null, location: null,
-        total_experience_years_estimate: null, titles: [], skills: [],
+        total_experience_years_estimate: null,
+        relevant_experience_years: null,
+        relevant_experience_breakdown: [],
+        titles: [], skills: [],
         education: [], work_experience: [], certifications: [], languages: [], recent_projects: []
       }
     }
