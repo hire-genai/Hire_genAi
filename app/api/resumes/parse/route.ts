@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { parseResume, cleanText } from '@/lib/resume-parser'
 import { CVEvaluator } from '@/lib/cv-evaluator'
 import { DatabaseService } from '@/lib/database'
+import { decrypt } from '@/lib/encryption'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -82,30 +83,78 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(arrayBuffer)
     console.log('[Resume Parse] Buffer created, size:', buffer.length)
 
-    // Parse the resume
-    console.log('[Resume Parse] Starting parseResume function...')
-    let parsed
+    // Upload file to storage and get URL
+    let fileUrl: string | null = null
     try {
-      parsed = await parseResume(buffer, file.type)
-      console.log('[Resume Parse] Parse complete, skills found:', parsed.skills?.length || 0)
-    } catch (parseError: any) {
-      console.error('[Resume Parse] Parsing failed, using fallback:', parseError.message)
-      parsed = {
-        rawText: '',
-        skills: [],
-        experience: [],
-        education: [],
+      const timestamp = Date.now()
+      const randomStr = Math.random().toString(36).substring(2, 9)
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const fileName = `resumes/${candidateId || 'candidate'}-${timestamp}-${randomStr}-${safeName}`
+
+      // Upload to Vercel Blob
+      const { put } = await import('@vercel/blob')
+      const blob = await put(fileName, file, {
+        access: 'public',
+        addRandomSuffix: false,
+      })
+      fileUrl = blob.url
+      console.log(`[Resume Parse] ✅ Uploaded to Vercel Blob: ${fileUrl}`)
+    } catch (blobErr: any) {
+      console.error('[Resume Parse] ❌ Blob upload failed:', blobErr.message)
+      // Continue without URL - text extraction still works
+    }
+
+    // Update candidate.resume_url if we have a URL
+    if (fileUrl) {
+      let targetCandidateId = candidateId
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+      // Validate candidateId is a real UUID; if not, clear it so we fetch from application
+      if (targetCandidateId && !uuidRegex.test(targetCandidateId)) {
+        console.warn(`[Resume Parse] candidateId "${targetCandidateId}" is not a valid UUID, will fetch from application`)
+        targetCandidateId = null
+      }
+      
+      // Fetch candidateId from application if we don't have a valid one
+      if (!targetCandidateId && applicationId) {
+        try {
+          const appInfo = await DatabaseService.query(
+            `SELECT candidate_id FROM applications WHERE id = $1::uuid`,
+            [applicationId]
+          )
+          if (appInfo?.[0]?.candidate_id) {
+            targetCandidateId = appInfo[0].candidate_id
+            console.log(`[Resume Parse] Fetched candidateId from application: ${targetCandidateId}`)
+          }
+        } catch (fetchErr) {
+          console.warn('[Resume Parse] Failed to fetch candidateId from application:', fetchErr)
+        }
+      }
+      
+      // Update candidate.resume_url
+      if (targetCandidateId && uuidRegex.test(targetCandidateId)) {
+        try {
+          await DatabaseService.query(
+            `UPDATE candidates SET resume_url = $1 WHERE id = $2::uuid`,
+            [fileUrl, targetCandidateId]
+          )
+          console.log(`[Resume Parse] ✅ Updated candidates.resume_url for ${targetCandidateId}: ${fileUrl}`)
+        } catch (updateErr: any) {
+          console.error('[Resume Parse] ❌ Failed to update candidate resume_url:', updateErr?.message || updateErr)
+        }
+      } else {
+        console.warn('[Resume Parse] No valid candidateId available for updating resume_url. candidateId:', candidateId, 'applicationId:', applicationId)
       }
     }
 
     // Track company and job for billing
     let companyIdForBilling: string | null = null
     let jobIdForBilling: string | null = null
+    let companyOpenAIKey: string | undefined
 
-    // Optionally save parsed data to database
-    if (applicationId && parsed.rawText) {
+    // Fetch company's service key BEFORE parsing so we use the company-specific key
+    if (applicationId) {
       try {
-        // Get company_id and job_id from application
         const appInfo = await DatabaseService.query(
           `SELECT a.job_id, jp.company_id 
            FROM applications a
@@ -117,6 +166,65 @@ export async function POST(request: NextRequest) {
           companyIdForBilling = appInfo[0].company_id
           jobIdForBilling = appInfo[0].job_id
         }
+
+        // Fetch company's OpenAI service key from DB
+        if (companyIdForBilling) {
+          try {
+            const companyData = await DatabaseService.query(
+              `SELECT openai_service_account_key FROM companies WHERE id = $1::uuid LIMIT 1`,
+              [companyIdForBilling]
+            ) as any[]
+
+            if (companyData?.[0]?.openai_service_account_key) {
+              try {
+                const decryptedKey = decrypt(companyData[0].openai_service_account_key).trim()
+                if (decryptedKey.startsWith("{")) {
+                  const keyObj = JSON.parse(decryptedKey)
+                  companyOpenAIKey = keyObj.value || keyObj.apiKey || keyObj.api_key || keyObj.key || undefined
+                } else {
+                  companyOpenAIKey = decryptedKey
+                }
+                console.log('[Resume Parse] Using company service account key for companyId:', companyIdForBilling)
+              } catch (e) {
+                console.warn('[Resume Parse] Failed to decrypt company key:', e)
+              }
+            }
+          } catch (e) {
+            console.warn('[Resume Parse] Failed to fetch company key:', e)
+          }
+
+          // Fallback to env var
+          if (!companyOpenAIKey) {
+            companyOpenAIKey = process.env.OPENAI_API_KEY || process.env.OPENAI_EVAL_KEY || undefined
+            if (companyOpenAIKey) {
+              console.log('[Resume Parse] Using environment OPENAI_API_KEY as fallback')
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[Resume Parse] Failed to fetch company info:', e)
+      }
+    }
+
+    // Parse the resume using company-specific key
+    console.log('[Resume Parse] Starting parseResume function...')
+    let parsed
+    try {
+      parsed = await parseResume(buffer, file.type, companyOpenAIKey ? { apiKey: companyOpenAIKey } : undefined)
+      console.log('[Resume Parse] Parse complete, skills found:', parsed.skills?.length || 0)
+    } catch (parseError: any) {
+      console.error('[Resume Parse] Parsing failed, using fallback:', parseError.message)
+      parsed = {
+        rawText: '',
+        skills: [],
+        experience: [],
+        education: [],
+      }
+    }
+
+    // Optionally save parsed data to database
+    if (applicationId && parsed.rawText) {
+      try {
 
         // Check if resume_text column exists in applications table
         const checkCol = await DatabaseService.query(
@@ -212,7 +320,9 @@ export async function POST(request: NextRequest) {
                   const evaluation = await CVEvaluator.evaluateCandidate(
                     resumeForEval,
                     jdForEval,
-                    passThreshold
+                    passThreshold,
+                    companyIdForBilling || undefined,
+                    companyOpenAIKey ? { apiKey: companyOpenAIKey } : undefined
                   )
 
                   console.log('[Resume Parse] ✅ CV Evaluation completed:', {
@@ -376,6 +486,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      fileUrl,  // Include the uploaded file URL
       parsed: {
         name: parsed.name,
         email: parsed.email,

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile, mkdir } from 'fs/promises'
-import path from 'path'
+import { put } from '@vercel/blob'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -53,19 +52,18 @@ export async function POST(request: NextRequest) {
     const timestamp = Date.now()
     const randomStr = Math.random().toString(36).substring(2, 9)
     const identifier = candidateId || 'unknown'
-    const fileName = `${identifier}-${timestamp}-${randomStr}.${imageType}`
+    const fileName = `photos/${identifier}-${timestamp}-${randomStr}.${imageType}`
 
-    // Save to public/uploads/photos directory
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'photos')
-    await mkdir(uploadsDir, { recursive: true })
+    // Upload to Vercel Blob
+    const blob = await put(fileName, buffer, {
+      access: 'public',
+      addRandomSuffix: false,
+      contentType: `image/${imageType}`,
+    })
 
-    const filePath = path.join(uploadsDir, fileName)
-    await writeFile(filePath, buffer)
+    const photoUrl = blob.url
 
-    // Return public URL
-    const photoUrl = `/uploads/photos/${fileName}`
-
-    console.log('📸 [Photo Upload] Successfully saved candidate photo:', {
+    console.log('📸 [Photo Upload] Successfully uploaded candidate photo to Blob:', {
       url: photoUrl,
       candidateId,
       size: buffer.length,

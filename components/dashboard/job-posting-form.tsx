@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { X, Plus, Minus, Save, Send, CheckCircle, Sparkles, Loader2, RefreshCw } from 'lucide-react'
+import { useAuth } from '@/contexts/auth-context'
 
 interface JobPostingFormProps {
   onClose: () => void
@@ -101,21 +102,83 @@ const EVALUATION_CRITERIA = [
   'Work Ethic / Reliability',
 ]
 
+type QuestionDifficulty = 'High' | 'Medium' | 'Low'
+
+// Weights for dynamic scoring (total marks always = 100)
+const DIFFICULTY_WEIGHTS: Record<QuestionDifficulty, number> = {
+  High: 3,
+  Medium: 2,
+  Low: 1,
+}
+
+// Calculate dynamic marks so total always equals 100
+function calculateDynamicMarks(questions: { difficulty: QuestionDifficulty }[]): Map<number, number> {
+  const marksMap = new Map<number, number>()
+  if (questions.length === 0) return marksMap
+  
+  const totalWeight = questions.reduce((sum, q) => sum + DIFFICULTY_WEIGHTS[q.difficulty], 0)
+  const markPerWeight = totalWeight > 0 ? 100 / totalWeight : 0
+  
+  questions.forEach((q, index) => {
+    const marks = Math.round(DIFFICULTY_WEIGHTS[q.difficulty] * markPerWeight * 100) / 100
+    marksMap.set(index, marks)
+  })
+  
+  return marksMap
+}
+
+// Helper to get marks for a single question based on all questions
+function getQuestionMarks(questions: { difficulty: QuestionDifficulty }[], index: number): number {
+  const marksMap = calculateDynamicMarks(questions)
+  return marksMap.get(index) || 0
+}
+
+// Recalculate marks for all questions (total = 100)
+function recalculateAllMarks<T extends { difficulty: QuestionDifficulty; marks: number }>(questions: T[]): T[] {
+  if (questions.length === 0) return questions
+  
+  const totalWeight = questions.reduce((sum, q) => sum + DIFFICULTY_WEIGHTS[q.difficulty], 0)
+  const markPerWeight = totalWeight > 0 ? 100 / totalWeight : 0
+  
+  return questions.map(q => ({
+    ...q,
+    marks: Math.round(DIFFICULTY_WEIGHTS[q.difficulty] * markPerWeight * 100) / 100
+  }))
+}
+
+// Legacy fixed marks (for display reference only)
+const DIFFICULTY_MARKS: Record<QuestionDifficulty, number> = {
+  High: 15,
+  Medium: 10,
+  Low: 5,
+}
+
+const DIFFICULTY_COLORS: Record<QuestionDifficulty, { bg: string; text: string; border: string }> = {
+  High: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
+  Medium: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
+  Low: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
+}
+
 interface InterviewQuestion {
   id: number
   question: string
   criterion: string
+  difficulty: QuestionDifficulty
+  marks: number
   isCustom?: boolean
 }
 
 export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, companySlug }: JobPostingFormProps) {
+  const { company, user } = useAuth()
   const [currentStep, setCurrentStep] = useState(1)
   const [selectedCriteria, setSelectedCriteria] = useState<string[]>([])
   const [interviewQuestions, setInterviewQuestions] = useState<InterviewQuestion[]>([])
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false)
   const [customQuestionText, setCustomQuestionText] = useState('')
   const [customQuestionCriterion, setCustomQuestionCriterion] = useState('')
+  const [customQuestionDifficulty, setCustomQuestionDifficulty] = useState<QuestionDifficulty>('Medium')
   const [isAddingCustomQuestion, setIsAddingCustomQuestion] = useState(false)
+  const [draftJobId, setDraftJobId] = useState<string | null>(null)
   const isViewMode = mode === 'view'
   const defaultFormData: JobFormData = {
     // Basic Job Information
@@ -132,7 +195,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
     expectedStartDate: '',
     
     // Hiring Team & Ownership
-    recruiterAssigned: 'Sarah Johnson',
+    recruiterAssigned: '',
     hiringManager: '',
     hiringManagerEmail: '',
     interviewPanelMembers: [''],
@@ -151,19 +214,19 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
     clientCompanyName: '',
     
     // Capacity & Planning
-    numberOfOpenings: '1',
+    numberOfOpenings: '',
     hiringPriority: 'Medium',
-    targetTimeToFill: '30',
+    targetTimeToFill: '',
     budgetAllocated: '',
     
     // Dashboard Metrics & Tracking
-    jobOpenDate: new Date().toISOString().split('T')[0],
+    jobOpenDate: '',
     expectedHiresPerMonth: '',
-    targetOfferAcceptanceRate: '80',
-    candidateResponseTimeSLA: '24',
-    interviewScheduleSLA: '48',
+    targetOfferAcceptanceRate: '',
+    candidateResponseTimeSLA: '',
+    interviewScheduleSLA: '',
     costPerHireBudget: '',
-    agencyFeePercentage: '20',
+    agencyFeePercentage: '',
     jobBoardCosts: '',
     
     // Sourcing Strategy
@@ -196,6 +259,13 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
     ...(initialData || {}),
   })
 
+  // Auto-fill recruiter name from logged-in user
+  useEffect(() => {
+    if (user?.full_name && !formData.recruiterAssigned && mode === 'create') {
+      setFormData(prev => ({ ...prev, recruiterAssigned: user.full_name }))
+    }
+  }, [user])
+
   useEffect(() => {
     if (initialData) {
       setFormData({
@@ -203,7 +273,14 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
         ...initialData,
       })
       if (initialData.generatedQuestions || (initialData as any).questions) {
-        setInterviewQuestions(initialData.generatedQuestions || (initialData as any).questions || [])
+        const rawQuestions = initialData.generatedQuestions || (initialData as any).questions || []
+        // Backward compatibility: add difficulty if missing, then recalculate marks
+        const migratedQuestions = rawQuestions.map((q: any) => ({
+          ...q,
+          difficulty: q.difficulty || 'Medium' as QuestionDifficulty,
+          marks: 0, // Will be recalculated
+        }))
+        setInterviewQuestions(recalculateAllMarks(migratedQuestions))
       }
       if (initialData.selectedCriteriaIds || (initialData as any).selectedCriteria) {
         setSelectedCriteria(initialData.selectedCriteriaIds || (initialData as any).selectedCriteria || [])
@@ -264,43 +341,100 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
       return
     }
     if (!formData.jobDescription) {
-      alert('Please fill in the job description in Step 2 first')
+      alert('Please fill in the Job Description field in Step 2 first')
+      return
+    }
+    const validSkills = formData.requiredSkills.filter((s: string) => s && s.trim())
+    if (validSkills.length === 0) {
+      alert('Please add at least one Required Skill in Step 2 first')
+      return
+    }
+    if (!formData.experienceYears) {
+      alert('Please fill in Years of Experience Required in Step 2 first')
       return
     }
 
     setIsGeneratingQuestions(true)
     
     try {
-      // Build criteria list for the prompt
-      const selectedCriteriaNames = selectedCriteria
+      const currentDraftId = draftJobId || `draft_${Date.now()}`
+      if (!draftJobId) setDraftJobId(currentDraftId)
 
-      // Simulate AI generation (replace with actual API call)
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      // Generate mock questions based on selected criteria
-      const mockQuestions: InterviewQuestion[] = []
-      let questionId = 1
-      
-      // Distribute 10 questions across selected criteria
-      const questionsPerCriterion = Math.floor(10 / selectedCriteria.length)
-      const remainder = 10 % selectedCriteria.length
-      
-      selectedCriteria.forEach((criterionName, index) => {
-        const numQuestions = questionsPerCriterion + (index < remainder ? 1 : 0)
-        
-        for (let i = 0; i < numQuestions; i++) {
-          mockQuestions.push({
-            id: questionId++,
-            question: getQuestionForCriterion(criterionName, i),
-            criterion: criterionName
+      const response = await fetch('/api/questions/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: company?.id,
+          jobDescription: formData.jobDescription,
+          selectedCriteria,
+          questionCount: 10,
+          draftJobId: currentDraftId,
+          requiredSkills: formData.requiredSkills,
+          experienceYears: formData.experienceYears,
+          responsibilities: formData.responsibilities,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to generate questions')
+      }
+
+      const aiQuestions: InterviewQuestion[] = (result.questions || []).map((q: any, idx: number) => ({
+        id: typeof q.id === 'number' && !Number.isNaN(q.id) ? q.id : idx + 1,
+        question: q.question,
+        criterion: q.criterion,
+        difficulty: q.difficulty as QuestionDifficulty,
+        marks: 0, // Will be recalculated
+      }))
+
+      // Ensure at least 3 Technical Skills questions if that criterion is selected
+      const enforceTechnicalMinimum = (questions: InterviewQuestion[]): InterviewQuestion[] => {
+        if (!selectedCriteria.includes('Technical Skills')) return questions
+        const technicalCount = questions.filter(q => q.criterion === 'Technical Skills').length
+        if (technicalCount >= 3) return questions
+        const needed = 3 - technicalCount
+        const baseId = questions.reduce((maxId, q) => {
+          const numericId = typeof q.id === 'number' && !Number.isNaN(q.id) ? q.id : 0
+          return Math.max(maxId, numericId)
+        }, 0)
+        const filled: InterviewQuestion[] = [...questions]
+        for (let i = 0; i < needed; i++) {
+          filled.push({
+            id: baseId + i + 1,
+            question: getQuestionForCriterion('Technical Skills', technicalCount + i),
+            criterion: 'Technical Skills',
+            difficulty: 'Medium',
+            marks: 0,
           })
         }
-      })
-      
-      setInterviewQuestions(mockQuestions)
+        return filled
+      }
+
+      const enforceQuestionCount = (questions: InterviewQuestion[], targetCount = 10): InterviewQuestion[] => {
+        if (questions.length <= targetCount) return questions
+        const technical = questions.filter(q => q.criterion === 'Technical Skills')
+        const nonTechnical = questions.filter(q => q.criterion !== 'Technical Skills')
+        const keptTechnical = technical.slice(0, targetCount) // preserve up to target but min ensured earlier
+        const remainingSlots = targetCount - keptTechnical.length
+        const keptNonTechnical = remainingSlots > 0 ? nonTechnical.slice(0, remainingSlots) : []
+        return [...keptTechnical, ...keptNonTechnical]
+      }
+
+      const reindexQuestions = (questions: InterviewQuestion[]): InterviewQuestion[] =>
+        questions.map((q, idx) => ({ ...q, id: idx + 1 }))
+
+      const adjustedQuestions = enforceTechnicalMinimum(aiQuestions)
+      const sizedQuestions = enforceQuestionCount(adjustedQuestions, 10)
+      const finalQuestions = reindexQuestions(sizedQuestions)
+
+      // Recalculate marks so total = 100
+      setInterviewQuestions(recalculateAllMarks(finalQuestions))
+      if (result.draftJobId) setDraftJobId(result.draftJobId)
     } catch (error) {
       console.error('Error generating questions:', error)
-      alert('Failed to generate questions. Please try again.')
+      alert(error instanceof Error ? error.message : 'Failed to generate questions. Please try again.')
     } finally {
       setIsGeneratingQuestions(false)
     }
@@ -366,17 +500,51 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
       id: interviewQuestions.length > 0 ? Math.max(...interviewQuestions.map(q => q.id)) + 1 : 1,
       question: customQuestionText.trim(),
       criterion: customQuestionCriterion,
+      difficulty: customQuestionDifficulty,
+      marks: 0, // Will be recalculated dynamically
       isCustom: true,
     }
     
-    setInterviewQuestions(prev => [...prev, newQuestion])
+    // Add question and recalculate all marks
+    setInterviewQuestions(prev => {
+      const updated = [...prev, newQuestion]
+      return recalculateAllMarks(updated)
+    })
     setCustomQuestionText('')
     setCustomQuestionCriterion('')
+    setCustomQuestionDifficulty('Medium')
     setIsAddingCustomQuestion(false)
   }
 
+  const updateQuestionDifficulty = (questionId: number, difficulty: QuestionDifficulty) => {
+    setInterviewQuestions(prev => {
+      const updated = prev.map(q => 
+        q.id === questionId ? { ...q, difficulty } : q
+      )
+      return recalculateAllMarks(updated)
+    })
+  }
+
+  const totalMarks = interviewQuestions.reduce((sum, q) => sum + q.marks, 0)
+
+  // Step validation
+  const isBasicInfoValid =
+    formData.jobTitle.trim().length > 0 &&
+    formData.department.trim().length > 0 &&
+    formData.location.trim().length > 0 &&
+    formData.jobType.trim().length > 0 &&
+    formData.workMode.trim().length > 0
+
+  const isJobDescriptionValid =
+    formData.jobDescription.trim().length > 0 &&
+    formData.requiredSkills.filter((s) => s.trim()).length > 0 &&
+    formData.experienceYears.trim().length > 0
+
   const removeQuestion = (questionId: number) => {
-    setInterviewQuestions(prev => prev.filter(q => q.id !== questionId))
+    setInterviewQuestions(prev => {
+      const filtered = prev.filter(q => q.id !== questionId)
+      return recalculateAllMarks(filtered)
+    })
   }
 
   const updateScreeningField = (field: string, value: any) => {
@@ -392,34 +560,9 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (isDraft: boolean) => {
-    if (isViewMode) {
-      if (!jobId) {
-        alert('Missing job id for status update')
-        return
-      }
-      if (!companySlug) {
-        alert('Missing company slug for status update')
-        return
-      }
-      setIsSubmitting(true)
-      try {
-        const response = await fetch(`/api/jobs/${companySlug}/${jobId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: formData.jobStatus }),
-        })
-        const result = await response.json()
-        if (!response.ok) {
-          throw new Error(result.error || 'Failed to update status')
-        }
-        alert('Job status updated')
-        onClose()
-      } catch (error) {
-        console.error('Error updating job status:', error)
-        alert(error instanceof Error ? error.message : 'Failed to update job status')
-      } finally {
-        setIsSubmitting(false)
-      }
+    // Check if user and company exist
+    if (!user || !company) {
+      alert('No user or company found. Please sign in again.')
       return
     }
 
@@ -428,33 +571,45 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
       return
     }
 
-    setIsSubmitting(true)
+    const status = isDraft ? 'draft' : 'open'
 
-    try {
-      const response = await fetch('/api/jobs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          // Merge fetched values into screeningQuestions before saving
-          screeningQuestions: formData.enableScreeningQuestions ? {
+    const payload = {
+      ...formData,
+      companyId: company?.id || null,
+      userId: user?.id || null,
+      jobType: formData.jobType || 'Full-time',
+      workMode: formData.workMode || 'Hybrid',
+      status,
+      // Merge fetched values into screeningQuestions before saving
+      screeningQuestions: formData.enableScreeningQuestions
+        ? {
             ...formData.screeningQuestions,
             minExperience: formData.screeningQuestions.minExperience || formData.experienceYears,
             expectedSalary: formData.screeningQuestions.expectedSalary || formData.salaryMax,
-            expectedSkills: formData.screeningQuestions.expectedSkills.length > 0 
-              ? formData.screeningQuestions.expectedSkills 
-              : formData.requiredSkills.filter((s: string) => s.trim()),
-          } : formData.screeningQuestions,
-          selectedCriteria,
-          interviewQuestions,
-          isDraft,
-        }),
+            expectedSkills:
+              formData.screeningQuestions.expectedSkills.length > 0
+                ? formData.screeningQuestions.expectedSkills
+                : formData.requiredSkills.filter((s: string) => s.trim()),
+          }
+        : formData.screeningQuestions,
+      selectedCriteria,
+      interviewQuestions,
+      draftJobId,
+      isDraft,
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const isUpdate = Boolean(jobId && companySlug)
+      const slug = companySlug || 'company'
+      const response = await fetch(isUpdate ? `/api/jobs/${slug}/${jobId}` : '/api/jobs', {
+        method: isUpdate ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       })
 
       const result = await response.json()
-
       if (!response.ok) {
         throw new Error(result.error || 'Failed to save job posting')
       }
@@ -463,12 +618,11 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
       onClose()
     } catch (error) {
       console.error('Error saving job:', error)
-      alert(error instanceof Error ? error.message : 'Failed to save job posting. Please try again.')
+      alert(error instanceof Error ? error.message : 'Failed to save job')
     } finally {
       setIsSubmitting(false)
     }
   }
-
   const steps = [
     { number: 1, title: 'Basic Information', fields: 8 },
     { number: 2, title: 'Job Description', fields: 6 },
@@ -479,23 +633,23 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
   ]
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto my-8">
+    <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-2 pt-2 overflow-y-auto">
+      <Card className="w-full max-w-3xl flex flex-col gap-0 my-2">
         {/* Header */}
-        <div className="sticky top-0 z-10 p-4 border-b flex items-center justify-between bg-white">
-          <div>
-            <h3 className="text-xl font-semibold">{mode === 'view' ? 'View Job' : 'Post New Job'}</h3>
-            <p className="text-sm text-gray-600">
+        <div className="shrink-0 p-1 border-b flex items-center justify-between bg-white rounded-t-lg">
+          <div className="leading-tight">
+            <h3 className="text-lg font-semibold mb-0">{mode === 'view' ? 'View Job' : 'Post New Job'}</h3>
+            <p className="text-xs text-gray-600 mt-0">
               {isViewMode ? 'Only status can be changed in this mode' : 'Capture all details for accurate tracking and reporting'}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
               <span>Job Status</span>
               <select
                 value={formData.jobStatus}
                 onChange={(e) => updateField('jobStatus', e.target.value)}
-                className="px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-2 py-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="open">Open</option>
                 <option value="closed">Closed</option>
@@ -509,8 +663,8 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
           </div>
         </div>
 
-        {/* Progress Steps */}
-        <div className="p-4 bg-gray-50 border-b">
+        {/* Progress Steps - scrolls with content */}
+        <div className="p-2 bg-gray-50 border-b">
           <div className="flex items-center justify-between max-w-2xl mx-auto">
             {steps.map((step, index) => (
               <div
@@ -523,7 +677,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                 <div className="flex flex-col items-center flex-1">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
                     currentStep >= step.number 
-                      ? 'bg-blue-600 text-white' 
+                      ? 'bg-emerald-600 text-white' 
                       : 'bg-gray-200 text-gray-600'
                   }`}>
                     {step.number}
@@ -532,7 +686,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                 </div>
                 {index < steps.length - 1 && (
                   <div className={`h-1 flex-1 mx-2 rounded ${
-                    currentStep > step.number ? 'bg-blue-600' : 'bg-gray-200'
+                    currentStep > step.number ? 'bg-emerald-600' : 'bg-gray-200'
                   }`} />
                 )}
               </div>
@@ -541,7 +695,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
         </div>
 
         {/* Form Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-4 space-y-4">
           <fieldset disabled={isViewMode} className={isViewMode ? 'opacity-95' : ''}>
           {/* Step 1: Basic Information */}
           {currentStep === 1 && (
@@ -557,7 +711,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="text"
                     value={formData.jobTitle}
                     onChange={(e) => updateField('jobTitle', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. Senior Full Stack Developer"
                     required
                   />
@@ -570,7 +724,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   <select
                     value={formData.department}
                     onChange={(e) => updateField('department', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     required
                   >
                     <option value="">Select Department</option>
@@ -593,7 +747,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="text"
                     value={formData.location}
                     onChange={(e) => updateField('location', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. San Francisco, CA or Remote"
                     required
                   />
@@ -606,7 +760,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   <select
                     value={formData.jobType}
                     onChange={(e) => updateField('jobType', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="Full-time">Full-time</option>
                     <option value="Part-time">Part-time</option>
@@ -622,7 +776,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   <select
                     value={formData.workMode}
                     onChange={(e) => updateField('workMode', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="Remote">Remote</option>
                     <option value="Hybrid">Hybrid</option>
@@ -637,7 +791,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   <select
                     value={formData.currency}
                     onChange={(e) => updateField('currency', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="USD">USD ($)</option>
                     <option value="EUR">EUR (€)</option>
@@ -654,7 +808,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.salaryMin}
                     onChange={(e) => updateField('salaryMin', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. 120000"
                   />
                 </div>
@@ -667,7 +821,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.salaryMax}
                     onChange={(e) => updateField('salaryMax', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. 180000"
                   />
                 </div>
@@ -680,7 +834,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="date"
                     value={formData.applicationDeadline}
                     onChange={(e) => updateField('applicationDeadline', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
 
@@ -692,7 +846,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="date"
                     value={formData.expectedStartDate}
                     onChange={(e) => updateField('expectedStartDate', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
               </div>
@@ -712,7 +866,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   value={formData.jobDescription}
                   onChange={(e) => updateField('jobDescription', e.target.value)}
                   rows={6}
-                  className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   placeholder="Provide a detailed description of the role, company culture, and what makes this opportunity unique..."
                   required
                 />
@@ -726,7 +880,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   value={formData.responsibilities.join('\n')}
                   onChange={(e) => setFormData(prev => ({ ...prev, responsibilities: e.target.value.split('\n') }))}
                   rows={6}
-                  className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   placeholder="Enter each responsibility on a new line, e.g.:&#10;Lead technical architecture and implementation&#10;Design and implement scalable solutions&#10;Collaborate with cross-functional teams&#10;Mentor junior developers"
                 />
               </div>
@@ -734,13 +888,13 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Required Skills
+                    Required Skills <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     value={formData.requiredSkills.join('\n')}
                     onChange={(e) => setFormData(prev => ({ ...prev, requiredSkills: e.target.value.split('\n') }))}
                     rows={5}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="Enter each skill on a new line, e.g.:&#10;React&#10;Node.js&#10;TypeScript&#10;PostgreSQL"
                   />
                 </div>
@@ -753,21 +907,22 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     value={formData.preferredSkills.join('\n')}
                     onChange={(e) => setFormData(prev => ({ ...prev, preferredSkills: e.target.value.split('\n') }))}
                     rows={5}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="Enter each skill on a new line, e.g.:&#10;AWS&#10;Docker&#10;Kubernetes&#10;GraphQL"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Years of Experience Required
+                    Years of Experience Required <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
                     value={formData.experienceYears}
                     onChange={(e) => updateField('experienceYears', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. 5"
+                    required
                   />
                 </div>
 
@@ -779,7 +934,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="text"
                     value={formData.requiredEducation}
                     onChange={(e) => updateField('requiredEducation', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. Bachelor's in Computer Science"
                   />
                 </div>
@@ -792,7 +947,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="text"
                     value={formData.certificationsRequired}
                     onChange={(e) => updateField('certificationsRequired', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. AWS Certified Solutions Architect"
                   />
                 </div>
@@ -805,7 +960,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="text"
                     value={formData.languagesRequired}
                     onChange={(e) => updateField('languagesRequired', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. English (Fluent), Spanish (Preferred)"
                   />
                 </div>
@@ -824,7 +979,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   id="autoScheduleInterview"
                   checked={formData.autoScheduleInterview}
                   onChange={(e) => updateField('autoScheduleInterview', e.target.checked)}
-                  className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-emerald-500"
                 />
                 <label htmlFor="autoScheduleInterview" className="text-sm font-medium text-gray-700">
                   Auto Schedule Interview
@@ -874,7 +1029,17 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
               {/* Interview Questions Section */}
               <div className="border-t pt-4">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-semibold text-lg">Interview Questions ({interviewQuestions.length})</h4>
+                  <div>
+                    <h4 className="font-semibold text-lg">Interview Questions ({interviewQuestions.length})</h4>
+                    {interviewQuestions.length > 0 && (
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-xs font-medium text-gray-600">Total: <strong>{totalMarks} marks</strong></span>
+                        <span className="text-xs text-red-600">{interviewQuestions.filter(q => q.difficulty === 'High').length} High ({interviewQuestions.filter(q => q.difficulty === 'High').length * 15})</span>
+                        <span className="text-xs text-amber-600">{interviewQuestions.filter(q => q.difficulty === 'Medium').length} Med ({interviewQuestions.filter(q => q.difficulty === 'Medium').length * 10})</span>
+                        <span className="text-xs text-green-600">{interviewQuestions.filter(q => q.difficulty === 'Low').length} Low ({interviewQuestions.filter(q => q.difficulty === 'Low').length * 5})</span>
+                      </div>
+                    )}
+                  </div>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
@@ -920,20 +1085,31 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                           value={customQuestionText}
                           onChange={(e) => setCustomQuestionText(e.target.value)}
                           rows={2}
-                          className="flex-1 px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="flex-1 px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           placeholder="Type your custom interview question..."
                           autoFocus
                         />
-                        <select
-                          value={customQuestionCriterion}
-                          onChange={(e) => setCustomQuestionCriterion(e.target.value)}
-                          className="w-32 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0"
-                        >
-                          <option value="">Criteria...</option>
-                          {EVALUATION_CRITERIA.map(criterion => (
-                            <option key={criterion} value={criterion}>{criterion}</option>
-                          ))}
-                        </select>
+                        <div className="flex flex-col gap-1.5 flex-shrink-0">
+                          <select
+                            value={customQuestionCriterion}
+                            onChange={(e) => setCustomQuestionCriterion(e.target.value)}
+                            className="w-32 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          >
+                            <option value="">Criteria...</option>
+                            {EVALUATION_CRITERIA.map(criterion => (
+                              <option key={criterion} value={criterion}>{criterion}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={customQuestionDifficulty}
+                            onChange={(e) => setCustomQuestionDifficulty(e.target.value as QuestionDifficulty)}
+                            className="w-32 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          >
+                            <option value="High">High (15 marks)</option>
+                            <option value="Medium">Medium (10 marks)</option>
+                            <option value="Low">Low (5 marks)</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
 
@@ -953,6 +1129,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                           setIsAddingCustomQuestion(false)
                           setCustomQuestionText('')
                           setCustomQuestionCriterion('')
+                          setCustomQuestionDifficulty('Medium')
                         }} 
                         className="bg-transparent"
                       >
@@ -980,25 +1157,40 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {interviewQuestions.map((q, index) => (
-                    <div key={q.id} className="flex items-start gap-2 p-2 bg-gray-50 border rounded group">
-                      <span className={`flex-shrink-0 w-5 h-5 ${q.isCustom ? 'bg-green-600' : 'bg-blue-600'} text-white rounded-full flex items-center justify-center text-xs font-medium`}>
-                        {index + 1}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-gray-800">{q.question}</p>
-                        <span className="text-[10px] text-gray-500 mt-0.5 inline-block">{q.criterion}</span>
+                  {interviewQuestions.map((q, index) => {
+                    const colors = DIFFICULTY_COLORS[q.difficulty] || DIFFICULTY_COLORS['Medium']
+                    return (
+                      <div key={q.id} className={`flex items-start gap-2 p-2 border rounded group ${colors.bg} ${colors.border}`}>
+                        <span className={`flex-shrink-0 w-5 h-5 ${q.isCustom ? 'bg-green-600' : 'bg-blue-600'} text-white rounded-full flex items-center justify-center text-xs font-medium`}>
+                          {index + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-800">{q.question}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] text-gray-500">{q.criterion}</span>
+                            <select
+                              value={q.difficulty}
+                              onChange={(e) => updateQuestionDifficulty(q.id, e.target.value as QuestionDifficulty)}
+                              className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${colors.text} ${colors.border} bg-white cursor-pointer`}
+                            >
+                              <option value="High">High</option>
+                              <option value="Medium">Medium</option>
+                              <option value="Low">Low</option>
+                            </select>
+                            <span className={`text-[10px] font-bold ${colors.text}`}>{q.marks} marks</span>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeQuestion(q.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 bg-transparent"
+                        >
+                          <X className="h-3.5 w-3.5 text-gray-400 hover:text-red-500" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeQuestion(q.id)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 bg-transparent"
-                      >
-                        <X className="h-3.5 w-3.5 text-gray-400 hover:text-red-500" />
-                      </Button>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
 
@@ -1020,7 +1212,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   id="enableScreeningQuestions"
                   checked={formData.enableScreeningQuestions}
                   onChange={(e) => updateField('enableScreeningQuestions', e.target.checked)}
-                  className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-emerald-500"
                 />
                 <label htmlFor="enableScreeningQuestions" className="text-sm font-medium text-gray-700">
                   Enable Screening Questions
@@ -1045,7 +1237,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                         type="number"
                         value={formData.screeningQuestions.minExperience || formData.experienceYears}
                         onChange={(e) => updateScreeningField('minExperience', e.target.value)}
-                        className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                         placeholder="e.g. 3"
                       />
                     </div>
@@ -1058,7 +1250,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                         type="number"
                         value={formData.screeningQuestions.expectedSalary || formData.salaryMax}
                         onChange={(e) => updateScreeningField('expectedSalary', e.target.value)}
-                        className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                         placeholder="e.g. 80000"
                       />
                     </div>
@@ -1072,7 +1264,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                       value={formData.screeningQuestions.expectedSkills.length > 0 ? formData.screeningQuestions.expectedSkills.join('\n') : formData.requiredSkills.filter(s => s.trim()).join('\n')}
                       onChange={(e) => updateScreeningField('expectedSkills', e.target.value.split('\n').map((s: string) => s.trim()).filter(Boolean))}
                       rows={4}
-                      className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                       placeholder={"Enter each skill on a new line, e.g.:\nReact\nNode.js\nSQL"}
                     />
                   </div>
@@ -1086,7 +1278,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                         type="text"
                         value={formData.screeningQuestions.noticePeriod}
                         onChange={(e) => updateScreeningField('noticePeriod', e.target.value)}
-                        className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                         placeholder="e.g. 30 days, 2 months, Immediate"
                       />
                     </div>
@@ -1102,7 +1294,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                             name="noticePeriodNegotiable"
                             checked={formData.screeningQuestions.noticePeriodNegotiable === true}
                             onChange={() => updateScreeningField('noticePeriodNegotiable', true)}
-                            className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                            className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-emerald-500"
                           />
                           <span className="text-sm text-gray-700">Yes</span>
                         </label>
@@ -1112,7 +1304,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                             name="noticePeriodNegotiable"
                             checked={formData.screeningQuestions.noticePeriodNegotiable === false}
                             onChange={() => updateScreeningField('noticePeriodNegotiable', false)}
-                            className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                            className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-emerald-500"
                           />
                           <span className="text-sm text-gray-700">No</span>
                         </label>
@@ -1131,7 +1323,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                           name="workAuthorization"
                           checked={formData.screeningQuestions.workAuthorization === 'visa_sponsorship'}
                           onChange={() => updateScreeningField('workAuthorization', 'visa_sponsorship')}
-                          className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                          className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-emerald-500"
                         />
                         <span className="text-sm text-gray-700">Visa sponsorship available</span>
                       </label>
@@ -1141,7 +1333,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                           name="workAuthorization"
                           checked={formData.screeningQuestions.workAuthorization === 'must_have_authorization'}
                           onChange={() => updateScreeningField('workAuthorization', 'must_have_authorization')}
-                          className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                          className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-emerald-500"
                         />
                         <span className="text-sm text-gray-700">Must already have work authorization</span>
                       </label>
@@ -1173,7 +1365,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="text"
                     value={formData.clientCompanyName}
                     onChange={(e) => updateField('clientCompanyName', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. TCS, Infosys"
                     required
                   />
@@ -1187,7 +1379,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="text"
                     value={formData.recruiterAssigned}
                     onChange={(e) => updateField('recruiterAssigned', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. Sarah Johnson"
                     required
                   />
@@ -1201,7 +1393,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="text"
                     value={formData.hiringManager}
                     onChange={(e) => updateField('hiringManager', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. David Lee"
                   />
                 </div>
@@ -1214,7 +1406,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="email"
                     value={formData.hiringManagerEmail}
                     onChange={(e) => updateField('hiringManagerEmail', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. david.lee@company.com"
                   />
                 </div>
@@ -1227,7 +1419,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.numberOfOpenings}
                     onChange={(e) => updateField('numberOfOpenings', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     min="1"
                   />
                 </div>
@@ -1239,7 +1431,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   <select
                     value={formData.hiringPriority}
                     onChange={(e) => updateField('hiringPriority', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="High">High</option>
                     <option value="Medium">Medium</option>
@@ -1255,7 +1447,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.targetTimeToFill}
                     onChange={(e) => updateField('targetTimeToFill', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. 30"
                   />
                 </div>
@@ -1268,7 +1460,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.budgetAllocated}
                     onChange={(e) => updateField('budgetAllocated', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. 5000"
                   />
                 </div>
@@ -1318,7 +1510,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="date"
                     value={formData.jobOpenDate}
                     onChange={(e) => updateField('jobOpenDate', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                   <p className="text-xs text-gray-500 mt-1">Used to calculate Time to Fill metric</p>
                 </div>
@@ -1331,7 +1523,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.expectedHiresPerMonth}
                     onChange={(e) => updateField('expectedHiresPerMonth', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. 2"
                   />
                   <p className="text-xs text-gray-500 mt-1">For Hiring Velocity tracking</p>
@@ -1345,7 +1537,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.targetOfferAcceptanceRate}
                     onChange={(e) => updateField('targetOfferAcceptanceRate', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. 80"
                     min="0"
                     max="100"
@@ -1361,7 +1553,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.candidateResponseTimeSLA}
                     onChange={(e) => updateField('candidateResponseTimeSLA', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. 24"
                   />
                   <p className="text-xs text-gray-500 mt-1">Recruiter KPI: Response time target</p>
@@ -1375,7 +1567,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.interviewScheduleSLA}
                     onChange={(e) => updateField('interviewScheduleSLA', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. 48"
                   />
                   <p className="text-xs text-gray-500 mt-1">Time to schedule after approval</p>
@@ -1393,7 +1585,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.costPerHireBudget}
                     onChange={(e) => updateField('costPerHireBudget', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. 4200"
                   />
                   <p className="text-xs text-gray-500 mt-1">Director KPI: Target cost per hire</p>
@@ -1407,7 +1599,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.agencyFeePercentage}
                     onChange={(e) => updateField('agencyFeePercentage', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. 20"
                     min="0"
                     max="100"
@@ -1423,7 +1615,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.jobBoardCosts}
                     onChange={(e) => updateField('jobBoardCosts', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. 500"
                   />
                   <p className="text-xs text-gray-500 mt-1">LinkedIn, Indeed, etc. posting costs</p>
@@ -1451,7 +1643,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
         </div>
 
         {/* Footer Actions */}
-        <div className="sticky bottom-0 p-4 border-t flex items-center justify-between bg-white">
+        <div className="sticky bottom-0 p-3 border-t flex items-center justify-between bg-white rounded-b-lg">
           <div className="text-sm text-gray-600">
             Step {currentStep} of {steps.length}
           </div>
@@ -1490,11 +1682,19 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   Save as Draft
                 </Button>
                 {currentStep < steps.length ? (
-                  <Button onClick={() => setCurrentStep(currentStep + 1)}>
+                  <Button
+                    onClick={() => {
+                      if (currentStep === 1 && !isBasicInfoValid) return
+                      if (currentStep === 2 && !isJobDescriptionValid) return
+                      setCurrentStep(currentStep + 1)
+                    }}
+                    disabled={(currentStep === 1 && !isBasicInfoValid) || (currentStep === 2 && !isJobDescriptionValid)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
                     Next
                   </Button>
                 ) : (
-                  <Button onClick={() => handleSubmit(false)} disabled={isSubmitting}>
+                  <Button onClick={() => handleSubmit(false)} disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white">
                     {isSubmitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
                     Publish Job
                   </Button>

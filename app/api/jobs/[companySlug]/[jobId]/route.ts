@@ -148,7 +148,7 @@ export async function GET(
   }
 }
 
-// PATCH - Update job status
+// PATCH - Update an existing job (full payload, including publish of draft)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ companySlug: string; jobId: string }> }
@@ -156,32 +156,204 @@ export async function PATCH(
   try {
     const { companySlug, jobId } = await params
 
-    // Get body
     const body = await request.json()
-    const { status } = body
-
-    if (!status) {
-      return NextResponse.json(
-        { error: 'Status is required' },
-        { status: 400 }
-      )
+    if (!jobId || !companySlug) {
+      return NextResponse.json({ error: 'Job ID and company slug are required' }, { status: 400 })
     }
 
-    // Update job status
+    // Verify job belongs to company
+    const jobCheck = await DatabaseService.query(
+      `SELECT jp.id, jp.company_id FROM job_postings jp
+       JOIN companies c ON jp.company_id = c.id
+       WHERE jp.id = $1::uuid AND (c.slug = $2 OR LOWER(REPLACE(c.name, ' ', '-')) = $2)
+       LIMIT 1`,
+      [jobId, companySlug]
+    )
+    if (!jobCheck || jobCheck.length === 0) {
+      return NextResponse.json({ error: 'Job not found or company mismatch' }, { status: 404 })
+    }
+
+    const {
+      // Basic Info
+      jobTitle,
+      department,
+      location,
+      jobType,
+      workMode,
+      salaryMin,
+      salaryMax,
+      currency,
+      applicationDeadline,
+      expectedStartDate,
+      // Job Details
+      jobDescription,
+      responsibilities,
+      requiredSkills,
+      preferredSkills,
+      experienceYears,
+      requiredEducation,
+      certificationsRequired,
+      languagesRequired,
+      // Team & Planning
+      clientCompanyName,
+      hiringManager,
+      hiringManagerEmail,
+      numberOfOpenings,
+      hiringPriority,
+      targetTimeToFill,
+      budgetAllocated,
+      targetSources,
+      diversityGoals,
+      diversityTargetPercentage,
+      // Metrics
+      jobOpenDate,
+      expectedHiresPerMonth,
+      targetOfferAcceptanceRate,
+      candidateResponseTimeSLA,
+      interviewScheduleSLA,
+      costPerHireBudget,
+      agencyFeePercentage,
+      jobBoardCosts,
+      // Interview Questions
+      selectedCriteria,
+      interviewQuestions,
+      autoScheduleInterview,
+      interviewLinkExpiryHours,
+      // Screening Questions
+      enableScreeningQuestions,
+      screeningQuestions,
+      // Status
+      isDraft,
+      status: incomingStatus
+    } = body
+
+    // Normalize enums
+    const allowedJobTypes = ['Full-time', 'Part-time', 'Contract', 'Temporary']
+    const allowedWorkModes = ['Remote', 'Hybrid', 'On-site']
+    const normalizedJobType = allowedJobTypes.includes(jobType) ? jobType : 'Full-time'
+    const normalizedWorkMode = allowedWorkModes.includes(workMode) ? workMode : 'Hybrid'
+
+    const status = incomingStatus || (isDraft ? 'draft' : 'open')
+    const publishedAt = status === 'open' || status === 'published' ? new Date().toISOString() : null
+
+    // Update full job
     await DatabaseService.query(
-      `UPDATE job_postings SET status = $1, updated_at = NOW() WHERE id = $2::uuid`,
-      [status, jobId]
+      `UPDATE job_postings SET
+        title = $1,
+        department = $2,
+        location = $3,
+        job_type = $4,
+        work_mode = $5,
+        salary_min = $6,
+        salary_max = $7,
+        currency = $8,
+        application_deadline = $9,
+        expected_start_date = $10,
+        description = $11,
+        responsibilities = $12,
+        required_skills = $13,
+        preferred_skills = $14,
+        experience_years = $15,
+        required_education = $16,
+        certifications_required = $17,
+        languages_required = $18,
+        hiring_manager_name = $19,
+        hiring_manager_email = $20,
+        number_of_openings = $21,
+        hiring_priority = $22,
+        target_time_to_fill_days = $23,
+        budget_allocated = $24,
+        target_sources = $25,
+        diversity_goals = $26,
+        diversity_target_pct = $27,
+        job_open_date = $28,
+        expected_hires_per_month = $29,
+        target_offer_acceptance_pct = $30,
+        candidate_response_sla_hrs = $31,
+        interview_schedule_sla_hrs = $32,
+        cost_per_hire_budget = $33,
+        agency_fee_pct = $34,
+        job_board_costs = $35,
+        auto_schedule_interview = $36,
+        interview_link_expiry_hours = $37,
+        enable_screening_questions = $38,
+        screening_questions = $39,
+        client_company_name = $40,
+        status = $41,
+        published_at = $42,
+        updated_at = NOW()
+       WHERE id = $43::uuid`,
+      [
+        jobTitle,
+        department || null,
+        location || null,
+        normalizedJobType,
+        normalizedWorkMode,
+        salaryMin ? parseFloat(salaryMin) : null,
+        salaryMax ? parseFloat(salaryMax) : null,
+        currency || 'USD',
+        applicationDeadline || null,
+        expectedStartDate || null,
+        jobDescription || null,
+        responsibilities?.filter((r: string) => r.trim()) || [],
+        requiredSkills?.filter((s: string) => s.trim()) || [],
+        preferredSkills?.filter((s: string) => s.trim()) || [],
+        experienceYears ? parseInt(experienceYears) : null,
+        requiredEducation || null,
+        certificationsRequired || null,
+        languagesRequired || null,
+        hiringManager || null,
+        hiringManagerEmail || null,
+        numberOfOpenings ? parseInt(numberOfOpenings) : 1,
+        hiringPriority || 'Medium',
+        targetTimeToFill ? parseInt(targetTimeToFill) : null,
+        budgetAllocated ? parseFloat(budgetAllocated) : null,
+        targetSources || [],
+        diversityGoals || false,
+        diversityTargetPercentage ? parseFloat(diversityTargetPercentage) : null,
+        jobOpenDate || new Date().toISOString().split('T')[0],
+        expectedHiresPerMonth ? parseInt(expectedHiresPerMonth) : null,
+        targetOfferAcceptanceRate ? parseFloat(targetOfferAcceptanceRate) : null,
+        candidateResponseTimeSLA ? parseInt(candidateResponseTimeSLA) : null,
+        interviewScheduleSLA ? parseInt(interviewScheduleSLA) : null,
+        costPerHireBudget ? parseFloat(costPerHireBudget) : null,
+        agencyFeePercentage ? parseFloat(agencyFeePercentage) : null,
+        jobBoardCosts ? parseFloat(jobBoardCosts) : null,
+        autoScheduleInterview || false,
+        interviewLinkExpiryHours || 48,
+        enableScreeningQuestions || false,
+        JSON.stringify(screeningQuestions || {}),
+        clientCompanyName || null,
+        status,
+        publishedAt,
+        jobId
+      ]
     )
 
-    return NextResponse.json({
-      success: true,
-      message: 'Job status updated successfully'
-    })
+    // Upsert interview questions
+    if (selectedCriteria?.length > 0 || interviewQuestions?.length > 0) {
+      try {
+        await DatabaseService.query(
+          `INSERT INTO job_interview_questions (job_id, selected_criteria, questions)
+           VALUES ($1::uuid, $2, $3)
+           ON CONFLICT (job_id) DO UPDATE SET
+             selected_criteria = $2,
+             questions = $3,
+             updated_at = NOW()`,
+          [
+            jobId,
+            JSON.stringify(selectedCriteria || []),
+            JSON.stringify(interviewQuestions || [])
+          ]
+        )
+      } catch (iqError) {
+        console.log('Could not save interview questions (table may not exist):', iqError)
+      }
+    }
+
+    return NextResponse.json({ success: true, message: 'Job updated successfully' })
   } catch (error) {
     console.error('Error updating job:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

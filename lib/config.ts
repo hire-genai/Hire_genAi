@@ -44,3 +44,12 @@ export function getQuestionGenerationCostPer10(): number {
 export function getVideoInterviewCostPerMinute(): number {
   return parseFloat(process.env.COST_PER_VIDEO_MINUTE || '0.10')
 }
+
+export function getQuestionGenerationCost(questionCount: number): { cost: number; tier: string } {
+  if (questionCount <= 4) {
+    return { cost: 0, tier: '1-4 (Free)' }
+  }
+  // For 5-10 questions, use single price from .env
+  const costPer10 = parseFloat(process.env.COST_PER_10_QUESTIONS || '0.30')
+  return { cost: costPer10, tier: '5-10' }
+}

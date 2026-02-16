@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card } from '@/components/ui/card'
 import { useState, useEffect } from 'react'
 import { Download, FileText, Mail, Send } from 'lucide-react'
+import { useAuth } from '@/contexts/auth-context'
 
 interface CandidateActionDialogProps {
   open: boolean
@@ -35,6 +36,7 @@ export function CandidateActionDialog({
   onMoved,
   canModify = true,
 }: CandidateActionDialogProps) {
+  const { company, user } = useAuth()
   const [remarks, setRemarks] = useState('')
   const [moveToStage, setMoveToStage] = useState('')
   const [sendEmailToHM, setSendEmailToHM] = useState(false)
@@ -83,7 +85,7 @@ export function CandidateActionDialog({
       setShowEmailTemplate(false)
       setEmailContent('')
       setEmailTo('')
-      setEmailCc('recruiter@company.com')
+      setEmailCc(user?.email || 'recruiter@company.com')
       setEmailSubject('')
       setSendEmailToHM(false)
       
@@ -146,6 +148,7 @@ export function CandidateActionDialog({
           moveToStage,
           remarks,
           changedByEmail: candidate?.email || candidate?.candidateEmail || null,
+          companyId: company?.id || null,
         })
       })
 
@@ -191,10 +194,11 @@ export function CandidateActionDialog({
         return
       }
       const link = data?.link
+      const companyName = data?.companyName || 'our organization'
       setEmailTo(candidate.email)
-      setEmailCc('')
+      setEmailCc(user?.email || '')
       setEmailSubject(`Invitation: AI Interview for ${candidate?.position} Position`)
-      setEmailContent(`Dear ${candidate?.name || 'Candidate'},\n\nThank you for your interest in the ${candidate?.position} position at our organization. We have carefully reviewed your application and are impressed by your qualifications and experience.\n\nYour profile demonstrates strong alignment with our requirements, and we would like to invite you to the next stage of our selection process - an AI-powered interview assessment.\n\nNEXT STEPS:\nPlease click the link below to access your personalized interview:\n${link}\n\nIMPORTANT DETAILS:\n• Time Commitment: Approximately 30-45 minutes\n• Deadline: Please complete within 48 hours\n• Technical Requirements: Stable internet connection, webcam, and microphone\n• Link Expiry: The interview link will expire after 48 hours\n\nThis AI interview will help us better understand your skills, experience, and fit for the role. The assessment is designed to be conversational and will cover technical competencies and behavioral aspects relevant to the position.\n\nShould you have any questions or require any accommodations, please don't hesitate to reach out to us.\n\nWe look forward to learning more about you through this interview.\n\nBest regards,\nTalent Acquisition Team`)
+      setEmailContent(`Dear ${candidate?.name || 'Candidate'},\n\nThank you for your interest in the ${candidate?.position} position at ${companyName}. We have carefully reviewed your application and are impressed by your qualifications and experience.\n\nYour profile demonstrates strong alignment with our requirements, and we would like to invite you to the next stage of our selection process - an AI-powered interview assessment.\n\nNEXT STEPS:\nPlease click the link below to access your personalized interview:\n${link}\n\nIMPORTANT DETAILS:\n• Time Commitment: Approximately 30-45 minutes\n• Deadline: Please complete within 48 hours\n• Technical Requirements: Stable internet connection, webcam, and microphone\n• Link Expiry: The interview link will expire after 48 hours\n\nThis AI interview will help us better understand your skills, experience, and fit for the role. The assessment is designed to be conversational and will cover technical competencies and behavioral aspects relevant to the position.\n\nShould you have any questions or require any accommodations, please don't hesitate to reach out to us.\n\nWe look forward to learning more about you through this interview.\n\nBest regards,\nTalent Acquisition Team`)
       setShowEmailTemplate(true)
     } catch (err) {
       console.error('Interview email error:', err)
@@ -229,10 +233,11 @@ export function CandidateActionDialog({
         return
       }
       const link = data?.link
+      const companyName = data?.companyName || 'our organization'
       setEmailTo(candidate.email)
-      setEmailCc('')
+      setEmailCc(user?.email || '')
       setEmailSubject(`Reminder: Complete Your AI Interview for ${candidate?.position} Position`)
-      setEmailContent(`Dear ${candidate?.name || 'Candidate'},\n\nWe hope this message finds you well. This is a friendly reminder regarding the AI-powered interview for the ${candidate?.position} position at our organization.\n\nWe noticed that you haven't yet completed the interview assessment we sent earlier. Your application remains active and we are still very interested in considering you for this opportunity.\n\nINTERVIEW LINK:\n${link}\n\nIMPORTANT REMINDERS:\n• Time Required: 30-45 minutes\n• Deadline: Please complete within the next 48 hours\n• Link Status: This interview link will expire soon\n• Technical Setup: Ensure you have a stable internet connection, working webcam, and microphone\n\nYour professional background and qualifications caught our attention, and we believe this interview will be an excellent opportunity for us to learn more about your capabilities and for you to showcase your skills.\n\nIf you're experiencing any technical difficulties or have questions about the interview process, please reach out to us immediately so we can assist you.\n\nWe look forward to receiving your completed interview assessment.\n\nBest regards,\nTalent Acquisition Team`)
+      setEmailContent(`Dear ${candidate?.name || 'Candidate'},\n\nWe hope this message finds you well. This is a friendly reminder regarding the AI-powered interview for the ${candidate?.position} position at ${companyName}.\n\nWe noticed that you haven't yet completed the interview assessment we sent earlier. Your application remains active and we are still very interested in considering you for this opportunity.\n\nINTERVIEW LINK:\n${link}\n\nIMPORTANT REMINDERS:\n• Time Required: 30-45 minutes\n• Deadline: Please complete within the next 48 hours\n• Link Status: This interview link will expire soon\n• Technical Setup: Ensure you have a stable internet connection, working webcam, and microphone\n\nYour professional background and qualifications caught our attention, and we believe this interview will be an excellent opportunity for us to learn more about your capabilities and for you to showcase your skills.\n\nIf you're experiencing any technical difficulties or have questions about the interview process, please reach out to us immediately so we can assist you.\n\nWe look forward to receiving your completed interview assessment.\n\nBest regards,\nTalent Acquisition Team`)
       setShowEmailTemplate(true)
     } catch (err) {
       console.error('Interview email error:', err)
@@ -858,11 +863,12 @@ Talent Acquisition Team`)
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                          to: candidate.email,
+                          to: emailTo,
                           candidateName: candidate.name,
                           position: candidate.position,
                           interviewId: candidate.id,
                           preview: false,
+                          cc: emailCc,
                         })
                       })
                       const data = await res.json()
@@ -870,7 +876,7 @@ Talent Acquisition Team`)
                         alert(data?.error || 'Failed to send email')
                         return
                       }
-                      alert('Interview email sent')
+                      alert('Interview email sent successfully!')
                       // Optimistically update status in UI
                       if (candidate) {
                         candidate.interviewStatus = 'Scheduled'

@@ -21,6 +21,7 @@ import { Users, Filter, Calendar, UserCheck, FileText, CheckCircle, XCircle, Dat
 import { useState, useEffect, useCallback } from 'react'
 import { CandidateActionDialog } from '@/components/dashboard/candidate-action-dialogs'
 import { useMobileMenu } from '@/components/dashboard/mobile-menu-context'
+import { useAuth } from '@/contexts/auth-context'
 
 type BucketType = 'all' | 'screening' | 'interview' | 'hiringManager' | 'offer' | 'hired' | 'rejected'
 
@@ -64,6 +65,7 @@ const recruiters = [
 ]
 
 export default function CandidatesPage() {
+  const { company } = useAuth()
   const [activeBucket, setActiveBucket] = useState<BucketType>('all')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null)
@@ -87,9 +89,10 @@ export default function CandidatesPage() {
 
   // Fetch data from API
   const fetchCandidates = useCallback(async () => {
+    if (!company?.id) return
     try {
       setIsLoading(true)
-      const res = await fetch('/api/candidates')
+      const res = await fetch(`/api/candidates?companyId=${company.id}`)
       const data = await res.json()
       if (data.ok) {
         // Update bucket counts while preserving icons/colors/labels
@@ -110,7 +113,7 @@ export default function CandidatesPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [company?.id])
 
   useEffect(() => {
     fetchCandidates()
@@ -317,7 +320,14 @@ export default function CandidatesPage() {
                 <Button size="sm" onClick={() => handleViewCandidate(application)}>
                   Action
                 </Button>
-                <Button size="sm" variant="outline" title="CV Report">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  title="CV Report"
+                  onClick={() => {
+                    window.open(`/report/${application?.jobId}/${application?.candidateId}`, '_blank')
+                  }}
+                >
                   <FileTextIcon className="h-4 w-4" />
                 </Button>
                 <Button size="sm" variant="outline" title="Download CV & Report">
@@ -366,7 +376,14 @@ export default function CandidatesPage() {
                 <Button size="sm" onClick={() => handleViewCandidate(application)}>
                   Action
                 </Button>
-                <Button size="sm" variant="outline" title="Interview Report">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  title="Interview Report"
+                  onClick={() => {
+                    window.open(`/report/${application?.jobId}/${application?.candidateId}`, '_blank')
+                  }}
+                >
                   <FileTextIcon className="h-4 w-4" />
                 </Button>
                 <Button size="sm" variant="outline" title="Download Reports & CV">
@@ -632,7 +649,7 @@ export default function CandidatesPage() {
                             {displayKey}
                           </span>
                           <span className={`text-[10px] md:text-xs font-bold ${valueColor} whitespace-nowrap`}>
-                            {isSuccessRate ? `${value}%` : value}
+                            {isSuccessRate ? `${value}%` : String(value)}
                           </span>
                         </div>
                       )

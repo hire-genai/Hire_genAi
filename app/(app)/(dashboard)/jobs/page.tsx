@@ -29,6 +29,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useMobileMenu } from '@/components/dashboard/mobile-menu-context'
 import { JobPostingForm } from '@/components/dashboard/job-posting-form'
+import { useAuth } from '@/contexts/auth-context'
 
 type JobStatusType = 'all' | 'open' | 'closed' | 'onhold' | 'cancelled' | 'draft'
 type UserRole = 'recruiter' | 'admin' | 'manager' | 'director'
@@ -95,6 +96,7 @@ interface Job {
 }
 
 export default function JobsPage() {
+	const { company } = useAuth()
 	const [activeStatus, setActiveStatus] = useState<JobStatusType>('all')
 	const [searchQuery, setSearchQuery] = useState('')
 	const [departmentFilter, setDepartmentFilter] = useState('all')
@@ -160,11 +162,12 @@ export default function JobsPage() {
 
 	// Fetch jobs from API
 	const fetchJobs = useCallback(async () => {
+		if (!company?.id) return
 		setIsLoading(true)
 		setError(null)
 		
 		try {
-			const response = await fetch('/api/jobs')
+			const response = await fetch(`/api/jobs?companyId=${company.id}`)
 			const result = await response.json()
 			
 			if (!response.ok) {
@@ -174,16 +177,16 @@ export default function JobsPage() {
 			// Map API response to UI format
 			const mappedJobs: Job[] = (result.data || []).map((job: any) => ({
 				id: job.id,
-				title: job.title || 'Untitled Job',
-				department: job.department || 'General',
-				location: job.location || 'Not specified',
+				title: job.title || '',
+				department: job.department || 'Unspecified',
+				location: job.location || 'Unspecified',
 				type: job.job_type || 'Full-time',
 				salary: formatSalary(job.salary_min, job.salary_max, job.currency),
 				applicants: parseInt(job.total_candidates) || 0,
 				status: job.status || 'draft',
 				recruiter: job.recruiter_name || 'Unassigned',
 				posted: formatRelativeTime(job.created_at),
-				companySlug: job.company_slug || 'company',
+				companySlug: job.company_slug,
 				description: job.description || '',
 				workMode: job.work_mode || 'Hybrid',
 				jobOpenDate: job.job_open_date,
@@ -203,26 +206,26 @@ export default function JobsPage() {
 				hiringManager: job.hiring_manager_name || '',
 				hiringManagerEmail: job.hiring_manager_email || '',
 				interviewPanelMembers: job.interview_panel_members || [],
-				numberOfOpenings: job.number_of_openings?.toString?.() || '1',
-				hiringPriority: job.hiring_priority || 'Medium',
-				targetTimeToFill: job.target_time_to_fill_days?.toString?.() || '30',
+				numberOfOpenings: job.number_of_openings?.toString?.() || '',
+				hiringPriority: job.hiring_priority || '',
+				targetTimeToFill: job.target_time_to_fill_days?.toString?.() || '',
 				budgetAllocated: job.budget_allocated?.toString?.() || '',
 				targetSources: job.target_sources || [],
 				diversityGoals: job.diversity_goals || false,
 				diversityTargetPercentage: job.diversity_target_pct?.toString?.() || '',
-				selectedCriteriaIds: job.selected_criteria_ids || job.selected_criteria || [],
-				generatedQuestions: job.interview_questions || job.questions || [],
-				expectedHiresPerMonth: job.expected_hires_per_month?.toString?.() || '',
-				targetOfferAcceptanceRate: job.target_offer_acceptance_pct?.toString?.() || '',
-				candidateResponseTimeSLA: job.candidate_response_sla_hrs?.toString?.() || '',
-				interviewScheduleSLA: job.interview_schedule_sla_hrs?.toString?.() || '',
-				costPerHireBudget: job.cost_per_hire_budget?.toString?.() || '',
-				agencyFeePercentage: job.agency_fee_pct?.toString?.() || '',
-				jobBoardCosts: job.job_board_costs?.toString?.() || '',
+				selectedCriteriaIds: job.selected_criteria_ids || job.selected_criteria,
+				generatedQuestions: job.interview_questions || job.questions,
+				expectedHiresPerMonth: job.expected_hires_per_month?.toString?.(),
+				targetOfferAcceptanceRate: job.target_offer_acceptance_pct?.toString?.(),
+				candidateResponseTimeSLA: job.candidate_response_sla_hrs?.toString?.(),
+				interviewScheduleSLA: job.interview_schedule_sla_hrs?.toString?.(),
+				costPerHireBudget: job.cost_per_hire_budget?.toString?.(),
+				agencyFeePercentage: job.agency_fee_pct?.toString?.(),
+				jobBoardCosts: job.job_board_costs?.toString?.(),
 				autoScheduleInterview: job.auto_schedule_interview ?? false,
 				interviewLinkExpiryHours: job.interview_link_expiry_hours ?? 48,
 				enableScreeningQuestions: job.enable_screening_questions ?? false,
-				screeningQuestions: job.screening_questions || undefined,
+				screeningQuestions: job.screening_questions,
 				stages: {
 					cvScreened: parseInt(job.screening_count) || 0,
 					aiInterview: parseInt(job.ai_interview_count) || 0,
@@ -240,7 +243,7 @@ export default function JobsPage() {
 		} finally {
 			setIsLoading(false)
 		}
-	}, [])
+	}, [company?.id])
 
 	// Fetch jobs on mount
 	useEffect(() => {
@@ -637,16 +640,19 @@ export default function JobsPage() {
 										<Button 
 											variant="outline" 
 											size="sm" 
-											title="View job details"
+											title={job.status === 'draft' ? 'Edit job draft' : 'View job details'}
 											onClick={() => {
 												setJobFormInitialData({
-													jobTitle: job.title,
-													department: job.department,
-													location: job.location,
-													jobType: job.type,
-													jobStatus: job.status,
+													jobTitle: job.title || '',
+													department: job.department || '',
+													location: job.location || '',
+													jobType: job.type || 'Full-time',
 													workMode: job.workMode || 'Hybrid',
-													recruiterAssigned: job.recruiterAssigned || job.recruiter,
+													jobStatus: job.status || 'open',
+													salaryMin: job.salaryMin?.toString?.() || '',
+													salaryMax: job.salaryMax?.toString?.() || '',
+													currency: job.currency || 'USD',
+													description: job.description || '',
 													jobDescription: job.description || '',
 													responsibilities: job.responsibilities || [],
 													requiredSkills: job.requiredSkills || [],
@@ -663,14 +669,10 @@ export default function JobsPage() {
 													targetSources: job.targetSources || [],
 													diversityGoals: job.diversityGoals || false,
 													diversityTargetPercentage: job.diversityTargetPercentage || '',
-													jobOpenDate: job.jobOpenDate,
-													salaryMin: job.salaryMin?.toString?.() || '',
-													salaryMax: job.salaryMax?.toString?.() || '',
-													currency: job.currency,
-													applicationDeadline: job.applicationDeadline,
-													expectedStartDate: job.expectedStartDate,
+													applicationDeadline: job.applicationDeadline || '',
+													expectedStartDate: job.expectedStartDate || '',
 													selectedCriteriaIds: job.selectedCriteriaIds || [],
-													generatedQuestions: job.generatedQuestions || job.interviewQuestions || [],
+													generatedQuestions: job.generatedQuestions || [],
 													expectedHiresPerMonth: job.expectedHiresPerMonth || '',
 													targetOfferAcceptanceRate: job.targetOfferAcceptanceRate || '',
 													candidateResponseTimeSLA: job.candidateResponseTimeSLA || '',
@@ -683,14 +685,24 @@ export default function JobsPage() {
 													enableScreeningQuestions: job.enableScreeningQuestions ?? false,
 													screeningQuestions: job.screeningQuestions,
 												})
-												setJobFormMode('view')
+												// Drafts should open in edit mode; published stay in view mode
+												setJobFormMode(job.status === 'draft' ? 'create' : 'view')
 												setJobFormJobId(job.id)
 												setJobFormCompanySlug(job.companySlug)
 												setShowJobPostingDialog(true)
 											}}
 										>
-											<Eye className="h-3 w-3 mr-1" />
-											View
+											{job.status === 'draft' ? (
+												<>
+													<FileEdit className="h-3 w-3 mr-1" />
+													Edit
+												</>
+											) : (
+												<>
+													<Eye className="h-3 w-3 mr-1" />
+													View
+												</>
+											)}
 										</Button>
 									</div>
 								</div>

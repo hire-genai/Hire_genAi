@@ -248,25 +248,7 @@ export default function ApplyPage() {
         setParsingOpen(true)
         setParseStep('uploading')
         try {
-          // Step 1: Upload resume file
-          const uploadFormData = new FormData()
-          uploadFormData.append('file', resumeFile)
-          if (submitData.candidateId) {
-            uploadFormData.append('candidateId', submitData.candidateId)
-          }
-
-          const uploadRes = await fetch('/api/resumes/upload', {
-            method: 'POST',
-            body: uploadFormData,
-          })
-          let resumeFileUrl: string | null = null
-          if (uploadRes.ok) {
-            const uploadData = await uploadRes.json()
-            resumeFileUrl = uploadData.fileUrl || null
-            console.log('[Apply] Resume uploaded successfully:', resumeFileUrl)
-          }
-
-          // Step 2: Parse resume to extract text + auto-evaluate
+          // Step 1+2: Upload + Parse resume in a single call (avoids duplicate blob uploads)
           setParseStep('parsing')
           const parseFormData = new FormData()
           parseFormData.append('file', resumeFile)

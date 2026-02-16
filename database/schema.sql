@@ -447,17 +447,18 @@ CREATE INDEX idx_job_postings_created_at ON job_postings (created_at DESC);
 -- 5b. job_interview_questions
 -- WHY: Stores AI-generated interview questions for each job posting.
 --      Selected evaluation criteria stored as JSONB array (max 5 criteria names).
---      Questions stored as JSONB array with criterion mapping.
+--      Questions stored as JSONB array with criterion mapping, difficulty & marks.
 --      Criteria options: Technical Skills, Problem Solving, Communication,
 --        Experience, Culture Fit, Teamwork / Collaboration, Leadership,
 --        Adaptability / Learning, Work Ethic / Reliability
+--      Difficulty levels: High (15 marks), Medium (10 marks), Low (5 marks)
 -- USED BY: JobPostingForm (Step 3), AI Interview, Candidate evaluation
 -- ---------------------------------------------------------------------------
 CREATE TABLE job_interview_questions (
   id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   job_id              UUID NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
   selected_criteria   JSONB NOT NULL DEFAULT '[]',     -- e.g. ["Technical Skills", "Problem Solving", "Communication"]
-  questions           JSONB NOT NULL DEFAULT '[]',     -- e.g. [{"id": 1, "question": "...", "criterion": "Technical Skills"}, ...]
+  questions           JSONB NOT NULL DEFAULT '[]',     -- e.g. [{"id": 1, "question": "...", "criterion": "Technical Skills", "difficulty": "High", "marks": 15}, ...]
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
@@ -549,12 +550,10 @@ CREATE TABLE applications (
   interview_link          TEXT,
   interview_sent_at       TIMESTAMPTZ,
   interview_completed_at  TIMESTAMPTZ,
-  interview_score         NUMERIC(5,2),
-  technical_score         NUMERIC(5,2),
-  behavioral_score        NUMERIC(5,2),
-  communication_score     NUMERIC(5,2),
+  interview_score         NUMERIC(5,2),                -- Overall average score
+  interview_evaluations   JSONB DEFAULT '{}',           -- {"Technical Skills": {"score": 85.5, "feedback": "Strong"}, "Communication": {"score": 92.0, "feedback": "Clear"}}
   interview_recommendation TEXT,                      -- Strongly Recommend, Recommend, On Hold, Reject
-  interview_feedback      TEXT,
+  interview_summary      TEXT,                        -- AI-generated overall summary
 
   -- Hiring Manager Review
   hm_status               TEXT,                       -- Waiting for HM feedback, Under Review, Approved, Rejected, OnHold
@@ -607,6 +606,12 @@ CREATE TABLE applications (
   is_qualified            BOOLEAN,                     -- Whether candidate passed threshold
   qualification_explanations JSONB,                    -- Full evaluation breakdown JSON
 
+  -- Interview Screenshots & Verification
+  during_interview_screenshot           TEXT,                        -- Screenshot captured silently during interview (last question or closing)
+  during_interview_screenshot_captured_at TIMESTAMPTZ,                -- Timestamp when during-interview screenshot was captured
+  post_interview_photo_url              TEXT,                        -- Photo URL from post-verify page
+  post_interview_photo_captured_at      TIMESTAMPTZ,                -- Timestamp when post-verify photo was captured
+
   -- General
   remarks                 TEXT,
   created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -618,6 +623,8 @@ CREATE INDEX idx_applications_job_id ON applications (job_id);
 CREATE INDEX idx_applications_candidate_id ON applications (candidate_id);
 CREATE INDEX idx_applications_current_stage ON applications (current_stage);
 CREATE INDEX idx_applications_offer_status ON applications (offer_status);
+CREATE INDEX idx_applications_during_interview_screenshot ON applications (during_interview_screenshot) WHERE during_interview_screenshot IS NOT NULL;
+CREATE INDEX idx_applications_post_interview_photo ON applications (post_interview_photo_url) WHERE post_interview_photo_url IS NOT NULL;
 CREATE UNIQUE INDEX idx_applications_job_candidate ON applications (job_id, candidate_id);
 
 
@@ -1028,6 +1035,184 @@ CREATE TABLE IF NOT EXISTS screening_submissions (
 CREATE INDEX IF NOT EXISTS idx_screening_sub_job_id ON screening_submissions (job_id);
 CREATE INDEX IF NOT EXISTS idx_screening_sub_email ON screening_submissions (candidate_email);
 CREATE INDEX IF NOT EXISTS idx_screening_sub_eligible ON screening_submissions (is_eligible);
+
+-- ---------------------------------------------------------------------------
+-- 10. screening_otps
+-- WHY: Persists OTP codes for interview identity verification.
+--      Required because serverless API routes don't share in-memory state.
+-- USED BY: /api/interview/verify/send-otp, /api/interview/verify/verify-otp
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS screening_otps (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email           TEXT NOT NULL,
+  application_id  UUID NOT NULL,
+  otp             TEXT NOT NULL,
+  verified        BOOLEAN DEFAULT FALSE,
+  expires_at      TIMESTAMPTZ NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(email, application_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_screening_otps_email ON screening_otps (email);
+CREATE INDEX IF NOT EXISTS idx_screening_otps_expires ON screening_otps (expires_at);
+
+
+-- ---------------------------------------------------------------------------
+-- ALTER TABLE: applications — add photo verification columns
+-- WHY: Stores identity verification result from /interview/{id}/verify page.
+--      verification_photo_url = captured webcam photo during verify step
+--      photo_verified = BOOLEAN result of face comparison
+--      photo_match_score = Euclidean distance (internal logs only)
+--      verified_at = timestamp of successful verification
+-- ---------------------------------------------------------------------------
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS verification_photo_url TEXT;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS photo_verified BOOLEAN;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS photo_match_score NUMERIC(5,4);
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+
+
+-- ============================================================================
+-- 13. AI USAGE TRACKING & BILLING
+-- ============================================================================
+
+-- Ledger entry types
+CREATE TYPE ledger_entry_type AS ENUM (
+  'CV_PARSE',
+  'JD_QUESTIONS',
+  'VIDEO_INTERVIEW',
+  'WALLET_TOPUP',
+  'AUTO_RECHARGE',
+  'REFUND'
+);
+
+-- ---------------------------------------------------------------------------
+-- 13a. cv_parsing_usage
+-- WHY: Tracks per-company CV parsing costs. Cost fetched from .env.
+-- USED BY: /api/resumes/parse, /api/applications/evaluate-cv
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS cv_parsing_usage (
+  id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id            UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  job_id                UUID REFERENCES job_postings(id) ON DELETE SET NULL,
+  candidate_id          UUID REFERENCES candidates(id) ON DELETE SET NULL,
+  file_id               UUID,
+  file_size_kb          INT DEFAULT 0,
+  parse_successful      BOOLEAN DEFAULT TRUE,
+  unit_price            NUMERIC(10,4) NOT NULL DEFAULT 0,
+  cost                  NUMERIC(10,4) NOT NULL DEFAULT 0,
+  success_rate          NUMERIC(5,2),
+  openai_base_cost      NUMERIC(10,4),
+  pricing_source        TEXT DEFAULT 'env-config',
+  tokens_used           INT,
+  profit_margin_percent NUMERIC(5,2) DEFAULT 0,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_cv_parsing_usage_company_id ON cv_parsing_usage (company_id);
+CREATE INDEX IF NOT EXISTS idx_cv_parsing_usage_job_id ON cv_parsing_usage (job_id);
+CREATE INDEX IF NOT EXISTS idx_cv_parsing_usage_created_at ON cv_parsing_usage (created_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- 13b. question_generation_usage
+-- WHY: Tracks per-company AI question generation costs.
+--      Tiered pricing: 1-4 free, 5-10/11-15/16+ charged.
+--      Supports draft jobs (questions generated before job is saved).
+-- USED BY: /api/questions/generate, /api/jobs (reconcile on save)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS question_generation_usage (
+  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id          UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  job_id              UUID REFERENCES job_postings(id) ON DELETE SET NULL,
+  draft_job_id        TEXT,
+  prompt_tokens       INT DEFAULT 0,
+  completion_tokens   INT DEFAULT 0,
+  total_tokens        INT DEFAULT 0,
+  question_count      INT NOT NULL DEFAULT 0,
+  cost                NUMERIC(10,4) NOT NULL DEFAULT 0,
+  model_used          TEXT DEFAULT 'gpt-4o',
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_question_gen_usage_company_id ON question_generation_usage (company_id);
+CREATE INDEX IF NOT EXISTS idx_question_gen_usage_job_id ON question_generation_usage (job_id);
+CREATE INDEX IF NOT EXISTS idx_question_gen_usage_draft ON question_generation_usage (draft_job_id);
+CREATE INDEX IF NOT EXISTS idx_question_gen_usage_created_at ON question_generation_usage (created_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- 13c. video_interview_usage
+-- WHY: Tracks per-company video interview costs based on duration.
+--      Cost fetched from .env (COST_PER_VIDEO_MINUTE).
+-- USED BY: /api/interview/complete
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS video_interview_usage (
+  id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id            UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  job_id                UUID REFERENCES job_postings(id) ON DELETE SET NULL,
+  interview_id          UUID,                          -- References application.id
+  candidate_id          UUID REFERENCES candidates(id) ON DELETE SET NULL,
+  duration_minutes      INT NOT NULL DEFAULT 0,
+  video_quality         TEXT DEFAULT 'HD',
+  minute_price          NUMERIC(10,4) NOT NULL DEFAULT 0,
+  cost                  NUMERIC(10,4) NOT NULL DEFAULT 0,
+  completed_questions   INT DEFAULT 0,
+  total_questions       INT DEFAULT 0,
+  openai_base_cost      NUMERIC(10,4),
+  pricing_source        TEXT DEFAULT 'env-config',
+  tokens_used           INT,
+  profit_margin_percent NUMERIC(5,2) DEFAULT 0,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_interview_usage_company_id ON video_interview_usage (company_id);
+CREATE INDEX IF NOT EXISTS idx_video_interview_usage_job_id ON video_interview_usage (job_id);
+CREATE INDEX IF NOT EXISTS idx_video_interview_usage_interview_id ON video_interview_usage (interview_id);
+CREATE INDEX IF NOT EXISTS idx_video_interview_usage_created_at ON video_interview_usage (created_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- 13d. company_billing
+-- WHY: Wallet-based billing per company. Tracks balance, spending, auto-recharge.
+-- USED BY: Wallet deduction in cv_parsing_usage & question_generation_usage flows
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS company_billing (
+  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id              UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE UNIQUE,
+  wallet_balance          NUMERIC(12,2) NOT NULL DEFAULT 0,
+  current_month_spent     NUMERIC(12,2) NOT NULL DEFAULT 0,
+  total_spent             NUMERIC(12,2) NOT NULL DEFAULT 0,
+  auto_recharge_enabled   BOOLEAN DEFAULT FALSE,
+  auto_recharge_amount    NUMERIC(12,2) DEFAULT 0,
+  auto_recharge_threshold NUMERIC(12,2) DEFAULT 0,
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_company_billing_company_id ON company_billing (company_id);
+
+-- ---------------------------------------------------------------------------
+-- 13d. usage_ledger
+-- WHY: Audit trail for all billing transactions (charges, top-ups, refunds).
+-- USED BY: Settings (billing history), internal audit
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS usage_ledger (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  job_id          UUID REFERENCES job_postings(id) ON DELETE SET NULL,
+  entry_type      ledger_entry_type NOT NULL,
+  description     TEXT,
+  quantity        INT DEFAULT 1,
+  unit_price      NUMERIC(10,4) DEFAULT 0,
+  amount          NUMERIC(10,4) NOT NULL DEFAULT 0,
+  balance_before  NUMERIC(12,2),
+  balance_after   NUMERIC(12,2),
+  reference_id    UUID,
+  metadata        JSONB DEFAULT '{}',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_usage_ledger_company_id ON usage_ledger (company_id);
+CREATE INDEX IF NOT EXISTS idx_usage_ledger_entry_type ON usage_ledger (entry_type);
+CREATE INDEX IF NOT EXISTS idx_usage_ledger_created_at ON usage_ledger (created_at DESC);
+
 
 -- ============================================================================
 -- END OF SCHEMA

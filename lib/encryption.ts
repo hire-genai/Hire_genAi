@@ -7,6 +7,7 @@ const AUTH_TAG_LENGTH = 16
 function getEncryptionKey(): Buffer {
   const key = process.env.ENCRYPTION_KEY
   if (!key) {
+    console.error('[Encryption] ENCRYPTION_KEY environment variable is not set!')
     throw new Error('ENCRYPTION_KEY environment variable is not set')
   }
   // Ensure key is 32 bytes for AES-256
@@ -28,18 +29,24 @@ export function encrypt(text: string): string {
 }
 
 export function decrypt(encryptedText: string): string {
-  const key = getEncryptionKey()
-  
-  // Extract IV, AuthTag, and encrypted data
-  const iv = Buffer.from(encryptedText.slice(0, IV_LENGTH * 2), 'hex')
-  const authTag = Buffer.from(encryptedText.slice(IV_LENGTH * 2, (IV_LENGTH + AUTH_TAG_LENGTH) * 2), 'hex')
-  const encrypted = encryptedText.slice((IV_LENGTH + AUTH_TAG_LENGTH) * 2)
-  
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
-  decipher.setAuthTag(authTag)
-  
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8')
-  decrypted += decipher.final('utf8')
-  
-  return decrypted
+  try {
+    const key = getEncryptionKey()
+    
+    // Extract IV, AuthTag, and encrypted data
+    const iv = Buffer.from(encryptedText.slice(0, IV_LENGTH * 2), 'hex')
+    const authTag = Buffer.from(encryptedText.slice(IV_LENGTH * 2, (IV_LENGTH + AUTH_TAG_LENGTH) * 2), 'hex')
+    const encrypted = encryptedText.slice((IV_LENGTH + AUTH_TAG_LENGTH) * 2)
+    
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
+    decipher.setAuthTag(authTag)
+    
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8')
+    decrypted += decipher.final('utf8')
+    
+    console.log('[Encryption] Successfully decrypted value, length:', decrypted.length)
+    return decrypted
+  } catch (err: any) {
+    console.error('[Encryption] Decryption failed:', err.message)
+    throw err
+  }
 }
