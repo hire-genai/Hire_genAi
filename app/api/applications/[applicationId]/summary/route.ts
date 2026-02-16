@@ -7,7 +7,8 @@ export const dynamic = "force-dynamic"
 // GET /api/applications/:applicationId/summary
 // Returns job title, company and location for an application
 export async function GET(_req: Request, ctx: { params: Promise<{ applicationId: string }> | { applicationId: string } }) {
-  const { applicationId } = await (ctx.params as any)
+  const p = "then" in (ctx as any).params ? await (ctx as any).params : (ctx as any).params
+  const { applicationId } = p
   if (!applicationId) {
     return NextResponse.json({ ok: false, error: "Missing applicationId" }, { status: 400 })
   }

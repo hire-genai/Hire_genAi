@@ -39,6 +39,7 @@ export async function sendMail({
   text,
   replyTo,
   from,
+  cc,
 }: {
   to?: string;
   subject: string;
@@ -46,6 +47,7 @@ export async function sendMail({
   text?: string;
   replyTo?: string;
   from?: string;
+  cc?: string;
 }) {
   const senderFrom = from || FROM;
   
@@ -56,6 +58,7 @@ export async function sendMail({
     hasHtml: !!html,
     hasText: !!text,
     replyTo,
+    cc,
   });
 
   if (!senderFrom) {
@@ -81,14 +84,21 @@ export async function sendMail({
 
   try {
     console.log("📤 Attempting to send email...");
-    const info = await transporter.sendMail({
+    const mailOptions: any = {
       from: senderFrom,
       to: recipient,
       subject,
       html,
       text,
       replyTo,
-    });
+    };
+    
+    // Add CC if provided
+    if (cc && cc.trim()) {
+      mailOptions.cc = cc;
+    }
+    
+    const info = await transporter.sendMail(mailOptions);
     
     console.log("✅ Email sent successfully:", {
       messageId: info.messageId,
@@ -117,6 +127,7 @@ export async function sendContactMail({
   replyTo,
   from,
   attachments,
+  cc,
 }: {
   to?: string;
   subject: string;
@@ -125,6 +136,7 @@ export async function sendContactMail({
   replyTo?: string;
   from?: string;
   attachments?: any[];
+  cc?: string;
 }) {
   const senderFrom = from || FROM_CONTACT;
   
@@ -135,6 +147,7 @@ export async function sendContactMail({
     hasHtml: !!html,
     hasText: !!text,
     replyTo,
+    cc,
   });
 
   if (!senderFrom) {
@@ -160,7 +173,7 @@ export async function sendContactMail({
 
   try {
     console.log("📤 Attempting to send contact email...");
-    const info = await contactTransporter.sendMail({
+    const mailOptions: any = {
       from: senderFrom,
       to: recipient,
       subject,
@@ -168,7 +181,14 @@ export async function sendContactMail({
       text,
       replyTo,
       attachments,
-    });
+    };
+    
+    // Add CC if provided
+    if (cc && cc.trim()) {
+      mailOptions.cc = cc;
+    }
+    
+    const info = await contactTransporter.sendMail(mailOptions);
     
     console.log("✅ Contact email sent successfully:", {
       messageId: info.messageId,

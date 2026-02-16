@@ -6,7 +6,7 @@ import { DashboardHeader } from '@/components/dashboard/header'
 import { MobileMenuProvider } from '@/components/dashboard/mobile-menu-context'
 import { DashboardLayoutContent } from '@/components/dashboard/layout-content'
 import { useAuth } from '@/contexts/auth-context'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useEffect } from 'react'
 
 export default function DashboardLayout({
@@ -16,6 +16,7 @@ export default function DashboardLayout({
 }) {
   const { user, loading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
     if (!loading && !user) {
@@ -36,6 +37,20 @@ export default function DashboardLayout({
 
   if (!user) {
     return null
+  }
+
+  // Check if current page is candidate-report - if so, render without sidebar
+  const isCandidateReportPage = pathname?.includes('/candidate-report')
+
+  if (isCandidateReportPage) {
+    // Render without sidebar for candidate report page
+    return (
+      <MobileMenuProvider>
+        <div className="min-h-screen bg-gray-50">
+          {children}
+        </div>
+      </MobileMenuProvider>
+    )
   }
 
   return (

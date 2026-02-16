@@ -59,16 +59,23 @@ export async function POST(request: NextRequest) {
 
       criteriaMap[criterion].totalMarksObtained += marksObtained
       criteriaMap[criterion].totalMaxMarks += maxMarks
+      const questionScore = maxMarks > 0 ? Math.round((marksObtained / maxMarks) * 100) : 0
+      const weightedContribution = totalMaxMarks > 0 
+        ? Math.round((marksObtained / totalMaxMarks) * 100 * 100) / 100
+        : 0
+
       criteriaMap[criterion].questions.push({
-        id: evaluation.questionId,
-        question: evaluation.question,
-        answer: evaluation.answer,
-        difficulty: evaluation.difficulty,
-        marksObtained,
-        maxMarks,
+        question_number: evaluation.questionNumber || criteriaMap[criterion].questions.length + 1,
+        question_text: evaluation.question,
+        criterion: criterion,
+        difficulty: evaluation.difficulty || 'Medium',
+        marks: maxMarks,
+        score: questionScore,
+        weighted_contribution: weightedContribution,
+        candidate_response: evaluation.answer,
         strengths: evaluation.evaluation?.strengths || [],
         gaps: evaluation.evaluation?.gaps || [],
-        feedback: evaluation.evaluation?.feedback || ''
+        evaluation_reasoning: evaluation.evaluation?.feedback || evaluation.evaluation?.reasoning || ''
       })
     }
 
@@ -76,26 +83,6 @@ export async function POST(request: NextRequest) {
     const overallScore = totalMaxMarks > 0 
       ? Math.round((totalMarksObtained / totalMaxMarks) * 100 * 100) / 100
       : 0
-
-    // Build interview_evaluations JSONB structure
-    const interviewEvaluations: Record<string, any> = {}
-
-    for (const [criterion, data] of Object.entries(criteriaMap)) {
-      const criterionScore = data.totalMaxMarks > 0 
-        ? Math.round((data.totalMarksObtained / data.totalMaxMarks) * 100 * 100) / 100
-        : 0
-      const weight = totalMaxMarks > 0 
-        ? Math.round((data.totalMaxMarks / totalMaxMarks) * 100)
-        : 0
-
-      interviewEvaluations[criterion] = {
-        score: criterionScore,
-        marksObtained: Math.round(data.totalMarksObtained * 100) / 100,
-        maxMarks: data.totalMaxMarks,
-        weight,
-        questions: data.questions
-      }
-    }
 
     // Determine recommendation based on score
     let recommendation: string
@@ -107,6 +94,48 @@ export async function POST(request: NextRequest) {
       recommendation = 'On Hold'
     } else {
       recommendation = 'Reject'
+    }
+
+    // Calculate criterion averages for scoring section
+    const criterionAverages: Record<string, number> = {}
+    for (const [criterion, data] of Object.entries(criteriaMap)) {
+      const criterionScore = data.totalMaxMarks > 0 
+        ? Math.round((data.totalMarksObtained / data.totalMaxMarks) * 100 * 100) / 100
+        : 0
+      criterionAverages[criterion] = criterionScore
+    }
+
+    // Build questions array for evaluation section
+    const allQuestions: any[] = []
+    for (const [criterion, data] of Object.entries(criteriaMap)) {
+      // Add questions to evaluation section
+      data.questions.forEach((q: any) => {
+        allQuestions.push(q)
+      })
+    }
+
+    // Sort questions by question_number
+    allQuestions.sort((a, b) => a.question_number - b.question_number)
+
+    // Extract key strengths and areas for improvement
+    const keyStrengths: string[] = []
+    const areasForImprovement: string[] = []
+    
+    allQuestions.forEach((q: any) => {
+      keyStrengths.push(...q.strengths)
+      areasForImprovement.push(...q.gaps)
+    })
+
+    // Remove duplicates and limit to top 5
+    const uniqueStrengths = Array.from(new Set(keyStrengths)).slice(0, 5)
+    const uniqueGaps = Array.from(new Set(areasForImprovement)).slice(0, 5)
+
+    // Check technical cutoff (50% threshold for Technical Skills)
+    const technicalAvg = criterionAverages['Technical Skills'] || 0
+    const technicalCutoff = {
+      threshold: 50,
+      technical_avg: technicalAvg,
+      failed: technicalAvg < 50
     }
 
     // Generate AI summary using company key
@@ -140,8 +169,8 @@ export async function POST(request: NextRequest) {
       if (companyOpenAIKey) {
         const openaiProvider = createOpenAI({ apiKey: companyOpenAIKey })
 
-        const criteriaList = Object.entries(interviewEvaluations)
-          .map(([criterion, data]: [string, any]) => `${criterion}: ${data.score}%`)
+        const criteriaList = Object.entries(criterionAverages)
+          .map(([criterion, score]: [string, number]) => `${criterion}: ${score}%`)
           .join(', ')
 
         const { text } = await generateText({
@@ -154,10 +183,10 @@ Recommendation: ${recommendation}
 Criteria Scores: ${criteriaList}
 
 Key Strengths:
-${evaluations.flatMap((e: any) => e.evaluation?.strengths || []).slice(0, 5).join('\n- ')}
+${uniqueStrengths.join('\n- ')}
 
 Key Areas to Improve:
-${evaluations.flatMap((e: any) => e.evaluation?.gaps || []).slice(0, 5).join('\n- ')}
+${uniqueGaps.join('\n- ')}
 
 Provide a professional summary suitable for a hiring manager.`,
           temperature: 0.3,
@@ -169,6 +198,25 @@ Provide a professional summary suitable for a hiring manager.`,
     } catch (summaryError) {
       console.warn('[Interview Complete] Failed to generate AI summary:', summaryError)
       summary = `Candidate scored ${overallScore}% overall. Recommendation: ${recommendation}.`
+    }
+
+    // Build comprehensive interview_evaluations structure
+    const interviewEvaluations = {
+      evaluation: {
+        questions: allQuestions,
+        scoring: {
+          total_marks: Math.round(totalMaxMarks * 100) / 100,
+          weighted_score: Math.round(overallScore * 100) / 100,
+          final_score: Math.round(overallScore),
+          method: 'marks_weighted'
+        },
+        criterion_averages: criterionAverages,
+        technical_cutoff: technicalCutoff,
+        recommendation: recommendation.toLowerCase().replace(/\s+/g, '_'),
+        summary: summary,
+        key_strengths: uniqueStrengths,
+        areas_for_improvement: uniqueGaps
+      }
     }
 
     // Update applications table with all interview data

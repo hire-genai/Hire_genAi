@@ -320,7 +320,14 @@ export default function CandidatesPage() {
                 <Button size="sm" onClick={() => handleViewCandidate(application)}>
                   Action
                 </Button>
-                <Button size="sm" variant="outline" title="CV Report">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  title="CV Report"
+                  onClick={() => {
+                    window.open(`/report/${application?.jobId}/${application?.candidateId}`, '_blank')
+                  }}
+                >
                   <FileTextIcon className="h-4 w-4" />
                 </Button>
                 <Button size="sm" variant="outline" title="Download CV & Report">
@@ -369,7 +376,14 @@ export default function CandidatesPage() {
                 <Button size="sm" onClick={() => handleViewCandidate(application)}>
                   Action
                 </Button>
-                <Button size="sm" variant="outline" title="Interview Report">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  title="Interview Report"
+                  onClick={() => {
+                    window.open(`/report/${application?.jobId}/${application?.candidateId}`, '_blank')
+                  }}
+                >
                   <FileTextIcon className="h-4 w-4" />
                 </Button>
                 <Button size="sm" variant="outline" title="Download Reports & CV">
@@ -635,7 +649,7 @@ export default function CandidatesPage() {
                             {displayKey}
                           </span>
                           <span className={`text-[10px] md:text-xs font-bold ${valueColor} whitespace-nowrap`}>
-                            {isSuccessRate ? `${value}%` : value}
+                            {isSuccessRate ? `${value}%` : String(value)}
                           </span>
                         </div>
                       )

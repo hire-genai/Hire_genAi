@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Mic, MicOff, Video as VideoIcon, VideoOff, PhoneOff, CheckCircle2, X } from "lucide-react"
+import { Mic, MicOff, Video as VideoIcon, VideoOff, PhoneOff, CheckCircle2, X, AlertTriangle } from "lucide-react"
 
 export default function InterviewPage() {
   const params = useParams()
@@ -34,6 +34,7 @@ export default function InterviewPage() {
   const companyIdRef = useRef<string | null>(null)
   const [isInterviewClosing, setIsInterviewClosing] = useState(false)
   const autoEndTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const [closingCountdown, setClosingCountdown] = useState<number | null>(null)
   const screenshotCapturedRef = useRef<boolean>(false)
   const screenshotDataRef = useRef<string | null>(null)
@@ -41,6 +42,9 @@ export default function InterviewPage() {
   const [conversation, setConversation] = useState<{ role: "agent" | "user"; text: string; t: number }[]>([])
   const [interviewCompleted, setInterviewCompleted] = useState(false)
   const [checkingStatus, setCheckingStatus] = useState(true)
+  const [showEndWarning, setShowEndWarning] = useState(false)
+  const [incompleteStats, setIncompleteStats] = useState<{ questionsAsked: number; totalQuestions: number; candidateResponses: number } | null>(null)
+  const endingRef = useRef(false)
 
   const logTs = (label: string, text?: string) => {
     const ts = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
@@ -63,6 +67,35 @@ export default function InterviewPage() {
       })
       .filter(Boolean)
       .join("\n")
+  }
+
+  const isEnglishText = (text: string): boolean => {
+    if (!text || text.trim().length === 0) return false
+
+    // Remove common punctuation and spaces for checking
+    const cleanText = text.replace(/[.,!?;:()\-\s]+/g, "")
+
+    // Check if text contains only English characters (a-z, A-Z, numbers, common punctuation)
+    const englishRegex = /^[a-zA-Z0-9.,!?;:()\-'\s]+$/
+
+    // Must pass English character test
+    if (!englishRegex.test(text)) {
+      console.log("🚫 [FILTER] Non-English text rejected:", text.substring(0, 50))
+      return false
+    }
+
+    // Additional check: Reject if text has excessive non-ASCII characters
+    const nonAsciiCount = (text.match(/[^\x00-\x7F]/g) || []).length
+    const nonAsciiRatio = nonAsciiCount / text.length
+
+    if (nonAsciiRatio > 0.3) {
+      // More than 30% non-ASCII = probably not English
+      console.log("🚫 [FILTER] High non-ASCII ratio rejected:", text.substring(0, 50))
+      return false
+    }
+
+    console.log("✅ [FILTER] English text accepted:", text.substring(0, 50))
+    return true
   }
 
   // Silent screenshot capture function - captures from user's video and stores in ref
@@ -131,7 +164,13 @@ export default function InterviewPage() {
       const finalTranscript = !event.transcript || event.transcript === "\n" ? "[inaudible]" : event.transcript
       console.log("🎤 [TRANSCRIPTION] User said:", finalTranscript.substring(0, 100))
 
-      if (finalTranscript) {
+      if (finalTranscript && finalTranscript !== "[inaudible]") {
+        // Filter non-English text
+        if (!isEnglishText(finalTranscript)) {
+          console.log("🚫 [FILTER] User transcript rejected (non-English)")
+          return
+        }
+
         setConversation((prev) => {
           const last = prev[prev.length - 1]
           if (last && last.role === "user" && last.text === finalTranscript) return prev
@@ -146,6 +185,13 @@ export default function InterviewPage() {
       const text = agentTextBufferRef.current
       if (text) {
         agentTextBufferRef.current = ""
+
+        // Filter non-English text
+        if (!isEnglishText(text)) {
+          console.log("🚫 [FILTER] Agent transcript rejected (non-English)")
+          return
+        }
+
         setConversation((prev) => {
           const last = prev[prev.length - 1]
           if (last && last.role === "agent" && last.text === text) return prev
@@ -181,6 +227,8 @@ export default function InterviewPage() {
               setClosingCountdown(countdown)
               if (countdown <= 0) clearInterval(countdownInterval)
             }, 1000)
+
+            countdownIntervalRef.current = countdownInterval
 
             autoEndTimerRef.current = setTimeout(() => {
               console.log("⏰ [AUTO-END] 20 seconds elapsed - automatically ending interview")
@@ -560,14 +608,84 @@ Once the candidate answers the LAST question:
     setCamOn((prev) => !prev)
   }
 
+  // Check if interview is complete enough before ending
+  const checkInterviewCompleteness = (): { isComplete: boolean; questionsAsked: number; totalQuestions: number; candidateResponses: number } => {
+    const totalQuestions = interviewQuestions.length || 7
+    let questionsAsked = 0
+    let candidateResponses = 0
+
+    for (const turn of conversation) {
+      if (turn.role === "agent" && turn.text.includes("?")) {
+        questionsAsked++
+      } else if (turn.role === "user" && turn.text.length > 0 && turn.text !== "[inaudible]") {
+        candidateResponses++
+      }
+    }
+
+    // Also check buffered agent text
+    if (agentTextBufferRef.current && agentTextBufferRef.current.includes("?")) {
+      questionsAsked++
+    }
+
+    const isComplete = questionsAsked >= totalQuestions && candidateResponses >= 5
+    return { isComplete, questionsAsked, totalQuestions, candidateResponses }
+  }
+
+  // Called when user clicks end button - shows warning if incomplete
+  const handleEndClick = () => {
+    // If auto-end timer triggered (closing message detected), skip warning
+    if (isInterviewClosing) {
+      endInterview()
+      return
+    }
+
+    const stats = checkInterviewCompleteness()
+    if (!stats.isComplete) {
+      setIncompleteStats(stats)
+      setShowEndWarning(true)
+      return
+    }
+    endInterview()
+  }
+
+  // Force end (user confirmed from warning dialog)
+  const confirmEndInterview = () => {
+    setShowEndWarning(false)
+    endInterview()
+  }
+
   const endInterview = async () => {
+    // Prevent multiple calls using ref (state is async, ref is sync)
+    if (endingRef.current || interviewCompleted) {
+      console.log("🚫 Interview already ending, skipping duplicate call")
+      return
+    }
+    endingRef.current = true
+    
+    // Mark as completed immediately to prevent duplicate calls
+    setInterviewCompleted(true)
+    
     if (autoEndTimerRef.current) {
       clearTimeout(autoEndTimerRef.current)
       autoEndTimerRef.current = null
     }
 
+    // Clear countdown interval
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current)
+      countdownIntervalRef.current = null
+    }
+
+    // Reset countdown display
+    setClosingCountdown(null)
+
     // Force capture screenshot before ending (if not already captured)
     await captureScreenshotSilently()
+
+    // Wait for screenshot upload to complete
+    console.log('⏳ Waiting for screenshot upload...')
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    console.log('✅ Screenshot upload complete, now closing camera')
 
     streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null
@@ -603,14 +721,20 @@ Once the candidate answers the LAST question:
         const result = await response.json()
         console.log("✅ Interview marked as completed:", result)
 
-        // Trigger evaluation (non-blocking)
-        fetch(`/api/applications/${encodeURIComponent(applicationId)}/evaluate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ transcript, companyId }),
-        }).catch((e) => {
-          console.error("❌ Failed to run evaluation:", e)
-        })
+        // Only trigger evaluation if interview is NOT incomplete
+        if (result.incomplete) {
+          console.log("⚠️ Interview is incomplete - skipping evaluation")
+          console.log("⚠️ Reasons:", result.validationErrors)
+        } else {
+          // Trigger evaluation (non-blocking)
+          fetch(`/api/applications/${encodeURIComponent(applicationId)}/evaluate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ transcript, companyId }),
+          }).catch((e) => {
+            console.error("❌ Failed to run evaluation:", e)
+          })
+        }
 
         // Immediate redirect to post-verify page
         console.log("🔄 Redirecting to post-verify page...")
@@ -713,43 +837,88 @@ Once the candidate answers the LAST question:
     </div>
   )
 
+  // Warning Dialog for incomplete interview
+  const EndWarningDialog = () => {
+    if (!showEndWarning || !incompleteStats) return null
+    return (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="bg-gradient-to-br from-slate-900 to-slate-800 border border-red-500/40 rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="h-12 w-12 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
+              <AlertTriangle className="h-6 w-6 text-red-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">Interview Incomplete</h2>
+              <p className="text-xs text-slate-400">This interview will NOT be evaluated</p>
+            </div>
+          </div>
+
+          
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-5">
+            <p className="text-xs text-red-200">
+              <span className="font-semibold">Warning:</span> Ending now will mark this interview as <span className="font-bold">Incomplete</span>. 
+              No evaluation or score will be generated. Are you sure you want to end?
+            </p>
+          </div>
+
+          <div className="flex gap-3">
+            <Button
+              className="flex-1 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold"
+              onClick={() => setShowEndWarning(false)}
+            >
+              Continue Interview
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1 border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+              onClick={confirmEndInterview}
+            >
+              End Anyway
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
       <InstructionModal />
+      <EndWarningDialog />
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         {/* Header */}
         <header className="border-b border-emerald-500/30 bg-gradient-to-r from-slate-900/80 via-slate-800/80 to-slate-900/80 backdrop-blur-lg sticky top-0 z-40 shadow-lg">
-          <div className="mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
+          <div className="mx-auto px-3 sm:px-4 lg:px-6 py-2 sm:py-3 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-3 sm:gap-4">
-              <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg flex-shrink-0">
-                <svg className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg flex-shrink-0">
+                <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
               </div>
               <div className="flex flex-col gap-0.5 min-w-0">
-                <h1 className="text-base font-bold text-white leading-tight">AI Interview</h1>
-                <p className="text-sm font-semibold text-emerald-300">{jobDetails?.jobTitle || "Position"}</p>
+                <h1 className="text-sm font-bold text-white leading-tight">AI Interview</h1>
+                <p className="text-xs font-semibold text-emerald-300">{jobDetails?.jobTitle || "Position"}</p>
                 <p className="text-xs text-slate-400">{jobDetails?.company || "Company"}</p>
               </div>
             </div>
-            <div className="w-full sm:w-auto sm:ml-auto flex items-center justify-end gap-3">
+            <div className="w-full sm:w-auto sm:ml-auto flex items-center justify-end gap-2">
               <Button size="icon" variant="ghost" className={`rounded-lg transition-all duration-300 hover:scale-110 ${micOn ? "bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400" : "bg-red-600/20 hover:bg-red-600/40 text-red-400"}`} onClick={toggleMic}>
-                {micOn ? <Mic className="h-7 w-7" /> : <MicOff className="h-7 w-7" />}
+                {micOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
               </Button>
               <Button size="icon" variant="ghost" className={`rounded-lg transition-all duration-300 hover:scale-110 ${camOn ? "bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400" : "bg-red-600/20 hover:bg-red-600/40 text-red-400"}`} onClick={toggleCam}>
-                {camOn ? <VideoIcon className="h-7 w-7" /> : <VideoOff className="h-7 w-7" />}
+                {camOn ? <VideoIcon className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
               </Button>
-              <Button size="icon" className="rounded-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg transition-all duration-300 hover:scale-110" onClick={endInterview}>
-                <PhoneOff className="h-7 w-7" />
+              <Button size="icon" className="rounded-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg transition-all duration-300 hover:scale-110" onClick={handleEndClick}>
+                <PhoneOff className="h-5 w-5" />
               </Button>
             </div>
           </div>
         </header>
 
         {/* Main Content */}
-        <main className="flex items-start justify-center px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+        <main className="flex items-start justify-center px-3 sm:px-4 lg:px-6 py-2 sm:py-3">
           <div className="w-full max-w-4xl">
-            <div className="relative rounded-3xl overflow-hidden shadow-2xl bg-black aspect-video group">
+            <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-black aspect-[4/3] sm:aspect-video group">
               <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 to-black">
                 <video ref={userVideoRef} className={`block w-full h-full object-cover object-center transition-opacity duration-300 ${camOn ? "opacity-100" : "opacity-30"}`} style={{ transform: "scaleX(-1)" }} muted playsInline autoPlay />
                 {!camOn && (
@@ -765,7 +934,7 @@ Once the candidate answers the LAST question:
               {/* Avatar PIP */}
               <div className="absolute right-2 bottom-2 sm:right-4 sm:bottom-6 md:right-6 md:bottom-8">
                 <div className="relative rounded-2xl overflow-hidden border-2 border-emerald-500/40 shadow-2xl bg-black/80 backdrop-blur-md">
-                  <video ref={avatarVideoRef} src="https://storage.googleapis.com/ai_recruiter_bucket_prod/assets/videos/olivia_character_no_audio.mp4" className="w-[110px] h-[62px] sm:w-[150px] sm:h-[84px] md:w-[220px] md:h-[124px] object-cover" muted playsInline preload="auto" onEnded={() => { if (avatarVideoRef.current) { avatarVideoRef.current.currentTime = 3; avatarVideoRef.current.play() } }} />
+                  <video ref={avatarVideoRef} src="https://storage.googleapis.com/ai_recruiter_bucket_prod/assets/videos/olivia_character_no_audio.mp4" className="w-[80px] h-[45px] sm:w-[110px] sm:h-[62px] md:w-[150px] md:h-[84px] object-cover" muted playsInline preload="auto" onEnded={() => { if (avatarVideoRef.current) { avatarVideoRef.current.currentTime = 3; avatarVideoRef.current.play() } }} />
                   <audio ref={agentAudioRef} className="hidden" />
                   <div className="absolute left-2 bottom-2 text-[9px] md:text-xs font-semibold text-emerald-300 drop-shadow-lg">Olivia</div>
                   {agentReady && (
@@ -793,22 +962,7 @@ Once the candidate answers the LAST question:
               </div>
             </div>
 
-            {/* Instructions below video */}
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[
-                { icon: <Mic className="h-4 w-4 text-emerald-400" />, title: "Microphone", desc: "Ensure your mic is on and working properly" },
-                { icon: <VideoIcon className="h-4 w-4 text-emerald-400" />, title: "Camera", desc: "Keep your camera on throughout the interview" },
-                { icon: <svg className="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>, title: "Connection", desc: "Maintain a stable internet connection" },
-              ].map((item, i) => (
-                <div key={i} className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-xl p-4 text-sm text-slate-300">
-                  <div className="flex items-center gap-2 mb-2">
-                    {item.icon}
-                    <span className="font-semibold text-white">{item.title}</span>
-                  </div>
-                  <p className="text-xs text-slate-400">{item.desc}</p>
-                </div>
-              ))}
-            </div>
+              {/* Instructions below video - Removed to save space */}
           </div>
         </main>
       </div>

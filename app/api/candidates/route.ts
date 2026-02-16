@@ -32,10 +32,12 @@ export async function GET(req: NextRequest) {
     }
 
     // Get bucket counts filtered by company_id
+    // Screening: Count candidates with CV score (even if moved to interview)
+    // Interview: Count candidates in interview OR moved to hiring_manager (even if moved further)
     const bucketCountsQuery = `
       SELECT 
         COUNT(*) FILTER (WHERE ai_cv_score IS NOT NULL) AS screening,
-        COUNT(*) FILTER (WHERE current_stage = 'ai_interview') AS interview,
+        COUNT(*) FILTER (WHERE current_stage = 'ai_interview' OR current_stage = 'hiring_manager') AS interview,
         COUNT(*) FILTER (WHERE current_stage = 'hiring_manager') AS hiring_manager,
         COUNT(*) FILTER (WHERE current_stage = 'offer') AS offer,
         COUNT(*) FILTER (WHERE current_stage = 'hired') AS hired,
@@ -57,10 +59,12 @@ export async function GET(req: NextRequest) {
       all: { count: parseInt(counts.total) || 0 }
     }
 
-    // Get applications with candidate and job info
+    // Get applications with candidate and job info + latest stage remarks
     const applicationsQuery = `
       SELECT 
         a.id,
+        a.job_id,
+        a.candidate_id,
         a.current_stage,
         a.applied_at,
         a.source,
@@ -80,7 +84,7 @@ export async function GET(req: NextRequest) {
         a.rejection_reason,
         a.rejection_stage,
         a.remarks,
-        c.id AS candidate_id,
+        c.id AS c_id,
         c.full_name,
         c.email,
         c.phone,
@@ -89,9 +93,14 @@ export async function GET(req: NextRequest) {
         c.resume_url,
         c.photo_url,
         c.source AS candidate_source,
-        j.id AS job_id,
+        j.id AS j_id,
         j.title AS position,
-        j.location AS job_location
+        j.location AS job_location,
+        (
+          SELECT ash.remarks FROM application_stage_history ash
+          WHERE ash.application_id = a.id
+          ORDER BY ash.created_at DESC LIMIT 1
+        ) AS latest_stage_remarks
       FROM applications a
       JOIN candidates c ON a.candidate_id = c.id
       JOIN job_postings j ON a.job_id = j.id
@@ -114,6 +123,8 @@ export async function GET(req: NextRequest) {
     for (const app of applicationsResult || []) {
       const formattedApp = {
         id: app.id,
+        jobId: app.job_id,
+        candidateId: app.candidate_id,
         name: app.full_name || 'Unknown',
         email: app.email || '',
         phone: app.phone || '',
@@ -137,7 +148,7 @@ export async function GET(req: NextRequest) {
         hireStatus: app.onboarding_status || 'Awaiting Onboarding',
         rejectionStage: formatStage(app.rejection_stage) || '',
         rejectionReason: app.rejection_reason || '',
-        comments: app.remarks || app.interview_feedback || app.hm_feedback || '',
+        comments: app.latest_stage_remarks || app.remarks || app.interview_feedback || app.hm_feedback || '',
         photoUrl: app.photo_url || '',
         linkedinUrl: app.linkedin_url || '',
         resumeUrl: app.resume_url || ''
@@ -145,6 +156,8 @@ export async function GET(req: NextRequest) {
 
       applicationsData.all.push(formattedApp)
 
+      // For display: Show candidates in their actual current_stage
+      // But for counting: Interview bucket includes both interview and hiring_manager candidates
       const stage = mapStageToKey(app.current_stage)
       if (stage && applicationsData[stage]) {
         applicationsData[stage].push(formattedApp)

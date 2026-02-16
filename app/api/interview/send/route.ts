@@ -18,7 +18,7 @@ function getBaseUrl(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { to, candidateName, position, interviewId, preview } = body || {}
+    const { to, candidateName, position, interviewId, preview, cc } = body || {}
 
     if (!to) {
       return NextResponse.json({ error: 'Recipient email is required' }, { status: 400 })
@@ -32,11 +32,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'EMAIL_FROM is not configured' }, { status: 500 })
     }
 
+    // Fetch company name from database using interviewId (applicationId)
+    let companyName = 'our organization'
+    try {
+      if (interviewId) {
+        const companyQuery = `
+          SELECT c.name as company_name
+          FROM applications a
+          JOIN job_postings j ON a.job_id = j.id
+          JOIN companies c ON j.company_id = c.id
+          WHERE a.id = $1::uuid
+          LIMIT 1
+        `
+        const companyRows = await DatabaseService.query(companyQuery, [interviewId]) as any[]
+        if (companyRows && companyRows.length > 0 && companyRows[0].company_name) {
+          companyName = companyRows[0].company_name
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch company name:', e)
+    }
+
     const subject = `Invitation: AI Interview${position ? ` for ${position}` : ''}`
 
     const plainBody = `Dear ${candidateName || 'Candidate'},
 
-Thank you for your interest in the ${position || 'role'} position at our organization. We have carefully reviewed your application and are impressed by your qualifications and experience.
+Thank you for your interest in the ${position || 'role'} position at ${companyName}. We have carefully reviewed your application and are impressed by your qualifications and experience.
 
 Your profile demonstrates strong alignment with our requirements, and we would like to invite you to the next stage of our selection process - an AI-powered interview assessment.
 
@@ -62,7 +83,7 @@ Talent Acquisition Team`
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color:#111;">
         <p style="margin:0 0 16px 0;">Dear ${candidateName || 'Candidate'},</p>
-        <p style="margin:0 0 16px 0;">Thank you for your interest in the ${position || 'role'} position at our organization. We have carefully reviewed your application and are impressed by your qualifications and experience.</p>
+        <p style="margin:0 0 16px 0;">Thank you for your interest in the ${position || 'role'} position at ${companyName}. We have carefully reviewed your application and are impressed by your qualifications and experience.</p>
         <p style="margin:0 0 16px 0;">Your profile demonstrates strong alignment with our requirements, and we would like to invite you to the next stage of our selection process - an AI-powered interview assessment.</p>
         <p style="margin:0 0 12px 0; font-weight:600;">NEXT STEPS:</p>
         <p style="margin:0 0 16px 0;">Please click the link below to access your personalized interview:</p>
@@ -85,7 +106,13 @@ Talent Acquisition Team`
     `
 
     if (!preview) {
-      await sendMail({ to, from, subject, html, text: plainBody })
+      // Send email with CC support
+      const emailOptions: any = { to, from, subject, html, text: plainBody }
+      if (cc && cc.trim()) {
+        emailOptions.cc = cc
+      }
+      
+      await sendMail(emailOptions)
 
       // Update interview_status to Scheduled
       try {
@@ -98,7 +125,7 @@ Talent Acquisition Team`
       }
     }
 
-    return NextResponse.json({ ok: true, link, from, preview: !!preview })
+    return NextResponse.json({ ok: true, link, from, preview: !!preview, companyName })
   } catch (err: any) {
     console.error('❌ Send interview email error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to send interview email' }, { status: 500 })
