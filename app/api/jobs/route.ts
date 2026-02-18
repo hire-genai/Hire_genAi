@@ -332,6 +332,20 @@ export async function POST(request: NextRequest) {
 
     // Insert job posting
     let newJob: any
+    
+    // Debug: Log all field values being inserted
+    console.log('[Jobs POST] Inserting job with fields:', {
+      jobTitle, department, location, jobType: normalizedJobType, workMode: normalizedWorkMode,
+      salaryMin, salaryMax, currency, applicationDeadline, expectedStartDate,
+      jobDescription: jobDescription?.substring(0, 50) + '...',
+      responsibilities: responsibilities?.length,
+      requiredSkills: requiredSkills?.length,
+      preferredSkills: preferredSkills?.length,
+      experienceYears, requiredEducation, certificationsRequired, languagesRequired,
+      hiringManager, hiringManagerEmail, numberOfOpenings, hiringPriority,
+      clientCompanyName, enableScreeningQuestions
+    })
+    
     try {
       const jobResult = await DatabaseService.query(
         `INSERT INTO job_postings (
@@ -351,13 +365,15 @@ export async function POST(request: NextRequest) {
           client_company_name,
           status, published_at
         ) VALUES (
-          $1::uuid, $2::uuid, $3, $4, $5, $6, $7,
-          $8, $9, $10, $11, $12, $13, $14, $15, $16,
-          $17, $18, $19, $20, $21, $22, $23, $24,
-          $25, $26, $27, $28, $29, $30, $31, $32,
-          $33, $34, $35, $36, $37, $38, $39, $40,
-          $41, $42, $43, $44,
-          $45, $46
+          $1::uuid, $2::uuid, $3, $4, $5,
+          $6, $7, $8, $9, $10,
+          $11, $12, $13, $14, $15, $16,
+          $17, $18, $19, $20, $21, $22,
+          $23, $24, $25, $26, $27, $28, $29,
+          $30, $31, $32, $33, $34,
+          $35, $36, $37, $38, $39,
+          $40, $41, $42,
+          $43, $44
         ) RETURNING *`,
         [
           companyId, userId, jobTitle,
@@ -371,7 +387,7 @@ export async function POST(request: NextRequest) {
           responsibilities?.filter((r: string) => r.trim()) || [],
           requiredSkills?.filter((s: string) => s.trim()) || [],
           preferredSkills?.filter((s: string) => s.trim()) || [],
-          experienceYears ? parseInt(experienceYears) : null,
+          experienceYears || null,
           requiredEducation || null, certificationsRequired || null,
           languagesRequired || null,
           hiringManager || null, hiringManagerEmail || null,

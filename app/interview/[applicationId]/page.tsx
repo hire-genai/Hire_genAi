@@ -751,24 +751,17 @@ Once the candidate answers the LAST question:
     router.push("/")
   }
 
-  // Interview Already Completed
+  // Interview Already Completed - Direct redirect to home
   if (interviewCompleted) {
+    // Use useEffect to handle redirection instead of during render
+    useEffect(() => {
+      router.push("/")
+    }, [interviewCompleted, router])
+    
+    // Show loading spinner while redirecting
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-        <div className="max-w-2xl w-full bg-white rounded-2xl shadow-lg p-8 text-center">
-          <div className="mb-6 flex justify-center">
-            <div className="h-16 w-16 rounded-full bg-orange-100 flex items-center justify-center">
-              <svg className="h-8 w-8 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            </div>
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-4">Interview Already Completed</h1>
-          <p className="text-lg text-slate-600 mb-6">This interview link has already been used.</p>
-          <p className="text-sm text-slate-500 mb-8">Each interview link can only be used once for security purposes.</p>
-          <Button onClick={() => router.push("/")} className="bg-black text-white hover:bg-gray-900">Go to Home</Button>
-          <div className="mt-6 text-xs text-slate-400">Application ID: <span className="font-mono">{applicationId.substring(0, 12)}...</span></div>
-        </div>
+      <div className="flex items-center justify-center h-screen bg-[#0b1220]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
       </div>
     )
   }
@@ -885,40 +878,14 @@ Once the candidate answers the LAST question:
     <>
       <InstructionModal />
       <EndWarningDialog />
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        {/* Header */}
-        <header className="border-b border-emerald-500/30 bg-gradient-to-r from-slate-900/80 via-slate-800/80 to-slate-900/80 backdrop-blur-lg sticky top-0 z-40 shadow-lg">
-          <div className="mx-auto px-3 sm:px-4 lg:px-6 py-2 sm:py-3 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg flex-shrink-0">
-                <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <div className="flex flex-col gap-0.5 min-w-0">
-                <h1 className="text-sm font-bold text-white leading-tight">AI Interview</h1>
-                <p className="text-xs font-semibold text-emerald-300">{jobDetails?.jobTitle || "Position"}</p>
-                <p className="text-xs text-slate-400">{jobDetails?.company || "Company"}</p>
-              </div>
-            </div>
-            <div className="w-full sm:w-auto sm:ml-auto flex items-center justify-end gap-2">
-              <Button size="icon" variant="ghost" className={`rounded-lg transition-all duration-300 hover:scale-110 ${micOn ? "bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400" : "bg-red-600/20 hover:bg-red-600/40 text-red-400"}`} onClick={toggleMic}>
-                {micOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
-              </Button>
-              <Button size="icon" variant="ghost" className={`rounded-lg transition-all duration-300 hover:scale-110 ${camOn ? "bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400" : "bg-red-600/20 hover:bg-red-600/40 text-red-400"}`} onClick={toggleCam}>
-                {camOn ? <VideoIcon className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
-              </Button>
-              <Button size="icon" className="rounded-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg transition-all duration-300 hover:scale-110" onClick={handleEndClick}>
-                <PhoneOff className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
-        </header>
-
-        {/* Main Content */}
-        <main className="flex items-start justify-center px-3 sm:px-4 lg:px-6 py-2 sm:py-3">
-          <div className="w-full max-w-4xl">
-            <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-black aspect-[4/3] sm:aspect-video group">
+      <div className="h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col overflow-hidden">
+                
+        
+        {/* Main Content - Teams Layout */}
+        <main className="flex items-start justify-between gap-4 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 h-full">
+          {/* Main Video - Left Side */}
+          <div className="flex-1 h-full">
+            <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-black h-full aspect-video">
               <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 to-black">
                 <video ref={userVideoRef} className={`block w-full h-full object-cover object-center transition-opacity duration-300 ${camOn ? "opacity-100" : "opacity-30"}`} style={{ transform: "scaleX(-1)" }} muted playsInline autoPlay />
                 {!camOn && (
@@ -946,7 +913,7 @@ Once the candidate answers the LAST question:
                 </div>
               </div>
 
-              {/* Timer/Status */}
+              {/* Interview Timer */}
               <div className="absolute top-3 right-3 sm:top-6 sm:right-6 flex flex-col items-end gap-2 z-40">
                 {isInterviewClosing && closingCountdown !== null ? (
                   <div className="bg-amber-600/90 backdrop-blur-md border border-amber-500/50 text-white text-xs px-4 py-2 rounded-lg font-medium animate-pulse">
@@ -955,14 +922,108 @@ Once the candidate answers the LAST question:
                   </div>
                 ) : (
                   <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700/50 text-white text-xs px-4 py-2 rounded-lg font-medium">
-                    <span className="text-slate-400">Status: </span>
-                    <span className="text-emerald-400 font-semibold">Recording</span>
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-shrink-0">
+                        <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                        <div className="absolute inset-0 h-2 w-2 rounded-full bg-emerald-500 animate-ping opacity-75"></div>
+                      </div>
+                      <span className="text-emerald-400 font-semibold">{interviewStartTime ? Math.floor((Date.now() - interviewStartTime) / 60000) : 0}:{interviewStartTime ? String(Math.floor(((Date.now() - interviewStartTime) % 60000) / 1000)).padStart(2, '0') : '00'}</span>
+                    </div>
                   </div>
                 )}
               </div>
             </div>
+          </div>
 
-              {/* Instructions below video - Removed to save space */}
+          {/* Live Interview Card - Right Side */}
+          <div className="w-[280px] flex-shrink-0">
+            <div className="bg-[#0b1220]/80 backdrop-blur-xl rounded-2xl shadow-lg shadow-blue-500/10 border border-white/10 p-4 h-full">
+              {/* Header with LIVE indicator and controls */}
+              <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <div className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse"></div>
+                    <div className="absolute inset-0 h-2.5 w-2.5 rounded-full bg-red-500 animate-ping opacity-75"></div>
+                  </div>
+                  <p className="text-sm text-white font-semibold tracking-wide">LIVE INTERVIEW</p>
+                </div>
+                
+                {/* Control Buttons - Now in header */}
+                <div className="flex items-center gap-2">
+                  <Button 
+                    size="icon" 
+                    className={`w-8 h-8 rounded-full transition-all duration-200 hover:scale-105 ${
+                      micOn 
+                        ? "bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 hover:border-green-500/40" 
+                        : "bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 hover:border-red-500/40"
+                    }`} 
+                    onClick={toggleMic}
+                  >
+                    {micOn ? <Mic className="h-3 w-3 text-green-400" /> : <MicOff className="h-3 w-3 text-red-400" />}
+                  </Button>
+                  <Button 
+                    size="icon" 
+                    className={`w-8 h-8 rounded-full transition-all duration-200 hover:scale-105 ${
+                      camOn 
+                        ? "bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 hover:border-green-500/40" 
+                        : "bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 hover:border-red-500/40"
+                    }`} 
+                    onClick={toggleCam}
+                  >
+                    {camOn ? <VideoIcon className="h-3 w-3 text-green-400" /> : <VideoOff className="h-3 w-3 text-red-400" />}
+                  </Button>
+                  <Button 
+                    size="icon" 
+                    className="w-8 h-8 rounded-full bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 hover:border-red-500/40 transition-all duration-200 hover:scale-105" 
+                    onClick={handleEndClick}
+                  >
+                    <PhoneOff className="h-3 w-3 text-red-400" />
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Interview Details Cards */}
+              <div className="space-y-3">
+                {/* Position Card */}
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 backdrop-blur-md transition-all duration-200 hover:border-blue-500/30 hover:bg-blue-500/15">
+                  <div className="h-10 w-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="h-5 w-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-white/60 font-medium">Position</p>
+                    <p className="text-sm text-white font-semibold truncate">{jobDetails?.jobTitle || "Position"}</p>
+                  </div>
+                </div>
+                
+                {/* Company Card */}
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-green-500/10 border border-green-500/20 backdrop-blur-md transition-all duration-200 hover:border-green-500/30 hover:bg-green-500/15">
+                  <div className="h-10 w-10 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-white/60 font-medium">Company</p>
+                    <p className="text-sm text-white font-semibold truncate">{jobDetails?.company || "Company"}</p>
+                  </div>
+                </div>
+                
+                {/* Candidate Card */}
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20 backdrop-blur-md transition-all duration-200 hover:border-purple-500/30 hover:bg-purple-500/15">
+                  <div className="h-10 w-10 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="h-5 w-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-white/60 font-medium">Candidate</p>
+                    <p className="text-sm text-white font-semibold truncate">{jobDetails?.candidateName || "Candidate"}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </main>
       </div>

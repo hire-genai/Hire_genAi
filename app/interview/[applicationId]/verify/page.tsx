@@ -890,20 +890,12 @@ export default function InterviewVerifyPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50">
-      <div className="max-w-xl mx-auto px-4 py-12">
+    <div className="h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50 overflow-hidden">
+      <div className="max-w-xl mx-auto px-4 h-full flex flex-col justify-center">
         
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-100 mb-4">
-            <Shield className="w-8 h-8 text-emerald-600" />
-          </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Identity Verification</h1>
-          <p className="text-slate-600 mt-2">Please complete the verification to start your interview</p>
-        </div>
-
+        
         {/* Progress Steps */}
-        <div className="flex items-center justify-center gap-4 mb-8">
+        <div className="flex items-center justify-center gap-4 mb-4">
           <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
             currentStep === 1 
               ? 'bg-emerald-100 text-emerald-700 ring-2 ring-emerald-500' 
@@ -932,14 +924,14 @@ export default function InterviewVerifyPage() {
           
           {/* Step 1: OTP Verification */}
           {currentStep === 1 && (
-            <div className="p-8">
-              <div className="text-center mb-6">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-100 mb-4">
-                  <Mail className="w-6 h-6 text-emerald-600" />
+            <div className="p-6">
+              <div className="text-center mb-4">
+                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-emerald-100 mb-3">
+                  <Mail className="w-5 h-5 text-emerald-600" />
                 </div>
-                <h2 className="text-xl font-semibold text-slate-900">Email Verification</h2>
+                <h2 className="text-lg font-semibold text-slate-900">Email Verification</h2>
                 {otpSent && maskedEmail && (
-                  <p className="text-slate-600 mt-2">
+                  <p className="text-slate-600 mt-1 text-sm">
                     We've sent a 6-digit code to <span className="font-medium text-slate-900">{maskedEmail}</span>
                   </p>
                 )}
@@ -1016,13 +1008,13 @@ export default function InterviewVerifyPage() {
 
           {/* Step 2: Photo Verification */}
           {currentStep === 2 && (
-            <div className="p-8">
-              <div className="text-center mb-6">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-100 mb-4">
-                  <Camera className="w-6 h-6 text-emerald-600" />
+            <div className="p-6">
+              <div className="text-center mb-4">
+                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-emerald-100 mb-3">
+                  <Camera className="w-5 h-5 text-emerald-600" />
                 </div>
-                <h2 className="text-xl font-semibold text-slate-900">Photo Verification</h2>
-                <p className="text-slate-600 mt-2">
+                <h2 className="text-lg font-semibold text-slate-900">Photo Verification</h2>
+                <p className="text-slate-600 mt-1 text-sm">
                   Take a photo to verify your identity
                 </p>
               </div>
@@ -1062,7 +1054,7 @@ export default function InterviewVerifyPage() {
                           faceStatus === 'ready' ? 'ring-4 ring-emerald-500' : 
                           faceStatus === 'poor_lighting' ? 'ring-4 ring-red-500' : 'ring-4 ring-amber-400'
                         }`} 
-                        style={{ width: '220px', height: '280px', borderRadius: '50%' }}
+                        style={{ width: '180px', height: '240px', borderRadius: '50%' }}
                       >
                         <video
                           ref={videoRef}
@@ -1122,33 +1114,33 @@ export default function InterviewVerifyPage() {
                   <div className="flex flex-col items-center">
                     {/* Side by Side Photo Comparison */}
                     {storedPhotoUrl && (
-                      <div className="flex items-center gap-4 mb-4">
+                      <div className="flex items-center gap-3 mb-3">
                         {/* Stored Photo (from application) */}
                         <div className="flex flex-col items-center">
-                          <p className="text-xs text-slate-500 mb-2">Application Photo</p>
-                          <div className="relative overflow-hidden ring-2 ring-slate-300" style={{ width: '100px', height: '100px', borderRadius: '50%' }}>
+                          <p className="text-xs text-slate-500 mb-1">Application Photo</p>
+                          <div className="relative overflow-hidden ring-2 ring-slate-300" style={{ width: '80px', height: '80px', borderRadius: '50%' }}>
                             <img src={storedPhotoUrl} alt="Application" style={{ width: '100%', height: '100%', objectFit: 'cover' }} crossOrigin="anonymous" />
                           </div>
                         </div>
 
                         {/* VS indicator - NO percentages shown */}
                         <div className="flex flex-col items-center">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ${
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
                             faceMatchStatus === 'matched' ? 'bg-emerald-500 text-white' :
                             faceMatchStatus === 'not_matched' ? 'bg-red-500 text-white' :
                             faceMatchStatus === 'comparing' ? 'bg-blue-500 text-white' :
                             'bg-slate-200 text-slate-600'
                           }`}>
-                            {faceMatchStatus === 'comparing' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
-                             faceMatchStatus === 'matched' ? <Check className="w-5 h-5" /> :
-                             faceMatchStatus === 'not_matched' ? <AlertTriangle className="w-5 h-5" /> : 'VS'}
+                            {faceMatchStatus === 'comparing' ? <Loader2 className="w-3 h-3 animate-spin" /> : 
+                             faceMatchStatus === 'matched' ? <Check className="w-4 h-4" /> :
+                             faceMatchStatus === 'not_matched' ? <AlertTriangle className="w-4 h-4" /> : 'VS'}
                           </div>
                         </div>
 
                         {/* Captured Photo (current) */}
                         <div className="flex flex-col items-center">
-                          <p className="text-xs text-slate-500 mb-2">Current Photo</p>
-                          <div className="relative overflow-hidden ring-2 ring-emerald-500" style={{ width: '100px', height: '100px', borderRadius: '50%' }}>
+                          <p className="text-xs text-slate-500 mb-1">Current Photo</p>
+                          <div className="relative overflow-hidden ring-2 ring-emerald-500" style={{ width: '80px', height: '80px', borderRadius: '50%' }}>
                             <img src={capturedPhoto} alt="Captured" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           </div>
                         </div>
@@ -1157,48 +1149,48 @@ export default function InterviewVerifyPage() {
 
                     {/* Single photo if no stored photo */}
                     {!storedPhotoUrl && (
-                      <div className="relative overflow-hidden ring-4 ring-emerald-500 mb-4" style={{ width: '150px', height: '150px', borderRadius: '50%' }}>
+                      <div className="relative overflow-hidden ring-4 ring-emerald-500 mb-3" style={{ width: '120px', height: '120px', borderRadius: '50%' }}>
                         <img src={capturedPhoto} alt="Captured" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       </div>
                     )}
 
                     {/* Match Status */}
                     {faceMatchStatus === 'comparing' && (
-                      <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg mb-3">
+                      <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg mb-2">
                         <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
                         <p className="text-sm text-blue-700">Comparing faces...</p>
                       </div>
                     )}
 
                     {faceMatchStatus === 'matched' && (
-                      <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg mb-3">
+                      <div className="flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded-lg mb-2">
                         <Check className="w-4 h-4 text-emerald-500" />
                         <p className="text-sm text-emerald-700 font-medium">Face verified successfully!</p>
                       </div>
                     )}
 
                     {faceMatchStatus === 'not_matched' && (
-                      <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-3">
+                      <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg mb-2">
                         <AlertTriangle className="w-4 h-4 text-red-500" />
                         <p className="text-sm text-red-700">Face does not match the application photo</p>
                       </div>
                     )}
 
                     {faceMatchStatus === 'no_stored_photo' && (
-                      <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3">
+                      <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg mb-2">
                         <AlertTriangle className="w-4 h-4 text-amber-500" />
                         <p className="text-sm text-amber-700">No application photo found - verification will be skipped</p>
                       </div>
                     )}
 
                     {photoError && faceMatchStatus !== 'not_matched' && (
-                      <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-3 max-w-xs">
-                        <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                      <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg mb-2 max-w-xs">
+                        <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
                         <p className="text-sm text-red-700">{photoError}</p>
                       </div>
                     )}
 
-                    <div className="flex gap-3 mt-2">
+                    <div className="flex gap-2 mt-1">
                       <Button
                         variant="outline"
                         size="sm"
@@ -1232,23 +1224,23 @@ export default function InterviewVerifyPage() {
 
                 {/* Photo Verified Success */}
                 {photoVerified && (
-                  <div className="flex flex-col items-center py-4">
-                    <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
-                      <Check className="w-8 h-8 text-emerald-600" />
+                  <div className="flex flex-col items-center py-3">
+                    <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mb-3">
+                      <Check className="w-6 h-6 text-emerald-600" />
                     </div>
-                    <p className="text-emerald-700 font-semibold text-lg">Verification Complete!</p>
-                    <p className="text-slate-500 text-sm mt-1">
+                    <p className="text-emerald-700 font-semibold text-base">Verification Complete!</p>
+                    <p className="text-slate-500 text-xs mt-1">
                       {photoSkipped ? 'Redirecting to interview...' : 'Identity verified. Redirecting to interview...'}
                     </p>
-                    <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mt-4" />
+                    <Loader2 className="w-5 h-5 text-emerald-600 animate-spin mt-2" />
                   </div>
                 )}
 
                 {/* Initial state - no camera */}
                 {!isCameraOpen && !capturedPhoto && !photoVerified && (
-                  <div className="flex flex-col items-center py-4">
-                    <div className="w-24 h-24 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center mb-4">
-                      <User className="w-12 h-12 text-slate-300" />
+                  <div className="flex flex-col items-center py-3">
+                    <div className="w-20 h-20 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center mb-3">
+                      <User className="w-10 h-10 text-slate-300" />
                     </div>
                     <Button
                       onClick={startCamera}
@@ -1262,14 +1254,6 @@ export default function InterviewVerifyPage() {
               </div>
             </div>
           )}
-        </div>
-
-        {/* Security Note */}
-        <div className="mt-6 text-center">
-          <div className="inline-flex items-center gap-2 text-xs text-slate-400">
-            <Lock className="w-3 h-3" />
-            <span>Your data is encrypted and secure</span>
-          </div>
         </div>
 
         {/* Hidden Canvas */}

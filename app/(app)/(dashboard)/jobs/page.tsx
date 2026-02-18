@@ -30,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useMobileMenu } from '@/components/dashboard/mobile-menu-context'
 import { JobPostingForm } from '@/components/dashboard/job-posting-form'
 import { useAuth } from '@/contexts/auth-context'
+import { CardLoader, ErrorState } from '@/components/ui/skeleton-loader'
 
 type JobStatusType = 'all' | 'open' | 'closed' | 'onhold' | 'cancelled' | 'draft'
 type UserRole = 'recruiter' | 'admin' | 'manager' | 'director'
@@ -521,29 +522,13 @@ export default function JobsPage() {
 			{/* Jobs List - Mobile Responsive */}
 			<div className="space-y-2 md:space-y-3">
 				{isLoading ? (
-					<Card className="p-8 text-center">
-						<div className="text-gray-500">
-							<Loader2 className="h-8 w-8 mx-auto mb-3 animate-spin text-blue-600" />
-							<p className="text-base font-medium">Loading jobs...</p>
-						</div>
-					</Card>
+					<div className="space-y-3">
+						<CardLoader />
+						<CardLoader />
+						<CardLoader />
+					</div>
 				) : error ? (
-					<Card className="p-6 text-center">
-						<div className="text-red-500">
-							<XCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
-							<p className="text-base font-medium">Failed to load jobs</p>
-							<p className="text-sm mt-1">{error}</p>
-							<Button 
-								variant="outline" 
-								size="sm" 
-								className="mt-3"
-								onClick={fetchJobs}
-							>
-								<RefreshCw className="h-3 w-3 mr-1" />
-								Try Again
-							</Button>
-						</div>
-					</Card>
+					<ErrorState message={error} onRetry={fetchJobs} />
 				) : filteredJobs.length === 0 ? (
 					<Card className="p-6 text-center">
 						<div className="text-gray-500">

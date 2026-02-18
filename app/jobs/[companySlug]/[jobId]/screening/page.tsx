@@ -331,6 +331,15 @@ export default function ScreeningPage() {
 
       if (result.eligible) {
         setScreeningResult({ eligible: true, message: result.message })
+        // Save screening data to sessionStorage for pre-filling apply page
+        sessionStorage.setItem(`screening_${jobId}`, JSON.stringify({
+          candidateName: answers.candidateName,
+          candidateEmail: answers.candidateEmail,
+          experience: answers.experience,
+          expectedSalary: answers.expectedSalary,
+          noticePeriod: answers.noticePeriod,
+          workAuthorization: answers.workAuthorization
+        }))
         setTimeout(() => {
           router.push(`/apply/${companySlug}/${jobId}`)
         }, 2000)

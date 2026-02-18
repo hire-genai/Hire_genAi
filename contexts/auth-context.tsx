@@ -171,6 +171,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setCompany(newCompany)
               console.log("✅ Restored session for:", currentUser.user.email)
               console.log("📱 Restored phone number:", newUser.phone)
+
+              // Fetch real role from database to override cached mock role
+              try {
+                const profileRes = await fetch(`/api/settings/profile?email=${encodeURIComponent(currentUser.user.email)}`)
+                const profileData = await profileRes.json()
+                if (profileData.user?.role) {
+                  console.log("🔄 Syncing role from DB:", profileData.user.role)
+                  setUser(prev => prev ? { ...prev, role: profileData.user.role } : prev)
+                  // Also update mock auth so it persists across refreshes
+                  MockAuthService.setSessionFromServer(
+                    { ...currentUser.user, role: profileData.user.role },
+                    currentUser.company
+                  )
+                }
+              } catch (e) {
+                console.log("⚠️ Could not sync role from DB:", e)
+              }
             }
           } else {
             console.log("ℹ️ No existing session found")

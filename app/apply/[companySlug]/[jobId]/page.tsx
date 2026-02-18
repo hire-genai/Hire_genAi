@@ -72,6 +72,9 @@ export default function ApplyPage() {
     { language: '', proficiency: '' }
   ])
 
+  // Track if data came from screening page (fields should be read-only)
+  const [fromScreening, setFromScreening] = useState(false)
+
   const languageOptions = [
     'English', 'Hindi', 'Spanish', 'French', 'German', 'Chinese (Mandarin)',
     'Japanese', 'Korean', 'Arabic', 'Portuguese', 'Russian', 'Italian',
@@ -113,6 +116,35 @@ export default function ApplyPage() {
       fetchJob()
     }
   }, [companySlug, jobId])
+
+  // Load screening data from sessionStorage if coming from screening page
+  useEffect(() => {
+    if (jobId) {
+      const screeningData = sessionStorage.getItem(`screening_${jobId}`)
+      if (screeningData) {
+        try {
+          const parsed = JSON.parse(screeningData)
+          // Split candidateName into firstName and lastName
+          const nameParts = (parsed.candidateName || '').trim().split(' ')
+          const firstName = nameParts[0] || ''
+          const lastName = nameParts.slice(1).join(' ') || ''
+          
+          setFormData(prev => ({
+            ...prev,
+            firstName,
+            lastName,
+            email: parsed.candidateEmail || '',
+            expectedSalary: parsed.expectedSalary || '',
+          }))
+          setFromScreening(true)
+          // Clear the sessionStorage after reading
+          sessionStorage.removeItem(`screening_${jobId}`)
+        } catch (e) {
+          console.error('Failed to parse screening data:', e)
+        }
+      }
+    }
+  }, [jobId])
 
   const addLanguage = () => {
     setLanguages([...languages, { language: '', proficiency: '' }])
@@ -393,15 +425,15 @@ export default function ApplyPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label htmlFor="firstName" className="text-xs">First name *</Label>
-                <Input id="firstName" value={formData.firstName} onChange={(e) => setFormData(p => ({ ...p, firstName: e.target.value }))} placeholder="John" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
+                <Input id="firstName" value={formData.firstName} onChange={(e) => setFormData(p => ({ ...p, firstName: e.target.value }))} placeholder="John" className={`h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 ${fromScreening ? 'bg-slate-100 cursor-not-allowed' : ''}`} required disabled={isSubmitting} readOnly={fromScreening} />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="lastName" className="text-xs">Last name *</Label>
-                <Input id="lastName" value={formData.lastName} onChange={(e) => setFormData(p => ({ ...p, lastName: e.target.value }))} placeholder="Doe" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
+                <Input id="lastName" value={formData.lastName} onChange={(e) => setFormData(p => ({ ...p, lastName: e.target.value }))} placeholder="Doe" className={`h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 ${fromScreening ? 'bg-slate-100 cursor-not-allowed' : ''}`} required disabled={isSubmitting} readOnly={fromScreening} />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="email" className="text-xs">Email *</Label>
-                <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))} placeholder="you@example.com" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
+                <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))} placeholder="you@example.com" className={`h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 ${fromScreening ? 'bg-slate-100 cursor-not-allowed' : ''}`} required disabled={isSubmitting} readOnly={fromScreening} />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="phone" className="text-xs">Phone *</Label>
@@ -415,7 +447,7 @@ export default function ApplyPage() {
                     <option value="EUR">EUR</option>
                     <option value="INR">INR</option>
                   </select>
-                  <Input inputMode="decimal" value={formData.expectedSalary} onChange={(e) => setFormData(p => ({ ...p, expectedSalary: e.target.value }))} placeholder="1000" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
+                  <Input inputMode="decimal" value={formData.expectedSalary} onChange={(e) => setFormData(p => ({ ...p, expectedSalary: e.target.value }))} placeholder="1000" className={`h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 ${fromScreening ? 'bg-slate-100 cursor-not-allowed' : ''}`} required disabled={isSubmitting} readOnly={fromScreening} />
                   <span className="flex items-center text-xs text-slate-500">/month</span>
                 </div>
               </div>

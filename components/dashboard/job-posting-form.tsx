@@ -81,6 +81,8 @@ type JobFormData = {
   enableScreeningQuestions: boolean
   screeningQuestions: {
     minExperience: string
+    maxExperience: string
+    experienceType: 'range' | 'single' | ''
     expectedSkills: string[]
     expectedSalary: string
     noticePeriodNegotiable: boolean | null
@@ -111,17 +113,37 @@ const DIFFICULTY_WEIGHTS: Record<QuestionDifficulty, number> = {
   Low: 1,
 }
 
-// Calculate dynamic marks so total always equals 100
+// Calculate dynamic marks so total always equals exactly 100 (integers only)
 function calculateDynamicMarks(questions: { difficulty: QuestionDifficulty }[]): Map<number, number> {
   const marksMap = new Map<number, number>()
   if (questions.length === 0) return marksMap
   
   const totalWeight = questions.reduce((sum, q) => sum + DIFFICULTY_WEIGHTS[q.difficulty], 0)
-  const markPerWeight = totalWeight > 0 ? 100 / totalWeight : 0
+  if (totalWeight === 0) return marksMap
+  
+  // Calculate base marks (floored) and track remainder
+  let totalAssigned = 0
+  const baseMarks: number[] = []
+  const remainders: { index: number; remainder: number }[] = []
   
   questions.forEach((q, index) => {
-    const marks = Math.round(DIFFICULTY_WEIGHTS[q.difficulty] * markPerWeight * 100) / 100
-    marksMap.set(index, marks)
+    const exactMarks = (DIFFICULTY_WEIGHTS[q.difficulty] / totalWeight) * 100
+    const floored = Math.floor(exactMarks)
+    baseMarks.push(floored)
+    totalAssigned += floored
+    remainders.push({ index, remainder: exactMarks - floored })
+  })
+  
+  // Distribute remaining points to questions with highest remainders
+  let remaining = 100 - totalAssigned
+  remainders.sort((a, b) => b.remainder - a.remainder)
+  
+  for (let i = 0; i < remaining && i < remainders.length; i++) {
+    baseMarks[remainders[i].index] += 1
+  }
+  
+  questions.forEach((_, index) => {
+    marksMap.set(index, baseMarks[index])
   })
   
   return marksMap
@@ -133,16 +155,15 @@ function getQuestionMarks(questions: { difficulty: QuestionDifficulty }[], index
   return marksMap.get(index) || 0
 }
 
-// Recalculate marks for all questions (total = 100)
+// Recalculate marks for all questions (total = exactly 100, integers only)
 function recalculateAllMarks<T extends { difficulty: QuestionDifficulty; marks: number }>(questions: T[]): T[] {
   if (questions.length === 0) return questions
   
-  const totalWeight = questions.reduce((sum, q) => sum + DIFFICULTY_WEIGHTS[q.difficulty], 0)
-  const markPerWeight = totalWeight > 0 ? 100 / totalWeight : 0
+  const marksMap = calculateDynamicMarks(questions)
   
-  return questions.map(q => ({
+  return questions.map((q, index) => ({
     ...q,
-    marks: Math.round(DIFFICULTY_WEIGHTS[q.difficulty] * markPerWeight * 100) / 100
+    marks: marksMap.get(index) || 0
   }))
 }
 
@@ -151,6 +172,37 @@ const DIFFICULTY_MARKS: Record<QuestionDifficulty, number> = {
   High: 15,
   Medium: 10,
   Low: 5,
+}
+
+// Parse experience years to determine if it's a range or single value
+function parseExperienceYears(experienceYears: string): { type: 'range' | 'single' | ''; min: string; max: string } {
+  if (!experienceYears) return { type: '', min: '', max: '' }
+  
+  // Convert to lowercase and trim for consistent parsing
+  const normalized = experienceYears.toLowerCase().trim()
+  
+  // Check for range pattern: "0-2 years", "1-3 years", "2-5 years", etc.
+  // More flexible regex that works with or without "years" text and spaces
+  const rangeMatch = normalized.match(/(\d+)\s*-\s*(\d+)/)
+  if (rangeMatch) {
+    return { type: 'range', min: rangeMatch[1], max: rangeMatch[2] }
+  }
+  
+  // Check for "15+ years" pattern or "15 years+" or "minimum 15 years"
+  const plusMatch = normalized.match(/(\d+)\+|\+(\d+)|minimum\s+(\d+)|at least\s+(\d+)/)
+  if (plusMatch) {
+    // Find the first non-undefined capture group
+    const minValue = plusMatch.slice(1).find(val => val !== undefined)
+    return { type: 'single', min: minValue || '', max: '' }
+  }
+  
+  // Check for single number pattern: "2 years", "3 years", etc.
+  const singleMatch = normalized.match(/(\d+)/)
+  if (singleMatch) {
+    return { type: 'single', min: singleMatch[1], max: '' }
+  }
+  
+  return { type: '', min: '', max: '' }
 }
 
 const DIFFICULTY_COLORS: Record<QuestionDifficulty, { bg: string; text: string; border: string }> = {
@@ -246,6 +298,8 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
     enableScreeningQuestions: false,
     screeningQuestions: {
       minExperience: '',
+      maxExperience: '',
+      experienceType: '' as 'range' | 'single' | '',
       expectedSkills: [] as string[],
       expectedSalary: '',
       noticePeriodNegotiable: null,
@@ -582,15 +636,20 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
       status,
       // Merge fetched values into screeningQuestions before saving
       screeningQuestions: formData.enableScreeningQuestions
-        ? {
-            ...formData.screeningQuestions,
-            minExperience: formData.screeningQuestions.minExperience || formData.experienceYears,
-            expectedSalary: formData.screeningQuestions.expectedSalary || formData.salaryMax,
-            expectedSkills:
-              formData.screeningQuestions.expectedSkills.length > 0
-                ? formData.screeningQuestions.expectedSkills
-                : formData.requiredSkills.filter((s: string) => s.trim()),
-          }
+        ? (() => {
+            const parsed = parseExperienceYears(formData.experienceYears)
+            return {
+              ...formData.screeningQuestions,
+              minExperience: formData.screeningQuestions.minExperience || parsed.min,
+              maxExperience: parsed.type === 'range' ? (formData.screeningQuestions.maxExperience || parsed.max) : '',
+              experienceType: formData.screeningQuestions.experienceType || parsed.type,
+              expectedSalary: formData.screeningQuestions.expectedSalary || formData.salaryMax,
+              expectedSkills:
+                formData.screeningQuestions.expectedSkills.length > 0
+                  ? formData.screeningQuestions.expectedSkills
+                  : formData.requiredSkills.filter((s: string) => s.trim()),
+            }
+          })()
         : formData.screeningQuestions,
       selectedCriteria,
       interviewQuestions,
@@ -917,13 +976,14 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     Years of Experience Required <span className="text-red-500">*</span>
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     value={formData.experienceYears}
                     onChange={(e) => updateField('experienceYears', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    placeholder="e.g. 5"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                    placeholder="e.g. 0-2 years, 3-5 years, 2+ years"
                     required
                   />
+                  <p className="text-xs text-gray-500 mt-1">Enter a range (e.g. "0-2 years") or minimum (e.g. "3+ years")</p>
                 </div>
 
                 <div>
@@ -1007,17 +1067,20 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     const isSelected = selectedCriteria.includes(criterion)
                     const isDisabled = !isSelected && selectedCriteria.length >= 5
                     
+                    // In view mode, only show selected criteria (hide unselected ones)
+                    if (isViewMode && !isSelected) return null
+                    
                     return (
                       <div
                         key={criterion}
-                        onClick={() => !isDisabled && toggleCriterionSelection(criterion)}
-                        className={`px-3 py-1.5 border rounded-md cursor-pointer transition-all text-sm ${
+                        onClick={() => !isDisabled && !isViewMode && toggleCriterionSelection(criterion)}
+                        className={`px-3 py-1.5 border rounded-md transition-all text-sm ${
                           isSelected
-                            ? 'bg-blue-600 border-blue-600 text-white'
+                            ? 'bg-emerald-600 border-emerald-600 text-white'
                             : isDisabled
                             ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                            : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400 hover:bg-blue-50'
-                        }`}
+                            : 'bg-white border-gray-300 text-gray-700 hover:border-emerald-400 hover:bg-emerald-50'
+                        } ${isViewMode ? '' : 'cursor-pointer'}`}
                       >
                         {criterion}
                       </div>
@@ -1228,33 +1291,85 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                 <div className="space-y-4 p-4 border rounded-lg bg-blue-50/50">
                   <p className="text-xs text-gray-600">These questions will be shown to candidates before they can access the interview.</p>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Year of Experience <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.screeningQuestions.minExperience || formData.experienceYears}
-                        onChange={(e) => updateScreeningField('minExperience', e.target.value)}
-                        className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-                        placeholder="e.g. 3"
-                      />
-                    </div>
+                  {/* Dynamic Experience Fields based on job description */}
+                  {(() => {
+                    const parsed = parseExperienceYears(formData.experienceYears)
+                    const isRange = parsed.type === 'range'
+                    
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {isRange ? (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Min Experience (Years) <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                value={formData.screeningQuestions.minExperience || parsed.min}
+                                onChange={(e) => {
+                                  updateScreeningField('minExperience', e.target.value)
+                                  updateScreeningField('experienceType', 'range')
+                                }}
+                                className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                                placeholder="e.g. 0"
+                                min="0"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">Candidate must have at least this many years</p>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Max Experience (Years) <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                value={formData.screeningQuestions.maxExperience || parsed.max}
+                                onChange={(e) => {
+                                  updateScreeningField('maxExperience', e.target.value)
+                                  updateScreeningField('experienceType', 'range')
+                                }}
+                                className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                                placeholder="e.g. 2"
+                                min="0"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">Candidate must have at most this many years</p>
+                            </div>
+                          </>
+                        ) : (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Min Experience (Years) <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              value={formData.screeningQuestions.minExperience || parsed.min}
+                              onChange={(e) => {
+                                updateScreeningField('minExperience', e.target.value)
+                                updateScreeningField('experienceType', 'single')
+                              }}
+                              className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                              placeholder="e.g. 3"
+                              min="0"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Candidate must have at least this many years (no upper limit)</p>
+                          </div>
+                        )}
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Max Salary Offer <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.screeningQuestions.expectedSalary || formData.salaryMax}
-                        onChange={(e) => updateScreeningField('expectedSalary', e.target.value)}
-                        className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-                        placeholder="e.g. 80000"
-                      />
-                    </div>
-                  </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Max Salary Offer <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="number"
+                            value={formData.screeningQuestions.expectedSalary || formData.salaryMax}
+                            onChange={(e) => updateScreeningField('expectedSalary', e.target.value)}
+                            className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                            placeholder="e.g. 80000"
+                          />
+                        </div>
+                      </div>
+                    )
+                  })()}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1686,12 +1801,13 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     onClick={() => {
                       if (currentStep === 1 && !isBasicInfoValid) return
                       if (currentStep === 2 && !isJobDescriptionValid) return
+                      if (currentStep === 3 && interviewQuestions.length < 5) return
                       setCurrentStep(currentStep + 1)
                     }}
-                    disabled={(currentStep === 1 && !isBasicInfoValid) || (currentStep === 2 && !isJobDescriptionValid)}
+                    disabled={(currentStep === 1 && !isBasicInfoValid) || (currentStep === 2 && !isJobDescriptionValid) || (currentStep === 3 && interviewQuestions.length < 5)}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Next
+                    {currentStep === 3 && interviewQuestions.length < 5 ? `Next (${interviewQuestions.length}/5 questions)` : 'Next'}
                   </Button>
                 ) : (
                   <Button onClick={() => handleSubmit(false)} disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white">

@@ -109,6 +109,18 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'User does not exist. Please sign up first before trying to login.' }, { status: 400 })
       }
 
+      // Fetch user role from user_roles table
+      let userRole: string | undefined
+      try {
+        const roleRows = await DatabaseService.query(
+          `SELECT role FROM user_roles WHERE user_id = $1::uuid ORDER BY granted_at DESC LIMIT 1`,
+          [user.id]
+        ) as any[]
+        userRole = roleRows[0]?.role
+      } catch (e) {
+        console.log('Could not fetch user role:', e)
+      }
+
       // Create session
       const { session, refreshToken } = await DatabaseService.createSession('user', user.id)
 
@@ -119,6 +131,7 @@ export async function POST(req: NextRequest) {
           email: user.email,
           full_name: user.full_name,
           status: user.status,
+          role: userRole,
         },
         company: {
           id: user.companies.id,

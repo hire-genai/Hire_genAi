@@ -9,26 +9,55 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Users, Filter, Plus, Mail, Phone, Calendar, X, Send, Briefcase, Target, TrendingUp, Clock, Upload, FileSpreadsheet } from 'lucide-react'
-import { useState } from 'react'
-
-const availableJDs = [
-  { id: '1', title: 'Senior Full Stack Developer', department: 'Engineering', location: 'Remote' },
-  { id: '2', title: 'Product Manager', department: 'Product', location: 'New York' },
-  { id: '3', title: 'UX Designer', department: 'Design', location: 'San Francisco' },
-  { id: '4', title: 'DevOps Engineer', department: 'Engineering', location: 'Remote' },
-  { id: '5', title: 'Data Scientist', department: 'Analytics', location: 'Boston' },
-]
+import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '@/contexts/auth-context'
+import { StatCardGridLoader, TalentPoolTableLoader, ErrorState } from '@/components/ui/skeleton-loader'
 
 type UserRole = 'recruiter' | 'admin' | 'manager' | 'director'
 
-const recruiters = [
-  { id: '1', name: 'Sarah Johnson' },
-  { id: '2', name: 'Mike Davis' },
-  { id: '3', name: 'Emily Chen' },
-  { id: '4', name: 'John Williams' },
-]
+interface TalentPoolEntry {
+  poolId: string
+  candidateId: string
+  name: string
+  position: string
+  email: string
+  phone: string
+  location: string
+  currentCompany: string
+  experienceYears: number | null
+  linkedinUrl: string
+  resumeUrl: string
+  photoUrl: string
+  addedDate: string
+  source: string
+  status: string
+  lastContact: string
+  skills: string[]
+  cvScore: string | null
+  interviewScore: string | null
+  rejectionStage: string | null
+  rejectionReason: string | null
+  addedByName: string | null
+  notes: string
+  history: Array<{ date: string; event: string; description: string; source?: string; stage?: string }>
+}
 
-const emailTemplates = {
+interface TalentPoolData {
+  entries: TalentPoolEntry[]
+  stats: {
+    total: number
+    activeInterest: number
+    passive: number
+    byPosition: number
+    bySource: { referral: number; linkedin: number; pastApplication: number }
+    recentlyContacted: number
+    avgSkillsPerCandidate: string
+  }
+  availableJDs: Array<{ id: string; title: string; department: string; location: string }>
+  recruiters: Array<{ id: string; name: string }>
+}
+
+const emailTemplates: Record<string, { subject: string; body: string }> = {
   jd: {
     subject: 'Exciting New Opportunity at [Company Name]',
     body: `Hi [Candidate Name],
@@ -110,64 +139,14 @@ Warm regards,
   }
 }
 
-const talentPoolData = [
-  { name: 'Sarah Martinez', position: 'Senior Developer', addedDate: 'Dec 15, 2023', source: 'Referral', status: 'Active Interest', lastContact: 'Jan 10, 2024', email: 'sarah.m@email.com', phone: '+1 555-0123', skills: ['React', 'Node.js', 'TypeScript'], history: [
-    { date: 'Dec 15, 2023', event: 'Added to Talent Pool', description: 'Referred by John Smith from Engineering team. Strong technical background.', source: 'Referral' },
-    { date: 'Dec 20, 2023', event: 'Email Sent', description: 'Sent greeting email to establish connection' },
-    { date: 'Jan 10, 2024', event: 'Email Sent', description: 'Shared Senior Developer position opening' },
-    { date: 'Jan 12, 2024', event: 'Response Received', description: 'Expressed interest in future opportunities' }
-  ]},
-  { name: 'Kevin Lee', position: 'Product Manager', addedDate: 'Nov 20, 2023', source: 'Past Application', status: 'Passive', lastContact: 'Dec 5, 2023', email: 'kevin.l@email.com', phone: '+1 555-0124', skills: ['Product Strategy', 'Agile', 'Analytics'],
-    cvScore: '85/100', interviewScore: '88/100', rejectionStage: 'HM Review', rejectionReason: 'Position filled by internal candidate',
-    history: [
-      { date: 'Oct 15, 2023', event: 'Application Submitted', description: 'Applied for Senior Product Manager position', stage: 'New Applications' },
-      { date: 'Oct 18, 2023', event: 'CV Screening', description: 'CV Score: 85/100 - Strong product strategy experience', stage: 'Screening' },
-      { date: 'Oct 25, 2023', event: 'AI Interview', description: 'Interview Score: 88/100 - Excellent communication and leadership skills', stage: 'Shortlisted' },
-      { date: 'Nov 5, 2023', event: 'Hiring Manager Review', description: 'HM provided positive feedback but position was filled internally', stage: 'HM Review' },
-      { date: 'Nov 20, 2023', event: 'Moved to Talent Pool', description: 'Strong candidate for future PM opportunities. Rejected from current role due to internal hire.', stage: 'Talent Pool' }
-    ]
-  },
-  { name: 'Nina Patel', position: 'UX Designer', addedDate: 'Jan 5, 2024', source: 'LinkedIn', status: 'Active Interest', lastContact: 'Jan 20, 2024', email: 'nina.p@email.com', phone: '+1 555-0125', skills: ['Figma', 'UI/UX', 'Prototyping'] },
-  { name: 'Marcus Johnson', position: 'Data Scientist', addedDate: 'Dec 1, 2023', source: 'Referral', status: 'Active Interest', lastContact: 'Jan 15, 2024', email: 'marcus.j@email.com', phone: '+1 555-0126', skills: ['Python', 'ML', 'SQL'] },
-  { name: 'Elena Rodriguez', position: 'DevOps Engineer', addedDate: 'Nov 15, 2023', source: 'Past Application', status: 'Passive', lastContact: 'Dec 20, 2023', email: 'elena.r@email.com', phone: '+1 555-0127', skills: ['AWS', 'Docker', 'Kubernetes'],
-    cvScore: '92/100', interviewScore: '90/100', rejectionStage: 'Offer Stage', rejectionReason: 'Candidate declined offer - salary expectations not met',
-    history: [
-      { date: 'Sep 10, 2023', event: 'Application Submitted', description: 'Applied for Senior DevOps Engineer position', stage: 'New Applications' },
-      { date: 'Sep 12, 2023', event: 'CV Screening', description: 'CV Score: 92/100 - Exceptional AWS and container orchestration experience', stage: 'Screening' },
-      { date: 'Sep 20, 2023', event: 'AI Interview', description: 'Interview Score: 90/100 - Strong technical knowledge and problem-solving', stage: 'Shortlisted' },
-      { date: 'Oct 15, 2023', event: 'Offer Extended', description: 'Offer: $115,000 + benefits', stage: 'Offer Stage' },
-      { date: 'Nov 1, 2023', event: 'Offer Declined', description: 'Candidate seeking $130,000+ compensation', stage: 'Offer Stage' },
-      { date: 'Nov 15, 2023', event: 'Moved to Talent Pool', description: 'Excellent candidate for future senior roles with appropriate compensation', stage: 'Talent Pool' }
-    ]
-  },
-  { name: 'James Wilson', position: 'Full Stack Developer', addedDate: 'Jan 10, 2024', source: 'LinkedIn', status: 'Active Interest', lastContact: 'Jan 25, 2024', email: 'james.w@email.com', phone: '+1 555-0128', skills: ['JavaScript', 'Python', 'MongoDB'] },
-  { name: 'Olivia Chen', position: 'Marketing Manager', addedDate: 'Dec 10, 2023', source: 'Referral', status: 'Passive', lastContact: 'Jan 5, 2024', email: 'olivia.c@email.com', phone: '+1 555-0129', skills: ['Digital Marketing', 'SEO', 'Content Strategy'] },
-  { name: 'Daniel Kim', position: 'Backend Engineer', addedDate: 'Nov 25, 2023', source: 'Past Application', status: 'Active Interest', lastContact: 'Jan 18, 2024', email: 'daniel.k@email.com', phone: '+1 555-0130', skills: ['Java', 'Spring Boot', 'PostgreSQL'],
-    cvScore: '88/100', interviewScore: '87/100', rejectionStage: 'Shortlisted', rejectionReason: 'Timeline mismatch - candidate had 3-month notice period',
-    history: [
-      { date: 'Oct 1, 2023', event: 'Application Submitted', description: 'Applied for Backend Engineer position', stage: 'New Applications' },
-      { date: 'Oct 5, 2023', event: 'CV Screening', description: 'CV Score: 88/100 - Solid Java and Spring Boot experience', stage: 'Screening' },
-      { date: 'Oct 20, 2023', event: 'AI Interview', description: 'Interview Score: 87/100 - Good technical skills and system design knowledge', stage: 'Shortlisted' },
-      { date: 'Nov 10, 2023', event: 'Application Withdrawn', description: 'Candidate has 3-month notice period, position needed immediate start', stage: 'Shortlisted' },
-      { date: 'Nov 25, 2023', event: 'Moved to Talent Pool', description: 'Strong technical candidate, good fit for roles with flexible start dates', stage: 'Talent Pool' },
-      { date: 'Jan 18, 2024', event: 'Email Sent', description: 'Reached out about new Backend Engineer openings' }
-    ]
-  },
-  { name: 'Sophia Brown', position: 'Product Designer', addedDate: 'Jan 1, 2024', source: 'LinkedIn', status: 'Active Interest', lastContact: 'Jan 22, 2024', email: 'sophia.b@email.com', phone: '+1 555-0131', skills: ['Sketch', 'Design Systems', 'User Research'] },
-  { name: 'Ryan Thompson', position: 'QA Engineer', addedDate: 'Dec 5, 2023', source: 'Referral', status: 'Passive', lastContact: 'Dec 28, 2023', email: 'ryan.t@email.com', phone: '+1 555-0132', skills: ['Automation Testing', 'Selenium', 'Cypress'] },
-  { name: 'Aisha Patel', position: 'Frontend Developer', addedDate: 'Jan 8, 2024', source: 'LinkedIn', status: 'Active Interest', lastContact: 'Jan 26, 2024', email: 'aisha.p@email.com', phone: '+1 555-0133', skills: ['Vue.js', 'CSS', 'Responsive Design'] },
-  { name: 'Michael Zhang', position: 'Security Engineer', addedDate: 'Nov 30, 2023', source: 'Past Application', status: 'Passive', lastContact: 'Jan 2, 2024', email: 'michael.z@email.com', phone: '+1 555-0134', skills: ['Cybersecurity', 'Penetration Testing', 'Network Security'],
-    cvScore: '91/100', interviewScore: 'N/A', rejectionStage: 'Screening', rejectionReason: 'Overqualified for the position level',
-    history: [
-      { date: 'Nov 1, 2023', event: 'Application Submitted', description: 'Applied for Security Engineer (Mid-level) position', stage: 'New Applications' },
-      { date: 'Nov 5, 2023', event: 'CV Screening', description: 'CV Score: 91/100 - Extensive senior-level security experience', stage: 'Screening' },
-      { date: 'Nov 10, 2023', event: 'Screening Review', description: 'Candidate experience exceeds position requirements significantly', stage: 'Screening' },
-      { date: 'Nov 30, 2023', event: 'Moved to Talent Pool', description: 'Overqualified for mid-level role. Perfect candidate for senior security positions.', stage: 'Talent Pool' }
-    ]
-  }
-]
+// Data is now fetched from API
 
 export default function TalentPoolPage() {
+  const { company } = useAuth()
+  const [poolData, setPoolData] = useState<TalentPoolData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'Active Interest' | 'Passive'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [skillFilter, setSkillFilter] = useState('')
@@ -199,16 +178,44 @@ export default function TalentPoolPage() {
     linkedIn: '',
     notes: ''
   })
-  const [showBulkEmail, setShowBulkEmail] = useState(false) // Declare setShowBulkEmail here
+  const [showBulkEmail, setShowBulkEmail] = useState(false)
+
+  const fetchTalentPool = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const params = company?.id ? `?companyId=${company.id}` : ''
+      const res = await fetch(`/api/talent-pool${params}`)
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || 'Failed to fetch talent pool data')
+      }
+      const json = await res.json()
+      setPoolData(json.data)
+    } catch (err: any) {
+      setError(err.message || 'Failed to load talent pool')
+    } finally {
+      setLoading(false)
+    }
+  }, [company?.id])
+
+  useEffect(() => {
+    fetchTalentPool()
+  }, [fetchTalentPool])
 
   // Permission check - only recruiters can modify
   const canModify = viewAsRole === 'recruiter'
 
-  // Extract unique values for filters
-  const allPositions = [...new Set(talentPoolData.map(c => c.position))]
-  const allSources = [...new Set(talentPoolData.map(c => c.source))]
+  // Use fetched data or empty arrays
+  const talentPoolEntries = poolData?.entries || []
+  const availableJDs = poolData?.availableJDs || []
+  const recruiters = poolData?.recruiters || []
 
-  const filteredCandidates = talentPoolData.filter(candidate => {
+  // Extract unique values for filters
+  const allPositions = [...new Set(talentPoolEntries.map(c => c.position))]
+  const allSources = [...new Set(talentPoolEntries.map(c => c.source))]
+
+  const filteredCandidates = talentPoolEntries.filter(candidate => {
     const matchesStatus = selectedStatus === 'all' || candidate.status === selectedStatus
     const matchesSearch = searchQuery === '' || 
       candidate.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -221,23 +228,14 @@ export default function TalentPoolPage() {
     return matchesStatus && matchesSearch && matchesSkill && matchesPosition && matchesSource
   })
 
-  const stats = {
-    total: talentPoolData.length,
-    activeInterest: talentPoolData.filter(c => c.status === 'Active Interest').length,
-    passive: talentPoolData.filter(c => c.status === 'Passive').length,
-    byPosition: [...new Set(talentPoolData.map(c => c.position))].length,
-    bySource: {
-      referral: talentPoolData.filter(c => c.source === 'Referral').length,
-      linkedin: talentPoolData.filter(c => c.source === 'LinkedIn').length,
-      pastApplication: talentPoolData.filter(c => c.source === 'Past Application').length,
-    },
-    recentlyContacted: talentPoolData.filter(c => {
-      const contactDate = new Date(c.lastContact)
-      const now = new Date()
-      const daysDiff = Math.floor((now.getTime() - contactDate.getTime()) / (1000 * 60 * 60 * 24))
-      return daysDiff <= 7
-    }).length,
-    avgSkillsPerCandidate: (talentPoolData.reduce((sum, c) => sum + c.skills.length, 0) / talentPoolData.length).toFixed(1),
+  const stats = poolData?.stats || {
+    total: 0,
+    activeInterest: 0,
+    passive: 0,
+    byPosition: 0,
+    bySource: { referral: 0, linkedin: 0, pastApplication: 0 },
+    recentlyContacted: 0,
+    avgSkillsPerCandidate: '0',
   }
 
   return (
@@ -293,7 +291,19 @@ export default function TalentPoolPage() {
         </div>
       </div>
 
+      {/* Loading State */}
+      {loading && (
+        <>
+          <StatCardGridLoader count={6} />
+          <TalentPoolTableLoader rows={6} />
+        </>
+      )}
+
+      {/* Error State */}
+      {!loading && error && <ErrorState message={error} onRetry={fetchTalentPool} />}
+
       {/* Enhanced Stats Dashboard */}
+      {!loading && !error && (<>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         <Card className="p-2">
           <div className="flex items-center justify-between">
@@ -310,7 +320,7 @@ export default function TalentPoolPage() {
             <div className="flex-1">
               <p className="text-xs text-gray-600">Active Interest</p>
               <p className="text-xl font-bold text-green-600">{stats.activeInterest}</p>
-              <p className="text-[10px] text-gray-500 mt-0.5">{((stats.activeInterest/stats.total)*100).toFixed(0)}% of pool</p>
+              <p className="text-[10px] text-gray-500 mt-0.5">{stats.total > 0 ? ((stats.activeInterest/stats.total)*100).toFixed(0) : 0}% of pool</p>
             </div>
             <Target className="h-6 w-6 text-green-600" />
           </div>
@@ -320,7 +330,7 @@ export default function TalentPoolPage() {
             <div className="flex-1">
               <p className="text-xs text-gray-600">Passive</p>
               <p className="text-xl font-bold text-gray-600">{stats.passive}</p>
-              <p className="text-[10px] text-gray-500 mt-0.5">{((stats.passive/stats.total)*100).toFixed(0)}% of pool</p>
+              <p className="text-[10px] text-gray-500 mt-0.5">{stats.total > 0 ? ((stats.passive/stats.total)*100).toFixed(0) : 0}% of pool</p>
             </div>
             <Users className="h-6 w-6 text-gray-600" />
           </div>
@@ -605,6 +615,7 @@ export default function TalentPoolPage() {
           </div>
         </div>
       </Card>
+      </>)}
 
       {/* Send Email Dialog */}
       {showEmailDialog && (

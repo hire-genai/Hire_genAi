@@ -1,6 +1,6 @@
 'use client'
 
-import { Card } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,10 +21,47 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Settings, User, Bell, Lock, Building2, Users, CreditCard, Plus, Trash2, Edit, Mail } from 'lucide-react'
-import { useState } from 'react'
+import { Settings, User, Bell, Lock, Building2, Users, CreditCard, Plus, Trash2, Edit, Mail, MapPin, FileText, CheckCircle2, Loader2 } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '@/contexts/auth-context'
 
-type UserRole = 'admin' | 'director' | 'manager' | 'recruiter'
+// Industries list (same as signup)
+const industries = [
+  "Technology",
+  "Healthcare",
+  "Finance",
+  "Education",
+  "Retail",
+  "Manufacturing",
+  "Hospitality",
+  "Other",
+]
+
+// Company sizes list (same as signup)
+const companySizes = [
+  "1-10 employees",
+  "11-50 employees",
+  "51-200 employees",
+  "201-500 employees",
+  "501-1000 employees",
+  "1000+ employees",
+]
+
+// Country options (same as signup)
+const countryOptions = [
+  { name: "United States", code: "US" },
+  { name: "India", code: "IN" },
+  { name: "United Kingdom", code: "GB" },
+  { name: "Canada", code: "CA" },
+  { name: "Australia", code: "AU" },
+  { name: "Germany", code: "DE" },
+  { name: "France", code: "FR" },
+  { name: "Singapore", code: "SG" },
+  { name: "UAE", code: "AE" },
+  { name: "Other", code: "XX" },
+]
+
+type UserRole = 'admin' | 'director' | 'manager' | 'recruiter' | 'hiring_manager' | 'viewer' | string
 type SettingsTab = 'profile' | 'company' | 'users' | 'payment' | 'notifications'
 
 interface TeamUser {
@@ -37,6 +74,7 @@ interface TeamUser {
 }
 
 export default function SettingsPage() {
+  const { user, company } = useAuth()
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
   const [emailNotifications, setEmailNotifications] = useState(true)
   const [pushNotifications, setPushNotifications] = useState(true)
@@ -47,31 +85,317 @@ export default function SettingsPage() {
   const [showAddPaymentDialog, setShowAddPaymentDialog] = useState(false)
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
 
-  const [teamUsers] = useState<TeamUser[]>([
-    { id: '1', name: 'John Doe', email: 'john@company.com', role: 'admin', status: 'active', addedDate: '2024-01-15' },
-    { id: '2', name: 'Sarah Johnson', email: 'sarah@company.com', role: 'manager', status: 'active', addedDate: '2024-01-20' },
-    { id: '3', name: 'Mike Davis', email: 'mike@company.com', role: 'recruiter', status: 'active', addedDate: '2024-02-01' },
-  ])
+  // Loading states
+  const [loadingProfile, setLoadingProfile] = useState(false)
+  const [loadingCompany, setLoadingCompany] = useState(false)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [savingCompany, setSavingCompany] = useState(false)
 
-  const handleAddUser = () => {
+  // Profile form state
+  const [profileForm, setProfileForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    role: '',
+    bio: '',
+  })
+
+  // Company form state (matching signup structure)
+  const [companyForm, setCompanyForm] = useState({
+    // Step 1: Company Information
+    companyName: '',
+    industry: '',
+    companySize: '',
+    website: '',
+    companyDescription: '',
+    // Step 2: Contact Information
+    street: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    country: '',
+    phone: '',
+    // Step 3: Legal Information
+    legalCompanyName: '',
+    taxId: '',
+    registrationNumber: '',
+  })
+
+  // Team users state - fetched from database
+  const [teamUsers, setTeamUsers] = useState<TeamUser[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [addingUser, setAddingUser] = useState(false)
+
+  // Fetch profile data
+  const fetchProfileData = useCallback(async () => {
+    if (!user?.id && !user?.email) return
+    setLoadingProfile(true)
+    try {
+      // Use email for lookup (more reliable with mock auth system)
+      const params = new URLSearchParams()
+      if (user?.email) params.append('email', user.email)
+      if (user?.id) params.append('userId', user.id)
+      
+      const res = await fetch(`/api/settings/profile?${params.toString()}`)
+      const data = await res.json()
+      console.log('📋 [SETTINGS] Profile data received:', data)
+      
+      if (data.user) {
+        // Use database data
+        const u = data.user
+        const fullName = u.full_name || ''
+        const spaceIdx = fullName.indexOf(' ')
+        const firstName = spaceIdx >= 0 ? fullName.substring(0, spaceIdx) : fullName
+        const lastName = spaceIdx >= 0 ? fullName.substring(spaceIdx + 1) : ''
+        setProfileForm({
+          firstName,
+          lastName,
+          email: u.email || '',
+          role: u.role || u.job_title || '',
+          bio: '',
+        })
+      } else if (user) {
+        // Fallback to auth context data when user not in database
+        const fullName = user.full_name || ''
+        const spaceIdx = fullName.indexOf(' ')
+        const firstName = spaceIdx >= 0 ? fullName.substring(0, spaceIdx) : fullName
+        const lastName = spaceIdx >= 0 ? fullName.substring(spaceIdx + 1) : ''
+        setProfileForm({
+          firstName,
+          lastName,
+          email: user.email || '',
+          role: user.role || '',
+          bio: '',
+        })
+      }
+    } catch (error) {
+      console.error('Failed to fetch profile:', error)
+      // Fallback to auth context data on error
+      if (user) {
+        const fullName = user.full_name || ''
+        const spaceIdx = fullName.indexOf(' ')
+        const firstName = spaceIdx >= 0 ? fullName.substring(0, spaceIdx) : fullName
+        const lastName = spaceIdx >= 0 ? fullName.substring(spaceIdx + 1) : ''
+        setProfileForm({
+          firstName,
+          lastName,
+          email: user.email || '',
+          role: user.role || '',
+          bio: '',
+        })
+      }
+    } finally {
+      setLoadingProfile(false)
+    }
+  }, [user])
+
+  // Fetch company data
+  const fetchCompanyData = useCallback(async () => {
+    if (!company?.id) return
+    setLoadingCompany(true)
+    try {
+      const res = await fetch(`/api/settings/company?companyId=${company.id}`)
+      const data = await res.json()
+      if (data.company) {
+        const c = data.company
+        console.log('📋 [SETTINGS] Company data received:', c)
+        setCompanyForm({
+          companyName: c.name || '',
+          industry: c.industry || '',
+          companySize: c.companySize || '',
+          website: c.website || '',
+          companyDescription: c.description || '',
+          street: c.street || '',
+          city: c.city || '',
+          state: c.state || '',
+          postalCode: c.postalCode || '',
+          country: c.country || '',
+          phone: c.phone || '',
+          legalCompanyName: c.legalCompanyName || '',
+          taxId: c.taxId || '',
+          registrationNumber: c.registrationNumber || '',
+        })
+      }
+    } catch (error) {
+      console.error('Failed to fetch company:', error)
+    } finally {
+      setLoadingCompany(false)
+    }
+  }, [company?.id])
+
+  // Fetch team users
+  const fetchTeamUsers = useCallback(async () => {
+    if (!company?.id) return
+    setLoadingUsers(true)
+    try {
+      const res = await fetch(`/api/settings/users?companyId=${company.id}`)
+      const data = await res.json()
+      console.log('👥 [SETTINGS] Team users received:', data)
+      if (data.users) {
+        setTeamUsers(data.users)
+      }
+    } catch (error) {
+      console.error('Failed to fetch team users:', error)
+    } finally {
+      setLoadingUsers(false)
+    }
+  }, [company?.id])
+
+  // Fetch data on mount and tab change
+  useEffect(() => {
+    if (activeTab === 'profile') {
+      fetchProfileData()
+    } else if (activeTab === 'company') {
+      fetchCompanyData()
+    } else if (activeTab === 'users') {
+      fetchTeamUsers()
+    }
+  }, [activeTab, fetchProfileData, fetchCompanyData, fetchTeamUsers])
+
+  // Save profile
+  const handleSaveProfile = async () => {
+    if (!user?.id) return
+    setSavingProfile(true)
+    try {
+      const res = await fetch('/api/settings/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          full_name: `${profileForm.firstName} ${profileForm.lastName}`.trim(),
+        }),
+      })
+      if (res.ok) {
+        alert('Profile updated successfully!')
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to update profile')
+      }
+    } catch (error) {
+      console.error('Failed to save profile:', error)
+      alert('Failed to update profile')
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  // Save company (only editable fields)
+  const handleSaveCompany = async () => {
+    if (!company?.id) return
+    setSavingCompany(true)
+    try {
+      // Only send editable fields (non-mandatory ones)
+      const res = await fetch('/api/settings/company', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: company.id,
+          // Editable fields only
+          website_url: companyForm.website,
+          description_md: companyForm.companyDescription,
+          phone: companyForm.phone,
+          tax_id: companyForm.taxId,
+          registration_number: companyForm.registrationNumber,
+          // Address fields
+          street: companyForm.street,
+          city: companyForm.city,
+          state: companyForm.state,
+          postal_code: companyForm.postalCode,
+          country: companyForm.country,
+        }),
+      })
+      if (res.ok) {
+        alert('Company profile updated successfully!')
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to update company profile')
+      }
+    } catch (error) {
+      console.error('Failed to save company:', error)
+      alert('Failed to update company profile')
+    } finally {
+      setSavingCompany(false)
+    }
+  }
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`Are you sure you want to remove ${userName} from the team?`)) return
+
+    try {
+      const res = await fetch(`/api/settings/users?userId=${userId}`, {
+        method: 'DELETE',
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error || 'Failed to delete user')
+        return
+      }
+      alert(data.message || `${userName} has been removed.`)
+      await fetchTeamUsers()
+    } catch (error) {
+      console.error('Failed to delete user:', error)
+      alert('Failed to delete user. Please try again.')
+    }
+  }
+
+  const handleAddUser = async () => {
     if (!newUser.name || !newUser.email) {
       alert('Please fill in all required fields')
       return
     }
-    console.log('[v0] Adding user:', newUser)
-    alert(`User invitation sent to ${newUser.email}`)
-    setShowAddUserDialog(false)
-    setNewUser({ name: '', email: '', role: 'recruiter' })
+    if (!company?.id) {
+      alert('Company information not available')
+      return
+    }
+
+    setAddingUser(true)
+    try {
+      console.log('👥 [SETTINGS] Adding user:', newUser)
+      const res = await fetch('/api/settings/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role,
+          companyId: company.id,
+          adminUserId: user?.id
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        alert(data.error || 'Failed to add user')
+        return
+      }
+
+      console.log('✅ [SETTINGS] User added:', data)
+      alert(data.message || `User ${newUser.name} has been added successfully!`)
+      
+      // Refresh the users list
+      await fetchTeamUsers()
+      
+      setShowAddUserDialog(false)
+      setNewUser({ name: '', email: '', role: 'recruiter' })
+    } catch (error) {
+      console.error('Failed to add user:', error)
+      alert('Failed to add user. Please try again.')
+    } finally {
+      setAddingUser(false)
+    }
   }
 
-  const getRoleBadgeColor = (role: UserRole) => {
-    const colors = {
+  const getRoleBadgeColor = (role: string) => {
+    const colors: Record<string, string> = {
       admin: 'bg-red-100 text-red-800',
       director: 'bg-purple-100 text-purple-800',
       manager: 'bg-blue-100 text-blue-800',
+      hiring_manager: 'bg-blue-100 text-blue-800',
       recruiter: 'bg-green-100 text-green-800',
+      viewer: 'bg-gray-100 text-gray-800',
     }
-    return colors[role]
+    return colors[role] || 'bg-gray-100 text-gray-700'
   }
 
   const handleCancelSubscription = () => {
@@ -182,178 +506,310 @@ export default function SettingsPage() {
                 <h2 className="text-xl font-semibold">Profile Settings</h2>
               </div>
 
-              <div className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name</Label>
-                    <Input id="firstName" defaultValue="John" />
+              {loadingProfile ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">First Name</Label>
+                      <Input 
+                        id="firstName" 
+                        value={profileForm.firstName}
+                        onChange={(e) => setProfileForm(prev => ({ ...prev, firstName: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Last Name</Label>
+                      <Input 
+                        id="lastName" 
+                        value={profileForm.lastName}
+                        onChange={(e) => setProfileForm(prev => ({ ...prev, lastName: e.target.value }))}
+                      />
+                    </div>
                   </div>
+
                   <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <Input id="lastName" defaultValue="Doe" />
+                    <Label htmlFor="email">Email</Label>
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      value={profileForm.email}
+                      disabled
+                      className="bg-gray-50"
+                    />
+                    <p className="text-xs text-gray-500">Email cannot be changed</p>
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" defaultValue="john@company.com" />
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Role</Label>
+                    <Input 
+                      id="role" 
+                      value={profileForm.role || 'Not assigned'}
+                      disabled 
+                      className="bg-gray-50"
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Input id="role" defaultValue="HR Manager" disabled />
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bio">Bio</Label>
+                    <Textarea 
+                      id="bio" 
+                      placeholder="Tell us about yourself..." 
+                      rows={3}
+                      value={profileForm.bio}
+                      onChange={(e) => setProfileForm(prev => ({ ...prev, bio: e.target.value }))}
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="bio">Bio</Label>
-                  <Textarea id="bio" placeholder="Tell us about yourself..." rows={3} />
+                  <Button 
+                    className="w-full sm:w-auto" 
+                    onClick={handleSaveProfile}
+                    disabled={savingProfile}
+                  >
+                    {savingProfile ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Changes'
+                    )}
+                  </Button>
                 </div>
-
-                <Button className="w-full sm:w-auto">Save Changes</Button>
-              </div>
+              )}
             </Card>
           )}
 
-          {/* Company Profile */}
+          {/* Company Profile - Signup Style UI */}
           {activeTab === 'company' && (
             <>
-              <Card className="p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <Building2 className="h-6 w-6 text-blue-600" />
-                  <h2 className="text-xl font-semibold">Company Information</h2>
+              {loadingCompany ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
                 </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Section 1: Company Information (same as signup step 1) */}
+                  <Card className="sr-card">
+                    <CardHeader className="text-center">
+                      <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center">
+                        <Building2 className="w-6 h-6 text-emerald-600" />
+                      </div>
+                      <CardTitle className="text-2xl">Company Information</CardTitle>
+                      <CardDescription>Tell us about your company and what you do</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="companyName">Company Name *</Label>
+                          <Input 
+                            id="companyName" 
+                            value={companyForm.companyName}
+                            disabled
+                            className="sr-input bg-gray-50"
+                          />
+                          <p className="text-xs text-gray-500">Cannot be changed after signup</p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="industry">Industry *</Label>
+                          <Select value={companyForm.industry} disabled>
+                            <SelectTrigger id="industry" className="sr-select w-full bg-gray-50">
+                              <SelectValue placeholder="Select industry" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {industries.map((i) => (
+                                <SelectItem key={i} value={i}>{i}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-gray-500">Cannot be changed after signup</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="companySize">Company Size *</Label>
+                          <Select value={companyForm.companySize} disabled>
+                            <SelectTrigger id="companySize" className="sr-select w-full bg-gray-50">
+                              <SelectValue placeholder="Select company size" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {companySizes.map((s) => (
+                                <SelectItem key={s} value={s}>{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-gray-500">Cannot be changed after signup</p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="website">Website</Label>
+                          <Input 
+                            id="website" 
+                            placeholder="https://www.example.com" 
+                            value={companyForm.website}
+                            onChange={(e) => setCompanyForm(prev => ({ ...prev, website: e.target.value }))}
+                            className="sr-input" 
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="companyDescription">Company Description</Label>
+                        <Textarea 
+                          id="companyDescription" 
+                          placeholder="Brief description of your company and what you do..." 
+                          value={companyForm.companyDescription}
+                          onChange={(e) => setCompanyForm(prev => ({ ...prev, companyDescription: e.target.value }))}
+                          className="sr-input" 
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
 
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="companyName">Company Name <span className="text-red-500">*</span></Label>
-                    <Input id="companyName" defaultValue="Tech Solutions Inc." />
-                  </div>
+                  {/* Section 2: Contact Information (same as signup step 2) */}
+                  <Card className="sr-card">
+                    <CardHeader className="text-center">
+                      <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center">
+                        <MapPin className="w-6 h-6 text-blue-600" />
+                      </div>
+                      <CardTitle className="text-2xl">Contact Information</CardTitle>
+                      <CardDescription>Where is your company located?</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="street">Street Address *</Label>
+                        <Input 
+                          id="street" 
+                          value={companyForm.street}
+                          disabled
+                          className="sr-input bg-gray-50" 
+                        />
+                        <p className="text-xs text-gray-500">Cannot be changed after signup</p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="city">City *</Label>
+                          <Input 
+                            id="city" 
+                            value={companyForm.city}
+                            disabled
+                            className="sr-input bg-gray-50" 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="state">State/Province *</Label>
+                          <Input 
+                            id="state" 
+                            value={companyForm.state}
+                            disabled
+                            className="sr-input bg-gray-50" 
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="postalCode">ZIP/Postal Code *</Label>
+                          <Input 
+                            id="postalCode" 
+                            value={companyForm.postalCode}
+                            disabled
+                            className="sr-input bg-gray-50" 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="country">Country *</Label>
+                          <Select value={companyForm.country} disabled>
+                            <SelectTrigger id="country" className="sr-select w-full bg-gray-50">
+                              <SelectValue placeholder="Select country" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {countryOptions.map((c) => (
+                                <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="phone">Phone Number</Label>
+                        <Input 
+                          id="phone" 
+                          placeholder="+1 (555) 123-4567" 
+                          value={companyForm.phone}
+                          onChange={(e) => setCompanyForm(prev => ({ ...prev, phone: e.target.value }))}
+                          className="sr-input" 
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
 
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="industry">Industry</Label>
-                      <Select defaultValue="technology">
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="technology">Technology</SelectItem>
-                          <SelectItem value="finance">Finance</SelectItem>
-                          <SelectItem value="healthcare">Healthcare</SelectItem>
-                          <SelectItem value="retail">Retail</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="companySize">Company Size</Label>
-                      <Select defaultValue="50-200">
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1-10">1-10 employees</SelectItem>
-                          <SelectItem value="11-50">11-50 employees</SelectItem>
-                          <SelectItem value="51-200">51-200 employees</SelectItem>
-                          <SelectItem value="201-500">201-500 employees</SelectItem>
-                          <SelectItem value="501+">501+ employees</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
+                  {/* Section 3: Legal Information (same as signup step 3) */}
+                  <Card className="sr-card">
+                    <CardHeader className="text-center">
+                      <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center">
+                        <FileText className="w-6 h-6 text-indigo-600" />
+                      </div>
+                      <CardTitle className="text-2xl">Legal Information</CardTitle>
+                      <CardDescription>Legal details for compliance and verification</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="legalCompanyName">Legal Company Name *</Label>
+                        <Input 
+                          id="legalCompanyName" 
+                          value={companyForm.legalCompanyName}
+                          disabled
+                          className="sr-input bg-gray-50" 
+                        />
+                        <p className="text-xs text-gray-500">Cannot be changed after signup</p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="taxId">Tax ID / EIN</Label>
+                          <Input 
+                            id="taxId" 
+                            value={companyForm.taxId}
+                            onChange={(e) => setCompanyForm(prev => ({ ...prev, taxId: e.target.value }))}
+                            className="sr-input" 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="registrationNumber">Business Registration Number</Label>
+                          <Input 
+                            id="registrationNumber" 
+                            value={companyForm.registrationNumber}
+                            onChange={(e) => setCompanyForm(prev => ({ ...prev, registrationNumber: e.target.value }))}
+                            className="sr-input" 
+                          />
+                        </div>
+                      </div>
+                      <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 flex items-start gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" />
+                        This information is used for verification purposes and is kept secure and confidential.
+                      </div>
+                    </CardContent>
+                  </Card>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="website">Website</Label>
-                    <Input id="website" type="url" placeholder="https://www.example.com" defaultValue="https://techsolutions.com" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Company Description</Label>
-                    <Textarea id="description" rows={3} placeholder="Brief description of your company..." defaultValue="Leading technology solutions provider specializing in AI and cloud services." />
+                  {/* Save Button */}
+                  <div className="flex justify-end">
+                    <Button 
+                      onClick={handleSaveCompany}
+                      disabled={savingCompany}
+                      className="w-full sm:w-auto"
+                    >
+                      {savingCompany ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        'Save Company Profile'
+                      )}
+                    </Button>
                   </div>
                 </div>
-              </Card>
-
-              <Card className="p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <Mail className="h-6 w-6 text-blue-600" />
-                  <h2 className="text-xl font-semibold">Contact Information</h2>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="contactEmail">Contact Email <span className="text-red-500">*</span></Label>
-                      <Input id="contactEmail" type="email" defaultValue="info@techsolutions.com" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone Number</Label>
-                      <Input id="phone" type="tel" defaultValue="+1 (555) 123-4567" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="address">Address</Label>
-                    <Input id="address" defaultValue="123 Business Ave, Suite 100" />
-                  </div>
-
-                  <div className="grid md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="city">City</Label>
-                      <Input id="city" defaultValue="San Francisco" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="state">State/Province</Label>
-                      <Input id="state" defaultValue="CA" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="zipCode">ZIP/Postal Code</Label>
-                      <Input id="zipCode" defaultValue="94102" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="country">Country</Label>
-                    <Select defaultValue="us">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="us">United States</SelectItem>
-                        <SelectItem value="uk">United Kingdom</SelectItem>
-                        <SelectItem value="ca">Canada</SelectItem>
-                        <SelectItem value="au">Australia</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <Lock className="h-6 w-6 text-blue-600" />
-                  <h2 className="text-xl font-semibold">Legal Information</h2>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="taxId">Tax ID / EIN</Label>
-                    <Input id="taxId" defaultValue="12-3456789" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="registrationNumber">Business Registration Number</Label>
-                    <Input id="registrationNumber" defaultValue="REG-2024-00123" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="legalName">Legal Entity Name</Label>
-                    <Input id="legalName" defaultValue="Tech Solutions Incorporated" />
-                  </div>
-
-                  <Button className="w-full sm:w-auto">Save Company Profile</Button>
-                </div>
-              </Card>
+              )}
             </>
           )}
 
@@ -384,57 +840,74 @@ export default function SettingsPage() {
                 </ul>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Added</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {teamUsers.map((user) => (
-                      <tr key={user.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-600">{user.email}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Badge className={getRoleBadgeColor(user.role)}>
-                            {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>
-                            {user.status}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {user.addedDate}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex gap-2">
-                            <Button size="sm" variant="outline" className="bg-transparent">
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            {user.role !== 'admin' && (
-                              <Button size="sm" variant="outline" className="bg-transparent text-red-600 hover:text-red-700">
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            )}
-                          </div>
-                        </td>
+              {loadingUsers ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                </div>
+              ) : teamUsers.length === 0 ? (
+                <div className="text-center py-12">
+                  <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">No team members yet</p>
+                  <p className="text-sm text-gray-400 mt-1">Click "Add User" to add your first team member</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Added</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {teamUsers.map((teamUser) => (
+                        <tr key={teamUser.id}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">{teamUser.name}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-600">{teamUser.email}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <Badge className={getRoleBadgeColor(teamUser.role)}>
+                              {teamUser.role.charAt(0).toUpperCase() + teamUser.role.slice(1)}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <Badge variant={teamUser.status === 'active' ? 'default' : 'secondary'}>
+                              {teamUser.status}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {teamUser.addedDate}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" className="bg-transparent">
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              {teamUser.role !== 'admin' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="bg-transparent text-red-600 hover:text-red-700"
+                                  onClick={() => handleDeleteUser(teamUser.id, teamUser.name)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </Card>
           )}
 
@@ -840,14 +1313,23 @@ export default function SettingsPage() {
             </div>
 
             <div className="p-3 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
-              An invitation email will be sent to the user with login instructions.
+              A login email will be sent to the user with their account details.
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddUserDialog(false)} className="bg-transparent">
+            <Button variant="outline" onClick={() => setShowAddUserDialog(false)} className="bg-transparent" disabled={addingUser}>
               Cancel
             </Button>
-            <Button onClick={handleAddUser}>Send Invitation</Button>
+            <Button onClick={handleAddUser} disabled={addingUser}>
+              {addingUser ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Adding User...
+                </>
+              ) : (
+                'Add User'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

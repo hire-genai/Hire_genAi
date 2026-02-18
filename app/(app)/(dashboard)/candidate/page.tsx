@@ -22,6 +22,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { CandidateActionDialog } from '@/components/dashboard/candidate-action-dialogs'
 import { useMobileMenu } from '@/components/dashboard/mobile-menu-context'
 import { useAuth } from '@/contexts/auth-context'
+import { StatCardGridLoader, TableLoader, ErrorState } from '@/components/ui/skeleton-loader'
 
 type BucketType = 'all' | 'screening' | 'interview' | 'hiringManager' | 'offer' | 'hired' | 'rejected'
 
@@ -57,12 +58,21 @@ const defaultBucketStats: Record<string, any> = {
 
 type UserRole = 'recruiter' | 'admin' | 'manager' | 'director'
 
-const recruiters = [
-  { id: '1', name: 'Sarah Johnson' },
-  { id: '2', name: 'Mike Davis' },
-  { id: '3', name: 'Emily Chen' },
-  { id: '4', name: 'John Williams' },
-]
+// Get recruiters from company data instead of hardcoding
+const getRecruiters = (companyData: any) => {
+  if (!companyData?.users?.length) {
+    return [
+      { id: companyData?.user?.id || '1', name: companyData?.user?.name || 'Current User' }
+    ]
+  }
+  
+  return companyData.users
+    .filter((user: any) => user.role === 'recruiter' || user.role === 'admin')
+    .map((user: any) => ({
+      id: user.id,
+      name: user.name
+    }))
+}
 
 export default function CandidatesPage() {
   const { company } = useAuth()
@@ -79,19 +89,22 @@ export default function CandidatesPage() {
   const [skillFilter, setSkillFilter] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [viewAsRole, setViewAsRole] = useState<UserRole>('recruiter')
-  const [viewAsRecruiter, setViewAsRecruiter] = useState('1')
+  const [viewAsRecruiter, setViewAsRecruiter] = useState('')
+  const [recruiters, setRecruiters] = useState<{id: string, name: string}[]>([])
 
   // Data state from API
   const [bucketData, setBucketData] = useState(defaultBucketData)
   const [applicationsData, setApplicationsData] = useState<Record<string, any[]>>(defaultApplicationsData)
   const [bucketStats, setBucketStats] = useState<Record<string, any>>(defaultBucketStats)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   // Fetch data from API
   const fetchCandidates = useCallback(async () => {
     if (!company?.id) return
     try {
       setIsLoading(true)
+      setError(null)
       const res = await fetch(`/api/candidates?companyId=${company.id}`)
       const data = await res.json()
       if (data.ok) {
@@ -107,14 +120,32 @@ export default function CandidatesPage() {
         }))
         setApplicationsData(data.applicationsData || defaultApplicationsData)
         setBucketStats(data.bucketStats || defaultBucketStats)
+      } else {
+        setError(data.error || 'Failed to load candidates')
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch candidates:', err)
+      setError(err.message || 'Failed to load candidates')
     } finally {
       setIsLoading(false)
     }
   }, [company?.id])
 
+  // Initialize recruiters from company data
+  useEffect(() => {
+    if (company) {
+      const companyRecruiters = getRecruiters(company)
+      setRecruiters(companyRecruiters)
+      
+      // Set default recruiter to current user or first in list
+      if (companyRecruiters.length > 0) {
+        // Try to find current user in recruiters list
+        const currentUserRecruiter = companyRecruiters.find(r => r.id === company?.user?.id)
+        setViewAsRecruiter(currentUserRecruiter?.id || companyRecruiters[0].id)
+      }
+    }
+  }, [company])
+  
   useEffect(() => {
     fetchCandidates()
   }, [fetchCandidates])
@@ -590,7 +621,19 @@ export default function CandidatesPage() {
         </div>
       </div>
 
+      {/* Loading State */}
+      {isLoading && (
+        <>
+          <StatCardGridLoader count={7} />
+          <TableLoader rows={6} columns={6} />
+        </>
+      )}
+
+      {/* Error State */}
+      {!isLoading && error && <ErrorState message={error} onRetry={fetchCandidates} />}
+
       {/* Application Buckets - Mobile Responsive */}
+      {!isLoading && !error && (<>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
         {(Object.keys(bucketData) as BucketType[]).map((bucket) => {
           const data = bucketData[bucket]
@@ -675,6 +718,7 @@ export default function CandidatesPage() {
           </div>
         </div>
       </Card>
+      </>)}
 
       {/* Candidate Action Dialog */}
       <CandidateActionDialog
