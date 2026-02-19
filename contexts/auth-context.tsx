@@ -170,7 +170,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setUser(newUser)
               setCompany(newCompany)
               console.log("✅ Restored session for:", currentUser.user.email)
-              console.log("📱 Restored phone number:", newUser.phone)
+
+              // Sync user+company to database on session restore
+              try {
+                await fetch('/api/auth/sync-company', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    company: currentUser.company,
+                    user: { id: currentUser.user.id, email: currentUser.user.email, name: currentUser.user.name, role: currentUser.user.role }
+                  })
+                })
+              } catch (syncErr) {
+                console.warn("⚠️ Failed to sync session to DB:", syncErr)
+              }
 
               // Fetch real role from database to override cached mock role
               try {

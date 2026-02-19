@@ -109,30 +109,6 @@ export async function POST(request: NextRequest) {
       qualified: evaluation.overall.qualified
     })
 
-    // Record CV evaluation usage for billing
-    if (resolvedCompanyId && applicationId) {
-      try {
-        const appInfo = await DatabaseService.query(
-          `SELECT job_id, candidate_id FROM applications WHERE id = $1::uuid`,
-          [applicationId]
-        ) as any[]
-        const jobId = appInfo?.[0]?.job_id
-        const candidateId = appInfo?.[0]?.candidate_id
-        if (jobId) {
-          await DatabaseService.recordCVParsingUsage({
-            companyId: resolvedCompanyId,
-            jobId,
-            candidateId: candidateId || undefined,
-            parseSuccessful: true,
-            successRate: evaluation.overall.score_percent || 0,
-            apiKeySource,
-          })
-          console.log('[CV Evaluator] Usage recorded for billing')
-        }
-      } catch (usageErr) {
-        console.warn('[CV Evaluator] Failed to record usage:', usageErr)
-      }
-    }
 
     // Save evaluation to database if applicationId provided
     if (applicationId) {

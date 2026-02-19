@@ -24,6 +24,8 @@ interface JobData {
   location?: string
   clientCompanyName?: string | null
   description?: string
+  currency?: string
+  applicationDeadline?: string | null
   company: {
     id?: string
     name: string
@@ -104,6 +106,10 @@ export default function ApplyPage() {
         }
 
         setJob(result.data)
+        // Pre-fill currency from job posting
+        if (result.data?.currency) {
+          setFormData(prev => ({ ...prev, expectedCurrency: result.data.currency }))
+        }
       } catch (err) {
         console.error('Error fetching job:', err)
         setError(err instanceof Error ? err.message : 'Failed to load job')

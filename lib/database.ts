@@ -2718,7 +2718,7 @@ export class DatabaseService {
         created_at
       ) VALUES (
         $1::uuid,
-        $2::uuid,
+        CASE WHEN $2::text IS NULL OR $2::text = '' THEN NULL ELSE $2::uuid END,
         $3::ledger_entry_type,
         $4,
         $5,
@@ -2726,7 +2726,7 @@ export class DatabaseService {
         $7,
         $8,
         $9,
-        $10::uuid,
+        CASE WHEN $10::text IS NULL OR $10::text = '' THEN NULL ELSE $10::uuid END,
         $11::jsonb,
         NOW()
       )
@@ -2735,7 +2735,7 @@ export class DatabaseService {
 
     const result = await this.query(query, [
       params.companyId,
-      params.jobId || null,
+      params.jobId || '',
       params.entryType,
       params.description,
       params.quantity || null,
@@ -2743,7 +2743,7 @@ export class DatabaseService {
       params.amount,
       balanceBefore,
       balanceAfter,
-      params.invoiceId || null,
+      params.invoiceId || '',
       JSON.stringify(params.metadata || {})
     ]) as any[]
 
@@ -3376,7 +3376,9 @@ export class DatabaseService {
             balance_before, balance_after,
             reference_id, metadata, created_at
           ) VALUES (
-            $1::uuid, $2::uuid, $3::ledger_entry_type, $4,
+            $1::uuid, 
+            CASE WHEN $2::text IS NULL OR $2::text = '' THEN NULL ELSE $2::uuid END,
+            $3::ledger_entry_type, $4,
             $5, $6, $7,
             $8, $9,
             $10::uuid, $11::jsonb, NOW()
@@ -3386,7 +3388,7 @@ export class DatabaseService {
         
         await this.query(ledgerQuery, [
           data.companyId,
-          data.jobId,
+          data.jobId || '',
           'CV_PARSE',
           `CV parsing - ${data.candidateId ? 'Candidate' : 'File'} processed`,
           1, // quantity (1 CV)
@@ -3456,14 +3458,16 @@ export class DatabaseService {
         total_tokens, question_count, cost, model_used, created_at
       )
       VALUES (
-        $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, NOW()
+        $1::uuid, 
+        CASE WHEN $2::text IS NULL OR $2::text = '' THEN NULL ELSE $2::uuid END,
+        $3, $4, $5, $6, $7, $8, $9, NOW()
       )
       RETURNING *
     `
 
     const result = await this.query(query, [
       data.companyId,
-      data.jobId || null,
+      data.jobId || '',
       data.draftJobId || null,
       data.promptTokens,
       data.completionTokens,
@@ -3482,8 +3486,8 @@ export class DatabaseService {
     // ========================================
     // WALLET DEDUCTION & LEDGER ENTRY
     // ========================================
-    // Only deduct from wallet if this is a real job (not draft)
-    if (data.jobId && !isDraft) {
+    // Deduct from wallet whenever cost > 0 (draft or real job)
+    if (finalCost > 0) {
       try {
         console.log('\n💳 [WALLET] Starting wallet deduction...')
         
@@ -3545,7 +3549,9 @@ export class DatabaseService {
               balance_before, balance_after,
               reference_id, metadata, created_at
             ) VALUES (
-              $1::uuid, $2::uuid, $3::ledger_entry_type, $4,
+              $1::uuid, 
+              CASE WHEN $2::text IS NULL OR $2::text = '' THEN NULL ELSE $2::uuid END,
+              $3::ledger_entry_type, $4,
               $5, $6, $7,
               $8, $9,
               $10::uuid, $11::jsonb, NOW()
@@ -3555,9 +3561,9 @@ export class DatabaseService {
           
           await this.query(ledgerQuery, [
             data.companyId,
-            data.jobId,
+            data.jobId || '',
             'JD_QUESTIONS',
-            `Question generation - ${data.questionCount} questions for job`,
+            `Question generation - ${data.questionCount} questions${data.draftJobId ? ' (draft)' : ''}`,
             data.questionCount, // quantity
             costPer10Questions / 10, // unit price per question
             finalCost, // amount
@@ -3568,7 +3574,8 @@ export class DatabaseService {
               prompt_tokens: data.promptTokens,
               completion_tokens: data.completionTokens,
               total_tokens: totalTokens,
-              model_used: data.modelUsed || 'gpt-4o'
+              model_used: data.modelUsed || 'gpt-4o',
+              draft_job_id: data.draftJobId || null
             })
           ])
 
@@ -3625,6 +3632,23 @@ export class DatabaseService {
     const result = await this.query(query, [realJobId, draftJobId]) as any[]
 
     console.log('✅ [QUESTION GENERATION] Reconciled', result.length, 'draft usage records')
+
+    // Also update usage_ledger entries that have null job_id but matching metadata
+    try {
+      const ledgerQuery = `
+        UPDATE usage_ledger
+        SET job_id = $1::uuid
+        WHERE job_id IS NULL 
+          AND entry_type = 'JD_QUESTIONS'
+          AND metadata->>'draft_job_id' = $2
+        RETURNING id
+      `
+      const ledgerResult = await this.query(ledgerQuery, [realJobId, draftJobId]) as any[]
+      console.log('✅ [USAGE LEDGER] Reconciled', ledgerResult.length, 'ledger entries with job_id')
+    } catch (ledgerError) {
+      console.warn('⚠️ [USAGE LEDGER] Failed to reconcile ledger entries:', ledgerError)
+    }
+
     return result
   }
 
@@ -3763,7 +3787,9 @@ export class DatabaseService {
             balance_before, balance_after,
             reference_id, metadata, created_at
           ) VALUES (
-            $1::uuid, $2::uuid, $3::ledger_entry_type, $4,
+            $1::uuid, 
+            CASE WHEN $2::text IS NULL OR $2::text = '' THEN NULL ELSE $2::uuid END,
+            $3::ledger_entry_type, $4,
             $5, $6, $7,
             $8, $9,
             $10::uuid, $11::jsonb, NOW()
@@ -3773,7 +3799,7 @@ export class DatabaseService {
         
         await this.query(ledgerQuery, [
           data.companyId,
-          data.jobId,
+          data.jobId || '',
           'VIDEO_INTERVIEW',
           `Video interview - ${data.durationMinutes.toFixed(1)} minutes`,
           data.durationMinutes, // quantity (minutes)
