@@ -96,7 +96,7 @@ interface Job {
 }
 
 export default function JobsPage() {
-	const { company } = useAuth()
+	const { company, user } = useAuth()
 	const [activeStatus, setActiveStatus] = useState<JobStatusType>('all')
 	const [searchQuery, setSearchQuery] = useState('')
 	const [departmentFilter, setDepartmentFilter] = useState('all')
@@ -167,7 +167,7 @@ export default function JobsPage() {
 		setError(null)
 		
 		try {
-			const response = await fetch(`/api/jobs?companyId=${company.id}`)
+			const response = await fetch(`/api/jobs?companyId=${company.id}${user?.id ? `&userId=${user.id}` : ''}`)
 			const result = await response.json()
 			
 			if (!response.ok) {

@@ -65,7 +65,7 @@ const recruiters = [
 ]
 
 export default function CandidatesPage() {
-  const { company } = useAuth()
+  const { company, user } = useAuth()
   const [activeBucket, setActiveBucket] = useState<BucketType>('all')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null)
@@ -92,7 +92,7 @@ export default function CandidatesPage() {
     if (!company?.id) return
     try {
       setIsLoading(true)
-      const res = await fetch(`/api/candidates?companyId=${company.id}`)
+      const res = await fetch(`/api/candidates?companyId=${company.id}${user?.id ? `&userId=${user.id}` : ''}`)
       const data = await res.json()
       if (data.ok) {
         // Update bucket counts while preserving icons/colors/labels

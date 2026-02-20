@@ -2,7 +2,7 @@
 
 import { DialogFooter } from "@/components/ui/dialog"
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -10,174 +10,45 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useAuth } from '@/contexts/auth-context'
 import { 
   UserCog, 
   Plus, 
   Calendar,
-  User,
   Briefcase,
   FileText,
   Clock,
   AlertCircle,
   CheckCircle,
-  XCircle,
   Search,
-  Filter
+  Loader2,
+  RefreshCw
 } from 'lucide-react'
 
 type DelegationType = 'job' | 'application'
-type DelegationStatus = 'active' | 'completed' | 'cancelled'
-
-interface Delegation {
-  id: string
-  type: DelegationType
-  delegatedBy: string
-  delegatedTo: string
-  itemName: string
-  itemId?: string
-  delegatedItems?: string[] // For applications, list of specific application IDs
-  startDate: string
-  endDate: string
-  reason: string
-  status: DelegationStatus
-  createdAt: string
-  note?: string // Additional note for job delegation
-}
-
-interface AuditLog {
-  id: string
-  action: string
-  delegatedBy: string
-  delegatedTo: string
-  itemType: string
-  itemName: string
-  date: string
-  reason: string
-  status: DelegationStatus
-}
-
-const mockDelegations: Delegation[] = [
-  {
-    id: '1',
-    type: 'job',
-    delegatedBy: 'Sarah Johnson',
-    delegatedTo: 'Mike Davis',
-    itemName: 'Senior Frontend Developer',
-    startDate: '2024-02-10',
-    endDate: '2024-02-24',
-    reason: 'Annual Leave',
-    status: 'active',
-    createdAt: '2024-02-08'
-  },
-  {
-    id: '2',
-    type: 'application',
-    delegatedBy: 'Sarah Johnson',
-    delegatedTo: 'Emily Chen',
-    itemName: '3 Applications (Backend Engineer role)',
-    delegatedItems: ['app_001', 'app_002', 'app_003'],
-    startDate: '2024-02-10',
-    endDate: '2024-02-24',
-    reason: 'Annual Leave',
-    status: 'active',
-    createdAt: '2024-02-08'
-  },
-  {
-    id: '4',
-    type: 'job',
-    delegatedBy: 'Mike Davis',
-    delegatedTo: 'Sarah Johnson',
-    itemName: 'Product Manager',
-    startDate: '2024-01-15',
-    endDate: '2024-01-30',
-    reason: 'Training Program',
-    status: 'completed',
-    createdAt: '2024-01-12'
-  }
-]
-
-const mockAuditLogs: AuditLog[] = [
-  {
-    id: '1',
-    action: 'Delegation Created',
-    delegatedBy: 'Sarah Johnson',
-    delegatedTo: 'Mike Davis',
-    itemType: 'Job Opening',
-    itemName: 'Senior Frontend Developer',
-    date: '2024-02-08 10:30 AM',
-    reason: 'Annual Leave - Feb 10-24',
-    status: 'active'
-  },
-  {
-    id: '2',
-    action: 'Delegation Created',
-    delegatedBy: 'Sarah Johnson',
-    delegatedTo: 'Emily Chen',
-    itemName: 'John Smith - Backend Engineer Application',
-    itemType: 'Application',
-    date: '2024-02-08 10:35 AM',
-    reason: 'Annual Leave - Feb 10-24',
-    status: 'active'
-  },
-  {
-    id: '3',
-    action: 'Team Delegation Created',
-    delegatedBy: 'Robert Brown (Manager)',
-    delegatedTo: 'Lisa Anderson (Manager)',
-    itemType: 'Team Members',
-    itemName: 'Mike Davis, Emily Chen',
-    date: '2024-02-13 02:15 PM',
-    reason: 'Medical Leave - Feb 15 to Mar 1',
-    status: 'active'
-  },
-  {
-    id: '4',
-    action: 'Delegation Completed',
-    delegatedBy: 'Mike Davis',
-    delegatedTo: 'Sarah Johnson',
-    itemType: 'Job Opening',
-    itemName: 'Product Manager',
-    date: '2024-01-30 05:00 PM',
-    reason: 'Training Program ended',
-    status: 'completed'
-  },
-  {
-    id: '5',
-    action: 'Delegation Cancelled',
-    delegatedBy: 'Emily Chen',
-    delegatedTo: 'John Williams',
-    itemType: 'Application',
-    itemName: 'Jane Doe - Data Scientist Application',
-    date: '2024-02-01 09:20 AM',
-    reason: 'Original recruiter returned early',
-    status: 'cancelled'
-  }
-]
-
-// Mock jobs list (in production, fetch from API)
-const availableJobs = [
-  { id: 'job_1', title: 'Senior Frontend Developer', status: 'open' },
-  { id: 'job_2', title: 'Backend Engineer', status: 'open' },
-  { id: 'job_3', title: 'Product Manager', status: 'open' },
-  { id: 'job_4', title: 'UX Designer', status: 'open' },
-]
-
-// Mock pending applications (in production, fetch from API)
-const pendingApplications = [
-  { id: 'app_1', candidateName: 'John Smith', position: 'Backend Engineer', stage: 'CV Screening' },
-  { id: 'app_2', candidateName: 'Jane Doe', position: 'Frontend Developer', stage: 'AI Interview' },
-  { id: 'app_3', candidateName: 'Michael Chen', position: 'Backend Engineer', stage: 'CV Screening' },
-  { id: 'app_4', candidateName: 'Sarah Williams', position: 'Product Manager', stage: 'Shortlisted' },
-  { id: 'app_5', candidateName: 'Robert Brown', position: 'Backend Engineer', stage: 'CV Screening' },
-]
+type DelegationStatus = 'active' | 'expired' | 'revoked'
 
 export default function DelegationPage() {
+  const { company, user } = useAuth()
+
+  // Data from API
+  const [delegations, setDelegations] = useState<any[]>([])
+  const [auditLogs, setAuditLogs] = useState<any[]>([])
+  const [recruiters, setRecruiters] = useState<any[]>([])
+  const [myJobs, setMyJobs] = useState<any[]>([])
+  const [myApplications, setMyApplications] = useState<any[]>([])
+  const [stats, setStats] = useState({ active: 0, jobsDelegated: 0, applicationsDelegated: 0 })
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // UI state
   const [activeTab, setActiveTab] = useState<'active' | 'audit'>('active')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showViewDialog, setShowViewDialog] = useState(false)
-  const [selectedDelegation, setSelectedDelegation] = useState<Delegation | null>(null)
+  const [selectedDelegation, setSelectedDelegation] = useState<any | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<DelegationStatus | 'all'>('active')
+  const [statusFilter, setStatusFilter] = useState<DelegationStatus | 'all'>('all')
   const [typeFilter, setTypeFilter] = useState<DelegationType | 'all'>('all')
   
   const [formData, setFormData] = useState({
@@ -190,102 +61,205 @@ export default function DelegationPage() {
     reason: ''
   })
 
-  const handleCreateDelegation = () => {
-    console.log('[v0] Creating delegation:', formData)
-    
+  // Fetch all delegation data from API
+  const fetchDelegations = useCallback(async () => {
+    if (!company?.id || !user?.id) return
+    setIsLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/delegations?companyId=${company.id}&userId=${user.id}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch delegations')
+      
+      setDelegations(data.delegations || [])
+      setAuditLogs(data.auditLogs || [])
+      setRecruiters(data.recruiters || [])
+      setMyJobs(data.myJobs || [])
+      setMyApplications(data.myApplications || [])
+      setStats(data.stats || { active: 0, jobsDelegated: 0, applicationsDelegated: 0 })
+    } catch (err: any) {
+      console.error('Failed to fetch delegations:', err)
+      setError(err.message || 'Failed to load delegation data')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [company?.id, user?.id])
+
+  useEffect(() => {
+    fetchDelegations()
+  }, [fetchDelegations])
+
+  // Create delegation via API
+  const handleCreateDelegation = async () => {
+    if (!company?.id || !user?.id) return
+
     // Validate all mandatory fields
     if (!formData.delegateTo) {
       alert('Please select a person to delegate to')
       return
     }
-    
     if (!formData.startDate) {
       alert('Please select a start date')
       return
     }
-    
     if (!formData.endDate) {
       alert('Please select an end date')
       return
     }
-    
     if (new Date(formData.startDate) >= new Date(formData.endDate)) {
       alert('End date must be after start date')
       return
     }
-    
     if (!formData.reason.trim()) {
       alert('Please provide a reason for delegation')
       return
     }
-    
     if (formData.type === 'job' && !formData.selectedJobId) {
       alert('Please select a job opening')
       return
     }
-    
     if (formData.type === 'application' && formData.selectedApplicationIds.length === 0) {
       alert('Please select at least one application')
       return
     }
-    
-    const delegationSummary = formData.type === 'job'
-      ? `Job: ${availableJobs.find(j => j.id === formData.selectedJobId)?.title} - All new applications during ${formData.startDate} to ${formData.endDate}`
-      : `${formData.selectedApplicationIds.length} Application(s) delegated`
-    
-    alert(`Delegation created successfully!\n${delegationSummary}`)
-    setShowCreateDialog(false)
-    setFormData({
-      type: 'job',
-      delegateTo: '',
-      selectedJobId: '',
-      selectedApplicationIds: [],
-      startDate: '',
-      endDate: '',
-      reason: ''
-    })
+
+    setIsSubmitting(true)
+    try {
+      // For application type, create one delegation per selected application
+      const itemIds = formData.type === 'job' 
+        ? [formData.selectedJobId] 
+        : formData.selectedApplicationIds
+
+      for (const itemId of itemIds) {
+        const res = await fetch('/api/delegations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId: company.id,
+            userId: user.id,
+            delegationType: formData.type,
+            itemId,
+            delegatedTo: formData.delegateTo,
+            startDate: formData.startDate,
+            endDate: formData.endDate,
+            reason: formData.reason
+          })
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Failed to create delegation')
+      }
+
+      alert('Delegation created successfully!')
+      setShowCreateDialog(false)
+      setFormData({
+        type: 'job',
+        delegateTo: '',
+        selectedJobId: '',
+        selectedApplicationIds: [],
+        startDate: '',
+        endDate: '',
+        reason: ''
+      })
+      fetchDelegations()
+    } catch (err: any) {
+      alert(`Error: ${err.message}`)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  const filteredDelegations = mockDelegations.filter(delegation => {
+  // Revoke delegation via API
+  const handleRevokeDelegation = async (delegationId: string) => {
+    if (!company?.id || !user?.id) return
+    if (!confirm('Are you sure you want to revoke this delegation?')) return
+
+    try {
+      const res = await fetch(`/api/delegations?id=${delegationId}&companyId=${company.id}&userId=${user.id}`, {
+        method: 'DELETE'
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to revoke delegation')
+      
+      alert('Delegation revoked successfully')
+      setShowViewDialog(false)
+      fetchDelegations()
+    } catch (err: any) {
+      alert(`Error: ${err.message}`)
+    }
+  }
+
+  // Filter delegations
+  const filteredDelegations = delegations.filter((d: any) => {
     const matchesSearch = searchQuery === '' || 
-      delegation.itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      delegation.delegatedTo.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || delegation.status === statusFilter
-    const matchesType = typeFilter === 'all' || delegation.type === typeFilter
-    
+      (d.item_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (d.delegated_to_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (d.delegated_by_name || '').toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesStatus = statusFilter === 'all' || d.status === statusFilter
+    const matchesType = typeFilter === 'all' || d.delegation_type === typeFilter
     return matchesSearch && matchesStatus && matchesType
   })
 
-  const filteredAuditLogs = mockAuditLogs.filter(log => {
+  // Filter audit logs
+  const filteredAuditLogs = auditLogs.filter((log: any) => {
     return searchQuery === '' || 
-      log.itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.delegatedBy.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.delegatedTo.toLowerCase().includes(searchQuery.toLowerCase())
+      (log.item_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (log.delegated_by_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (log.delegated_to_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (log.details || '').toLowerCase().includes(searchQuery.toLowerCase())
   })
 
-  const getTypeIcon = (type: DelegationType) => {
+  const getTypeIcon = (type: string) => {
     switch(type) {
       case 'job': return <Briefcase className="h-4 w-4" />
       case 'application': return <FileText className="h-4 w-4" />
+      default: return <FileText className="h-4 w-4" />
     }
   }
 
-  const getTypeLabel = (type: DelegationType) => {
+  const getTypeLabel = (type: string) => {
     switch(type) {
       case 'job': return 'Job Opening'
       case 'application': return 'Application'
+      default: return type
     }
   }
 
-  const getStatusBadge = (status: DelegationStatus) => {
+  const getStatusBadge = (status: string) => {
     switch(status) {
       case 'active':
         return <Badge className="bg-green-100 text-green-800">Active</Badge>
-      case 'completed':
-        return <Badge className="bg-blue-100 text-blue-800">Completed</Badge>
-      case 'cancelled':
-        return <Badge className="bg-gray-100 text-gray-800">Cancelled</Badge>
+      case 'expired':
+        return <Badge className="bg-orange-100 text-orange-800">Expired</Badge>
+      case 'revoked':
+        return <Badge className="bg-red-100 text-red-800">Revoked</Badge>
+      default:
+        return <Badge className="bg-gray-100 text-gray-800">{status}</Badge>
     }
+  }
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return ''
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    } catch { return dateStr }
+  }
+
+  const formatDateTime = (dateStr: string) => {
+    if (!dateStr) return ''
+    try {
+      return new Date(dateStr).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+    } catch { return dateStr }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-blue-600" />
+          <p className="text-sm text-gray-500">Loading delegation data...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -298,11 +272,24 @@ export default function DelegationPage() {
             Delegate job openings and pending applications to other recruiters during absences
           </p>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Create Delegation
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={fetchDelegations} className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+          <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Create Delegation
+          </Button>
+        </div>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <Card className="p-4 bg-red-50 border-red-200">
+          <p className="text-sm text-red-700">{error}</p>
+        </Card>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -313,9 +300,7 @@ export default function DelegationPage() {
             </div>
             <div>
               <p className="text-sm text-gray-600">Active Delegations</p>
-              <p className="text-2xl font-bold">
-                {mockDelegations.filter(d => d.status === 'active').length}
-              </p>
+              <p className="text-2xl font-bold">{stats.active}</p>
             </div>
           </div>
         </Card>
@@ -326,9 +311,7 @@ export default function DelegationPage() {
             </div>
             <div>
               <p className="text-sm text-gray-600">Jobs Delegated</p>
-              <p className="text-2xl font-bold">
-                {mockDelegations.filter(d => d.type === 'job').length}
-              </p>
+              <p className="text-2xl font-bold">{stats.jobsDelegated}</p>
             </div>
           </div>
         </Card>
@@ -339,9 +322,7 @@ export default function DelegationPage() {
             </div>
             <div>
               <p className="text-sm text-gray-600">Applications Delegated</p>
-              <p className="text-2xl font-bold">
-                {mockDelegations.filter(d => d.type === 'application').length}
-              </p>
+              <p className="text-2xl font-bold">{stats.applicationsDelegated}</p>
             </div>
           </div>
         </Card>
@@ -357,7 +338,7 @@ export default function DelegationPage() {
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          Active Delegations
+          Delegations
         </button>
         <button
           onClick={() => setActiveTab('audit')}
@@ -392,8 +373,8 @@ export default function DelegationPage() {
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                  <SelectItem value="revoked">Revoked</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as DelegationType | 'all')}>
@@ -404,8 +385,6 @@ export default function DelegationPage() {
                   <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="job">Job Opening</SelectItem>
                   <SelectItem value="application">Application</SelectItem>
-                  <SelectItem value="team_member">Team Members</SelectItem>
-                  <SelectItem value="task">Task</SelectItem>
                 </SelectContent>
               </Select>
             </>
@@ -413,7 +392,7 @@ export default function DelegationPage() {
         </div>
       </Card>
 
-      {/* Active Delegations Tab */}
+      {/* Delegations Tab */}
       {activeTab === 'active' && (
         <Card>
           <div className="overflow-x-auto">
@@ -431,36 +410,36 @@ export default function DelegationPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredDelegations.map((delegation) => (
+                {filteredDelegations.map((delegation: any) => (
                   <tr key={delegation.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        {getTypeIcon(delegation.type)}
-                        <span className="text-sm font-medium">{getTypeLabel(delegation.type)}</span>
+                        {getTypeIcon(delegation.delegation_type)}
+                        <span className="text-sm font-medium">{getTypeLabel(delegation.delegation_type)}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">{delegation.itemName}</div>
+                      <div className="text-sm font-medium text-gray-900">{delegation.item_name}</div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{delegation.delegatedBy}</div>
+                      <div className="text-sm text-gray-900">{delegation.delegated_by_name || 'Unknown'}</div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{delegation.delegatedTo}</div>
+                      <div className="text-sm text-gray-900">{delegation.delegated_to_name || 'Unknown'}</div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-gray-600">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {delegation.startDate}
+                          {formatDate(delegation.start_date)}
                         </div>
                         <div className="flex items-center gap-1 text-xs">
-                          to {delegation.endDate}
+                          to {formatDate(delegation.end_date)}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-600">{delegation.reason}</div>
+                      <div className="text-sm text-gray-600">{delegation.reason || '-'}</div>
                     </td>
                     <td className="px-6 py-4">
                       {getStatusBadge(delegation.status)}
@@ -486,6 +465,7 @@ export default function DelegationPage() {
               <div className="text-center py-12 text-gray-500">
                 <UserCog className="h-12 w-12 mx-auto mb-3 opacity-50" />
                 <p className="text-sm">No delegations found</p>
+                <p className="text-xs mt-1">Create a delegation to share job or application access with another recruiter</p>
               </div>
             )}
           </div>
@@ -510,43 +490,41 @@ export default function DelegationPage() {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Date & Time</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Action</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Performed By</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Delegated By</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Delegated To</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Item Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Item Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Reason</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Item</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Details</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredAuditLogs.map((log) => (
+                {filteredAuditLogs.map((log: any) => (
                   <tr key={log.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1 text-sm text-gray-600">
                         <Clock className="h-3 w-3" />
-                        {log.date}
+                        {formatDateTime(log.created_at)}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">{log.action}</div>
+                      <Badge variant="secondary" className="text-xs capitalize">{log.action}</Badge>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{log.delegatedBy}</div>
+                      <div className="text-sm text-gray-900">{log.performed_by_name || 'System'}</div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{log.delegatedTo}</div>
+                      <div className="text-sm text-gray-900">{log.delegated_by_name || '-'}</div>
                     </td>
                     <td className="px-6 py-4">
-                      <Badge variant="secondary" className="text-xs">{log.itemType}</Badge>
+                      <div className="text-sm text-gray-900">{log.delegated_to_name || '-'}</div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-600 max-w-xs truncate">{log.itemName}</div>
+                      <div className="text-sm text-gray-600 max-w-xs truncate">
+                        {log.item_name || '-'}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-600 max-w-xs">{log.reason}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      {getStatusBadge(log.status)}
+                      <div className="text-sm text-gray-600 max-w-xs truncate">{log.details || '-'}</div>
                     </td>
                   </tr>
                 ))}
@@ -574,8 +552,8 @@ export default function DelegationPage() {
                 <div>
                   <Label className="text-xs text-gray-500">Type</Label>
                   <div className="flex items-center gap-2 mt-1">
-                    {getTypeIcon(selectedDelegation.type)}
-                    <span className="text-sm font-medium">{getTypeLabel(selectedDelegation.type)}</span>
+                    {getTypeIcon(selectedDelegation.delegation_type)}
+                    <span className="text-sm font-medium">{getTypeLabel(selectedDelegation.delegation_type)}</span>
                   </div>
                 </div>
                 <div>
@@ -587,11 +565,11 @@ export default function DelegationPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-xs text-gray-500">Delegated By</Label>
-                  <p className="text-sm font-medium mt-1">{selectedDelegation.delegatedBy}</p>
+                  <p className="text-sm font-medium mt-1">{selectedDelegation.delegated_by_name || 'Unknown'}</p>
                 </div>
                 <div>
                   <Label className="text-xs text-gray-500">Delegated To</Label>
-                  <p className="text-sm font-medium mt-1">{selectedDelegation.delegatedTo}</p>
+                  <p className="text-sm font-medium mt-1">{selectedDelegation.delegated_to_name || 'Unknown'}</p>
                 </div>
               </div>
 
@@ -600,32 +578,32 @@ export default function DelegationPage() {
                   <Label className="text-xs text-gray-500">Start Date</Label>
                   <div className="flex items-center gap-2 mt-1">
                     <Calendar className="h-3 w-3 text-gray-400" />
-                    <span className="text-sm font-medium">{selectedDelegation.startDate}</span>
+                    <span className="text-sm font-medium">{formatDate(selectedDelegation.start_date)}</span>
                   </div>
                 </div>
                 <div>
                   <Label className="text-xs text-gray-500">End Date</Label>
                   <div className="flex items-center gap-2 mt-1">
                     <Calendar className="h-3 w-3 text-gray-400" />
-                    <span className="text-sm font-medium">{selectedDelegation.endDate}</span>
+                    <span className="text-sm font-medium">{formatDate(selectedDelegation.end_date)}</span>
                   </div>
                 </div>
               </div>
 
               <div>
-                <Label className="text-xs text-gray-500">Item/Job/Applications</Label>
-                <p className="text-sm font-medium mt-1">{selectedDelegation.itemName}</p>
+                <Label className="text-xs text-gray-500">Item</Label>
+                <p className="text-sm font-medium mt-1">{selectedDelegation.item_name}</p>
               </div>
 
               <div>
                 <Label className="text-xs text-gray-500">Reason</Label>
-                <p className="text-sm mt-1 text-gray-700">{selectedDelegation.reason}</p>
+                <p className="text-sm mt-1 text-gray-700">{selectedDelegation.reason || 'No reason provided'}</p>
               </div>
 
-              {selectedDelegation.type === 'job' && (
+              {selectedDelegation.delegation_type === 'job' && selectedDelegation.status === 'active' && (
                 <div className="bg-blue-50 border border-blue-200 rounded p-2">
                   <p className="text-xs text-blue-800">
-                    All NEW applications for this job will be auto-assigned to {selectedDelegation.delegatedTo}
+                    {selectedDelegation.delegated_to_name} can see this job and all its applications during the delegation period.
                   </p>
                 </div>
               )}
@@ -635,19 +613,13 @@ export default function DelegationPage() {
             <Button variant="outline" onClick={() => setShowViewDialog(false)} className="bg-transparent">
               Close
             </Button>
-            {selectedDelegation?.status === 'active' && (
+            {selectedDelegation?.status === 'active' && selectedDelegation?.delegated_by === user?.id && (
               <Button 
                 variant="outline" 
-                onClick={() => {
-                  if (confirm('Are you sure you want to cancel this delegation?')) {
-                    console.log('[v0] Cancel delegation:', selectedDelegation.id)
-                    alert('Delegation cancelled successfully')
-                    setShowViewDialog(false)
-                  }
-                }}
+                onClick={() => handleRevokeDelegation(selectedDelegation.id)}
                 className="bg-transparent text-red-600 hover:text-red-700 border-red-300"
               >
-                Cancel Delegation
+                Revoke Delegation
               </Button>
             )}
           </DialogFooter>
@@ -683,7 +655,7 @@ export default function DelegationPage() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-gray-500 mt-1">
-                  {formData.type === 'job' ? 'All new applications' : 'Select pending apps'}
+                  {formData.type === 'job' ? 'Grants access to the job and all its applications' : 'Grants access to specific applications'}
                 </p>
               </div>
 
@@ -697,10 +669,14 @@ export default function DelegationPage() {
                     <SelectValue placeholder="Select recruiter" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Mike Davis">Mike Davis</SelectItem>
-                    <SelectItem value="Emily Chen">Emily Chen</SelectItem>
-                    <SelectItem value="John Williams">John Williams</SelectItem>
-                    <SelectItem value="Sarah Johnson">Sarah Johnson</SelectItem>
+                    {recruiters.length === 0 && (
+                      <SelectItem value="_none" disabled>No other recruiters found</SelectItem>
+                    )}
+                    {recruiters.map((r: any) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.full_name} ({r.email})
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -729,7 +705,7 @@ export default function DelegationPage() {
             {/* Job Selection */}
             {formData.type === 'job' && (
               <div>
-                <Label>Select Job Opening <span className="text-red-500">*</span></Label>
+                <Label>Select Job Opening (you own) <span className="text-red-500">*</span></Label>
                 <Select 
                   value={formData.selectedJobId} 
                   onValueChange={(value) => setFormData({...formData, selectedJobId: value})}
@@ -738,15 +714,18 @@ export default function DelegationPage() {
                     <SelectValue placeholder="Choose job opening" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableJobs.map(job => (
+                    {myJobs.length === 0 && (
+                      <SelectItem value="_none" disabled>No jobs found - you must own a job to delegate it</SelectItem>
+                    )}
+                    {myJobs.map((job: any) => (
                       <SelectItem key={job.id} value={job.id}>
-                        {job.title}
+                        {job.title} ({job.status})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-blue-600 mt-1">
-                  All NEW applications during delegation period will be auto-assigned
+                  The delegatee will see this job and all its applications during the delegation period
                 </p>
               </div>
             )}
@@ -754,9 +733,14 @@ export default function DelegationPage() {
             {/* Application Selection */}
             {formData.type === 'application' && (
               <div>
-                <Label>Select Pending Applications <span className="text-red-500">*</span></Label>
+                <Label>Select Applications (from your jobs) <span className="text-red-500">*</span></Label>
                 <div className="mt-2 border rounded max-h-48 overflow-y-auto">
-                  {pendingApplications.map(app => (
+                  {myApplications.length === 0 && (
+                    <div className="p-4 text-center text-sm text-gray-500">
+                      No applications found for your jobs
+                    </div>
+                  )}
+                  {myApplications.map((app: any) => (
                     <label 
                       key={app.id}
                       className="flex items-center gap-3 p-2.5 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
@@ -767,16 +751,16 @@ export default function DelegationPage() {
                         onChange={(e) => {
                           const newIds = e.target.checked
                             ? [...formData.selectedApplicationIds, app.id]
-                            : formData.selectedApplicationIds.filter(id => id !== app.id)
+                            : formData.selectedApplicationIds.filter((id: string) => id !== app.id)
                           setFormData({...formData, selectedApplicationIds: newIds})
                         }}
                         className="w-4 h-4"
                       />
                       <div className="flex-1">
-                        <div className="text-sm font-medium text-gray-900">{app.candidateName}</div>
-                        <div className="text-xs text-gray-500">{app.position} • {app.stage}</div>
+                        <div className="text-sm font-medium text-gray-900">{app.candidate_name}</div>
+                        <div className="text-xs text-gray-500">{app.job_title} &bull; {app.current_stage}</div>
                       </div>
-                      <Badge variant="secondary" className="text-xs">{app.stage}</Badge>
+                      <Badge variant="secondary" className="text-xs">{app.current_stage}</Badge>
                     </label>
                   ))}
                 </div>
@@ -803,8 +787,15 @@ export default function DelegationPage() {
             <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateDelegation}>
-              Create Delegation
+            <Button onClick={handleCreateDelegation} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Creating...
+                </>
+              ) : (
+                'Create Delegation'
+              )}
             </Button>
           </div>
         </DialogContent>
