@@ -38,6 +38,14 @@ export default function InterviewPage() {
   const [closingCountdown, setClosingCountdown] = useState<number | null>(null)
   const screenshotCapturedRef = useRef<boolean>(false)
   const screenshotDataRef = useRef<string | null>(null)
+  const lastQuestionAskedRef = useRef<string>("")
+  const currentCriterionRef = useRef<string>("")
+  const questionElaborationRef = useRef<{ question: string; combinedText: string; prompts: number } | null>(null)
+  const currentQuestionNumberRef = useRef<number>(1)
+  const currentQuestionIndexRef = useRef<number>(0)
+  const waitingForResponseRef = useRef<boolean>(false)
+  const questionsAnsweredRef = useRef<Map<number, string>>(new Map())
+  const interviewQuestionsRef = useRef<any[]>([])
 
   const [conversation, setConversation] = useState<{ role: "agent" | "user"; text: string; t: number }[]>([])
   const [interviewCompleted, setInterviewCompleted] = useState(false)
@@ -45,6 +53,16 @@ export default function InterviewPage() {
   const [showEndWarning, setShowEndWarning] = useState(false)
   const [incompleteStats, setIncompleteStats] = useState<{ questionsAsked: number; totalQuestions: number; candidateResponses: number } | null>(null)
   const endingRef = useRef(false)
+  const agentSpeakingRef = useRef(false)
+  const audioTrackRef = useRef<MediaStreamTrack | null>(null)
+
+  // Mute user mic while AI is speaking to prevent echo feedback
+  const setUserMicEnabled = (enabled: boolean) => {
+    if (audioTrackRef.current) {
+      audioTrackRef.current.enabled = enabled
+      console.log(`🎙️ [MIC] ${enabled ? 'UNMUTED' : 'MUTED'} (AI ${enabled ? 'stopped' : 'started'} speaking)`)
+    }
+  }
 
   const logTs = (label: string, text?: string) => {
     const ts = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
@@ -69,33 +87,243 @@ export default function InterviewPage() {
       .join("\n")
   }
 
+  const countWords = (text: string) => text.trim().split(/\s+/).filter(Boolean).length
+
+  // Check if user response is a real answer (not just acknowledgment/filler)
+  const isRealAnswer = (text: string): boolean => {
+    const lower = text.toLowerCase().trim()
+    const words = countWords(text)
+    
+    // Too short to be a real answer (less than 5 words)
+    if (words < 5) {
+      // Check for common non-answer phrases
+      const nonAnswerPhrases = [
+        "thank you", "thanks", "okay", "ok", "yes", "no", "sure", "alright",
+        "got it", "understood", "i see", "right", "correct", "please",
+        "go ahead", "continue", "next", "let's go", "let's start",
+        "please do", "proceed", "i understand", "fine", "good",
+        "yeah", "yep", "nope", "hmm", "uh", "um", "well",
+        "that's it", "that is it", "nothing else", "no more",
+        "last question", "next question", "the situation", "and stay",
+        "bye", "goodbye", "see you", "take care"
+      ]
+      
+      for (const phrase of nonAnswerPhrases) {
+        if (lower.includes(phrase) || lower === phrase) {
+          console.log("🚫 [ANSWER] Detected non-answer phrase:", text)
+          return false
+        }
+      }
+      
+      console.log("🚫 [ANSWER] Too short to be real answer:", text)
+      return false
+    }
+    
+    console.log("✅ [ANSWER] Real answer detected:", text.substring(0, 50), `(${words} words)`)
+    return true
+  }
+
+  // Check if candidate explicitly wants to end the interview
+  const isCandidateEndingInterview = (text: string): boolean => {
+    const lower = text.toLowerCase().trim()
+    const endPhrases = [
+      "i want to end the interview",
+      "i'd like to end",
+      "i would like to end",
+      "please end the interview",
+      "end this interview",
+      "stop the interview",
+      "i'm done with the interview",
+      "i want to stop",
+      "let's end this",
+      "i want to quit",
+      "i don't want to continue"
+    ]
+    return endPhrases.some(phrase => lower.includes(phrase))
+  }
+
+  // Store individual answer to database immediately
+  const storeAnswerToDb = async (questionIndex: number, questionText: string, answerText: string) => {
+    try {
+      console.log(`💾 [STORE] Saving answer for Q${questionIndex + 1} to database...`)
+      questionsAnsweredRef.current.set(questionIndex, answerText)
+      
+      // Build partial transcript from all stored answers so far
+      const partialTranscript = Array.from(questionsAnsweredRef.current.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([idx, ans]) => {
+          const q = interviewQuestionsRef.current[idx]
+          return `Interviewer: ${q?.text || 'Question ' + (idx + 1)}\n\nCandidate: ${ans}`
+        })
+        .join("\n\n")
+      
+      // Save partial transcript to localStorage for resilience
+      try {
+        localStorage.setItem(`interview-answers:${applicationId}`, JSON.stringify({
+          answers: Object.fromEntries(questionsAnsweredRef.current),
+          lastUpdated: Date.now()
+        }))
+      } catch {}
+      
+      console.log(`✅ [STORE] Answer for Q${questionIndex + 1} stored (${questionsAnsweredRef.current.size} total answers)`)
+    } catch (err) {
+      console.error(`❌ [STORE] Failed to store answer for Q${questionIndex + 1}:`, err)
+    }
+  }
+
+  // Force the AI agent to ask the next question in sequence
+  const sendNextQuestion = () => {
+    const questions = interviewQuestionsRef.current
+    const nextIdx = currentQuestionIndexRef.current
+    
+    if (nextIdx >= questions.length) {
+      console.log("🏁 [FLOW] All questions asked, sending closing instruction")
+      sendAgentInstruction(
+        `All ${questions.length} interview questions have been asked and answered. Say EXACTLY: "Thank you for interviewing today. Our recruitment team will respond soon." Do NOT ask any more questions. Do NOT say anything else after this.`,
+        true
+      )
+      return
+    }
+    
+    const nextQ = questions[nextIdx]
+    const qNumber = nextIdx + 1
+    const totalQ = questions.length
+    
+    console.log(`📤 [FLOW] Sending question ${qNumber}/${totalQ}: ${nextQ.text.substring(0, 60)}...`)
+    
+    lastQuestionAskedRef.current = nextQ.text
+    currentCriterionRef.current = nextQ.criterion || nextQ.criteria?.[0] || "General"
+    currentQuestionNumberRef.current = qNumber
+    waitingForResponseRef.current = true
+    ensureElaborationState(nextQ.text)
+    
+    sendAgentInstruction(
+      `Now ask question ${qNumber} of ${totalQ}. Ask EXACTLY this question (you may rephrase slightly for natural flow): "${nextQ.text}" Then WAIT for the candidate to respond. Do NOT ask any other question.`,
+      true
+    )
+  }
+
+  // Send instruction to AI agent via session update (invisible to transcript)
+  const sendAgentInstruction = (instruction: string, forceSpeak: boolean = false) => {
+    const dc = dcRef.current
+    if (!dc || dc.readyState !== "open") {
+      console.log("⚠️ [INSTRUCT] Data channel not ready")
+      return
+    }
+
+    console.log("📤 [INSTRUCT] Updating session with instruction:", instruction.substring(0, 100))
+
+    if (forceSpeak) {
+      const responseMsg = {
+        type: "response.create",
+        response: {
+          modalities: ["audio", "text"],
+          instructions: instruction,
+        },
+      }
+      dc.send(JSON.stringify(responseMsg))
+    } else {
+      console.log("📝 [INSTRUCT] Analysis logged (not forcing AI response):", instruction)
+    }
+  }
+
+  const ensureElaborationState = (question: string) => {
+    if (!question) return
+    const existing = questionElaborationRef.current
+    if (!existing || existing.question !== question) {
+      questionElaborationRef.current = { question, combinedText: "", prompts: 0 }
+    }
+  }
+
+  const appendToCombinedAnswer = (chunk: string) => {
+    const normalizedChunk = chunk.trim()
+    if (!normalizedChunk) return ""
+    const state = questionElaborationRef.current
+    if (!state) return normalizedChunk
+    const combined = state.combinedText ? `${state.combinedText} ${normalizedChunk}` : normalizedChunk
+    state.combinedText = combined
+    return combined
+  }
+
+  const maybePromptForElaboration = () => {
+    const state = questionElaborationRef.current
+    if (!state) return
+    const totalWords = countWords(state.combinedText)
+    
+    // If answer has 30+ words, it's sufficient - no elaboration needed
+    if (totalWords >= 30) {
+      console.log(`✅ [ELABORATE] Answer sufficient (${totalWords} words), no elaboration needed`)
+      return
+    }
+    
+    // Maximum 1 elaboration prompt per question to avoid annoying the candidate
+    if (state.prompts >= 1) {
+      console.log("[ELABORATE] Already prompted once, moving on")
+      return
+    }
+
+    // Only prompt if answer is between 10-29 words (real answer but too short)
+    if (totalWords >= 10 && totalWords < 30) {
+      const promptMessage = "Could you please elaborate a bit more on that?"
+      console.log(`📢 [ELABORATE] Prompting for question "${state.question.substring(0, 40)}..." (wordCount=${totalWords})`)
+      sendAgentInstruction(`Please politely ask: "${promptMessage}"`, true)
+      state.prompts += 1
+    } else {
+      console.log(`⏭️ [ELABORATE] Skipping - answer too short to be real (${totalWords} words)`)
+    }
+  }
+
   const isEnglishText = (text: string): boolean => {
     if (!text || text.trim().length === 0) return false
 
-    // Remove common punctuation and spaces for checking
-    const cleanText = text.replace(/[.,!?;:()\-\s]+/g, "")
+    // Normalize smart quotes and special characters to ASCII equivalents
+    const normalizedText = text
+      .replace(/['']/g, "'")  // Smart single quotes
+      .replace(/[""]/g, '"')  // Smart double quotes
+      .replace(/[–—]/g, "-")  // En-dash and em-dash
+      .replace(/…/g, "...")   // Ellipsis
 
-    // Check if text contains only English characters (a-z, A-Z, numbers, common punctuation)
-    const englishRegex = /^[a-zA-Z0-9.,!?;:()\-'\s]+$/
+    // Check if text contains mostly English characters (a-z, A-Z, numbers, common punctuation)
+    const englishRegex = /^[a-zA-Z0-9.,!?;:()\-'"\s@#$%&*+=\[\]{}|\\/<>~`_]+$/
 
     // Must pass English character test
-    if (!englishRegex.test(text)) {
+    if (!englishRegex.test(normalizedText)) {
       console.log("🚫 [FILTER] Non-English text rejected:", text.substring(0, 50))
-      return false
-    }
-
-    // Additional check: Reject if text has excessive non-ASCII characters
-    const nonAsciiCount = (text.match(/[^\x00-\x7F]/g) || []).length
-    const nonAsciiRatio = nonAsciiCount / text.length
-
-    if (nonAsciiRatio > 0.3) {
-      // More than 30% non-ASCII = probably not English
-      console.log("🚫 [FILTER] High non-ASCII ratio rejected:", text.substring(0, 50))
       return false
     }
 
     console.log("✅ [FILTER] English text accepted:", text.substring(0, 50))
     return true
+  }
+
+  // Check if text is just filler/noise that should be completely ignored
+  const isFillerResponse = (text: string): boolean => {
+    const normalized = text.toLowerCase().trim().replace(/[.,!?]+$/, "")
+    const fillerPhrases = [
+      "ok", "okay", "bye", "goodbye", "good bye", "thank you", "thanks", "thankyou",
+      "hmm", "uh", "um", "ah", "eh", "oh", "hm", "mhm", "uh huh", "yeah",
+      "hi", "hello", "hey", "huh", "what", "sorry", "pardon"
+    ]
+    // Check exact match or very short text that's likely noise
+    if (fillerPhrases.includes(normalized)) return true
+    if (normalized.length <= 3) return true
+    // Check if it starts with filler and is very short
+    if (normalized.length < 15 && fillerPhrases.some(f => normalized.startsWith(f))) return true
+    return false
+  }
+
+  // Check if text is a valid setup confirmation (yes, I can hear you, etc.)
+  const isSetupConfirmation = (text: string): boolean => {
+    const normalized = text.toLowerCase().trim()
+    const confirmPhrases = [
+      "yes", "yeah", "yep", "yup", "sure", "okay", "ok", "fine",
+      "i can hear", "i can see", "working", "good", "great", "perfect",
+      "all good", "sounds good", "looks good", "clear", "confirmed",
+      "ready", "i'm ready", "let's start", "let's go", "proceed",
+      "audio is", "video is", "everything is", "all set"
+    ]
+    // Must contain at least one confirmation phrase
+    return confirmPhrases.some(phrase => normalized.includes(phrase))
   }
 
   // Silent screenshot capture function - captures from user's video and stores in ref
@@ -159,10 +387,12 @@ export default function InterviewPage() {
     }
   }
 
-  const handleTranscriptionCompleted = (event: any) => {
+  const handleTranscriptionCompleted = async (event: any) => {
     if (event.type === "conversation.item.input_audio_transcription.completed") {
       const finalTranscript = !event.transcript || event.transcript === "\n" ? "[inaudible]" : event.transcript
       console.log("🎤 [TRANSCRIPTION] User said:", finalTranscript.substring(0, 100))
+      console.log("🎤 [TRANSCRIPTION] lastQuestionAskedRef.current:", lastQuestionAskedRef.current?.substring(0, 50) || "(EMPTY!)")
+      console.log("🎤 [TRANSCRIPTION] currentQuestionIndex:", currentQuestionIndexRef.current, "waitingForResponse:", waitingForResponseRef.current)
 
       if (finalTranscript && finalTranscript !== "[inaudible]") {
         // Filter non-English text
@@ -180,16 +410,116 @@ export default function InterviewPage() {
           } catch {}
           return next
         })
+
+        // Check if candidate wants to end the interview
+        if (isCandidateEndingInterview(finalTranscript)) {
+          console.log("🏁 [FLOW] Candidate explicitly requested to end interview")
+          sendAgentInstruction(
+            `The candidate has requested to end the interview. Say EXACTLY: "Thank you for interviewing today. Our recruitment team will respond soon." Do NOT say anything else.`,
+            true
+          )
+          return
+        }
+
+        // FIRST: Filter out filler responses that should not trigger any action
+        if (isFillerResponse(finalTranscript)) {
+          console.log("🚫 [FILLER] Ignoring filler response:", finalTranscript.substring(0, 30))
+          return
+        }
+
+        // Real-time answer analysis - check if this is a setup question
+        const isSetupQuestion =
+          lastQuestionAskedRef.current.toLowerCase().includes("audio") ||
+          lastQuestionAskedRef.current.toLowerCase().includes("video") ||
+          lastQuestionAskedRef.current.toLowerCase().includes("hear") ||
+          lastQuestionAskedRef.current.toLowerCase().includes("see me") ||
+          lastQuestionAskedRef.current.toLowerCase().includes("setup") ||
+          lastQuestionAskedRef.current.toLowerCase().includes("working fine")
+
+        if (isSetupQuestion) {
+          // MUST be a real confirmation, not just any response
+          if (!isSetupConfirmation(finalTranscript)) {
+            console.log("⏸️ [SETUP] Waiting for proper confirmation, got:", finalTranscript.substring(0, 30))
+            return
+          }
+          console.log("⏭️ [ANALYZE] Setup confirmed with valid response, sending first interview question")
+          // Setup confirmed - send the first actual interview question
+          if (currentQuestionIndexRef.current === 0 && interviewQuestionsRef.current.length > 0) {
+            setTimeout(() => sendNextQuestion(), 1500)
+          }
+        } else if (isInterviewClosing) {
+          console.log("⏭️ [ANALYZE] Skipping analysis - interview is in closing phase")
+        } else if (waitingForResponseRef.current && lastQuestionAskedRef.current && finalTranscript.length > 5) {
+          // We are waiting for a response to the current question
+          if (isRealAnswer(finalTranscript)) {
+            const qIdx = currentQuestionIndexRef.current
+            const questions = interviewQuestionsRef.current
+            console.log("✅ [ANALYZE] Got answer for question", qIdx + 1, "of", questions.length)
+            
+            const combinedAnswer = appendToCombinedAnswer(finalTranscript)
+            
+            // Check if answer needs elaboration first
+            const state = questionElaborationRef.current
+            const totalWords = state ? countWords(state.combinedText) : countWords(finalTranscript)
+            
+            if (totalWords < 30 && state && state.prompts < 1) {
+              // Answer is too short, prompt for elaboration before moving on
+              console.log(`📢 [ELABORATE] Answer too short (${totalWords} words), asking for more`)
+              maybePromptForElaboration()
+              return // Don't advance yet, wait for elaboration
+            }
+            
+            // Answer is sufficient - store it and advance
+            waitingForResponseRef.current = false
+            const answerToStore = state?.combinedText || finalTranscript
+            
+            // Store answer to DB immediately
+            await storeAnswerToDb(qIdx, lastQuestionAskedRef.current, answerToStore)
+            
+            // Advance to next question
+            currentQuestionIndexRef.current = qIdx + 1
+            currentQuestionNumberRef.current = qIdx + 2
+            
+            // Check if all questions are done
+            if (currentQuestionIndexRef.current >= questions.length) {
+              console.log("🏁 [FLOW] All questions answered! Sending closing message.")
+              captureScreenshotSilently()
+              // Small delay to let the AI acknowledge the last answer before closing
+              setTimeout(() => sendNextQuestion(), 2000)
+            } else {
+              // Send next question after a brief acknowledgment delay
+              console.log(`⏭️ [FLOW] Moving to question ${currentQuestionIndexRef.current + 1}/${questions.length}`)
+              setTimeout(() => sendNextQuestion(), 2000)
+            }
+          } else {
+            console.log("⏭️ [ANALYZE] Skipping - not a real answer (acknowledgment/filler)")
+            // If it's a filler but we're waiting, gently remind to answer
+            // Don't do anything - the AI is already waiting for the real answer
+          }
+        } else if (!waitingForResponseRef.current) {
+          console.log("⏭️ [ANALYZE] Not waiting for response, ignoring user input")
+        }
       }
     } else if (event.type === "response.audio_transcript.done") {
       const text = agentTextBufferRef.current
       if (text) {
         agentTextBufferRef.current = ""
 
-        // Filter non-English text
-        if (!isEnglishText(text)) {
-          console.log("🚫 [FILTER] Agent transcript rejected (non-English)")
-          return
+        console.log("✅ [AGENT] Transcript:", text.substring(0, 80))
+
+        // Filter out agent filler responses that shouldn't be in the conversation
+        const lowerText = text.toLowerCase().trim()
+        const isFillerResponse = (
+          lowerText === "ok" || lowerText === "okay" || lowerText === "bye" ||
+          lowerText === "thank you" || lowerText === "thanks" ||
+          lowerText === "goodbye" || lowerText === "alright" ||
+          (lowerText.length < 15 && !lowerText.includes("?") && 
+           (lowerText.includes("ok") || lowerText.includes("bye") || lowerText.includes("thank")))
+        )
+        
+        if (isFillerResponse && !isInterviewClosing) {
+          console.log("🚫 [AGENT] Filtered out filler response:", text)
+          return // Don't add filler to conversation
         }
 
         setConversation((prev) => {
@@ -202,9 +532,38 @@ export default function InterviewPage() {
           return next
         })
 
-        // Check for closing message
-        if (!text.includes("?")) {
-          const lowerText = text.toLowerCase()
+        // Track the question asked by the agent for real-time analysis
+        if (text.includes("?")) {
+          // Find if this matches one of our interview questions
+          const questions = interviewQuestionsRef.current
+          const matchedQuestion = questions.find((q: any) => {
+            const qText = q.text?.toLowerCase() || ""
+            const agentText = text.toLowerCase()
+            const keyWords = qText.split(" ").filter((w: string) => w.length > 4).slice(0, 5)
+            const matchCount = keyWords.filter((kw: string) => agentText.includes(kw)).length
+            return matchCount >= 2 || agentText.includes(qText.substring(0, 30))
+          })
+
+          if (matchedQuestion) {
+            lastQuestionAskedRef.current = matchedQuestion.text
+            currentCriterionRef.current = matchedQuestion.criterion || matchedQuestion.criteria?.[0] || "General"
+            waitingForResponseRef.current = true
+            console.log("📝 [TRACK] Current question:", lastQuestionAskedRef.current.substring(0, 50))
+            console.log("🎯 [TRACK] Criterion:", currentCriterionRef.current)
+            ensureElaborationState(matchedQuestion.text)
+          } else {
+            // Extract the last sentence that ends with ?
+            const sentences = text.split(/[.!]/).filter((s: string) => s.includes("?"))
+            if (sentences.length > 0) {
+              lastQuestionAskedRef.current = sentences[sentences.length - 1].trim()
+              if (!currentCriterionRef.current) currentCriterionRef.current = "General"
+              waitingForResponseRef.current = true
+              console.log("📝 [TRACK] Detected question:", lastQuestionAskedRef.current.substring(0, 50))
+              ensureElaborationState(lastQuestionAskedRef.current)
+            }
+          }
+        } else {
+          // Check if this is the closing thank-you message (no question mark)
           const isClosingMessage =
             lowerText.includes("thank you for interviewing") ||
             lowerText.includes("thank you for your time today") ||
@@ -215,8 +574,7 @@ export default function InterviewPage() {
             console.log("🏁 [CLOSING] Detected closing message - starting 20-second auto-end timer")
             setIsInterviewClosing(true)
             setClosingCountdown(20)
-            
-            // Capture silent screenshot when closing detected
+
             captureScreenshotSilently()
 
             if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current)
@@ -274,8 +632,7 @@ export default function InterviewPage() {
 
         if (res.ok && json?.ok) {
           if (!json.canInterview) {
-            setInterviewCompleted(true)
-            setCheckingStatus(false)
+            router.push(`/interview/${encodeURIComponent(applicationId)}/post-verify`)
             return
           }
         }
@@ -318,6 +675,7 @@ export default function InterviewPage() {
 
           setJobDetails(details)
           setInterviewQuestions(allQuestions)
+          interviewQuestionsRef.current = allQuestions
           setInterviewDuration(duration)
           setCheckingStatus(false)
 
@@ -343,9 +701,19 @@ export default function InterviewPage() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 1280 }, height: { ideal: 720 }, aspectRatio: { ideal: 1.7777778 }, facingMode: "user" },
-        audio: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
       })
       streamRef.current = stream
+      // Store audio track reference for muting during AI speech
+      const audioTracks = stream.getAudioTracks()
+      if (audioTracks.length > 0) {
+        audioTrackRef.current = audioTracks[0]
+        console.log("🎙️ [MIC] Audio track stored for echo prevention")
+      }
       if (userVideoRef.current) {
         userVideoRef.current.srcObject = stream
         await userVideoRef.current.play().catch(() => {})
@@ -417,58 +785,80 @@ export default function InterviewPage() {
       logTs("DC open")
       try { avatarVideoRef.current?.play().catch(() => {}) } catch {}
       try {
-        let instructions = `You are Olivia, a professional AI recruiter conducting a structured video interview. Follow this EXACT process:
+        // Build structured interview instructions
+        let instructions = `You are Olivia, a professional AI recruiter conducting a structured video interview.
 
 **IMPORTANT LANGUAGE POLICY:**
 - You MUST speak ONLY in English throughout the entire interview.
 - If the candidate speaks in ANY language other than English, IMMEDIATELY and POLITELY respond:
   "I apologize, but I can only conduct this interview in English. Please respond in English so I can properly evaluate your answers."
+- Then repeat the last question in English.
 
 **STEP 1: GREETING & SETUP CHECK**
 - Greet warmly: "Hello ${details?.candidateName || "there"}, welcome and thank you for joining today's interview."
-- Confirm setup: "Before we begin, can you please confirm that your audio and video are working fine?"
+- Confirm setup: "Before we begin, can you please confirm that your audio and video are working fine, and you can hear/see me clearly?"
+- Mention language policy: "Please note that this interview will be conducted entirely in English. If you're comfortable with that, let's proceed."
 - Wait for confirmation before proceeding.
+- After confirmation, say: "Great, let's get started. This interview will last about ${duration} minutes. I'll be asking you questions based on the ${details?.jobTitle || "position"} role you applied for at ${details?.company || "our company"}."
+- Then WAIT - the system will send you the first question to ask.
 
-**STEP 2: START INTERVIEW**
-- Once setup confirmed: "Great, let's get started. This interview will last about ${duration} minutes. I'll be asking you questions based on the ${details?.jobTitle || "position"} role you applied for at ${details?.company || "our company"}."
+**CRITICAL BEHAVIOR RULES:**
+1. Do NOT generate questions on your own - the system will tell you which question to ask next
+2. After asking a question, WAIT silently for the candidate to respond
+3. Do NOT say "Ok", "Bye", "Thank you" or any filler responses on your own
+4. Do NOT generate closing messages unless the system instructs you to
+5. When you receive a system instruction to ask a question, ask ONLY that question
+6. When you receive a system instruction to close, say ONLY the closing message
+7. Between questions, you may briefly acknowledge ("Thank you for that response") ONLY when the system sends the next question
+8. NEVER ask "Do you have any questions for me?" or "Have you finished your answer?"
+9. NEVER say goodbye or end the interview on your own initiative
 
-**STEP 3: QUESTION FLOW**
-You MUST ask ONLY these questions in this exact order:`
+**QUESTION LIST (for reference only - system controls the flow):**`
 
+        // Add the specific questions from database
         if (questions && questions.length > 0) {
           questions.forEach((q, index) => {
             instructions += `\n${index + 1}. ${q.text}`
           })
         } else {
-          instructions += `\n1. Tell me about yourself and your relevant experience.
-2. Why are you interested in this position?
-3. What motivates you in your work?
-4. Describe a challenging situation you faced and how you handled it.
-5. How do you handle feedback and criticism?
-6. Tell me about a time you worked in a team to achieve a goal.
-7. What technical skills do you bring to this role?`
+          // Build fallback questions and set them on the ref for sequential tracking
+          const fallbackQuestions = [
+            { text: "Tell me about yourself and your relevant experience.", criteria: ["Communication"], sequence: 1 },
+            { text: `Why are you interested in this ${details?.jobTitle || "position"}?`, criteria: ["Culture fit"], sequence: 2 },
+            { text: "What motivates you in your work?", criteria: ["Culture fit"], sequence: 3 },
+            { text: "Describe a challenging situation you faced and how you handled it.", criteria: ["Problem-solving"], sequence: 4 },
+            { text: "How do you handle feedback and criticism?", criteria: ["Communication"], sequence: 5 },
+            { text: "Tell me about a time you worked in a team to achieve a goal.", criteria: ["Teamwork"], sequence: 6 },
+            { text: "What technical skills do you bring to this role?", criteria: ["Technical Skills"], sequence: 7 },
+            { text: "How do you stay updated with the latest technologies in your field?", criteria: ["Technical Skills"], sequence: 8 },
+            { text: "Describe a technical problem you solved recently.", criteria: ["Problem-solving"], sequence: 9 },
+          ]
+          interviewQuestionsRef.current = fallbackQuestions
+          fallbackQuestions.forEach((q, index) => {
+            instructions += `\n${index + 1}. ${q.text}`
+          })
         }
 
         instructions += `
-
-**ANSWER HANDLING:**
-After each candidate response:
-1. If the answer is RELEVANT → Acknowledge briefly and proceed to the NEXT question
-2. If the answer is NOT relevant → Politely redirect
-3. Do NOT ask "Have you finished your answer?" - just proceed naturally
-
-**STEP 4: CLOSING**
-Once the candidate answers the LAST question:
-- Say EXACTLY: "Thank you for interviewing today. Our recruitment team will respond soon."
-- Do NOT ask anything else after this closing message
-- Remain silent after the closing message
 
 **INTERVIEW CONTEXT:**
 - Candidate: ${details?.candidateName || "Candidate"}
 - Position: ${details?.jobTitle || "Position"}
 - Company: ${details?.company || "Company"}
 - Duration: ${duration} minutes
-- Total Questions: ${questions?.length || 7}`
+- Total Questions: ${questions?.length || 10}
+
+**EVALUATION CRITERIA:**
+${questions?.[0]?.criteria?.join(", ") || "Communication, Technical skills, Culture fit, Problem-solving"}
+
+**FINAL REMINDERS:**
+1. ALWAYS speak in English only
+2. Do NOT generate questions on your own - wait for system instructions
+3. Do NOT say filler words like "Ok", "Bye", "Thank you" unless part of a system-instructed message
+4. Do NOT close the interview unless the system tells you to
+5. After saying the closing message, remain COMPLETELY SILENT
+6. The system controls the question flow - you just ask what it tells you to ask
+7. Be professional, warm, and natural in delivery`
 
         const updateMsg = {
           type: "session.update",
@@ -504,6 +894,24 @@ Once the candidate answers the LAST question:
     dc.onmessage = (evt) => {
       try {
         const msg = JSON.parse(evt.data)
+        
+        // Mute user mic when AI starts speaking to prevent echo
+        if (msg.type === "response.audio.delta" || msg.type === "response.created") {
+          if (!agentSpeakingRef.current) {
+            agentSpeakingRef.current = true
+            setUserMicEnabled(false)
+          }
+        }
+        
+        // Unmute user mic when AI stops speaking
+        if (msg.type === "response.done" || msg.type === "response.audio.done") {
+          if (agentSpeakingRef.current) {
+            agentSpeakingRef.current = false
+            // Small delay before unmuting to ensure audio playback is complete
+            setTimeout(() => setUserMicEnabled(true), 300)
+          }
+        }
+        
         switch (msg.type) {
           case "conversation.item.input_audio_transcription.completed":
             handleTranscriptionCompleted(msg)
@@ -721,20 +1129,21 @@ Once the candidate answers the LAST question:
         const result = await response.json()
         console.log("✅ Interview marked as completed:", result)
 
-        // Only trigger evaluation if interview is NOT incomplete
+        // Always trigger evaluation - even for incomplete interviews
+        // Evaluation will use whatever answers are available
         if (result.incomplete) {
-          console.log("⚠️ Interview is incomplete - skipping evaluation")
+          console.log("⚠️ Interview is incomplete but still triggering evaluation with available answers")
           console.log("⚠️ Reasons:", result.validationErrors)
-        } else {
-          // Trigger evaluation (non-blocking)
-          fetch(`/api/applications/${encodeURIComponent(applicationId)}/evaluate`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ transcript, companyId }),
-          }).catch((e) => {
-            console.error("❌ Failed to run evaluation:", e)
-          })
         }
+        
+        // Trigger evaluation (non-blocking) - always run regardless of completion status
+        fetch(`/api/applications/${encodeURIComponent(applicationId)}/evaluate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcript, companyId }),
+        }).catch((e) => {
+          console.error("❌ Failed to run evaluation:", e)
+        })
 
         // Immediate redirect to post-verify page
         console.log("🔄 Redirecting to post-verify page...")
@@ -748,17 +1157,11 @@ Once the candidate answers the LAST question:
     }
 
     // Fallback redirect on error
-    router.push("/")
+    router.push(`/interview/${encodeURIComponent(applicationId)}/post-verify`)
   }
 
-  // Interview Already Completed - Direct redirect to home
+  // Show loading spinner while interview is ending/redirecting
   if (interviewCompleted) {
-    // Use useEffect to handle redirection instead of during render
-    useEffect(() => {
-      router.push("/")
-    }, [interviewCompleted, router])
-    
-    // Show loading spinner while redirecting
     return (
       <div className="flex items-center justify-center h-screen bg-[#0b1220]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>

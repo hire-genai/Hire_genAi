@@ -206,6 +206,40 @@ export async function POST(request: NextRequest) {
                 [applicationId, prevStage || null]
               )
               console.log('[CV Evaluator] Stage advanced to ai_interview')
+
+              // Auto-send interview link if job has auto_schedule_interview enabled
+              try {
+                const autoScheduleRows = await DatabaseService.query(
+                  `SELECT jp.auto_schedule_interview, jp.title as job_title,
+                          c.full_name as candidate_name, c.email as candidate_email
+                   FROM applications a
+                   JOIN job_postings jp ON a.job_id = jp.id
+                   JOIN candidates c ON a.candidate_id = c.id
+                   WHERE a.id = $1::uuid
+                   LIMIT 1`,
+                  [applicationId]
+                ) as any[]
+
+                if (autoScheduleRows?.[0]?.auto_schedule_interview === true) {
+                  const { candidate_name, candidate_email, job_title } = autoScheduleRows[0]
+                  console.log('[CV Evaluator] Auto-scheduling interview for:', candidate_email)
+
+                  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || process.env.APP_BASE_URL || 'http://localhost:3000'
+                  await fetch(`${baseUrl}/api/interview/send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      to: candidate_email,
+                      candidateName: candidate_name,
+                      position: job_title,
+                      interviewId: applicationId,
+                    }),
+                  })
+                  console.log('[CV Evaluator] ✅ Auto interview link sent to:', candidate_email)
+                }
+              } catch (autoSendErr) {
+                console.warn('[CV Evaluator] Auto-send interview link failed (non-fatal):', autoSendErr)
+              }
             }
           }
         } catch (setStatusErr) {

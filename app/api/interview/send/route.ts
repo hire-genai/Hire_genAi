@@ -114,10 +114,11 @@ Talent Acquisition Team`
       
       await sendMail(emailOptions)
 
-      // Update interview_status to Scheduled
+      // Update interview_status to Scheduled in interviews table
       try {
+        await DatabaseService.ensureInterviewRecord(interviewId)
         await DatabaseService.query(
-          `UPDATE applications SET interview_status = 'Scheduled' WHERE id = $1::uuid`,
+          `UPDATE interviews SET interview_status = 'Scheduled', interview_sent_at = NOW() WHERE application_id = $1::uuid`,
           [interviewId]
         )
       } catch (e) {

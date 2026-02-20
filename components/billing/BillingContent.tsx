@@ -31,6 +31,7 @@ import {
   Loader2,
   Filter
 } from "lucide-react"
+import PayPalOverview from "./PayPalOverview"
 
 interface BillingContentProps {
   companyId: string
@@ -429,6 +430,14 @@ export default function BillingContent({ companyId }: BillingContentProps) {
               </CardContent>
             </Card>
           </div>
+
+          {/* PayPal Quick Subscribe */}
+          <PayPalOverview 
+            onSubscriptionSuccess={(subscriptionId) => {
+              console.log('Subscription successful:', subscriptionId)
+              loadBillingData()
+            }}
+          />
 
         </TabsContent>
 

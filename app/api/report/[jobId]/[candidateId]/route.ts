@@ -19,7 +19,7 @@ export async function GET(
       return NextResponse.json({ error: 'jobId and candidateId are required' }, { status: 400 })
     }
 
-    // Fetch application with candidate + job details
+    // Fetch application with candidate + job + interview details
     const appQuery = `
       SELECT 
         a.id AS application_id,
@@ -39,13 +39,13 @@ export async function GET(
         a.linkedin_url AS app_linkedin,
         a.portfolio_url,
         a.resume_text,
-        a.interview_status,
-        a.interview_score,
-        a.interview_evaluations,
-        a.interview_recommendation,
-        a.interview_summary,
-        a.interview_completed_at,
-        a.interview_feedback,
+        i.interview_status,
+        i.interview_score,
+        i.interview_evaluations,
+        i.interview_recommendation,
+        i.interview_summary,
+        i.interview_completed_at,
+        i.interview_feedback,
         a.hm_status,
         a.hm_feedback,
         a.hm_rating,
@@ -75,6 +75,7 @@ export async function GET(
       FROM applications a
       JOIN candidates c ON a.candidate_id = c.id
       JOIN job_postings j ON a.job_id = j.id
+      LEFT JOIN interviews i ON i.application_id = a.id
       WHERE a.job_id = $1::uuid AND a.candidate_id = $2::uuid
       LIMIT 1
     `
@@ -95,7 +96,7 @@ export async function GET(
     const historyResult = await DatabaseService.query(
       `SELECT ash.from_stage, ash.to_stage, ash.remarks, ash.created_at, u.full_name AS changed_by_name
        FROM application_stage_history ash
-       LEFT JOIN users u ON ash.changed_by = u.id
+       LEFT JOIN users u ON ash.changed_by = u.email
        WHERE ash.application_id = $1::uuid
        ORDER BY ash.created_at DESC`,
       [app.application_id]

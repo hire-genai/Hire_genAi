@@ -4538,4 +4538,41 @@ export class DatabaseService {
     console.log(`✅ [MEETING BOOKING] Updated meeting link:`, id)
     return result[0]
   }
+
+  // =========================
+  // INTERVIEWS TABLE HELPERS
+  // =========================
+
+  // Ensure an interview record exists for an application (upsert)
+  static async ensureInterviewRecord(applicationId: string): Promise<any> {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      INSERT INTO interviews (application_id)
+      VALUES ($1::uuid)
+      ON CONFLICT (application_id) DO NOTHING
+      RETURNING *
+    `
+    const rows = await this.query(q, [applicationId]) as any[]
+
+    if (rows.length > 0) return rows[0]
+
+    // Row already existed – fetch it
+    const fetch = `SELECT * FROM interviews WHERE application_id = $1::uuid LIMIT 1`
+    const existing = await this.query(fetch, [applicationId]) as any[]
+    return existing[0] || null
+  }
+
+  // Get interview record by application ID
+  static async getInterviewByApplicationId(applicationId: string): Promise<any | null> {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `SELECT * FROM interviews WHERE application_id = $1::uuid LIMIT 1`
+    const rows = await this.query(q, [applicationId]) as any[]
+    return rows.length > 0 ? rows[0] : null
+  }
 }

@@ -55,8 +55,8 @@ export async function GET(request: NextRequest) {
         -- This week's new applications
         (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND applied_at >= NOW() - INTERVAL '7 days') AS new_this_week,
         
-        -- Avg interview score
-        (SELECT ROUND(AVG(interview_score)::numeric, 1) FROM applications WHERE company_id = $1::uuid AND interview_score IS NOT NULL) AS avg_interview_score,
+        -- Avg interview score (from interviews table)
+        (SELECT ROUND(AVG(i.interview_score)::numeric, 1) FROM interviews i JOIN applications a ON i.application_id = a.id WHERE a.company_id = $1::uuid AND i.interview_score IS NOT NULL) AS avg_interview_score,
         
         -- Offer acceptance rate
         (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND offer_status = 'accepted') AS offers_accepted,
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
         a.current_stage,
         a.applied_at,
         a.ai_cv_score,
-        a.interview_score,
+        i.interview_score,
         c.full_name,
         c.email,
         c.experience_years,
@@ -89,6 +89,7 @@ export async function GET(request: NextRequest) {
       FROM applications a
       JOIN candidates c ON a.candidate_id = c.id
       JOIN job_postings j ON a.job_id = j.id
+      LEFT JOIN interviews i ON i.application_id = a.id
       WHERE a.company_id = $1::uuid
       ORDER BY a.applied_at DESC
       LIMIT 10
@@ -161,10 +162,10 @@ export async function GET(request: NextRequest) {
     // --- 6. Recruiters list (team members) ---
     const recruitersQuery = `
       SELECT u.id, u.full_name AS name, u.email,
-        (SELECT COUNT(*) FROM job_postings jp WHERE jp.created_by = u.id AND jp.status = 'open') AS active_jobs,
+        (SELECT COUNT(*) FROM job_postings jp WHERE jp.created_by = u.email AND jp.status = 'open') AS active_jobs,
         (SELECT COUNT(*) FROM applications a2 
          JOIN job_postings jp2 ON a2.job_id = jp2.id 
-         WHERE jp2.created_by = u.id AND a2.current_stage NOT IN ('hired', 'rejected', 'withdrawn')) AS active_candidates
+         WHERE jp2.created_by = u.email AND a2.current_stage NOT IN ('hired', 'rejected', 'withdrawn')) AS active_candidates
       FROM users u
       WHERE u.company_id = $1::uuid AND u.status = 'active'
       ORDER BY u.full_name

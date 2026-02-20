@@ -34,21 +34,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid target stage' }, { status: 400 })
     }
 
-    // Resolve changed_by from email if provided
-    let changedById: string | null = null
-    if (changedByEmail) {
-      try {
-        const userRows = await DatabaseService.query(
-          `SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1`,
-          [changedByEmail]
-        )
-        if (userRows && userRows.length > 0) {
-          changedById = userRows[0].id
-        }
-      } catch (e) {
-        console.warn('Failed to resolve changedByEmail:', e)
-      }
-    }
+    // Use changedByEmail directly (now stored as text in changed_by column)
+    let changedByValue: string | null = changedByEmail || changedBy || null
 
     // Get current stage and verify company ownership
     const currentRows = await DatabaseService.query(
@@ -75,8 +62,8 @@ export async function POST(req: NextRequest) {
     // Record history
     await DatabaseService.query(
       `INSERT INTO application_stage_history (application_id, from_stage, to_stage, changed_by, remarks)
-       VALUES ($1::uuid, $2::application_stage, $3::application_stage, $4::uuid, $5)`,
-      [applicationId, currentStage || null, targetStage, changedById || changedBy || null, remarks || (changedByEmail ? `Moved by ${changedByEmail}` : '')]
+       VALUES ($1::uuid, $2::application_stage, $3::application_stage, $4, $5)`,
+      [applicationId, currentStage || null, targetStage, changedByValue, remarks || (changedByEmail ? `Moved by ${changedByEmail}` : '')]
     )
 
     return NextResponse.json({ ok: true, currentStage: targetStage })

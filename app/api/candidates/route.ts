@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
       all: { count: parseInt(counts.total) || 0 }
     }
 
-    // Get applications with candidate and job info + latest stage remarks
+    // Get applications with candidate, job info, interview data + latest stage remarks
     const applicationsQuery = `
       SELECT 
         a.id,
@@ -70,10 +70,10 @@ export async function GET(req: NextRequest) {
         a.source,
         a.ai_cv_score,
         a.is_qualified,
-        a.interview_status,
-        a.interview_score,
-        a.interview_recommendation,
-        a.interview_feedback,
+        i.interview_status as interview_status,
+        i.interview_score as interview_score,
+        i.interview_recommendation as interview_recommendation,
+        i.interview_feedback as interview_feedback,
         a.hm_status,
         a.hm_feedback,
         a.offer_status,
@@ -104,6 +104,7 @@ export async function GET(req: NextRequest) {
       FROM applications a
       JOIN candidates c ON a.candidate_id = c.id
       JOIN job_postings j ON a.job_id = j.id
+      LEFT JOIN interviews i ON i.application_id = a.id
       WHERE a.company_id = $1::uuid
       ORDER BY a.applied_at DESC
     `
@@ -258,9 +259,11 @@ async function getInterviewStats(companyId: string) {
   const result = await DatabaseService.query(`
     SELECT 
       COUNT(*) AS total,
-      COUNT(*) FILTER (WHERE interview_recommendation IN ('Strongly Recommend', 'Recommend')) AS qualified,
-      COUNT(*) FILTER (WHERE interview_recommendation IN ('Reject', 'On Hold')) AS unqualified
-    FROM applications WHERE current_stage = 'ai_interview' AND company_id = $1::uuid
+      COUNT(*) FILTER (WHERE i.interview_recommendation IN ('Strongly Recommend', 'Recommend')) AS qualified,
+      COUNT(*) FILTER (WHERE i.interview_recommendation IN ('Reject', 'On Hold')) AS unqualified
+    FROM applications a
+    LEFT JOIN interviews i ON i.application_id = a.id
+    WHERE a.current_stage = 'ai_interview' AND a.company_id = $1::uuid
   `, [companyId])
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0

@@ -373,7 +373,7 @@ CREATE INDEX idx_contact_messages_work_email ON contact_messages (work_email);
 CREATE TABLE job_postings (
   id                          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   company_id                  UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  created_by                  UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  created_by                  TEXT NOT NULL,
 
   -- Basic info (Step 1 of JobPostingForm)
   title                       TEXT NOT NULL,
@@ -545,16 +545,6 @@ CREATE TABLE applications (
   screening_date          DATE,
   screening_remarks       TEXT,
 
-  -- AI Interview
-  interview_status        TEXT DEFAULT 'Not Scheduled',  -- Not Scheduled, Scheduled, Completed, Expired
-  interview_link          TEXT,
-  interview_sent_at       TIMESTAMPTZ,
-  interview_completed_at  TIMESTAMPTZ,
-  interview_score         NUMERIC(5,2),                -- Overall average score
-  interview_evaluations   JSONB DEFAULT '{}',           -- {"Technical Skills": {"score": 85.5, "feedback": "Strong"}, "Communication": {"score": 92.0, "feedback": "Clear"}}
-  interview_recommendation TEXT,                      -- Strongly Recommend, Recommend, On Hold, Reject
-  interview_summary      TEXT,                        -- AI-generated overall summary
-
   -- Hiring Manager Review
   hm_status               TEXT,                       -- Waiting for HM feedback, Under Review, Approved, Rejected, OnHold
   hm_rating               INT CHECK (hm_rating BETWEEN 1 AND 5),
@@ -606,12 +596,6 @@ CREATE TABLE applications (
   is_qualified            BOOLEAN,                     -- Whether candidate passed threshold
   qualification_explanations JSONB,                    -- Full evaluation breakdown JSON
 
-  -- Interview Screenshots & Verification
-  during_interview_screenshot           TEXT,                        -- Screenshot captured silently during interview (last question or closing)
-  during_interview_screenshot_captured_at TIMESTAMPTZ,                -- Timestamp when during-interview screenshot was captured
-  post_interview_photo_url              TEXT,                        -- Photo URL from post-verify page
-  post_interview_photo_captured_at      TIMESTAMPTZ,                -- Timestamp when post-verify photo was captured
-
   -- General
   remarks                 TEXT,
   created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -623,9 +607,54 @@ CREATE INDEX idx_applications_job_id ON applications (job_id);
 CREATE INDEX idx_applications_candidate_id ON applications (candidate_id);
 CREATE INDEX idx_applications_current_stage ON applications (current_stage);
 CREATE INDEX idx_applications_offer_status ON applications (offer_status);
-CREATE INDEX idx_applications_during_interview_screenshot ON applications (during_interview_screenshot) WHERE during_interview_screenshot IS NOT NULL;
-CREATE INDEX idx_applications_post_interview_photo ON applications (post_interview_photo_url) WHERE post_interview_photo_url IS NOT NULL;
 CREATE UNIQUE INDEX idx_applications_job_candidate ON applications (job_id, candidate_id);
+
+
+-- ---------------------------------------------------------------------------
+-- 6c-ii. interviews
+-- WHY: Stores all interview-related data for an application. Separated from
+--       the applications table for proper normalization. Each application has
+--       at most one interview record. Contains scheduling info, AI evaluation
+--       scores, recommendation, transcript, screenshots, and photo verification.
+-- USED BY: /interview (candidate-facing), /candidate (pipeline view),
+--          /dashboard (KPIs), /report (candidate report)
+-- ---------------------------------------------------------------------------
+CREATE TABLE interviews (
+  id                                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  application_id                        UUID NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+
+  -- Interview scheduling & status
+  interview_status                      TEXT DEFAULT 'Not Scheduled',  -- Not Scheduled, Scheduled, In Progress, Completed, Incomplete, Expired
+  interview_link                        TEXT,
+  interview_sent_at                     TIMESTAMPTZ,
+  interview_completed_at                TIMESTAMPTZ,
+
+  -- Scoring & evaluation
+  interview_score                       NUMERIC(5,2),                  -- Overall weighted score (0-100)
+  interview_evaluations                 JSONB DEFAULT '{}',            -- Full evaluation breakdown JSON
+  interview_recommendation              TEXT,                          -- Strongly Recommend, Recommend, On Hold, Reject
+  interview_summary                     TEXT,                          -- AI-generated overall summary
+  interview_feedback                    TEXT,                          -- Full interview transcript
+
+  -- Screenshots & verification
+  during_interview_screenshot           TEXT,                          -- Screenshot captured during interview
+  during_interview_screenshot_captured_at TIMESTAMPTZ,
+  post_interview_photo_url              TEXT,                          -- Photo URL from post-verify page
+  post_interview_photo_captured_at      TIMESTAMPTZ,
+  verification_photo_url                TEXT,                          -- Webcam photo from verify step
+  photo_verified                        BOOLEAN,                       -- Face comparison result
+  photo_match_score                     NUMERIC(5,4),                  -- Euclidean distance (internal)
+  verified_at                           TIMESTAMPTZ,
+
+  -- Timestamps
+  created_at                            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at                            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_interviews_application_id ON interviews (application_id);
+CREATE INDEX idx_interviews_status ON interviews (interview_status);
+CREATE INDEX idx_interviews_score ON interviews (interview_score) WHERE interview_score IS NOT NULL;
+CREATE INDEX idx_interviews_completed_at ON interviews (interview_completed_at) WHERE interview_completed_at IS NOT NULL;
 
 
 -- ---------------------------------------------------------------------------
@@ -639,7 +668,7 @@ CREATE TABLE application_stage_history (
   application_id  UUID NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
   from_stage      application_stage,
   to_stage        application_stage NOT NULL,
-  changed_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+  changed_by      TEXT,
   remarks         TEXT,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -970,6 +999,7 @@ BEGIN
       'assessments',
       'job_postings',
       'applications',
+      'interviews',
       'candidates',
       'talent_pool_entries',
       'support_tickets',
@@ -1057,18 +1087,8 @@ CREATE INDEX IF NOT EXISTS idx_screening_otps_email ON screening_otps (email);
 CREATE INDEX IF NOT EXISTS idx_screening_otps_expires ON screening_otps (expires_at);
 
 
--- ---------------------------------------------------------------------------
--- ALTER TABLE: applications — add photo verification columns
--- WHY: Stores identity verification result from /interview/{id}/verify page.
---      verification_photo_url = captured webcam photo during verify step
---      photo_verified = BOOLEAN result of face comparison
---      photo_match_score = Euclidean distance (internal logs only)
---      verified_at = timestamp of successful verification
--- ---------------------------------------------------------------------------
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS verification_photo_url TEXT;
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS photo_verified BOOLEAN;
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS photo_match_score NUMERIC(5,4);
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+-- NOTE: verification_photo_url, photo_verified, photo_match_score, verified_at
+-- are now stored in the interviews table (see section 6c-ii above).
 
 
 -- ============================================================================

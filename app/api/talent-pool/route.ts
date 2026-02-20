@@ -53,8 +53,8 @@ export async function GET(request: NextRequest) {
         c.notes AS candidate_notes,
         -- Get best CV score from any application
         (SELECT MAX(a.ai_cv_score) FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid) AS best_cv_score,
-        -- Get best interview score from any application
-        (SELECT MAX(a.interview_score) FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid) AS best_interview_score,
+        -- Get best interview score from interviews table
+        (SELECT MAX(i.interview_score) FROM interviews i JOIN applications a ON i.application_id = a.id WHERE a.candidate_id = c.id AND a.company_id = $1::uuid) AS best_interview_score,
         -- Get rejection info from most recent application
         (SELECT a.rejection_stage FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid AND a.current_stage = 'rejected' ORDER BY a.updated_at DESC LIMIT 1) AS rejection_stage,
         (SELECT a.rejection_reason FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid AND a.current_stage = 'rejected' ORDER BY a.updated_at DESC LIMIT 1) AS rejection_reason,

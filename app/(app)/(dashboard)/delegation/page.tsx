@@ -184,6 +184,7 @@ export default function DelegationPage() {
     type: 'job' as DelegationType,
     delegateTo: '',
     selectedJobId: '',
+    selectedApplicationJobFilter: '',
     selectedApplicationIds: [] as string[],
     startDate: '',
     endDate: '',
@@ -239,6 +240,7 @@ export default function DelegationPage() {
       type: 'job',
       delegateTo: '',
       selectedJobId: '',
+      selectedApplicationJobFilter: '',
       selectedApplicationIds: [],
       startDate: '',
       endDate: '',
@@ -753,10 +755,32 @@ export default function DelegationPage() {
 
             {/* Application Selection */}
             {formData.type === 'application' && (
-              <div>
-                <Label>Select Pending Applications <span className="text-red-500">*</span></Label>
-                <div className="mt-2 border rounded max-h-48 overflow-y-auto">
-                  {pendingApplications.map(app => (
+              <div className="space-y-3">
+                {/* Job filter dropdown - only shown for application type */}
+                <div>
+                  <Label>Filter by Job</Label>
+                  <Select
+                    value={formData.selectedApplicationJobFilter}
+                    onValueChange={(value) => setFormData({...formData, selectedApplicationJobFilter: value, selectedApplicationIds: []})}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="All Jobs" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Jobs</SelectItem>
+                      {availableJobs.map(job => (
+                        <SelectItem key={job.id} value={job.id}>{job.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Select Pending Applications <span className="text-red-500">*</span></Label>
+                  <div className="mt-2 border rounded max-h-48 overflow-y-auto">
+                  {pendingApplications
+                    .filter(app => !formData.selectedApplicationJobFilter || formData.selectedApplicationJobFilter === 'all' || availableJobs.find(j => j.id === formData.selectedApplicationJobFilter)?.title === app.position)
+                    .map(app => (
                     <label 
                       key={app.id}
                       className="flex items-center gap-3 p-2.5 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
@@ -776,13 +800,14 @@ export default function DelegationPage() {
                         <div className="text-sm font-medium text-gray-900">{app.candidateName}</div>
                         <div className="text-xs text-gray-500">{app.position} • {app.stage}</div>
                       </div>
-                      <Badge variant="secondary" className="text-xs">{app.stage}</Badge>
+                        <Badge variant="secondary" className="text-xs">{app.stage}</Badge>
                     </label>
                   ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formData.selectedApplicationIds.length} selected
+                  </p>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  {formData.selectedApplicationIds.length} selected
-                </p>
               </div>
             )}
 

@@ -181,23 +181,18 @@ export async function POST(
 
     // ========== CHECK INTERVIEW STATUS & FETCH TRANSCRIPT FROM DB ==========
     const appCheck = (await DatabaseService.query(
-      `SELECT interview_status, interview_feedback FROM applications WHERE id = $1::uuid LIMIT 1`,
+      `SELECT i.interview_status, i.interview_feedback FROM applications a LEFT JOIN interviews i ON i.application_id = a.id WHERE a.id = $1::uuid LIMIT 1`,
       [applicationId]
     )) as any[]
 
     if (appCheck?.[0]?.interview_status === "Incomplete") {
-      console.log("🚫 [EVAL] Interview is marked as Incomplete - BLOCKING evaluation")
-      return NextResponse.json({
-        ok: false,
-        error: "Interview is incomplete - evaluation blocked",
-        reason: "Interview did not meet minimum completion requirements",
-      })
+      console.log("⚠️ [EVAL] Interview is marked as Incomplete - proceeding with evaluation using available answers")
     }
 
     // Use transcript from DB (interview_feedback column) first, fallback to request body
     const transcript = appCheck?.[0]?.interview_feedback || bodyTranscript
 
-    console.log("📝 Transcript source:", appCheck?.[0]?.interview_feedback ? "database (interview_feedback)" : "request body")
+    console.log("📝 Transcript source:", appCheck?.[0]?.interview_feedback ? "database (interviews.interview_feedback)" : "request body")
     console.log("📝 Transcript length:", transcript?.length || 0)
 
     if (!transcript) {
@@ -350,26 +345,23 @@ export async function POST(
     console.log("📊 [EVAL] Interviewer questions:", allInterviewerQuestions.length)
     console.log("📊 [EVAL] Candidate responses:", allCandidateResponses.length)
 
-    // Block evaluation if insufficient data
-    if (allCandidateResponses.length < 5) {
-      console.log("🚫 [EVAL] Insufficient candidate responses (", allCandidateResponses.length, ") - BLOCKING evaluation")
-
-      // Mark as incomplete in DB
-      await DatabaseService.query(
-        `UPDATE applications SET interview_status = 'Incomplete' WHERE id = $1::uuid AND interview_status != 'Incomplete'`,
-        [applicationId]
-      )
-
-      return NextResponse.json({
-        ok: false,
-        error: "Insufficient interview data for evaluation",
-        reason: `Only ${allCandidateResponses.length} candidate responses found (minimum 5 required)`,
-        stats: {
-          questionsAsked: allInterviewerQuestions.length,
-          candidateResponses: allCandidateResponses.length,
-          totalConfiguredQuestions: totalQuestions,
-        },
-      })
+    // If very few responses, log warning but still evaluate what we have
+    if (allCandidateResponses.length < 2) {
+      console.log("⚠️ [EVAL] Very few candidate responses (", allCandidateResponses.length, ") - evaluation may be limited")
+      
+      if (allCandidateResponses.length === 0) {
+        console.log("🚫 [EVAL] No candidate responses at all - cannot evaluate")
+        return NextResponse.json({
+          ok: false,
+          error: "No candidate responses found in transcript",
+          reason: "Cannot generate evaluation without any candidate answers",
+          stats: {
+            questionsAsked: allInterviewerQuestions.length,
+            candidateResponses: 0,
+            totalConfiguredQuestions: totalQuestions,
+          },
+        })
+      }
     }
 
     // ========== MATCH EACH DB QUESTION TO REAL CANDIDATE ANSWER ==========
@@ -508,15 +500,16 @@ export async function POST(
     completeEvaluation.areas_for_improvement = Array.from(new Set(allGaps)).slice(0, 5)
     completeEvaluation.summary = `Candidate scored ${overallScore}% overall. ${answeredCount}/${totalQuestions} questions answered. Recommendation: ${recommendation}.`
 
-    // Store evaluation results to interview_evaluations column (JSONB) and update score/recommendation
+    // Store evaluation results in interviews table
+    await DatabaseService.ensureInterviewRecord(applicationId)
     const storeQuery = `
-      UPDATE applications
+      UPDATE interviews
       SET 
         interview_score = $2,
         interview_recommendation = $3,
         interview_evaluations = $4::jsonb,
         interview_summary = $5
-      WHERE id = $1::uuid
+      WHERE application_id = $1::uuid
     `
     await DatabaseService.query(storeQuery, [
       applicationId,
@@ -526,7 +519,7 @@ export async function POST(
       completeEvaluation.summary,
     ])
 
-    console.log("✅ [EVAL] Evaluation stored in interview_evaluations column")
+    console.log("✅ [EVAL] Evaluation stored in interviews table")
     console.log("=".repeat(80) + "\n")
 
     return NextResponse.json({

@@ -89,12 +89,14 @@ export async function GET(request: NextRequest) {
       try {
         if (job.created_by) {
           const user = await DatabaseService.query(
-            `SELECT full_name, email FROM users WHERE id = $1::uuid`,
+            `SELECT full_name, email FROM users WHERE email = $1`,
             [job.created_by]
           )
           if (user.length > 0) {
             job.recruiter_name = user[0].full_name
             job.recruiter_email = user[0].email
+          } else {
+            job.recruiter_email = job.created_by
           }
         }
       } catch {
@@ -437,7 +439,7 @@ export async function POST(request: NextRequest) {
           client_company_name,
           status, published_at
         ) VALUES (
-          $1::uuid, $2::uuid, $3, $4, $5,
+          $1::uuid, $2, $3, $4, $5,
           $6::job_type, $7::work_mode, $8, $9, $10,
           $11, $12, $13, $14, $15, $16,
           $17, $18, $19, $20, $21, $22,
@@ -448,7 +450,7 @@ export async function POST(request: NextRequest) {
           $43::job_status, $44
         ) RETURNING *`,
         [
-          companyId, userId, jobTitle,
+          companyId, sessionUserEmail, jobTitle,
           department || null, location || null,
           normalizedJobType, normalizedWorkMode,
           salaryMin ? parseFloat(salaryMin) : null,
@@ -493,11 +495,11 @@ export async function POST(request: NextRequest) {
         `INSERT INTO job_postings (
           company_id, created_by, title, job_type, work_mode, status, published_at
         ) VALUES (
-          $1::uuid, $2::uuid, $3, $4::job_type, $5::work_mode, $6, $7
+          $1::uuid, $2, $3, $4::job_type, $5::work_mode, $6, $7
         ) RETURNING *`,
         [
           companyId,
-          userId,
+          sessionUserEmail,
           jobTitle,
           normalizedJobType,
           normalizedWorkMode,

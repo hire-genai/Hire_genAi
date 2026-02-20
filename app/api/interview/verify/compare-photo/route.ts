@@ -61,19 +61,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: 'Application ID is required' }, { status: 400 })
     }
 
-    // Ensure verification columns exist on applications table
-    await ensureVerificationColumns()
+    // Ensure interview record exists, then update verification data
+    await DatabaseService.ensureInterviewRecord(applicationId)
 
-    // Update application with verification status
+    // Update interviews table with verification status
     // Distance is stored for internal logging only, NEVER shown to users
     const updateQuery = `
-      UPDATE applications 
+      UPDATE interviews 
       SET 
         verification_photo_url = $2,
         photo_verified = $3,
         photo_match_score = $4,
         verified_at = NOW()
-      WHERE id = $1::uuid
+      WHERE application_id = $1::uuid
       RETURNING id
     `
     
@@ -85,8 +85,7 @@ export async function POST(req: Request) {
         distance || 0 // Store raw distance (0-1 scale) for internal logs
       ])
     } catch (dbErr: any) {
-      // Columns might not exist - try simpler update
-      console.warn('[Photo Compare] Full update failed, trying simple update:', dbErr?.message)
+      console.warn('[Photo Compare] Update failed:', dbErr?.message)
     }
 
     console.log(`[Photo Compare] Application ${applicationId}: verified=${verified}, distance=${distance}`)
@@ -103,30 +102,3 @@ export async function POST(req: Request) {
   }
 }
 
-// Auto-add verification columns to applications table if missing
-async function ensureVerificationColumns(): Promise<void> {
-  try {
-    const checkCols = `
-      SELECT column_name FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'applications'
-        AND column_name IN ('verification_photo_url', 'photo_verified', 'photo_match_score', 'verified_at')
-    `
-    const existing = await (DatabaseService as any).query(checkCols, [])
-    const existingSet = new Set((existing || []).map((r: any) => r.column_name))
-
-    const alters: string[] = []
-    if (!existingSet.has('verification_photo_url')) alters.push(`ALTER TABLE applications ADD COLUMN verification_photo_url TEXT`)
-    if (!existingSet.has('photo_verified')) alters.push(`ALTER TABLE applications ADD COLUMN photo_verified BOOLEAN`)
-    if (!existingSet.has('photo_match_score')) alters.push(`ALTER TABLE applications ADD COLUMN photo_match_score NUMERIC(5,4)`)
-    if (!existingSet.has('verified_at')) alters.push(`ALTER TABLE applications ADD COLUMN verified_at TIMESTAMPTZ`)
-
-    for (const sql of alters) {
-      await (DatabaseService as any).query(sql, [])
-      console.log(`✅ [Schema] ${sql}`)
-    }
-  } catch (err: any) {
-    if (!err?.message?.includes('already exists')) {
-      console.error('[Schema] Failed to ensure verification columns:', err?.message)
-    }
-  }
-}

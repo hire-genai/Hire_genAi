@@ -62,60 +62,15 @@ export async function POST(
       screenshotUrl = screenshot
     }
 
-    // First ensure the columns exist
-    try {
-      const checkCol = await DatabaseService.query(
-        `SELECT EXISTS (
-          SELECT 1 FROM information_schema.columns 
-          WHERE table_schema = 'public' 
-            AND table_name = 'applications' 
-            AND column_name = 'during_interview_screenshot'
-        ) as exists`,
-        []
-      )
-      
-      if (!checkCol?.[0]?.exists) {
-        console.log('[Interview Screenshot] Adding missing columns to applications table...')
-        await DatabaseService.query(`
-          ALTER TABLE applications 
-          ADD COLUMN IF NOT EXISTS during_interview_screenshot TEXT,
-          ADD COLUMN IF NOT EXISTS during_interview_screenshot_captured_at TIMESTAMP WITH TIME ZONE
-        `, [])
-      }
-    } catch (colErr) {
-      console.warn('[Interview Screenshot] Column check failed:', colErr)
-    }
-
-    // Update the application with the screenshot
-    try {
-      await DatabaseService.query(
-        `UPDATE applications 
-         SET during_interview_screenshot = $1, during_interview_screenshot_captured_at = NOW()
-         WHERE id = $2::uuid`,
-        [screenshotUrl, applicationId]
-      )
-      console.log(`[Interview Screenshot] Saved during_interview screenshot for application ${applicationId}`)
-    } catch (dbError: any) {
-      console.error('[Interview Screenshot] Database error:', dbError.message)
-      
-      // Try to create columns and retry
-      if (dbError.message?.includes('column') && dbError.message?.includes('does not exist')) {
-        await DatabaseService.query(`
-          ALTER TABLE applications 
-          ADD COLUMN IF NOT EXISTS during_interview_screenshot TEXT,
-          ADD COLUMN IF NOT EXISTS during_interview_screenshot_captured_at TIMESTAMP WITH TIME ZONE
-        `, [])
-        
-        await DatabaseService.query(
-          `UPDATE applications 
-           SET during_interview_screenshot = $1, during_interview_screenshot_captured_at = NOW()
-           WHERE id = $2::uuid`,
-          [screenshotUrl, applicationId]
-        )
-      } else {
-        throw dbError
-      }
-    }
+    // Ensure interview record exists, then save screenshot
+    await DatabaseService.ensureInterviewRecord(applicationId)
+    await DatabaseService.query(
+      `UPDATE interviews 
+       SET during_interview_screenshot = $1, during_interview_screenshot_captured_at = NOW()
+       WHERE application_id = $2::uuid`,
+      [screenshotUrl, applicationId]
+    )
+    console.log(`[Interview Screenshot] Saved during_interview screenshot for application ${applicationId}`)
 
     return NextResponse.json({ 
       ok: true, 

@@ -191,6 +191,16 @@ export async function PATCH(
       return NextResponse.json({ error: 'Job not found or company mismatch' }, { status: 404 })
     }
 
+    // Quick single-field patch (e.g. toggle autoScheduleInterview from job card)
+    const bodyKeys = Object.keys(body)
+    if (bodyKeys.length === 1 && bodyKeys[0] === 'autoScheduleInterview') {
+      await DatabaseService.query(
+        `UPDATE job_postings SET auto_schedule_interview = $1::boolean, updated_at = NOW() WHERE id = $2::uuid`,
+        [body.autoScheduleInterview === true, jobId]
+      )
+      return NextResponse.json({ success: true })
+    }
+
     const {
       // Basic Info
       jobTitle,

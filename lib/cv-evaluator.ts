@@ -1553,20 +1553,71 @@ export class CVEvaluator {
   // =========================================================================
 
   /**
-   * Build LLM prompt for extraction and limited scoring
+   * Parse required skills from JD text into a flat list for explicit checklist injection
    */
+  private static parseRequiredSkillsForPrompt(jobDescription: string): string[] {
+    const skills: string[] = []
+    const lines = jobDescription.split('\n')
+    let inRequiredSection = false
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+
+      // Detect required skills section header
+      if (/required\s+skills?|must\s+have|mandatory|essential\s+skills?|key\s+requirements?/i.test(trimmed)) {
+        inRequiredSection = true
+        continue
+      }
+      // Stop at preferred/nice-to-have section
+      if (/preferred|nice\s+to\s+have|good\s+to\s+have|bonus|desired|optional/i.test(trimmed)) {
+        inRequiredSection = false
+        continue
+      }
+
+      if (inRequiredSection) {
+        // Strip bullet/dash/number prefix
+        const cleaned = trimmed.replace(/^[-•*\d.)\s]+/, '').trim()
+        if (cleaned.length > 2) skills.push(cleaned)
+      }
+    }
+
+    // Fallback: if no section detected, try to find bullet lines anywhere in JD
+    if (skills.length === 0) {
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (/^[-•*]\s+.{5,}/.test(trimmed)) {
+          const cleaned = trimmed.replace(/^[-•*]\s+/, '').trim()
+          if (cleaned.length > 2) skills.push(cleaned)
+        }
+      }
+    }
+
+    return skills.slice(0, 20) // cap at 20 items
+  }
+
   private static buildLLMPrompt(resumeText: string, jobDescription: string): string {
+    // Extract required skills for explicit checklist
+    const requiredSkills = this.parseRequiredSkillsForPrompt(jobDescription)
+    const skillChecklist = requiredSkills.length > 0
+      ? `\n[REQUIRED SKILLS CHECKLIST - YOU MUST EVALUATE EACH ONE]\nFor EVERY skill below, determine if the resume satisfies it (directly or via equivalent tool):\n${requiredSkills.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\nRules:\n- "or" separated skills (e.g. "UiPath or Blue Prism or Automation Anywhere"): matched if resume has ANY one of them\n- A skill is MATCHED if explicitly mentioned OR demonstrated through equivalent tools/projects\n- A skill is MISSING if there is NO evidence in the resume, not even indirect\n- Put matched skills in matched_critical or matched_important\n- Put missing skills in missing_critical\n- Your skill_match score MUST reflect how many of these ${requiredSkills.length} skills are covered\n`
+      : ''
+
     return `Extract data from this resume and score ONLY skill_match, project_relevance, and resume_quality.
 
 [JOB DESCRIPTION]
 ${jobDescription}
-
+${skillChecklist}
 [RESUME]
 ${resumeText}
 
 [INSTRUCTIONS]
 1. Extract all structured data accurately
-2. Score skill_match (0-100): How well do resume skills match JD requirements?
+2. Score skill_match (0-100): Systematically check EACH required skill from the checklist above against the resume. Do NOT give a high score if key required skills are missing.
+   - 90-100: All or nearly all required skills present
+   - 70-89: Most required skills present (≥70%)
+   - 50-69: Partial match (50-69% of required skills)
+   - <50: Major gaps (fewer than half the required skills found)
 3. Score project_relevance (0-100): How relevant are recent projects to the JD?
 4. Score resume_quality (0-100): Clarity, structure, completeness
 5. Identify platforms/tools, languages, and experience flags

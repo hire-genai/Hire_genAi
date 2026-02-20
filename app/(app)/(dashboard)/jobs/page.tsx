@@ -24,7 +24,10 @@ import {
 	RefreshCw,
 	Share2,
 	Check,
+	Zap,
 } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import { useState, useEffect, useCallback } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useMobileMenu } from '@/components/dashboard/mobile-menu-context'
@@ -117,6 +120,7 @@ export default function JobsPage() {
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const [copiedJobId, setCopiedJobId] = useState<string | null>(null)
+	const [togglingJobId, setTogglingJobId] = useState<string | null>(null)
 	
 	// Permission check - only recruiters can modify
 	const canModify = viewAsRole === 'recruiter'
@@ -132,6 +136,29 @@ export default function JobsPage() {
 			setTimeout(() => setCopiedJobId(null), 2000) // Reset after 2 seconds
 		} catch (err) {
 			console.error('Failed to copy link:', err)
+		}
+	}
+
+	// Toggle auto schedule interview for a job
+	const toggleAutoSchedule = async (job: Job, newValue: boolean) => {
+		if (togglingJobId === job.id) return
+		setTogglingJobId(job.id)
+		// Optimistic update
+		setJobs(prev => prev.map(j => j.id === job.id ? { ...j, autoScheduleInterview: newValue } : j))
+		try {
+			const res = await fetch(`/api/jobs/${job.companySlug}/${job.id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ autoScheduleInterview: newValue }),
+			})
+			if (!res.ok) {
+				// Revert on failure
+				setJobs(prev => prev.map(j => j.id === job.id ? { ...j, autoScheduleInterview: !newValue } : j))
+			}
+		} catch {
+			setJobs(prev => prev.map(j => j.id === job.id ? { ...j, autoScheduleInterview: !newValue } : j))
+		} finally {
+			setTogglingJobId(null)
 		}
 	}
 
@@ -596,6 +623,26 @@ export default function JobsPage() {
 												{job.posted}
 											</span>
 										</div>
+
+										{/* Auto Schedule Interview Toggle */}
+										{job.status === 'open' && (
+											<div className={`flex items-center gap-2 mt-2 px-3 py-1.5 rounded-lg border w-fit transition-colors ${job.autoScheduleInterview ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
+												<Zap className={`h-3 w-3 ${job.autoScheduleInterview ? 'text-emerald-600' : 'text-gray-400'}`} />
+												<Label htmlFor={`auto-schedule-${job.id}`} className={`text-xs font-medium cursor-pointer select-none ${job.autoScheduleInterview ? 'text-emerald-700' : 'text-gray-500'}`}>
+													Auto Interview
+												</Label>
+												<Switch
+													id={`auto-schedule-${job.id}`}
+													checked={job.autoScheduleInterview ?? false}
+													onCheckedChange={(val) => toggleAutoSchedule(job, val)}
+													disabled={togglingJobId === job.id}
+													className="scale-75"
+												/>
+												{job.autoScheduleInterview && (
+													<span className="text-xs text-emerald-600 font-medium">ON</span>
+												)}
+											</div>
+										)}
 									</div>
 
 									<div className="flex gap-2">

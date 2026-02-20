@@ -15,13 +15,13 @@ export async function POST(request: NextRequest) {
 
     console.log('[Interview Start] Starting for application:', applicationId)
 
-    // Get application details with job info
+    // Get application details with job info and interview status
     const appData = await DatabaseService.query(`
       SELECT 
         a.id,
         a.job_id,
         a.candidate_id,
-        a.interview_status,
+        i.interview_status,
         jp.company_id,
         jp.title as job_title,
         c.full_name as candidate_name,
@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
       FROM applications a
       JOIN job_postings jp ON a.job_id = jp.id
       JOIN candidates c ON a.candidate_id = c.id
+      LEFT JOIN interviews i ON i.application_id = a.id
       WHERE a.id = $1::uuid
     `, [applicationId]) as any[]
 
@@ -72,11 +73,12 @@ export async function POST(request: NextRequest) {
     // Generate session ID
     const sessionId = `session_${applicationId}_${Date.now()}`
 
-    // Update application status to In Progress
+    // Update interview status to In Progress in interviews table
+    await DatabaseService.ensureInterviewRecord(applicationId)
     await DatabaseService.query(`
-      UPDATE applications 
+      UPDATE interviews 
       SET interview_status = 'In Progress'
-      WHERE id = $1::uuid
+      WHERE application_id = $1::uuid
     `, [applicationId])
 
     // Calculate total marks

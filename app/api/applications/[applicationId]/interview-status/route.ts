@@ -17,14 +17,15 @@ export async function GET(
       return NextResponse.json({ error: "Missing applicationId" }, { status: 400 })
     }
 
-    // Check interview_status on the applications table
+    // Check interview_status on the interviews table
     const query = `
       SELECT 
         a.id,
-        a.interview_status,
-        a.interview_completed_at,
-        a.interview_sent_at
+        i.interview_status,
+        i.interview_completed_at,
+        i.interview_sent_at
       FROM applications a
+      LEFT JOIN interviews i ON i.application_id = a.id
       WHERE a.id = $1::uuid
       LIMIT 1
     `
@@ -172,21 +173,28 @@ export async function POST(
     console.log("📊 [VALIDATION] Result:", isIncomplete ? `INCOMPLETE - ${validationErrors.join("; ")}` : "COMPLETE")
 
     if (isIncomplete) {
-      // Mark as Incomplete - DO NOT trigger evaluation
-      const updateQuery = `
-        UPDATE applications
+      // Mark as Incomplete - frontend will still trigger evaluation with available answers
+      // Ensure interview record exists, then update it
+      await DatabaseService.ensureInterviewRecord(applicationId)
+      const updateInterviewQuery = `
+        UPDATE interviews
         SET 
           interview_status = 'Incomplete',
           interview_completed_at = NOW(),
-          interview_feedback = $2,
-          current_stage = 'ai_interview'
-        WHERE id = $1::uuid
+          interview_feedback = $2
+        WHERE application_id = $1::uuid
         RETURNING id
       `
-      const result = (await DatabaseService.query(updateQuery, [
+      await DatabaseService.query(updateInterviewQuery, [
         applicationId,
         transcript || null,
-      ])) as any[]
+      ])
+
+      // Update application stage separately
+      const updateAppQuery = `
+        UPDATE applications SET current_stage = 'ai_interview' WHERE id = $1::uuid RETURNING id
+      `
+      const result = (await DatabaseService.query(updateAppQuery, [applicationId])) as any[]
 
       if (!result || result.length === 0) {
         return NextResponse.json({ error: "Application not found" }, { status: 404 })
@@ -212,20 +220,26 @@ export async function POST(
     }
 
     // ========== COMPLETE INTERVIEW - Save normally ==========
-    const updateQuery = `
-      UPDATE applications
+    await DatabaseService.ensureInterviewRecord(applicationId)
+    const updateInterviewQuery2 = `
+      UPDATE interviews
       SET 
         interview_status = 'Completed',
         interview_completed_at = NOW(),
-        interview_feedback = $2,
-        current_stage = 'ai_interview'
-      WHERE id = $1::uuid
+        interview_feedback = $2
+      WHERE application_id = $1::uuid
       RETURNING id
     `
-    const result = (await DatabaseService.query(updateQuery, [
+    await DatabaseService.query(updateInterviewQuery2, [
       applicationId,
       transcript || null,
-    ])) as any[]
+    ])
+
+    // Update application stage separately
+    const updateAppQuery2 = `
+      UPDATE applications SET current_stage = 'ai_interview' WHERE id = $1::uuid RETURNING id
+    `
+    const result = (await DatabaseService.query(updateAppQuery2, [applicationId])) as any[]
 
     if (!result || result.length === 0) {
       return NextResponse.json({ error: "Application not found" }, { status: 404 })
