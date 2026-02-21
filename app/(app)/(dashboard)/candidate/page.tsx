@@ -58,24 +58,8 @@ const defaultBucketStats: Record<string, any> = {
 
 type UserRole = 'recruiter' | 'admin' | 'manager' | 'director'
 
-// Get recruiters from company data instead of hardcoding
-const getRecruiters = (companyData: any) => {
-  if (!companyData?.users?.length) {
-    return [
-      { id: companyData?.user?.id || '1', name: companyData?.user?.name || 'Current User' }
-    ]
-  }
-  
-  return companyData.users
-    .filter((user: any) => user.role === 'recruiter' || user.role === 'admin')
-    .map((user: any) => ({
-      id: user.id,
-      name: user.name
-    }))
-}
-
 export default function CandidatesPage() {
-  const { company } = useAuth()
+  const { company, user } = useAuth()
   const [activeBucket, setActiveBucket] = useState<BucketType>('all')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null)
@@ -131,20 +115,21 @@ export default function CandidatesPage() {
     }
   }, [company?.id])
 
-  // Initialize recruiters from company data
+  // Fetch company users for the recruiter dropdown
   useEffect(() => {
-    if (company) {
-      const companyRecruiters = getRecruiters(company)
-      setRecruiters(companyRecruiters)
-      
-      // Set default recruiter to current user or first in list
-      if (companyRecruiters.length > 0) {
-        // Try to find current user in recruiters list
-        const currentUserRecruiter = companyRecruiters.find(r => r.id === company?.user?.id)
-        setViewAsRecruiter(currentUserRecruiter?.id || companyRecruiters[0].id)
-      }
-    }
-  }, [company])
+    if (!company?.id) return
+    fetch(`/api/settings/users?companyId=${encodeURIComponent(company.id)}`)
+      .then(res => res.json())
+      .then(data => {
+        const users = (data?.users || []).map((u: any) => ({ id: u.id, name: u.name }))
+        setRecruiters(users)
+        // Default to current logged-in user if found, else first user
+        const currentUser = users.find((u: any) => u.id === user?.id)
+        if (currentUser) setViewAsRecruiter(currentUser.id)
+        else if (users.length > 0) setViewAsRecruiter(users[0].id)
+      })
+      .catch(() => {})
+  }, [company?.id, user?.id])
   
   useEffect(() => {
     fetchCandidates()
@@ -528,7 +513,7 @@ export default function CandidatesPage() {
               >
                 <option value="recruiter">Recruiter</option>
                 <option value="admin">Admin</option>
-                <option value="manager">TA Manager</option>
+                <option value="manager">Manager</option>
                 <option value="director">Director</option>
               </select>
               {viewAsRole === 'recruiter' && (
@@ -540,7 +525,7 @@ export default function CandidatesPage() {
                     className="text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
                     {recruiters.map(r => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
+                      <option key={r.id} value={r.id}>{r.id === user?.id ? `${r.name} (You)` : r.name}</option>
                     ))}
                   </select>
                 </>

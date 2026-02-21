@@ -18,7 +18,7 @@ function getBaseUrl(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { to, candidateName, position, interviewId, preview, cc } = body || {}
+    const { to, candidateName, position, interviewId, preview, cc, customBody, subject } = body || {}
 
     if (!to) {
       return NextResponse.json({ error: 'Recipient email is required' }, { status: 400 })
@@ -53,9 +53,10 @@ export async function POST(req: NextRequest) {
       console.warn('Failed to fetch company name:', e)
     }
 
-    const subject = `Invitation: AI Interview${position ? ` for ${position}` : ''}`
+    const emailSubject = subject || `Invitation: AI Interview${position ? ` for ${position}` : ''}`
 
-    const plainBody = `Dear ${candidateName || 'Candidate'},
+    // Use custom body if provided, otherwise use default template
+    const plainBody = customBody || `Dear ${candidateName || 'Candidate'},
 
 Thank you for your interest in the ${position || 'role'} position at ${companyName}. We have carefully reviewed your application and are impressed by your qualifications and experience.
 
@@ -80,6 +81,7 @@ We look forward to learning more about you through this interview.
 Best regards,
 Talent Acquisition Team`
 
+    // Generate HTML content for candidate emails
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color:#111;">
         <p style="margin:0 0 16px 0;">Dear ${candidateName || 'Candidate'},</p>
@@ -103,30 +105,32 @@ Talent Acquisition Team`
         <p style="margin:0 0 16px 0;">We look forward to learning more about you through this interview.</p>
         <p style="margin:0;">Best regards,<br/>Talent Acquisition Team</p>
       </div>
-    `
+    `;
 
     if (!preview) {
       // Send email with CC support
-      const emailOptions: any = { to, from, subject, html, text: plainBody }
+      const emailOptions: any = { to, from, subject: emailSubject, html, text: plainBody }
       if (cc && cc.trim()) {
         emailOptions.cc = cc
       }
       
       await sendMail(emailOptions)
 
-      // Update interview_status to Scheduled in interviews table
-      try {
-        await DatabaseService.ensureInterviewRecord(interviewId)
-        await DatabaseService.query(
-          `UPDATE interviews SET interview_status = 'Scheduled', interview_sent_at = NOW() WHERE application_id = $1::uuid`,
-          [interviewId]
-        )
-      } catch (e) {
-        console.warn('Failed to update interview_status to Scheduled:', e)
+      // Update interview status when email is sent
+      if (interviewId) {
+        try {
+          await DatabaseService.ensureInterviewRecord(interviewId)
+          await DatabaseService.query(
+            `UPDATE interviews SET interview_status = 'Scheduled', interview_sent_at = NOW() WHERE application_id = $1::uuid`,
+            [interviewId]
+          )
+        } catch (e) {
+          console.warn('Failed to update interview_status to Scheduled:', e)
+        }
       }
     }
 
-    return NextResponse.json({ ok: true, link, from, preview: !!preview, companyName })
+    return NextResponse.json({ ok: true, link, from, preview: !!preview, companyName, emailSent: !preview })
   } catch (err: any) {
     console.error('❌ Send interview email error:', err)
     return NextResponse.json({ error: err?.message || 'Failed to send interview email' }, { status: 500 })

@@ -68,6 +68,12 @@ export default function ApplyPage() {
     portfolioUrl: '',
     availableStartDate: '',
     relocate: false,
+    sourceType: '',
+    subSource: '',
+    agencyName: '',
+    referralEmployeeName: '',
+    referralEmployeeEmail: '',
+    diversityCategory: '',
   })
 
   const [languages, setLanguages] = useState<Array<{ language: string; proficiency: string }>>([
@@ -257,6 +263,12 @@ export default function ApplyPage() {
           availableStartDate: formData.availableStartDate || null,
           willingToRelocate: formData.relocate || false,
           languages: validLanguages,
+          sourceType: formData.sourceType || null,
+          subSource: formData.subSource || null,
+          agencyName: formData.agencyName || null,
+          referralEmployeeName: formData.referralEmployeeName || null,
+          referralEmployeeEmail: formData.referralEmployeeEmail || null,
+          diversityCategory: formData.diversityCategory || null,
         },
         resume: resumeFile ? {
           name: resumeFile.name,
@@ -461,6 +473,113 @@ export default function ApplyPage() {
                 <Label htmlFor="location" className="text-xs">Location *</Label>
                 <Input id="location" value={formData.location} onChange={(e) => setFormData(p => ({ ...p, location: e.target.value }))} placeholder="Berlin, Germany" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
               </div>
+            </div>
+          </section>
+
+          {/* Source Information */}
+          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="font-semibold text-sm text-slate-900 mb-3">How did you hear about us?</h3>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="sourceType" className="text-xs">Source Type</Label>
+                <select 
+                  id="sourceType" 
+                  value={formData.sourceType} 
+                  onChange={(e) => setFormData(p => ({ ...p, sourceType: e.target.value, subSource: '', agencyName: '', referralEmployeeName: '', referralEmployeeEmail: '' }))} 
+                  className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none"
+                  disabled={isSubmitting}
+                >
+                  <option value="">Select source...</option>
+                  <option value="Direct">Direct</option>
+                  <option value="Agency">Agency</option>
+                  <option value="Employee Referral">Employee Referral</option>
+                </select>
+              </div>
+
+              {/* Conditional fields based on source type */}
+              {formData.sourceType === 'Direct' && (
+                <div className="space-y-1">
+                  <Label htmlFor="subSource" className="text-xs">Where did you find us?</Label>
+                  <select 
+                    id="subSource" 
+                    value={formData.subSource} 
+                    onChange={(e) => setFormData(p => ({ ...p, subSource: e.target.value }))} 
+                    className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none"
+                    disabled={isSubmitting}
+                  >
+                    <option value="">Select...</option>
+                    <option value="LinkedIn">LinkedIn</option>
+                    <option value="Google">Google</option>
+                    <option value="Monster">Monster</option>
+                    <option value="Indeed">Indeed</option>
+                    <option value="Facebook">Facebook</option>
+                    <option value="Others">Others</option>
+                  </select>
+                </div>
+              )}
+
+              {formData.sourceType === 'Agency' && (
+                <div className="space-y-1">
+                  <Label htmlFor="agencyName" className="text-xs">Agency Name</Label>
+                  <Input 
+                    id="agencyName" 
+                    value={formData.agencyName} 
+                    onChange={(e) => setFormData(p => ({ ...p, agencyName: e.target.value }))} 
+                    placeholder="e.g., ABC Consulting" 
+                    className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" 
+                    disabled={isSubmitting} 
+                  />
+                </div>
+              )}
+
+              {formData.sourceType === 'Employee Referral' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="referralEmployeeName" className="text-xs">Employee Name</Label>
+                    <Input 
+                      id="referralEmployeeName" 
+                      value={formData.referralEmployeeName} 
+                      onChange={(e) => setFormData(p => ({ ...p, referralEmployeeName: e.target.value }))} 
+                      placeholder="John Doe" 
+                      className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" 
+                      disabled={isSubmitting} 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="referralEmployeeEmail" className="text-xs">Employee Email</Label>
+                    <Input 
+                      id="referralEmployeeEmail" 
+                      type="email"
+                      value={formData.referralEmployeeEmail} 
+                      onChange={(e) => setFormData(p => ({ ...p, referralEmployeeEmail: e.target.value }))} 
+                      placeholder="john@company.com" 
+                      className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" 
+                      disabled={isSubmitting} 
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Diversity Information */}
+          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="font-semibold text-sm text-slate-900 mb-3">Diversity Information</h3>
+            <div className="space-y-1">
+              <Label htmlFor="diversityCategory" className="text-xs">Diversity Category (Optional)</Label>
+              <select 
+                id="diversityCategory" 
+                value={formData.diversityCategory} 
+                onChange={(e) => setFormData(p => ({ ...p, diversityCategory: e.target.value }))} 
+                className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none"
+                disabled={isSubmitting}
+              >
+                <option value="">Prefer not to say</option>
+                <option value="Underrepresented Minority">Underrepresented Minority</option>
+                <option value="Veteran">Veteran</option>
+                <option value="LGBTQ+">LGBTQ+</option>
+              </select>
+              <p className="text-[10px] text-slate-400 mt-1">This information is voluntary and used for diversity tracking purposes.</p>
             </div>
           </section>
 

@@ -75,15 +75,25 @@ export async function GET(req: NextRequest) {
         i.interview_recommendation as interview_recommendation,
         i.interview_feedback as interview_feedback,
         a.hm_status,
+        a.hm_rating,
         a.hm_feedback,
+        a.hm_interview_date,
+        a.hm_feedback_date,
         a.offer_status,
         a.offer_amount,
+        a.offer_bonus,
+        a.offer_equity,
+        a.offer_currency,
         a.hire_date,
         a.start_date,
         a.onboarding_status,
+        a.quality_of_hire_rating,
+        a.employment_status,
         a.rejection_reason,
         a.rejection_stage,
         a.remarks,
+        a.expected_salary,
+        a.available_start_date,
         c.id AS c_id,
         c.full_name,
         c.email,
@@ -96,6 +106,7 @@ export async function GET(req: NextRequest) {
         j.id AS j_id,
         j.title AS position,
         j.location AS job_location,
+        j.currency AS job_currency,
         (
           SELECT ash.remarks FROM application_stage_history ash
           WHERE ash.application_id = a.id
@@ -140,19 +151,32 @@ export async function GET(req: NextRequest) {
         interviewStatus: app.interview_status || 'Not Scheduled',
         interviewResult: app.interview_recommendation || 'Pending',
         hmStatus: app.hm_status || 'Waiting for HM feedback',
+        hmRating: app.hm_rating || '',
+        hmFeedback: app.hm_feedback || '',
+        hmInterviewDate: app.hm_interview_date ? new Date(app.hm_interview_date).toISOString().split('T')[0] : '',
+        hmFeedbackDate: app.hm_feedback_date ? new Date(app.hm_feedback_date).toISOString().split('T')[0] : '',
         hiringManager: 'Assigned Manager',
         daysWithHM: '0 days',
         offerAmount: app.offer_amount != null ? `$${Number(app.offer_amount).toLocaleString()}` : '$0',
         offerStatus: formatOfferStatus(app.offer_status),
         hireDate: app.hire_date ? new Date(app.hire_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+        rawHireDate: app.hire_date ? new Date(app.hire_date).toISOString().split('T')[0] : '',
         startDate: app.start_date ? new Date(app.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+        rawStartDate: app.start_date ? new Date(app.start_date).toISOString().split('T')[0] : '',
         hireStatus: app.onboarding_status || 'Awaiting Onboarding',
+        qualityOfHireRating: app.quality_of_hire_rating || '',
+        employmentStatus: app.employment_status || '',
         rejectionStage: formatStage(app.rejection_stage) || '',
         rejectionReason: app.rejection_reason || '',
         comments: app.latest_stage_remarks || app.remarks || app.interview_feedback || app.hm_feedback || '',
         photoUrl: app.photo_url || '',
         linkedinUrl: app.linkedin_url || '',
-        resumeUrl: app.resume_url || ''
+        resumeUrl: app.resume_url || '',
+        expectedSalary: app.expected_salary != null ? `${app.expected_salary}` : '',
+        availableStartDate: app.available_start_date ? new Date(app.available_start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+        jobCurrency: app.job_currency || 'USD',
+        salaryCurrency: app.salary_currency || app.job_currency || 'USD',
+        offerCurrency: app.offer_currency || app.job_currency || 'USD'
       }
 
       applicationsData.all.push(formattedApp)
@@ -262,8 +286,8 @@ async function getInterviewStats(companyId: string) {
       COUNT(*) FILTER (WHERE i.interview_recommendation IN ('Strongly Recommend', 'Recommend')) AS qualified,
       COUNT(*) FILTER (WHERE i.interview_recommendation IN ('Reject', 'On Hold')) AS unqualified
     FROM applications a
-    LEFT JOIN interviews i ON i.application_id = a.id
-    WHERE a.current_stage = 'ai_interview' AND a.company_id = $1::uuid
+    JOIN interviews i ON i.application_id = a.id
+    WHERE i.interview_score IS NOT NULL AND a.company_id = $1::uuid
   `, [companyId])
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
@@ -278,12 +302,19 @@ async function getInterviewStats(companyId: string) {
 }
 
 async function getHiringManagerStats(companyId: string) {
+  // Count ALL candidates who have EVER reached hiring_manager stage (cumulative)
   const result = await DatabaseService.query(`
     SELECT 
-      COUNT(*) AS total,
-      COUNT(*) FILTER (WHERE hm_status = 'Approved') AS approved,
-      COUNT(*) FILTER (WHERE hm_status = 'Rejected') AS rejected
-    FROM applications WHERE current_stage = 'hiring_manager' AND company_id = $1::uuid
+      COUNT(DISTINCT a.id) AS total,
+      COUNT(DISTINCT a.id) FILTER (WHERE a.hm_status = 'Approved') AS approved,
+      COUNT(DISTINCT a.id) FILTER (WHERE a.hm_status = 'Rejected') AS rejected
+    FROM applications a
+    WHERE a.company_id = $1::uuid
+      AND EXISTS (
+        SELECT 1 FROM application_stage_history ash
+        WHERE ash.application_id = a.id
+          AND ash.to_stage = 'hiring_manager'
+      )
   `, [companyId])
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
@@ -298,12 +329,19 @@ async function getHiringManagerStats(companyId: string) {
 }
 
 async function getOfferStats(companyId: string) {
+  // Count ALL candidates who have EVER reached offer stage (cumulative)
   const result = await DatabaseService.query(`
     SELECT 
-      COUNT(*) AS total,
-      COUNT(*) FILTER (WHERE offer_status = 'accepted') AS accepted,
-      COUNT(*) FILTER (WHERE offer_status = 'declined') AS declined
-    FROM applications WHERE current_stage = 'offer' AND company_id = $1::uuid
+      COUNT(DISTINCT a.id) AS total,
+      COUNT(DISTINCT a.id) FILTER (WHERE a.offer_status = 'accepted') AS accepted,
+      COUNT(DISTINCT a.id) FILTER (WHERE a.offer_status = 'declined') AS declined
+    FROM applications a
+    WHERE a.company_id = $1::uuid
+      AND EXISTS (
+        SELECT 1 FROM application_stage_history ash
+        WHERE ash.application_id = a.id
+          AND ash.to_stage = 'offer'
+      )
   `, [companyId])
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
@@ -318,12 +356,19 @@ async function getOfferStats(companyId: string) {
 }
 
 async function getHiredStats(companyId: string) {
+  // Count ALL candidates who have EVER reached hired stage (cumulative)
   const result = await DatabaseService.query(`
     SELECT 
-      COUNT(*) AS total,
-      COUNT(*) FILTER (WHERE onboarding_status = 'Complete') AS onboarded,
-      COUNT(*) FILTER (WHERE onboarding_status IS NULL OR onboarding_status != 'Complete') AS awaiting
-    FROM applications WHERE current_stage = 'hired' AND company_id = $1::uuid
+      COUNT(DISTINCT a.id) AS total,
+      COUNT(DISTINCT a.id) FILTER (WHERE a.onboarding_status = 'Complete') AS onboarded,
+      COUNT(DISTINCT a.id) FILTER (WHERE a.onboarding_status IS NULL OR a.onboarding_status != 'Complete') AS awaiting
+    FROM applications a
+    WHERE a.company_id = $1::uuid
+      AND EXISTS (
+        SELECT 1 FROM application_stage_history ash
+        WHERE ash.application_id = a.id
+          AND ash.to_stage = 'hired'
+      )
   `, [companyId])
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
@@ -338,13 +383,20 @@ async function getHiredStats(companyId: string) {
 }
 
 async function getRejectedStats(companyId: string) {
+  // Count ALL candidates who have EVER been rejected (cumulative)
   const result = await DatabaseService.query(`
     SELECT 
-      COUNT(*) AS total,
-      COUNT(*) FILTER (WHERE rejection_stage = 'screening') AS from_screening,
-      COUNT(*) FILTER (WHERE rejection_stage = 'ai_interview') AS from_interview,
-      COUNT(*) FILTER (WHERE rejection_stage NOT IN ('screening', 'ai_interview') OR rejection_stage IS NULL) AS from_other
-    FROM applications WHERE current_stage = 'rejected' AND company_id = $1::uuid
+      COUNT(DISTINCT a.id) AS total,
+      COUNT(DISTINCT a.id) FILTER (WHERE a.rejection_stage = 'screening') AS from_screening,
+      COUNT(DISTINCT a.id) FILTER (WHERE a.rejection_stage = 'ai_interview') AS from_interview,
+      COUNT(DISTINCT a.id) FILTER (WHERE a.rejection_stage NOT IN ('screening', 'ai_interview') OR a.rejection_stage IS NULL) AS from_other
+    FROM applications a
+    WHERE a.company_id = $1::uuid
+      AND EXISTS (
+        SELECT 1 FROM application_stage_history ash
+        WHERE ash.application_id = a.id
+          AND ash.to_stage = 'rejected'
+      )
   `, [companyId])
   const r = result?.[0] || {}
   return {

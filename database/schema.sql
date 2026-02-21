@@ -92,6 +92,12 @@ CREATE TYPE offer_status AS ENUM (
   'declined'
 );
 
+-- Candidate source type
+CREATE TYPE candidate_source_type AS ENUM ('Direct', 'Agency', 'Employee Referral');
+
+-- Diversity category
+CREATE TYPE diversity_category AS ENUM ('Underrepresented Minority', 'Veteran', 'LGBTQ+');
+
 -- Delegation status
 CREATE TYPE delegation_status AS ENUM ('active', 'expired', 'revoked');
 
@@ -496,6 +502,12 @@ CREATE TABLE candidates (
   resume_url      TEXT,                              -- S3/blob URL to uploaded CV
   photo_url       TEXT,                              -- Webcam captured photo URL
   source          TEXT,                              -- LinkedIn, Referral, Job Board, etc.
+  source_type     candidate_source_type,             -- Direct, Agency, Employee Referral
+  sub_source      TEXT,                              -- Sub-source for Direct type: LinkedIn, Google, Monster, Indeed, Facebook, Others
+  agency_name     TEXT,                              -- Agency name when source_type is Agency
+  referral_employee_name TEXT,                      -- Employee name when source_type is Employee Referral
+  referral_employee_email TEXT,                      -- Employee email when source_type is Employee Referral
+  diversity_category diversity_category,             -- Underrepresented Minority, Veteran, LGBTQ+
   notes           TEXT,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -557,6 +569,7 @@ CREATE TABLE applications (
   offer_amount            NUMERIC(12,2),
   offer_bonus             NUMERIC(12,2),
   offer_equity            TEXT,
+  offer_currency          TEXT DEFAULT 'USD',
   offer_extended_date     DATE,
   offer_expiry_date       DATE,
   negotiation_rounds      INT DEFAULT 0,
@@ -569,6 +582,8 @@ CREATE TABLE applications (
   reference_check_status  TEXT DEFAULT 'pending',     -- pending, inProgress, complete
   onboarding_status       TEXT,                       -- Awaiting Onboarding, In Progress, On Track, Behind, Complete
   onboarding_checklist    JSONB,                      -- { equipmentOrdered: bool, accountsCreated: bool, ... }
+  quality_of_hire_rating  INT,                        -- 1-5 rating after 90 days
+  employment_status       TEXT,                       -- Still with the Firm, Left the Firm
 
   -- Rejection (if rejected at any stage)
   rejection_reason        TEXT,
@@ -577,7 +592,7 @@ CREATE TABLE applications (
 
   -- Application form data
   expected_salary         NUMERIC(12,2),
-  salary_currency         TEXT DEFAULT 'USD',
+  salary_currency         TEXT DEFAULT 'inr',
   salary_period           TEXT DEFAULT 'month',
   location                TEXT,
   linkedin_url            TEXT,

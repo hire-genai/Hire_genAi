@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
     const firstName = (candidate.firstName || '').trim()
     const lastName = (candidate.lastName || '').trim()
-    const fullName = (candidate.fullName || `${firstName} ${lastName}`.trim()).trim()
+    const fullName = `${firstName} ${lastName}`.trim()
 
     if (!fullName) return NextResponse.json({ error: 'Missing candidate name' }, { status: 400 })
 
@@ -63,8 +63,14 @@ export async function POST(req: NextRequest) {
           location = $5,
           linkedin_url = $6,
           resume_url = COALESCE($7, resume_url),
-          photo_url = COALESCE($8, photo_url)
-        WHERE id = $9::uuid`,
+          photo_url = COALESCE($8, photo_url),
+          source_type = COALESCE($9::candidate_source_type, source_type),
+          sub_source = $10,
+          agency_name = $11,
+          referral_employee_name = $12,
+          referral_employee_email = $13,
+          diversity_category = COALESCE($14::diversity_category, diversity_category)
+        WHERE id = $15::uuid`,
         [
           fullName,
           firstName || null,
@@ -74,6 +80,12 @@ export async function POST(req: NextRequest) {
           candidate.linkedinUrl || null,
           resume?.url || null,
           photoUrl || null,
+          candidate.sourceType || null,
+          candidate.sourceType === 'Direct' ? candidate.subSource || null : null,
+          candidate.sourceType === 'Agency' ? candidate.agencyName || null : null,
+          candidate.sourceType === 'Employee Referral' ? candidate.referralEmployeeName || null : null,
+          candidate.sourceType === 'Employee Referral' ? candidate.referralEmployeeEmail || null : null,
+          candidate.diversityCategory || null,
           candidateId,
         ]
       )
@@ -82,10 +94,14 @@ export async function POST(req: NextRequest) {
       const insertResult = await DatabaseService.query(
         `INSERT INTO candidates (
           company_id, full_name, first_name, last_name, email, phone,
-          location, linkedin_url, resume_url, photo_url, source
+          location, linkedin_url, resume_url, photo_url, source,
+          source_type, sub_source, agency_name, referral_employee_name, referral_employee_email,
+          diversity_category
         ) VALUES (
           $1::uuid, $2, $3, $4, $5, $6,
-          $7, $8, $9, $10, $11
+          $7, $8, $9, $10, $11,
+          $12::candidate_source_type, $13, $14, $15, $16,
+          $17::diversity_category
         ) RETURNING id`,
         [
           companyId,
@@ -99,6 +115,12 @@ export async function POST(req: NextRequest) {
           resume?.url || null,
           photoUrl || null,
           source,
+          candidate.sourceType || null,
+          candidate.sourceType === 'Direct' ? candidate.subSource || null : null,
+          candidate.sourceType === 'Agency' ? candidate.agencyName || null : null,
+          candidate.sourceType === 'Employee Referral' ? candidate.referralEmployeeName || null : null,
+          candidate.sourceType === 'Employee Referral' ? candidate.referralEmployeeEmail || null : null,
+          candidate.diversityCategory || null,
         ]
       )
 

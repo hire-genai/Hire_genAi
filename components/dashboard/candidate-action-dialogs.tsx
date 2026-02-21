@@ -43,17 +43,25 @@ export function CandidateActionDialog({
   const [showEmailTemplate, setShowEmailTemplate] = useState(false)
   const [emailContent, setEmailContent] = useState('')
   const [emailTo, setEmailTo] = useState('')
-  const [emailCc, setEmailCc] = useState('recruiter@company.com')
+  const [emailCc, setEmailCc] = useState('')
   const [emailSubject, setEmailSubject] = useState('')
+  const [hiringManagers, setHiringManagers] = useState<{id: string, name: string, email: string}[]>([])
+  const [hiringManagersLoading, setHiringManagersLoading] = useState(false)
+  const [selectedManager, setSelectedManager] = useState('')
   const [offerAmount, setOfferAmount] = useState('')
   const [offerExpiry, setOfferExpiry] = useState('')
   const [offerBonus, setOfferBonus] = useState('')
   const [offerEquity, setOfferEquity] = useState('')
+  const [offerCurrency, setOfferCurrency] = useState(candidate?.offerCurrency || candidate?.jobCurrency || 'USD')
   const [negotiationRounds, setNegotiationRounds] = useState('0')
   const [declineReason, setDeclineReason] = useState('')
   const [backgroundCheckStatus, setBackgroundCheckStatus] = useState('')
   const [referenceCheckStatus, setReferenceCheckStatus] = useState('')
   const [startDate, setStartDate] = useState('')
+  const [hireDate, setHireDate] = useState('')
+  const [onboardingStatus, setOnboardingStatus] = useState('')
+  const [qualityOfHireRating, setQualityOfHireRating] = useState('')
+  const [employmentStatus, setEmploymentStatus] = useState('')
   
   // Enhanced data capture fields
   const [interviewScore, setInterviewScore] = useState('')
@@ -72,12 +80,41 @@ export function CandidateActionDialog({
   const [hmFeedback, setHmFeedback] = useState('')
   const [hiringManagerName, setHiringManagerName] = useState('')
   const [hmStatus, setHmStatus] = useState(candidate?.hmStatus || '')
+  const [hmInterviewDate, setHmInterviewDate] = useState('')
+  const [hmFeedbackDate, setHmFeedbackDate] = useState('')
+  const [hmSaveLoading, setHmSaveLoading] = useState(false)
   const [offerStatus, setOfferStatus] = useState(candidate?.offerStatus || 'Not Sent Yet')
   const [interviewType, setInterviewType] = useState('')
   const [interviewerName, setInterviewerName] = useState('')
   const [moveLoading, setMoveLoading] = useState(false)
   const [emailLoading, setEmailLoading] = useState(false)
   const [emailSending, setEmailSending] = useState(false)
+
+  // Fetch hiring managers when dialog opens
+  useEffect(() => {
+    if (open && company?.id) {
+      setHiringManagersLoading(true)
+      fetch(`/api/settings/users?companyId=${encodeURIComponent(company.id)}`)
+        .then(res => res.json())
+        .then(data => {
+          // Filter for manager role users
+          const managers = (data?.users || [])
+            .filter((u: any) => u.role === 'manager')
+            .map((u: any) => ({
+              id: u.id,
+              name: u.name,
+              email: u.email
+            }))
+          setHiringManagers(managers)
+          if (managers.length > 0) {
+            setSelectedManager(managers[0].email)
+            setEmailTo(managers[0].email)
+          }
+        })
+        .catch(err => console.error('Failed to fetch hiring managers:', err))
+        .finally(() => setHiringManagersLoading(false))
+    }
+  }, [open, company?.id])
 
   // Reset ALL states when dialog opens or bucketType changes
   useEffect(() => {
@@ -88,7 +125,7 @@ export function CandidateActionDialog({
       setShowEmailTemplate(false)
       setEmailContent('')
       setEmailTo('')
-      setEmailCc(user?.email || 'recruiter@company.com')
+      setEmailCc(user?.email || '')
       setEmailSubject('')
       setSendEmailToHM(false)
       
@@ -108,12 +145,16 @@ export function CandidateActionDialog({
       setOfferExpiry('')
       setOfferBonus('')
       setOfferEquity('')
+      setOfferCurrency(candidate?.offerCurrency || candidate?.jobCurrency || 'USD')
       setNegotiationRounds('0')
       
       // Reset hiring manager states
-      setHmRating('')
-      setHmFeedback('')
+      setHmRating(candidate?.hmRating ? String(candidate.hmRating) : '')
+      setHmFeedback(candidate?.hmFeedback || '')
       setHiringManagerName('')
+      setHmStatus(candidate?.hmStatus || '')
+      setHmInterviewDate(candidate?.hmInterviewDate || '')
+      setHmFeedbackDate(candidate?.hmFeedbackDate || new Date().toISOString().split('T')[0])
       
       // Reset rejection/talent pool states
       setRejectionReason('')
@@ -137,10 +178,17 @@ export function CandidateActionDialog({
       setEmailContent('')
       setSendEmailToHM(false)
       setEmailTo('')
-      setEmailCc('recruiter@company.com')
+      setEmailCc('')
       setEmailSubject('')
     }
   }, [open])
+
+  // Update offerCurrency when candidate data loads or dialog opens
+  useEffect(() => {
+    if (candidate?.jobCurrency) {
+      setOfferCurrency(candidate.jobCurrency)
+    }
+  }, [candidate?.jobCurrency, candidate?.id])
 
   const handleMove = async () => {
     if (!moveToStage || !remarks || !candidate?.id) return
@@ -157,22 +205,20 @@ export function CandidateActionDialog({
           applicationId: candidate.id,
           moveToStage,
           remarks,
-          changedByEmail: candidate?.email || candidate?.candidateEmail || null,
-          companyId: company?.id || null,
+          changedByEmail: user?.email,
           rejectionReason: moveToStage === 'rejected' ? rejectionReason : undefined,
-          addToTalentPool: addToTalentPool || undefined,
+          addToTalentPool: addToTalentPool,
           talentPoolCategory: addToTalentPool ? talentPoolCategory : undefined,
           talentPoolNotes: addToTalentPool ? talentPoolNotes : undefined,
-          talentPoolSkillTags: addToTalentPool ? talentPoolSkillTags : undefined,
-        })
+        }),
       })
-
       const data = await res.json()
       if (!res.ok || data?.error) {
         console.error('Move failed:', data?.error)
         alert(data?.error || 'Failed to move application')
         return
       }
+      console.log('Application moved:', data)
 
       onOpenChange(false)
       if (onMoved) onMoved()
@@ -262,9 +308,130 @@ export function CandidateActionDialog({
     }
   }
 
-  const handleUpdateOfferStatus = () => {
-    console.log('[v0] Updating offer status to:', offerStatus)
-    onOpenChange(false)
+  const handleSaveHM = async () => {
+    if (!candidate?.id) return
+    try {
+      setHmSaveLoading(true)
+      const res = await fetch('/api/applications/update-hm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicationId: candidate.id,
+          hmStatus: hmStatus || undefined,
+          hmRating: hmRating || undefined,
+          hmFeedback: hmFeedback || undefined,
+          hmInterviewDate: hmInterviewDate || undefined,
+          hmFeedbackDate: hmFeedbackDate || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data?.error) {
+        alert(data?.error || 'Failed to save HM data')
+        return
+      }
+      onOpenChange(false)
+      if (onMoved) onMoved()
+    } catch (err) {
+      console.error('HM save error:', err)
+      alert('Failed to save HM data')
+    } finally {
+      setHmSaveLoading(false)
+    }
+  }
+
+  const handleUpdateOfferStatus = async () => {
+    if (!candidate?.id) return
+    try {
+      setMoveLoading(true)
+      const res = await fetch('/api/applications/update-offer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicationId: candidate.id,
+          offerStatus: offerStatus || undefined,
+          offerAmount: offerAmount || undefined,
+          offerBonus: offerBonus || undefined,
+          offerEquity: offerEquity || undefined,
+          offerExpiryDate: offerExpiry || undefined,
+          negotiationRounds: negotiationRounds || undefined,
+          declineReason: declineReason || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data?.error) {
+        alert(data?.error || 'Failed to save offer data')
+        return
+      }
+      onOpenChange(false)
+      if (onMoved) onMoved()
+    } catch (err) {
+      console.error('Offer save error:', err)
+      alert('Failed to save offer data')
+    } finally {
+      setMoveLoading(false)
+    }
+  }
+
+  const handleSaveOffer = async () => {
+    if (!candidate?.id) return
+    try {
+      setMoveLoading(true)
+      const res = await fetch('/api/applications/update-offer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicationId: candidate.id,
+          offerStatus: 'Offer Sent',
+          offerAmount: offerAmount || undefined,
+          offerBonus: offerBonus || undefined,
+          offerEquity: offerEquity || undefined,
+          offerExpiryDate: offerExpiry || undefined,
+          offerCurrency: offerCurrency || 'USD',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data?.error) {
+        alert(data?.error || 'Failed to save offer data')
+        return
+      }
+    } catch (err) {
+      console.error('Offer save error:', err)
+    } finally {
+      setMoveLoading(false)
+    }
+  }
+
+  const handleSaveOnboarding = async () => {
+    if (!candidate?.id) return
+    try {
+      setMoveLoading(true)
+      const res = await fetch('/api/applications/update-offer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicationId: candidate.id,
+          hireDate: hireDate || undefined,
+          startDate: startDate || undefined,
+          backgroundCheckStatus: backgroundCheckStatus || undefined,
+          referenceCheckStatus: referenceCheckStatus || undefined,
+          onboardingStatus: onboardingStatus || undefined,
+          qualityOfHireRating: qualityOfHireRating ? parseInt(qualityOfHireRating) : undefined,
+          employmentStatus: employmentStatus || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data?.error) {
+        alert(data?.error || 'Failed to save onboarding data')
+        return
+      }
+      onOpenChange(false)
+      if (onMoved) onMoved()
+    } catch (err) {
+      console.error('Onboarding save error:', err)
+      alert('Failed to save onboarding data')
+    } finally {
+      setMoveLoading(false)
+    }
   }
 
   const onClose = () => {
@@ -402,13 +569,11 @@ export function CandidateActionDialog({
                   </div>
 
                   <Button 
-                    onClick={() => {
-                      console.log('[v0] Saving HM status:', hmStatus)
-                      onOpenChange(false)
-                    }} 
+                    onClick={handleSaveHM}
+                    disabled={hmSaveLoading}
                     className="w-full"
                   >
-                    Save Status
+                    {hmSaveLoading ? 'Saving...' : 'Save Status'}
                   </Button>
                 </>
               ) : (
@@ -451,11 +616,21 @@ export function CandidateActionDialog({
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label htmlFor="hmInterviewDate">HM Interview Date</Label>
-                      <Input id="hmInterviewDate" type="date" />
+                      <Input
+                        id="hmInterviewDate"
+                        type="date"
+                        value={hmInterviewDate}
+                        onChange={(e) => setHmInterviewDate(e.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="feedbackSubmitDate">Feedback Submission Date</Label>
-                      <Input id="feedbackSubmitDate" type="date" defaultValue={new Date().toISOString().split('T')[0]} />
+                      <Input
+                        id="feedbackSubmitDate"
+                        type="date"
+                        value={hmFeedbackDate}
+                        onChange={(e) => setHmFeedbackDate(e.target.value)}
+                      />
                     </div>
                   </div>
 
@@ -469,6 +644,14 @@ export function CandidateActionDialog({
                       onChange={(e) => setHmFeedback(e.target.value)}
                     />
                   </div>
+
+                  <Button
+                    onClick={handleSaveHM}
+                    disabled={hmSaveLoading}
+                    className="w-full"
+                  >
+                    {hmSaveLoading ? 'Saving...' : 'Save HM Review'}
+                  </Button>
                 </>
               )}
             </div>
@@ -522,121 +705,58 @@ export function CandidateActionDialog({
 
                   <Card className="p-3 bg-gray-50">
                     <h5 className="font-medium text-sm mb-3">Compensation Package</h5>
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
-                        <Label htmlFor="offerAmount">Base Salary</Label>
+                        <Label className="text-xs">Currency</Label>
+                        <div className="flex items-center h-9 px-3 rounded-md border bg-gray-100 text-sm text-gray-700 font-medium">
+                          {offerCurrency}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="offerAmount" className="text-xs">Base Salary/per annum</Label>
                         <Input 
                           id="offerAmount" 
-                          placeholder="e.g., $95,000" 
+                          placeholder="e.g., 95000" 
                           value={offerAmount}
                           onChange={(e) => setOfferAmount(e.target.value)}
                         />
                       </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-2">
-                          <Label htmlFor="offerBonus">Annual Bonus</Label>
-                          <Input 
-                            id="offerBonus" 
-                            placeholder="e.g., $10,000"
-                            value={offerBonus}
-                            onChange={(e) => setOfferBonus(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="offerEquity">Equity/Stock Options</Label>
-                          <Input 
-                            id="offerEquity" 
-                            placeholder="e.g., 1000 RSUs"
-                            value={offerEquity}
-                            onChange={(e) => setOfferEquity(e.target.value)}
-                          />
-                        </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="offerBonus" className="text-xs">Annual Bonus</Label>
+                        <Input 
+                          id="offerBonus" 
+                          placeholder="e.g., 10000"
+                          value={offerBonus}
+                          onChange={(e) => setOfferBonus(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="offerEquity" className="text-xs">Equity/Stock Options</Label>
+                        <Input 
+                          id="offerEquity" 
+                          placeholder="e.g., 1000 RSUs"
+                          value={offerEquity}
+                          onChange={(e) => setOfferEquity(e.target.value)}
+                        />
                       </div>
                     </div>
                   </Card>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="offerNotes">Offer Notes & Benefits</Label>
-                    <Textarea 
-                      id="offerNotes" 
-                      placeholder="Additional benefits, perks, special conditions..."
-                      rows={3}
-                    />
-                  </div>
-
-                  <Button onClick={() => {
-                    console.log('[v0] Sending offer email to:', candidate?.name)
-                    setEmailTo(candidate?.email || '')
-                    setEmailCc('recruiter@company.com, hr@company.com')
-                    setEmailSubject(`Congratulations! Job Offer for ${candidate?.position} Position`)
-                    setEmailContent(`Dear ${candidate?.name},
-
-We are delighted to extend you an offer of employment for the position of ${candidate?.position} at our organization.
-
-POSITION DETAILS:
-• Job Title: ${candidate?.position}
-• Department: Engineering
-• Reports To: Engineering Manager
-• Employment Type: Full-time
-• Start Date: ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-
-COMPENSATION PACKAGE:
-• Base Salary: ${offerAmount || '$95,000'} per annum
-• Annual Performance Bonus: ${offerBonus || '$10,000'} (subject to company and individual performance)
-• Equity/Stock Options: ${offerEquity || '1,000 RSUs'} vesting over 4 years
-• Sign-on Bonus: $5,000 (paid with first paycheck)
-
-BENEFITS:
-• Health Insurance: Comprehensive medical, dental, and vision coverage
-• 401(k) Retirement Plan: Company match up to 6%
-• Paid Time Off: 20 days per year plus public holidays
-• Professional Development: $2,000 annual learning budget
-• Remote Work: Flexible hybrid work arrangement
-• Equipment: Latest laptop, monitor, and home office setup
-
-ADDITIONAL PERKS:
-• Gym membership reimbursement
-• Commuter benefits
-• Team events and activities
-• Stock purchase plan at 15% discount
-
-OFFER ACCEPTANCE:
-This offer is valid until ${offerExpiry || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}. Please review the attached offer letter and click the link below to accept or discuss any questions you may have.
-
-Offer Portal Link: https://app.hiregenai.com/offer/accept/abc123
-
-ATTACHED DOCUMENTS:
-✓ Formal Offer Letter (PDF)
-✓ Employee Handbook
-✓ Benefits Summary
-✓ Equity Agreement
-
-We believe you will be a valuable addition to our team, and we look forward to working with you. If you have any questions or would like to discuss any aspect of this offer, please don't hesitate to reach out.
-
-Congratulations once again, and we hope to welcome you aboard soon!
-
-Best regards,
-Talent Acquisition Team`)
-                    setShowEmailTemplate(true)
-                  }} className="w-full gap-2">
-                    <Mail className="h-4 w-4" />
-                    Send Offer Letter to Candidate
-                  </Button>
-
-                  <p className="text-xs text-gray-600">
-                    Note: Email will include formal offer letter with all compensation details and attached documents.
-                  </p>
                 </>
               ) : (
                 <>
                   {/* For other statuses - Show status update options */}
                   <Card className="p-3 bg-blue-50">
                     <h5 className="font-medium text-sm text-blue-900 mb-2">Current Offer Details</h5>
-                    <div className="space-y-2 text-sm">
-                      <p><span className="font-semibold">Base Salary:</span> {candidate?.offerAmount || offerAmount || 'N/A'}</p>
-                      <p><span className="font-semibold">Status:</span> {offerStatus}</p>
-                      <p><span className="font-semibold">Extended:</span> {new Date().toLocaleDateString()}</p>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <Label className="text-xs text-gray-600">Base Salary</Label>
+                        <p className="font-medium">{candidate?.offerAmount || offerAmount || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-600">Total Compensation</Label>
+                        <p className="font-medium">Calculate from offer data</p>
+                      </div>
                     </div>
                   </Card>
 
@@ -695,7 +815,8 @@ Talent Acquisition Team`)
                   <Input 
                     id="hireDate" 
                     type="date"
-                    defaultValue={candidate?.hireDate || new Date().toISOString().split('T')[0]}
+                    value={hireDate || candidate?.rawHireDate || new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setHireDate(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -703,7 +824,7 @@ Talent Acquisition Team`)
                   <Input 
                     id="startDate" 
                     type="date"
-                    value={startDate}
+                    value={startDate || candidate?.rawStartDate || ''}
                     onChange={(e) => setStartDate(e.target.value)}
                   />
                 </div>
@@ -774,25 +895,39 @@ Talent Acquisition Team`)
                 </div>
               </Card>
 
-              <div className="space-y-2">
-                <Label htmlFor="onboardingStatus">Onboarding Status</Label>
-                <Select defaultValue={candidate?.hireStatus || 'Awaiting Onboarding'}>
-                  <SelectTrigger id="onboardingStatus">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Awaiting Onboarding">Awaiting Onboarding</SelectItem>
-                    <SelectItem value="Onboarding in Progress">Onboarding in Progress</SelectItem>
-                    <SelectItem value="On Track">On Track</SelectItem>
-                    <SelectItem value="Behind">Behind Schedule</SelectItem>
-                    <SelectItem value="Complete">Onboarding Complete</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="onboardingStatus">Onboarding Status</Label>
+                  <Select value={onboardingStatus || candidate?.hireStatus || 'Awaiting Onboarding'} onValueChange={setOnboardingStatus}>
+                    <SelectTrigger id="onboardingStatus">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Awaiting Onboarding">Awaiting Onboarding</SelectItem>
+                      <SelectItem value="Onboarding in Progress">Onboarding in Progress</SelectItem>
+                      <SelectItem value="On Track">On Track</SelectItem>
+                      <SelectItem value="Behind">Behind Schedule</SelectItem>
+                      <SelectItem value="Complete">Onboarding Complete</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="employmentStatus">Employment Status</Label>
+                  <Select value={employmentStatus} onValueChange={setEmploymentStatus}>
+                    <SelectTrigger id="employmentStatus">
+                      <SelectValue placeholder="Select status..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Still with the Firm">Still with the Firm</SelectItem>
+                      <SelectItem value="Left the Firm">Left the Firm</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="hireQuality">Quality of Hire Rating (After 90 days)</Label>
-                <Select>
+                <Select value={qualityOfHireRating} onValueChange={setQualityOfHireRating}>
                   <SelectTrigger id="hireQuality">
                     <SelectValue placeholder="Rate after 90 days..." />
                   </SelectTrigger>
@@ -811,9 +946,9 @@ Talent Acquisition Team`)
                 <Textarea id="onboardingNotes" placeholder="Progress, issues, feedback..." rows={3} />
               </div>
 
-              <Button className="w-full gap-2">
+              <Button onClick={handleSaveOnboarding} disabled={moveLoading} className="w-full gap-2">
                 <Mail className="h-4 w-4" />
-                Send Onboarding Summary to HR
+                {moveLoading ? 'Saving...' : 'Save Onboarding Data'}
               </Button>
             </div>
           )}
@@ -825,12 +960,12 @@ Talent Acquisition Team`)
               
               <div className="space-y-2">
                 <Label htmlFor="templateTo" className="text-xs font-medium">To</Label>
-                <Input 
+                <Input
                   id="templateTo"
-                  value={emailTo} 
+                  value={emailTo}
                   onChange={(e) => setEmailTo(e.target.value)}
                   placeholder="candidate@email.com"
-                  className="bg-white"
+                  className="bg-white w-full"
                 />
               </div>
 
@@ -1026,109 +1161,7 @@ Talent Acquisition Team`)
             <div className="space-y-4 border-t pt-4">
               <h4 className="font-semibold text-gray-900">Move Application</h4>
 
-              {bucketType === 'interview' && (
-                <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg">
-                  <Checkbox 
-                    id="sendHMEmail" 
-                    checked={sendEmailToHM}
-                    onCheckedChange={(checked) => {
-                      setSendEmailToHM(checked as boolean)
-                      if (checked) {
-                        // Auto-generate subject
-                        setEmailSubject(`Excellent Candidate for ${candidate?.position} - ${candidate?.name}`)
-                        
-                        // Generate comprehensive email body
-                        setEmailContent(`Dear Hiring Manager,
 
-I am pleased to recommend an outstanding candidate for the ${candidate?.position} position. Based on our comprehensive AI-powered screening process, ${candidate?.name} has demonstrated exceptional qualifications and strong alignment with our requirements.
-
-CANDIDATE SUMMARY:
-${candidate?.name} is a highly qualified professional with impressive performance across both CV screening and AI interview assessments. With a CV score of ${candidate?.cvScore || 'N/A'} and an AI interview score of ${candidate?.interviewScore || 'N/A'}, this candidate stands out as a top-tier prospect.
-
-CANDIDATE DETAILS:
-• Name: ${candidate?.name}
-• Position Applied: ${candidate?.position}
-• Years of Experience: 6+ years
-• Expected Salary: $120,000 - $140,000
-• Preferred Joining Date: Within 2-4 weeks
-• Available for Next Round: Flexible - Monday to Friday, 10 AM - 4 PM
-
-ASSESSMENT SCORES:
-• CV Screening Score: ${candidate?.cvScore || 'N/A'}
-• AI Interview Score: ${candidate?.interviewScore || 'N/A'}
-
-ATTACHED DOCUMENTS:
-✓ CV Screening Report
-✓ AI Interview Assessment Report
-✓ Complete Candidate Resume
-
-This candidate demonstrates strong technical skills, excellent communication abilities, and a proven track record in their field. I highly recommend scheduling the next round of interviews at your earliest convenience.
-
-Please let me know your availability, and I will coordinate the interview schedule.
-
-Best regards,
-Recruitment Team`)
-                      } else {
-                        setEmailContent('')
-                        setEmailTo('')
-                        setEmailSubject('')
-                      }
-                    }}
-                  />
-                  <Label htmlFor="sendHMEmail" className="text-sm font-medium">
-                    Send email to Hiring Manager when moving to HM stage
-                  </Label>
-                </div>
-              )}
-
-              {sendEmailToHM && (
-                <Card className="p-4 bg-green-50 space-y-3">
-                  <h5 className="text-sm font-semibold text-green-900">Email to Hiring Manager</h5>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="emailTo" className="text-xs font-medium">To (comma-separated emails)</Label>
-                    <Input 
-                      id="emailTo"
-                      value={emailTo} 
-                      onChange={(e) => setEmailTo(e.target.value)}
-                      placeholder="hiring.manager@company.com, director@company.com"
-                      className="bg-white"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="emailCc" className="text-xs font-medium">CC (comma-separated emails)</Label>
-                    <Input 
-                      id="emailCc"
-                      value={emailCc} 
-                      onChange={(e) => setEmailCc(e.target.value)}
-                      placeholder="recruiter@company.com, hr@company.com"
-                      className="bg-white"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="emailSubject" className="text-xs font-medium">Subject</Label>
-                    <Input 
-                      id="emailSubject"
-                      value={emailSubject} 
-                      onChange={(e) => setEmailSubject(e.target.value)}
-                      className="bg-white"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="emailBody" className="text-xs font-medium">Body</Label>
-                    <Textarea 
-                      id="emailBody"
-                      value={emailContent} 
-                      onChange={(e) => setEmailContent(e.target.value)}
-                      rows={12}
-                      className="bg-white font-mono text-xs"
-                    />
-                  </div>
-                </Card>
-              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
@@ -1243,7 +1276,7 @@ Recruitment Team`)
                 disabled={!moveToStage || !remarks || moveLoading}
                 className="w-full"
               >
-                {moveLoading ? 'Moving...' : 'Move Application'}
+                {moveLoading ? 'Moving...' : 'Confirm Move'}
               </Button>
             </div>
           )}
