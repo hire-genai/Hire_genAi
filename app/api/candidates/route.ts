@@ -11,42 +11,77 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 })
     }
 
-    // Get companyId from query param or session cookie
+    // Get companyId and userId from query param or session cookie
     let companyId: string | null = req.nextUrl.searchParams.get('companyId')
+    let userId: string | null = req.nextUrl.searchParams.get('userId')
 
-    if (!companyId) {
-      try {
-        const cookieStore = await cookies()
-        const sessionCookie = cookieStore.get('session')
-        if (sessionCookie?.value) {
-          const session = JSON.parse(sessionCookie.value)
-          companyId = session.companyId || session.company?.id || null
-        }
-      } catch {
-        console.log('Failed to parse session cookie for candidates')
+    try {
+      const cookieStore = await cookies()
+      const sessionCookie = cookieStore.get('session')
+      if (sessionCookie?.value) {
+        const session = JSON.parse(sessionCookie.value)
+        if (!companyId) companyId = session.companyId || session.company?.id || null
+        if (!userId) userId = session.userId || session.user?.id || null
       }
+    } catch {
+      console.log('Failed to parse session cookie for candidates')
     }
 
     if (!companyId) {
       return NextResponse.json({ error: 'Company ID is required' }, { status: 400 })
     }
 
-    // Get bucket counts filtered by company_id
-    // Screening: Count candidates with CV score (even if moved to interview)
-    // Interview: Count candidates in interview OR moved to hiring_manager (even if moved further)
+    // Auto-expire delegations whose end_date has passed
+    try {
+      await DatabaseService.query(
+        `UPDATE delegations SET status = 'expired' WHERE status = 'active' AND end_date < CURRENT_DATE AND company_id::text = $1`,
+        [companyId]
+      )
+    } catch { /* delegations table may not exist yet */ }
+
+    // Build the accessible jobs filter for recruiter-level access control
+    // Cast UUID columns to text to avoid 'operator does not exist: text = uuid' with mock auth IDs
+    let accessibleJobsClause = `j.company_id::text = $1`
+    let queryParams: any[] = [companyId]
+
+    if (userId) {
+      accessibleJobsClause = `j.company_id::text = $1 AND (
+        j.created_by::text = $2
+        OR j.id IN (
+          SELECT d.item_id FROM delegations d
+          WHERE d.delegated_to::text = $2
+            AND d.delegation_type = 'job'
+            AND d.status = 'active'
+            AND CURRENT_DATE >= d.start_date
+            AND CURRENT_DATE <= d.end_date
+        )
+        OR a.id IN (
+          SELECT d.item_id FROM delegations d
+          WHERE d.delegated_to::text = $2
+            AND d.delegation_type = 'application'
+            AND d.status = 'active'
+            AND CURRENT_DATE >= d.start_date
+            AND CURRENT_DATE <= d.end_date
+        )
+      )`
+      queryParams = [companyId, userId]
+    }
+
+    // Get bucket counts filtered by ownership + delegation
     const bucketCountsQuery = `
       SELECT 
-        COUNT(*) FILTER (WHERE ai_cv_score IS NOT NULL) AS screening,
-        COUNT(*) FILTER (WHERE current_stage = 'ai_interview' OR current_stage = 'hiring_manager') AS interview,
-        COUNT(*) FILTER (WHERE current_stage = 'hiring_manager') AS hiring_manager,
-        COUNT(*) FILTER (WHERE current_stage = 'offer') AS offer,
-        COUNT(*) FILTER (WHERE current_stage = 'hired') AS hired,
-        COUNT(*) FILTER (WHERE current_stage = 'rejected') AS rejected,
+        COUNT(*) FILTER (WHERE a.ai_cv_score IS NOT NULL) AS screening,
+        COUNT(*) FILTER (WHERE a.current_stage = 'ai_interview' OR a.current_stage = 'hiring_manager') AS interview,
+        COUNT(*) FILTER (WHERE a.current_stage = 'hiring_manager') AS hiring_manager,
+        COUNT(*) FILTER (WHERE a.current_stage = 'offer') AS offer,
+        COUNT(*) FILTER (WHERE a.current_stage = 'hired') AS hired,
+        COUNT(*) FILTER (WHERE a.current_stage = 'rejected') AS rejected,
         COUNT(*) AS total
-      FROM applications
-      WHERE company_id = $1::uuid
+      FROM applications a
+      JOIN job_postings j ON a.job_id = j.id
+      WHERE ${accessibleJobsClause}
     `
-    const bucketCountsResult = await DatabaseService.query(bucketCountsQuery, [companyId])
+    const bucketCountsResult = await DatabaseService.query(bucketCountsQuery, queryParams)
     const counts = bucketCountsResult?.[0] || {}
 
     const bucketData = {
@@ -60,6 +95,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Get applications with candidate and job info + latest stage remarks
+    // Filtered by ownership + delegation access control
     const applicationsQuery = `
       SELECT 
         a.id,
@@ -104,10 +140,10 @@ export async function GET(req: NextRequest) {
       FROM applications a
       JOIN candidates c ON a.candidate_id = c.id
       JOIN job_postings j ON a.job_id = j.id
-      WHERE a.company_id = $1::uuid
+      WHERE ${accessibleJobsClause}
       ORDER BY a.applied_at DESC
     `
-    const applicationsResult = await DatabaseService.query(applicationsQuery, [companyId])
+    const applicationsResult = await DatabaseService.query(applicationsQuery, queryParams)
 
     // Organize applications by bucket
     const applicationsData: Record<string, any[]> = {
@@ -171,12 +207,12 @@ export async function GET(req: NextRequest) {
         hired: bucketData.hired.count,
         rejected: bucketData.rejected.count
       },
-      screening: await getScreeningStats(companyId),
-      interview: await getInterviewStats(companyId),
-      hiringManager: await getHiringManagerStats(companyId),
-      offer: await getOfferStats(companyId),
-      hired: await getHiredStats(companyId),
-      rejected: await getRejectedStats(companyId)
+      screening: await getScreeningStats(companyId, userId),
+      interview: await getInterviewStats(companyId, userId),
+      hiringManager: await getHiringManagerStats(companyId, userId),
+      offer: await getOfferStats(companyId, userId),
+      hired: await getHiredStats(companyId, userId),
+      rejected: await getRejectedStats(companyId, userId)
     }
 
     return NextResponse.json({
@@ -234,14 +270,41 @@ function formatOfferStatus(status: string | null): string {
   return map[status] || status
 }
 
-async function getScreeningStats(companyId: string) {
+// Helper to build the accessible jobs WHERE clause for stats queries
+// Uses ::text cast on UUID columns to avoid 'operator does not exist: text = uuid' with mock auth IDs
+function buildAccessFilter(companyId: string, userId: string | null): { clause: string, params: any[] } {
+  if (userId) {
+    return {
+      clause: `a.company_id::text = $1 AND (
+        j.created_by::text = $2
+        OR j.id IN (
+          SELECT d.item_id FROM delegations d
+          WHERE d.delegated_to::text = $2 AND d.delegation_type = 'job'
+            AND d.status = 'active' AND CURRENT_DATE >= d.start_date AND CURRENT_DATE <= d.end_date
+        )
+        OR a.id IN (
+          SELECT d.item_id FROM delegations d
+          WHERE d.delegated_to::text = $2 AND d.delegation_type = 'application'
+            AND d.status = 'active' AND CURRENT_DATE >= d.start_date AND CURRENT_DATE <= d.end_date
+        )
+      )`,
+      params: [companyId, userId]
+    }
+  }
+  return { clause: `a.company_id::text = $1`, params: [companyId] }
+}
+
+async function getScreeningStats(companyId: string, userId: string | null) {
+  const { clause, params } = buildAccessFilter(companyId, userId)
   const result = await DatabaseService.query(`
     SELECT 
       COUNT(*) AS total,
-      COUNT(*) FILTER (WHERE is_qualified = true) AS qualified,
-      COUNT(*) FILTER (WHERE is_qualified = false) AS unqualified
-    FROM applications WHERE ai_cv_score IS NOT NULL AND company_id = $1::uuid
-  `, [companyId])
+      COUNT(*) FILTER (WHERE a.is_qualified = true) AS qualified,
+      COUNT(*) FILTER (WHERE a.is_qualified = false) AS unqualified
+    FROM applications a
+    JOIN job_postings j ON a.job_id = j.id
+    WHERE a.ai_cv_score IS NOT NULL AND ${clause}
+  `, params)
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
   const qualified = parseInt(r.qualified) || 0
@@ -254,14 +317,17 @@ async function getScreeningStats(companyId: string) {
   }
 }
 
-async function getInterviewStats(companyId: string) {
+async function getInterviewStats(companyId: string, userId: string | null) {
+  const { clause, params } = buildAccessFilter(companyId, userId)
   const result = await DatabaseService.query(`
     SELECT 
       COUNT(*) AS total,
-      COUNT(*) FILTER (WHERE interview_recommendation IN ('Strongly Recommend', 'Recommend')) AS qualified,
-      COUNT(*) FILTER (WHERE interview_recommendation IN ('Reject', 'On Hold')) AS unqualified
-    FROM applications WHERE current_stage = 'ai_interview' AND company_id = $1::uuid
-  `, [companyId])
+      COUNT(*) FILTER (WHERE a.interview_recommendation IN ('Strongly Recommend', 'Recommend')) AS qualified,
+      COUNT(*) FILTER (WHERE a.interview_recommendation IN ('Reject', 'On Hold')) AS unqualified
+    FROM applications a
+    JOIN job_postings j ON a.job_id = j.id
+    WHERE a.current_stage = 'ai_interview' AND ${clause}
+  `, params)
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
   const qualified = parseInt(r.qualified) || 0
@@ -274,14 +340,17 @@ async function getInterviewStats(companyId: string) {
   }
 }
 
-async function getHiringManagerStats(companyId: string) {
+async function getHiringManagerStats(companyId: string, userId: string | null) {
+  const { clause, params } = buildAccessFilter(companyId, userId)
   const result = await DatabaseService.query(`
     SELECT 
       COUNT(*) AS total,
-      COUNT(*) FILTER (WHERE hm_status = 'Approved') AS approved,
-      COUNT(*) FILTER (WHERE hm_status = 'Rejected') AS rejected
-    FROM applications WHERE current_stage = 'hiring_manager' AND company_id = $1::uuid
-  `, [companyId])
+      COUNT(*) FILTER (WHERE a.hm_status = 'Approved') AS approved,
+      COUNT(*) FILTER (WHERE a.hm_status = 'Rejected') AS rejected
+    FROM applications a
+    JOIN job_postings j ON a.job_id = j.id
+    WHERE a.current_stage = 'hiring_manager' AND ${clause}
+  `, params)
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
   const approved = parseInt(r.approved) || 0
@@ -294,14 +363,17 @@ async function getHiringManagerStats(companyId: string) {
   }
 }
 
-async function getOfferStats(companyId: string) {
+async function getOfferStats(companyId: string, userId: string | null) {
+  const { clause, params } = buildAccessFilter(companyId, userId)
   const result = await DatabaseService.query(`
     SELECT 
       COUNT(*) AS total,
-      COUNT(*) FILTER (WHERE offer_status = 'accepted') AS accepted,
-      COUNT(*) FILTER (WHERE offer_status = 'declined') AS declined
-    FROM applications WHERE current_stage = 'offer' AND company_id = $1::uuid
-  `, [companyId])
+      COUNT(*) FILTER (WHERE a.offer_status = 'accepted') AS accepted,
+      COUNT(*) FILTER (WHERE a.offer_status = 'declined') AS declined
+    FROM applications a
+    JOIN job_postings j ON a.job_id = j.id
+    WHERE a.current_stage = 'offer' AND ${clause}
+  `, params)
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
   const accepted = parseInt(r.accepted) || 0
@@ -314,14 +386,17 @@ async function getOfferStats(companyId: string) {
   }
 }
 
-async function getHiredStats(companyId: string) {
+async function getHiredStats(companyId: string, userId: string | null) {
+  const { clause, params } = buildAccessFilter(companyId, userId)
   const result = await DatabaseService.query(`
     SELECT 
       COUNT(*) AS total,
-      COUNT(*) FILTER (WHERE onboarding_status = 'Complete') AS onboarded,
-      COUNT(*) FILTER (WHERE onboarding_status IS NULL OR onboarding_status != 'Complete') AS awaiting
-    FROM applications WHERE current_stage = 'hired' AND company_id = $1::uuid
-  `, [companyId])
+      COUNT(*) FILTER (WHERE a.onboarding_status = 'Complete') AS onboarded,
+      COUNT(*) FILTER (WHERE a.onboarding_status IS NULL OR a.onboarding_status != 'Complete') AS awaiting
+    FROM applications a
+    JOIN job_postings j ON a.job_id = j.id
+    WHERE a.current_stage = 'hired' AND ${clause}
+  `, params)
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
   const onboarded = parseInt(r.onboarded) || 0
@@ -334,15 +409,18 @@ async function getHiredStats(companyId: string) {
   }
 }
 
-async function getRejectedStats(companyId: string) {
+async function getRejectedStats(companyId: string, userId: string | null) {
+  const { clause, params } = buildAccessFilter(companyId, userId)
   const result = await DatabaseService.query(`
     SELECT 
       COUNT(*) AS total,
-      COUNT(*) FILTER (WHERE rejection_stage = 'screening') AS from_screening,
-      COUNT(*) FILTER (WHERE rejection_stage = 'ai_interview') AS from_interview,
-      COUNT(*) FILTER (WHERE rejection_stage NOT IN ('screening', 'ai_interview') OR rejection_stage IS NULL) AS from_other
-    FROM applications WHERE current_stage = 'rejected' AND company_id = $1::uuid
-  `, [companyId])
+      COUNT(*) FILTER (WHERE a.rejection_stage = 'screening') AS from_screening,
+      COUNT(*) FILTER (WHERE a.rejection_stage = 'ai_interview') AS from_interview,
+      COUNT(*) FILTER (WHERE a.rejection_stage NOT IN ('screening', 'ai_interview') OR a.rejection_stage IS NULL) AS from_other
+    FROM applications a
+    JOIN job_postings j ON a.job_id = j.id
+    WHERE a.current_stage = 'rejected' AND ${clause}
+  `, params)
   const r = result?.[0] || {}
   return {
     totalRejected: parseInt(r.total) || 0,
