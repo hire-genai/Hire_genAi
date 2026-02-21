@@ -13,7 +13,7 @@ interface User {
   status: string
   phone?: string
   timezone?: string
-  role?: "admin" | "interviewer" | "ai_recruiter" | "recruiter" | "company_admin"
+  role?: string
 }
 
 interface Company {
@@ -250,6 +250,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setCompany(newCompany)
         // Start session timer
         SessionManager.startSession()
+
+        // Fetch real role from database to override mock role
+        try {
+          const profileRes = await fetch(`/api/settings/profile?email=${encodeURIComponent(currentUser.user.email)}`)
+          const profileData = await profileRes.json()
+          if (profileData.user?.role) {
+            setUser(prev => prev ? { ...prev, role: profileData.user.role } : prev)
+            MockAuthService.setSessionFromServer(
+              { ...currentUser.user, role: profileData.user.role },
+              currentUser.company
+            )
+          }
+        } catch (e) {
+          console.log("⚠️ Could not sync role from DB on signIn:", e)
+        }
       }
       return {}
     } catch (error) {
@@ -335,6 +350,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setCompany(newCompany)
         // Start session timer
         SessionManager.startSession()
+
+        // Fetch real role from database to override mock role
+        try {
+          const profileRes = await fetch(`/api/settings/profile?email=${encodeURIComponent(currentUser.user.email)}`)
+          const profileData = await profileRes.json()
+          if (profileData.user?.role) {
+            setUser(prev => prev ? { ...prev, role: profileData.user.role } : prev)
+            MockAuthService.setSessionFromServer(
+              { ...currentUser.user, role: profileData.user.role },
+              currentUser.company
+            )
+          }
+        } catch (e) {
+          console.log("⚠️ Could not sync role from DB on signInWithEmail:", e)
+        }
       }
       return {}
     } catch (error) {
@@ -366,13 +396,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Allow setting session directly from server response (e.g., OTP verify)
   const setAuthSession = (userObj: User, companyObj: Company) => {
     try {
-      // Convert new format to mock format for compatibility
-      const mockUser = {
-        id: userObj.id,
-        email: userObj.email,
-        name: userObj.full_name,
-        role: userObj.role || 'admin' // Preserve the actual user role
-      }
       const mockCompany = {
         id: companyObj.id,
         name: companyObj.name,
@@ -381,12 +404,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         size: '1-10',
         website: ''
       }
-      
-      MockAuthService.setSessionFromServer(mockUser, mockCompany)
+
+      // If role already provided (e.g. DB OTP path), use it directly
+      if (userObj.role) {
+        const mockUser = { id: userObj.id, email: userObj.email, name: userObj.full_name, role: userObj.role }
+        MockAuthService.setSessionFromServer(mockUser, mockCompany)
+        setUser(userObj)
+        setCompany(companyObj)
+        SessionManager.startSession()
+        return
+      }
+
+      // No role provided — fetch from DB, fall back to mock auth role
+      const mockUserFallback = { id: userObj.id, email: userObj.email, name: userObj.full_name, role: 'admin' }
+      MockAuthService.setSessionFromServer(mockUserFallback, mockCompany)
       setUser(userObj)
       setCompany(companyObj)
-      // Start session timer
       SessionManager.startSession()
+
+      // Async: fetch real role from DB and update state
+      fetch(`/api/settings/profile?email=${encodeURIComponent(userObj.email)}`)
+        .then(r => r.json())
+        .then(profileData => {
+          const role = profileData.user?.role
+          if (role) {
+            setUser(prev => prev ? { ...prev, role } : prev)
+            MockAuthService.setSessionFromServer({ ...mockUserFallback, role }, mockCompany)
+          }
+        })
+        .catch(e => console.log("⚠️ Could not sync role from DB on setAuthSession:", e))
     } catch (e) {
       console.error("Failed to set auth session:", e)
     }

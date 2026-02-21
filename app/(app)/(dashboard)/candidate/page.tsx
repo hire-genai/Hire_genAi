@@ -479,9 +479,9 @@ export default function CandidatesPage() {
         {activeBucket === 'rejected' && (
           <>
             <td className="px-6 py-4">
-              <Badge className="bg-red-100 text-red-800">{application?.rejectionStage}</Badge>
+              <Badge className="bg-red-100 text-red-800">{application?.rejectionStage || 'N/A'}</Badge>
             </td>
-            <td className="px-6 py-4 text-sm text-gray-600">{application?.rejectionReason}</td>
+            <td className="px-6 py-4 text-sm text-gray-600">{application?.rejectionReason || <span className="text-gray-400 italic">Not specified</span>}</td>
             <td className="px-6 py-4">
               <Button size="sm" onClick={() => handleViewCandidate(application)}>
                 Action

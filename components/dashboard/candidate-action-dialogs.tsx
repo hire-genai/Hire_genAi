@@ -65,6 +65,9 @@ export function CandidateActionDialog({
   const [schedulingDays, setSchedulingDays] = useState('')
   const [rejectionReason, setRejectionReason] = useState('')
   const [addToTalentPool, setAddToTalentPool] = useState(false)
+  const [talentPoolCategory, setTalentPoolCategory] = useState('future')
+  const [talentPoolNotes, setTalentPoolNotes] = useState('')
+  const [talentPoolSkillTags, setTalentPoolSkillTags] = useState('')
   const [hmRating, setHmRating] = useState('')
   const [hmFeedback, setHmFeedback] = useState('')
   const [hiringManagerName, setHiringManagerName] = useState('')
@@ -115,6 +118,9 @@ export function CandidateActionDialog({
       // Reset rejection/talent pool states
       setRejectionReason('')
       setAddToTalentPool(false)
+      setTalentPoolCategory('future')
+      setTalentPoolNotes('')
+      setTalentPoolSkillTags('')
       setDeclineReason('')
       
       // Reset hired states
@@ -138,6 +144,10 @@ export function CandidateActionDialog({
 
   const handleMove = async () => {
     if (!moveToStage || !remarks || !candidate?.id) return
+    if (moveToStage === 'rejected' && !rejectionReason) {
+      alert('Please select a rejection reason before moving.')
+      return
+    }
     try {
       setMoveLoading(true)
       const res = await fetch('/api/applications/move', {
@@ -149,6 +159,11 @@ export function CandidateActionDialog({
           remarks,
           changedByEmail: candidate?.email || candidate?.candidateEmail || null,
           companyId: company?.id || null,
+          rejectionReason: moveToStage === 'rejected' ? rejectionReason : undefined,
+          addToTalentPool: addToTalentPool || undefined,
+          talentPoolCategory: addToTalentPool ? talentPoolCategory : undefined,
+          talentPoolNotes: addToTalentPool ? talentPoolNotes : undefined,
+          talentPoolSkillTags: addToTalentPool ? talentPoolSkillTags : undefined,
         })
       })
 
@@ -322,8 +337,8 @@ export function CandidateActionDialog({
           {/* AI Interview Actions */}
           {bucketType === 'interview' && (
             <div className="space-y-4">
-              {/* Show scoring section only when interview is completed */}
-              {candidate?.interviewStatus === 'Completed' && (
+              {/* Show scoring section when interview has been attempted (Completed or Incomplete) */}
+              {candidate?.interviewStatus !== 'Not Scheduled' && candidate?.interviewStatus !== 'Scheduled' && (
                 <>
                   <h4 className="font-semibold text-gray-900">Interview Management & Scoring</h4>
                   
@@ -926,7 +941,7 @@ Talent Acquisition Team`)
                     <div className="space-y-3">
                       <div className="space-y-2">
                         <Label htmlFor="talentPoolCategory">Category</Label>
-                        <Select defaultValue="future">
+                        <Select value={talentPoolCategory} onValueChange={setTalentPoolCategory}>
                           <SelectTrigger id="talentPoolCategory">
                             <SelectValue />
                           </SelectTrigger>
@@ -945,7 +960,8 @@ Talent Acquisition Team`)
                           id="talentPoolNotes"
                           placeholder="Why this candidate should be considered for future roles..."
                           rows={3}
-                          defaultValue={`Strong technical skills but timing wasn't right for current role. Would be excellent for future ${candidate?.position} openings.`}
+                          value={talentPoolNotes || `Strong technical skills but timing wasn't right for current role. Would be excellent for future ${candidate?.position} openings.`}
+                          onChange={(e) => setTalentPoolNotes(e.target.value)}
                         />
                       </div>
 
@@ -954,7 +970,8 @@ Talent Acquisition Team`)
                         <Input 
                           id="skillsTags"
                           placeholder="React, Node.js, Leadership, Communication"
-                          defaultValue="React, TypeScript, Problem Solving"
+                          value={talentPoolSkillTags}
+                          onChange={(e) => setTalentPoolSkillTags(e.target.value)}
                         />
                       </div>
                     </div>
@@ -962,16 +979,42 @@ Talent Acquisition Team`)
                 )}
 
                 <Button 
-                  onClick={() => {
-                    if (addToTalentPool) {
-                      console.log('[v0] Moving candidate to talent pool:', candidate?.name)
+                  onClick={async () => {
+                    if (!addToTalentPool || !candidate?.id) return
+                    try {
+                      setMoveLoading(true)
+                      const res = await fetch('/api/applications/move', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          applicationId: candidate.id,
+                          moveToStage: 'talentPool',
+                          remarks: 'Added to talent pool from rejected stage',
+                          companyId: company?.id || null,
+                          addToTalentPool: true,
+                          talentPoolCategory,
+                          talentPoolNotes,
+                          talentPoolSkillTags,
+                        })
+                      })
+                      const data = await res.json()
+                      if (!res.ok || data?.error) {
+                        alert(data?.error || 'Failed to add to talent pool')
+                        return
+                      }
+                      onOpenChange(false)
+                      if (onMoved) onMoved()
+                    } catch (err) {
+                      console.error('Talent pool error:', err)
+                      alert('Failed to add to talent pool')
+                    } finally {
+                      setMoveLoading(false)
                     }
-                    onOpenChange(false)
                   }} 
                   className="w-full"
-                  disabled={!addToTalentPool}
+                  disabled={!addToTalentPool || moveLoading}
                 >
-                  {addToTalentPool ? 'Move to Talent Pool' : 'Select Option Above'}
+                  {moveLoading ? 'Saving...' : addToTalentPool ? 'Move to Talent Pool' : 'Select Option Above'}
                 </Button>
               </div>
             </div>
@@ -979,7 +1022,7 @@ Talent Acquisition Team`)
 
           {/* Move Application Section */}
           {bucketType !== 'all' && bucketType !== 'rejected' && 
-           !(bucketType === 'interview' && (candidate?.interviewScore === 'N/A' || candidate?.interviewStatus !== 'Completed')) && (
+           !(bucketType === 'interview' && candidate?.interviewStatus !== 'Completed' && candidate?.interviewStatus !== 'Incomplete') && (
             <div className="space-y-4 border-t pt-4">
               <h4 className="font-semibold text-gray-900">Move Application</h4>
 

@@ -53,6 +53,21 @@ export async function POST(request: NextRequest) {
           [user.id, company.id, user.email, user.name || user.email]
         )
         console.log('✅ User synced to database:', user.email, user.id)
+
+        // Also sync user role into user_roles table
+        if (user.role) {
+          try {
+            await DatabaseService.query(
+              `INSERT INTO user_roles (user_id, role, granted_at)
+               VALUES ($1::uuid, $2, NOW())
+               ON CONFLICT (user_id, role) DO NOTHING`,
+              [user.id, user.role]
+            )
+            console.log('✅ User role synced:', user.role)
+          } catch (roleError: any) {
+            console.warn('⚠️ Could not sync user role (non-critical):', roleError.message)
+          }
+        }
       } catch (userError: any) {
         // If email unique conflict, update by email instead
         if (userError.message?.includes('email') || userError.message?.includes('unique')) {

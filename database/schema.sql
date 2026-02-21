@@ -692,9 +692,10 @@ CREATE TABLE talent_pool_entries (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   candidate_id    UUID NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+  application_id  UUID REFERENCES applications(id) ON DELETE SET NULL,  -- Link to original application
   status          talent_pool_status NOT NULL DEFAULT 'passive',
   added_by        UUID REFERENCES users(id) ON DELETE SET NULL,
-  source          TEXT,                              -- LinkedIn, Event, Referral, etc.
+  source          TEXT,                              -- LinkedIn, Event, Referral, rejected_candidate, etc.
   notes           TEXT,
   last_contacted  TIMESTAMPTZ,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -706,6 +707,7 @@ CREATE TABLE talent_pool_entries (
 CREATE INDEX idx_talent_pool_company_id ON talent_pool_entries (company_id);
 CREATE INDEX idx_talent_pool_status ON talent_pool_entries (status);
 CREATE INDEX idx_talent_pool_candidate_id ON talent_pool_entries (candidate_id);
+CREATE INDEX idx_talent_pool_application_id ON talent_pool_entries (application_id);
 
 
 -- ---------------------------------------------------------------------------

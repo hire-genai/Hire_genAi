@@ -37,10 +37,10 @@ export async function GET(req: NextRequest) {
     const bucketCountsQuery = `
       SELECT 
         COUNT(*) FILTER (WHERE ai_cv_score IS NOT NULL) AS screening,
-        COUNT(*) FILTER (WHERE current_stage = 'ai_interview' OR current_stage = 'hiring_manager') AS interview,
-        COUNT(*) FILTER (WHERE current_stage = 'hiring_manager') AS hiring_manager,
-        COUNT(*) FILTER (WHERE current_stage = 'offer') AS offer,
-        COUNT(*) FILTER (WHERE current_stage = 'hired') AS hired,
+        COUNT(*) FILTER (WHERE current_stage IN ('ai_interview', 'hiring_manager', 'withdrawn', 'rejected') OR rejection_stage = 'ai_interview') AS interview,
+        COUNT(*) FILTER (WHERE current_stage IN ('hiring_manager', 'rejected') OR rejection_stage = 'hiring_manager') AS hiring_manager,
+        COUNT(*) FILTER (WHERE current_stage IN ('offer', 'rejected') OR rejection_stage = 'offer') AS offer,
+        COUNT(*) FILTER (WHERE current_stage IN ('hired', 'rejected') OR rejection_stage = 'hired') AS hired,
         COUNT(*) FILTER (WHERE current_stage = 'rejected') AS rejected,
         COUNT(*) AS total
       FROM applications
