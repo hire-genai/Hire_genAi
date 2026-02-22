@@ -1,8 +1,6 @@
 'use client'
 
-import React from "react"
-
-import { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,10 +28,11 @@ import {
   MessageSquare,
   Lightbulb,
   AlertCircle,
+  ImageIcon,
+  X,
   CheckCircle,
   Clock,
   Upload,
-  X,
   Eye,
   Calendar,
 } from 'lucide-react'
@@ -48,6 +47,7 @@ interface TicketComment {
   author: string
   role: 'support' | 'recruiter'
   message: string
+  image?: string
   timestamp: string
 }
 
@@ -66,81 +66,12 @@ interface Ticket {
   comments?: TicketComment[]
 }
 
-// Mock data
-const mockTickets: Ticket[] = [
-  {
-    id: 'TKT-001',
-    type: 'bug',
-    category: 'applications',
-    title: 'Application status not updating',
-    description: 'When I change application status, it reverts back after refresh',
-    priority: 'high',
-    status: 'in_progress',
-    createdBy: 'Sarah Johnson',
-    createdAt: '2024-02-01',
-    response: 'Thank you for reporting this. Our team is investigating the issue.',
-    comments: [
-      {
-        id: 'c1',
-        author: 'Support Team',
-        role: 'support',
-        message: 'Thank you for reporting this. Our team is investigating the issue.',
-        timestamp: '2024-02-01 10:30'
-      },
-      {
-        id: 'c2',
-        author: 'Sarah Johnson',
-        role: 'recruiter',
-        message: 'Thanks! It happens specifically with the "Interview Scheduled" status.',
-        timestamp: '2024-02-01 14:20'
-      }
-    ]
-  },
-  {
-    id: 'TKT-002',
-    type: 'feature_request',
-    category: 'messages',
-    title: 'Add bulk email feature',
-    description: 'Need ability to send emails to multiple candidates at once',
-    priority: 'medium',
-    status: 'open',
-    createdBy: 'Mike Davis',
-    createdAt: '2024-02-03',
-  },
-  {
-    id: 'TKT-003',
-    type: 'question',
-    category: 'candidates',
-    title: 'How to export candidate data?',
-    description: 'Need guidance on exporting candidate information to CSV',
-    priority: 'low',
-    status: 'resolved',
-    createdBy: 'Emily Chen',
-    createdAt: '2024-01-28',
-    response: 'You can export candidates from the Candidates page using the Export button.',
-  },
-  {
-    id: 'TKT-002',
-    type: 'feature_request',
-    title: 'Bulk email feature for candidates',
-    description: 'Would be great to send emails to multiple candidates at once',
-    priority: 'medium',
-    status: 'open',
-    createdBy: 'Sarah Johnson',
-    createdAt: '2024-02-03',
-  },
-  {
-    id: 'TKT-003',
-    type: 'feedback',
-    title: 'Dashboard is very intuitive',
-    description: 'Love the new dashboard design. Makes tracking metrics so easy!',
-    priority: 'low',
-    status: 'closed',
-    createdBy: 'Sarah Johnson',
-    createdAt: '2024-01-28',
-    response: 'Thank you for your feedback! We are glad you like it.',
-  },
-]
+interface TicketStats {
+  open: number
+  in_progress: number
+  resolved: number
+  total: number
+}
 
 export default function SupportPage() {
   const [activeTab, setActiveTab] = useState<'tickets' | 'feedback'>('tickets')
@@ -151,6 +82,11 @@ export default function SupportPage() {
   const [statusFilter, setStatusFilter] = useState<TicketStatus | 'all'>('all')
   const [typeFilter, setTypeFilter] = useState<TicketType | 'all'>('all')
   const [newComment, setNewComment] = useState('')
+  const [commentImage, setCommentImage] = useState<File | null>(null)
+  const [tickets, setTickets] = useState<Ticket[]>([])
+  const [stats, setStats] = useState<TicketStats>({ open: 0, in_progress: 0, resolved: 0, total: 0 })
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
 
   const [formData, setFormData] = useState({
     type: 'bug' as TicketType,
@@ -161,7 +97,80 @@ export default function SupportPage() {
     screenshot: null as File | null,
   })
 
-  const handleCreateTicket = () => {
+  const fetchTickets = useCallback(async () => {
+    try {
+      setLoading(true)
+      
+      // Get companyId from localStorage
+      let companyId = null
+      try {
+        const storedSession = localStorage.getItem('mockAuth')
+        if (storedSession) {
+          const session = JSON.parse(storedSession)
+          companyId = session.company?.id
+        }
+      } catch (e) {
+        console.log('Could not parse session from localStorage')
+      }
+      
+      const params = new URLSearchParams()
+      if (companyId) params.append('companyId', companyId)
+      if (statusFilter !== 'all') params.append('status', statusFilter)
+      if (typeFilter !== 'all') params.append('type', typeFilter)
+      
+      const response = await fetch(`/api/support/tickets?${params.toString()}`)
+      const data = await response.json()
+      
+      if (data.success) {
+        setTickets(data.data || [])
+        setStats(data.stats || { open: 0, in_progress: 0, resolved: 0, total: 0 })
+      } else {
+        console.error('Failed to fetch tickets:', data.error)
+        setTickets([])
+      }
+    } catch (error) {
+      console.error('Error fetching tickets:', error)
+      setTickets([])
+    } finally {
+      setLoading(false)
+    }
+  }, [statusFilter, typeFilter])
+
+  useEffect(() => {
+    fetchTickets()
+  }, [fetchTickets])
+
+  const fetchTicketDetails = async (ticketId: string) => {
+    try {
+      // Get companyId from localStorage
+      let companyId = null
+      try {
+        const storedSession = localStorage.getItem('mockAuth')
+        if (storedSession) {
+          const session = JSON.parse(storedSession)
+          companyId = session.company?.id
+        }
+      } catch (e) {
+        console.log('Could not parse session from localStorage')
+      }
+      
+      const params = new URLSearchParams()
+      if (companyId) params.append('companyId', companyId)
+      
+      const response = await fetch(`/api/support/tickets/${ticketId}?${params.toString()}`)
+      const data = await response.json()
+      
+      if (data.success) {
+        setSelectedTicket(data.data)
+      } else {
+        console.error('Failed to fetch ticket details:', data.error)
+      }
+    } catch (error) {
+      console.error('Error fetching ticket details:', error)
+    }
+  }
+
+  const handleCreateTicket = async () => {
     if (!formData.category) {
       alert('Please select a category')
       return
@@ -175,27 +184,171 @@ export default function SupportPage() {
       return
     }
 
-    console.log('[v0] Creating ticket:', formData)
-    alert('Support ticket submitted successfully! Our team will get back to you soon.')
-    setShowCreateDialog(false)
-    setFormData({
-      type: 'bug',
-      category: 'other',
-      title: '',
-      description: '',
-      priority: 'medium',
-      screenshot: null,
-    })
+    try {
+      setSubmitting(true)
+      
+      // Get user/company from localStorage (fallback for mock auth)
+      let userId = null
+      let companyId = null
+      let userName = 'User'
+      try {
+        const storedSession = localStorage.getItem('mockAuth')
+        if (storedSession) {
+          const session = JSON.parse(storedSession)
+          userId = session.user?.id
+          companyId = session.company?.id
+          
+          // Get user name from session (mock-auth stores it as 'name')
+          userName = session.user?.name || session.user?.email || 'User'
+        }
+      } catch (e) {
+        console.error('Could not parse session from localStorage', e)
+      }
+
+      // Upload screenshot if provided
+      let screenshotUrl = null
+      if (formData.screenshot) {
+        try {
+          const uploadFormData = new FormData()
+          uploadFormData.append('screenshot', formData.screenshot)
+          
+          const uploadResponse = await fetch('/api/support/upload-screenshot', {
+            method: 'POST',
+            body: uploadFormData,
+          })
+          
+          const uploadData = await uploadResponse.json()
+          
+          if (uploadData.success) {
+            screenshotUrl = uploadData.url
+            console.log('Screenshot uploaded:', screenshotUrl)
+          } else {
+            console.error('Screenshot upload failed:', uploadData.error)
+            alert('Failed to upload screenshot. Creating ticket without screenshot.')
+          }
+        } catch (uploadError) {
+          console.error('Error uploading screenshot:', uploadError)
+          alert('Failed to upload screenshot. Creating ticket without screenshot.')
+        }
+      }
+      
+      const response = await fetch('/api/support/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: formData.type,
+          category: formData.category,
+          title: formData.title,
+          description: formData.description,
+          priority: formData.priority,
+          screenshot: screenshotUrl,
+          userId,
+          companyId,
+          userName,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        alert('Support ticket submitted successfully! Our team will get back to you soon.')
+        setShowCreateDialog(false)
+        setFormData({
+          type: 'bug',
+          category: 'other',
+          title: '',
+          description: '',
+          priority: 'medium',
+          screenshot: null,
+        })
+        fetchTickets()
+      } else {
+        alert(data.error || 'Failed to create ticket')
+      }
+    } catch (error) {
+      console.error('Error creating ticket:', error)
+      alert('Failed to create ticket. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const handleAddComment = () => {
-    if (!newComment.trim()) {
-      alert('Please enter a comment')
+  const handleAddComment = async () => {
+    if (!newComment.trim() && !commentImage) {
+      alert('Please enter a comment or attach an image')
       return
     }
-    console.log('[v0] Adding comment to ticket:', selectedTicket?.id, newComment)
-    alert('Comment added successfully!')
-    setNewComment('')
+    if (!selectedTicket) return
+
+    try {
+      setSubmitting(true)
+      
+      // Get user/company from localStorage (fallback for mock auth)
+      let userId = null
+      let companyId = null
+      try {
+        const storedSession = localStorage.getItem('mockAuth')
+        if (storedSession) {
+          const session = JSON.parse(storedSession)
+          userId = session.user?.id
+          companyId = session.company?.id
+        }
+      } catch (e) {
+        console.log('Could not parse session from localStorage')
+      }
+
+      // Upload image if provided
+      let imageUrl = null
+      if (commentImage) {
+        try {
+          const uploadFormData = new FormData()
+          uploadFormData.append('screenshot', commentImage)
+          
+          const uploadResponse = await fetch('/api/support/upload-screenshot', {
+            method: 'POST',
+            body: uploadFormData,
+          })
+          
+          const uploadData = await uploadResponse.json()
+          
+          if (uploadData.success) {
+            imageUrl = uploadData.url
+          } else {
+            console.error('Image upload failed:', uploadData.error)
+            alert('Failed to upload image. Sending comment without image.')
+          }
+        } catch (uploadError) {
+          console.error('Error uploading image:', uploadError)
+          alert('Failed to upload image. Sending comment without image.')
+        }
+      }
+      
+      const response = await fetch(`/api/support/tickets/${selectedTicket.id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          message: newComment.trim() || (imageUrl ? '' : 'Message'),
+          imageUrl,
+          userId,
+          companyId,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setNewComment('')
+        setCommentImage(null)
+        await fetchTicketDetails(selectedTicket.id)
+      } else {
+        alert(data.error || 'Failed to add comment')
+      }
+    } catch (error) {
+      console.error('Error adding comment:', error)
+      alert('Failed to add comment. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -209,15 +362,14 @@ export default function SupportPage() {
     }
   }
 
-  const filteredTickets = mockTickets.filter((ticket) => {
+  const filteredTickets = tickets.filter((ticket) => {
     const matchesSearch =
       ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ticket.description.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || ticket.status === statusFilter
-    const matchesType = typeFilter === 'all' || ticket.type === typeFilter
     const matchesTab =
       activeTab === 'tickets' || (activeTab === 'feedback' && ticket.type === 'feedback')
-    return matchesSearch && matchesStatus && matchesType && matchesTab
+    
+    return matchesSearch && matchesTab
   })
 
   const getTypeIcon = (type: TicketType) => {
@@ -297,9 +449,7 @@ export default function SupportPage() {
             </div>
             <div>
               <p className="text-sm text-gray-600">Open Tickets</p>
-              <p className="text-2xl font-bold">
-                {mockTickets.filter((t) => t.status === 'open').length}
-              </p>
+              <p className="text-2xl font-bold">{stats.open}</p>
             </div>
           </div>
         </Card>
@@ -310,9 +460,7 @@ export default function SupportPage() {
             </div>
             <div>
               <p className="text-sm text-gray-600">In Progress</p>
-              <p className="text-2xl font-bold">
-                {mockTickets.filter((t) => t.status === 'in_progress').length}
-              </p>
+              <p className="text-2xl font-bold">{stats.in_progress}</p>
             </div>
           </div>
         </Card>
@@ -323,9 +471,7 @@ export default function SupportPage() {
             </div>
             <div>
               <p className="text-sm text-gray-600">Resolved</p>
-              <p className="text-2xl font-bold">
-                {mockTickets.filter((t) => t.status === 'resolved').length}
-              </p>
+              <p className="text-2xl font-bold">{stats.resolved}</p>
             </div>
           </div>
         </Card>
@@ -336,7 +482,7 @@ export default function SupportPage() {
             </div>
             <div>
               <p className="text-sm text-gray-600">Total Submitted</p>
-              <p className="text-2xl font-bold">{mockTickets.length}</p>
+              <p className="text-2xl font-bold">{stats.total}</p>
             </div>
           </div>
         </Card>
@@ -442,7 +588,7 @@ export default function SupportPage() {
               {filteredTickets.map((ticket) => (
                 <tr key={ticket.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {ticket.id}
+                    {ticket.id.substring(0, 8).toUpperCase()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">
@@ -468,10 +614,10 @@ export default function SupportPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => {
-                          setSelectedTicket(ticket)
+                        onClick={async () => {
                           setShowViewDialog(true)
                           setNewComment('')
+                          await fetchTicketDetails(ticket.id)
                         }}
                         className="bg-transparent"
                       >
@@ -485,7 +631,14 @@ export default function SupportPage() {
             </tbody>
           </table>
 
-          {filteredTickets.length === 0 && (
+          {loading && (
+            <div className="text-center py-12 text-gray-500">
+              <div className="animate-spin h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-3"></div>
+              <p className="text-sm">Loading tickets...</p>
+            </div>
+          )}
+
+          {!loading && filteredTickets.length === 0 && (
             <div className="text-center py-12 text-gray-500">
               <HeadphonesIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
               <p className="text-sm">No tickets found</p>
@@ -512,7 +665,7 @@ export default function SupportPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs text-gray-500">Ticket ID</Label>
-                  <p className="text-sm font-medium mt-1">{selectedTicket.id}</p>
+                  <p className="text-sm font-medium mt-1">{selectedTicket.id.substring(0, 8).toUpperCase()}</p>
                 </div>
                 <div>
                   <Label className="text-xs text-gray-500">Type</Label>
@@ -558,34 +711,81 @@ export default function SupportPage() {
                 </div>
               </div>
 
-              {/* Conversation History */}
-              {selectedTicket.comments && selectedTicket.comments.length > 0 && (
-                <div>
-                  <Label className="text-xs text-gray-500 font-semibold mb-2 block">Conversation</Label>
-                  <div className="border rounded-lg p-3 bg-gray-50 max-h-48 overflow-y-auto space-y-2">
-                    {selectedTicket.comments.map((comment) => (
-                      <div 
-                        key={comment.id}
-                        className={`p-2 rounded ${
-                          comment.role === 'support' 
-                            ? 'bg-blue-50 border border-blue-200' 
-                            : 'bg-white border border-gray-200'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className={`text-xs font-semibold ${
-                            comment.role === 'support' ? 'text-blue-900' : 'text-gray-900'
-                          }`}>
-                            {comment.author}
-                          </span>
-                          <span className="text-xs text-gray-500">{comment.timestamp}</span>
-                        </div>
-                        <p className="text-xs text-gray-700">{comment.message}</p>
+              {/* WhatsApp-Style Conversation */}
+              <div className="border-t pt-4">
+                <Label className="text-sm font-semibold mb-3 block flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Conversation
+                </Label>
+                <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto space-y-3">
+                  {/* Initial Ticket Message */}
+                  <div className="flex justify-end">
+                    <div className="max-w-[75%]">
+                      <div className="bg-blue-500 text-white rounded-lg rounded-tr-none p-3 shadow-sm">
+                        <p className="text-sm mb-1">{selectedTicket.description}</p>
+                        {selectedTicket.screenshot && (
+                          <div className="mt-2 rounded overflow-hidden">
+                            <img src={selectedTicket.screenshot} alt="Screenshot" className="max-w-full" />
+                          </div>
+                        )}
                       </div>
-                    ))}
+                      <div className="flex items-center justify-end gap-2 mt-1 px-1">
+                        <span className="text-xs text-gray-500">{selectedTicket.createdBy}</span>
+                        <span className="text-xs text-gray-400">{selectedTicket.createdAt}</span>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Comments/Replies */}
+                  {selectedTicket.comments && selectedTicket.comments.length > 0 && (
+                    <>
+                      {selectedTicket.comments.map((comment) => (
+                        <div 
+                          key={comment.id}
+                          className={`flex ${comment.role === 'support' ? 'justify-start' : 'justify-end'}`}
+                        >
+                          <div className="max-w-[75%]">
+                            <div className={`rounded-lg p-3 shadow-sm ${
+                              comment.role === 'support'
+                                ? 'bg-white border border-gray-200 rounded-tl-none'
+                                : 'bg-blue-500 text-white rounded-tr-none'
+                            }`}>
+                              {comment.message && (
+                                <p className={`text-sm ${comment.role === 'support' ? 'text-gray-800' : 'text-white'}`}>
+                                  {comment.message}
+                                </p>
+                              )}
+                              {comment.image && (
+                                <div className={`${comment.message ? 'mt-2' : ''} rounded overflow-hidden`}>
+                                  <img src={comment.image} alt="Attachment" className="max-w-full rounded" />
+                                </div>
+                              )}
+                            </div>
+                            <div className={`flex items-center gap-2 mt-1 px-1 ${
+                              comment.role === 'support' ? 'justify-start' : 'justify-end'
+                            }`}>
+                              <span className={`text-xs font-medium ${
+                                comment.role === 'support' ? 'text-blue-600' : 'text-gray-500'
+                              }`}>
+                                {comment.author}
+                              </span>
+                              <span className="text-xs text-gray-400">{comment.timestamp}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Empty State */}
+                  {(!selectedTicket.comments || selectedTicket.comments.length === 0) && (
+                    <div className="text-center py-8 text-gray-400">
+                      <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No replies yet</p>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Reply Section - Only show for open and in_progress tickets */}
               {(selectedTicket.status === 'open' || selectedTicket.status === 'in_progress') && (
@@ -598,20 +798,61 @@ export default function SupportPage() {
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
                   />
-                  <Button 
-                    size="sm" 
-                    className="mt-2"
-                    onClick={handleAddComment}
-                  >
-                    <MessageSquare className="h-3 w-3 mr-1" />
-                    Send Reply
-                  </Button>
+                  {/* Image Preview */}
+                  {commentImage && (
+                    <div className="mt-2 relative inline-block">
+                      <img 
+                        src={URL.createObjectURL(commentImage)} 
+                        alt="Preview" 
+                        className="max-w-xs max-h-32 rounded border"
+                      />
+                      <button
+                        onClick={() => setCommentImage(null)}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex gap-2 mt-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => document.getElementById('comment-image-upload')?.click()}
+                      disabled={submitting}
+                    >
+                      <ImageIcon className="h-3 w-3 mr-1" />
+                      Attach Image
+                    </Button>
+                    <input
+                      id="comment-image-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) setCommentImage(file)
+                      }}
+                    />
+                    <Button 
+                      size="sm" 
+                      onClick={handleAddComment}
+                      disabled={submitting}
+                    >
+                      <MessageSquare className="h-3 w-3 mr-1" />
+                      {submitting ? 'Sending...' : 'Send Reply'}
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowViewDialog(false)} className="bg-transparent">
+            <Button
+              variant="outline"
+              onClick={() => setShowViewDialog(false)}
+              className="bg-transparent"
+            >
               Close
             </Button>
           </DialogFooter>
@@ -749,7 +990,9 @@ export default function SupportPage() {
             >
               Cancel
             </Button>
-            <Button onClick={handleCreateTicket}>Submit Ticket</Button>
+            <Button onClick={handleCreateTicket} disabled={submitting}>
+              {submitting ? 'Submitting...' : 'Submit Ticket'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -416,15 +416,8 @@ CREATE TABLE job_postings (
   diversity_goals             BOOLEAN DEFAULT FALSE,
   diversity_target_pct        NUMERIC(5,2),
 
-  -- Metrics & tracking (Step 4)
+  -- Metrics & tracking (Step 4) - job_open_date automated on publish
   job_open_date               DATE,
-  expected_hires_per_month    INT,
-  target_offer_acceptance_pct NUMERIC(5,2),
-  candidate_response_sla_hrs  INT,
-  interview_schedule_sla_hrs  INT,
-  cost_per_hire_budget        NUMERIC(12,2),
-  agency_fee_pct              NUMERIC(5,2),
-  job_board_costs             NUMERIC(12,2),
 
   -- Auto Interview Scheduling (48-hour link expiration)
   auto_schedule_interview     BOOLEAN DEFAULT FALSE,
@@ -582,8 +575,7 @@ CREATE TABLE applications (
   reference_check_status  TEXT DEFAULT 'pending',     -- pending, inProgress, complete
   onboarding_status       TEXT,                       -- Awaiting Onboarding, In Progress, On Track, Behind, Complete
   onboarding_checklist    JSONB,                      -- { equipmentOrdered: bool, accountsCreated: bool, ... }
-  quality_of_hire_rating  INT,                        -- 1-5 rating after 90 days
-  employment_status       TEXT,                       -- Still with the Firm, Left the Firm
+  quality_of_hire_rating  JSONB,                      -- {rating: 1-5, employmentStatus: "Still with the Firm"|"Left the Firm"}
 
   -- Rejection (if rejected at any stage)
   rejection_reason        TEXT,
@@ -854,7 +846,7 @@ CREATE TABLE support_tickets (
   company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   created_by      UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   ticket_type     TEXT NOT NULL,                     -- support, feedback, bug_report, feature_request
-  category        TEXT,                              -- Account, Billing, Technical, AI Interview, etc.
+  category        TEXT,                              -- dashboard, applications, job_postings, talent_pool, candidates, ai_screening, messages, documents, delegation, analytics, settings, other
   title           TEXT NOT NULL,
   description     TEXT NOT NULL,
   priority        ticket_priority NOT NULL DEFAULT 'medium',
@@ -862,13 +854,18 @@ CREATE TABLE support_tickets (
   screenshot_url  TEXT,
   resolved_at     TIMESTAMPTZ,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  -- Validation constraints
+  CONSTRAINT chk_ticket_type CHECK (ticket_type IN ('support', 'feedback', 'bug_report', 'feature_request'))
 );
 
 CREATE INDEX idx_support_tickets_company_id ON support_tickets (company_id);
 CREATE INDEX idx_support_tickets_created_by ON support_tickets (created_by);
 CREATE INDEX idx_support_tickets_status ON support_tickets (status);
 CREATE INDEX idx_support_tickets_priority ON support_tickets (priority);
+CREATE INDEX idx_support_tickets_created_at ON support_tickets (created_at DESC);
+CREATE INDEX idx_support_tickets_ticket_type ON support_tickets (ticket_type);
 
 
 -- ---------------------------------------------------------------------------
@@ -882,11 +879,18 @@ CREATE TABLE ticket_comments (
   ticket_id   UUID NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
   author_id   UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   author_role TEXT,                                  -- 'user', 'support_agent'
-  message     TEXT NOT NULL,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  message     TEXT,                                   -- Can be empty if image is provided
+  image_url   TEXT,                                   -- URL of image attachment uploaded to Vercel Blob
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  -- Validation constraints
+  CONSTRAINT chk_author_role CHECK (author_role IS NULL OR author_role IN ('user', 'support_agent'))
 );
 
 CREATE INDEX idx_ticket_comments_ticket_id ON ticket_comments (ticket_id);
+CREATE INDEX idx_ticket_comments_author_id ON ticket_comments (author_id);
+CREATE INDEX idx_ticket_comments_created_at ON ticket_comments (created_at);
+CREATE INDEX idx_ticket_comments_image_url ON ticket_comments (image_url) WHERE image_url IS NOT NULL;
 
 
 -- ============================================================================

@@ -242,8 +242,7 @@ export async function POST(request: NextRequest) {
       targetSources,
       diversityGoals,
       diversityTargetPercentage,
-      // Metrics
-      jobOpenDate,
+      // Metrics (removed jobOpenDate - will be set automatically)
       expectedHiresPerMonth,
       targetOfferAcceptanceRate,
       candidateResponseTimeSLA,
@@ -431,13 +430,13 @@ export async function POST(request: NextRequest) {
           languages_required, hiring_manager_name, hiring_manager_email,
           number_of_openings, hiring_priority, target_time_to_fill_days,
           budget_allocated, target_sources, diversity_goals, diversity_target_pct,
-          job_open_date, expected_hires_per_month, target_offer_acceptance_pct,
+          expected_hires_per_month, target_offer_acceptance_pct,
           candidate_response_sla_hrs, interview_schedule_sla_hrs,
           cost_per_hire_budget, agency_fee_pct, job_board_costs,
           auto_schedule_interview, interview_link_expiry_hours,
           enable_screening_questions, screening_questions,
           client_company_name,
-          status, published_at
+          status, published_at, job_open_date
         ) VALUES (
           $1::uuid, $2, $3, $4, $5,
           $6::job_type, $7::work_mode, $8, $9, $10,
@@ -447,7 +446,7 @@ export async function POST(request: NextRequest) {
           $30, $31, $32, $33, $34,
           $35, $36, $37, $38, $39,
           $40, $41, $42,
-          $43::job_status, $44
+          $43::job_status, $44, $45
         ) RETURNING *`,
         [
           companyId, sessionUserEmail, jobTitle,
@@ -471,7 +470,6 @@ export async function POST(request: NextRequest) {
           budgetAllocated ? parseFloat(budgetAllocated) : null,
           targetSources || [], diversityGoals || false,
           diversityTargetPercentage ? parseFloat(diversityTargetPercentage) : null,
-          jobOpenDate || new Date().toISOString().split('T')[0],
           expectedHiresPerMonth ? parseInt(expectedHiresPerMonth) : null,
           targetOfferAcceptanceRate ? parseFloat(targetOfferAcceptanceRate) : null,
           candidateResponseTimeSLA ? parseInt(candidateResponseTimeSLA) : null,
@@ -484,7 +482,9 @@ export async function POST(request: NextRequest) {
           enableScreeningQuestions || false,
           JSON.stringify(screeningQuestions || {}),
           clientCompanyName || null,
-          status, publishedAt
+          status, publishedAt,
+          // Set job_open_date automatically when publishing
+          isDraft ? null : new Date().toISOString().split('T')[0]
         ]
       )
       newJob = jobResult[0]

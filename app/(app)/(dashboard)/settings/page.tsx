@@ -21,6 +21,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Settings, User, Bell, Lock, Building2, Users, CreditCard, Plus, Trash2, Edit, Mail, MapPin, FileText, CheckCircle2, Loader2 } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/auth-context'
@@ -63,7 +64,8 @@ const countryOptions = [
 ]
 
 type UserRole = 'admin' | 'director' | 'manager' | 'recruiter' | 'hiring_manager' | 'viewer' | string
-type SettingsTab = 'profile' | 'company' | 'users' | 'payment' | 'notifications'
+type SettingsTab = 'profile' | 'company' | 'users' | 'payment' | 'notifications' | 'agency'
+type AgencySubTab = 'performance' | 'onboarding'
 
 interface TeamUser {
   id: string
@@ -123,6 +125,43 @@ export default function SettingsPage() {
   const [teamUsers, setTeamUsers] = useState<TeamUser[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [addingUser, setAddingUser] = useState(false)
+
+  // Agency tab state
+  const [agencySubTab, setAgencySubTab] = useState<AgencySubTab>('performance')
+  
+  // Performance metrics state (matching job posting form)
+  const [performanceMetrics, setPerformanceMetrics] = useState({
+    expectedHiresPerMonth: '',
+    targetOfferAcceptanceRate: '',
+    candidateResponseTimeSLA: '',
+    interviewScheduleSLA: '',
+    costPerHireBudget: '',
+    agencyFeePercentage: '',
+    jobBoardCosts: '',
+  })
+
+  // Onboarding state
+  const [monthlyTargets, setMonthlyTargets] = useState({
+    hiringPerMonth: '07',
+    teamCapacityPerMonth: '07',
+  })
+
+  const [newAgency, setNewAgency] = useState({
+    type: 'Agency' as 'Agency' | 'Client',
+    name: '',
+    contactPerson: '',
+    email: '',
+    rateType: 'Fixed' as 'Fixed' | '%',
+    rate: '',
+  })
+
+  const [connectedList, setConnectedList] = useState([
+    { id: '1', name: 'ABC Consulting', type: 'Agency', contact: 'john@abc.com', rate: '15%', role: 'Manager' },
+    { id: '2', name: 'XYZ Corporation', type: 'Client', contact: 'sarah@xyz.com', rate: '$5,000', role: 'Director' },
+    { id: '3', name: 'Global Recruiters', type: 'Agency', contact: 'mike@global.com', rate: '12%', role: 'Admin' },
+    { id: '4', name: 'Tech Mahindra', type: 'Client', contact: 'tech@mahindra.com', rate: '$7,500', role: 'Manager' },
+    { id: '5', name: 'Innovative Solutions', type: 'Agency', contact: 'info@innovative.com', rate: '10%', role: 'Director' },
+  ])
 
   // Fetch profile data
   const fetchProfileData = useCallback(async () => {
@@ -388,12 +427,55 @@ export default function SettingsPage() {
     const colors: Record<string, string> = {
       admin: 'bg-red-100 text-red-800',
       director: 'bg-purple-100 text-purple-800',
-      manager: 'bg-blue-100 text-blue-800',
-      hiring_manager: 'bg-blue-100 text-blue-800',
+      manager: 'bg-emerald-100 text-emerald-800',
+      hiring_manager: 'bg-emerald-100 text-emerald-800',
       recruiter: 'bg-green-100 text-green-800',
       viewer: 'bg-gray-100 text-gray-800',
     }
     return colors[role] || 'bg-gray-100 text-gray-700'
+  }
+
+  // Agency tab handlers
+  const handleAddAgency = () => {
+    if (!newAgency.name || !newAgency.email || !newAgency.contactPerson || !newAgency.rate) {
+      alert('Please fill in all required fields')
+      return
+    }
+
+    const rateDisplay = newAgency.rateType === '%' ? `${newAgency.rate}%` : `$${newAgency.rate}`
+    
+    setConnectedList([...connectedList, {
+      id: Date.now().toString(),
+      name: newAgency.name,
+      type: newAgency.type,
+      contact: newAgency.email,
+      rate: rateDisplay,
+      role: 'Manager', // Default role since role field is removed
+    }])
+
+    setNewAgency({
+      type: 'Agency',
+      name: '',
+      contactPerson: '',
+      email: '',
+      rateType: 'Fixed',
+      rate: '',
+    })
+
+    alert('Successfully added to list!')
+  }
+
+  const handleDeleteAgency = (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to remove ${name}?`)) return
+    setConnectedList(connectedList.filter(item => item.id !== id))
+  }
+
+  const updatePerformanceMetric = (key: string, value: string) => {
+    setPerformanceMetrics(prev => ({ ...prev, [key]: value }))
+  }
+
+  const updateMonthlyTarget = (field: string, value: string) => {
+    setMonthlyTargets({ ...monthlyTargets, [field]: value })
   }
 
 
@@ -412,7 +494,7 @@ export default function SettingsPage() {
         <div className="flex flex-wrap gap-2">
           <Button
             variant="ghost"
-            className={`${activeTab === 'profile' ? 'bg-blue-600 text-white hover:bg-blue-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
+            className={`${activeTab === 'profile' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
             onClick={() => setActiveTab('profile')}
           >
             <User className="h-4 w-4 mr-2" />
@@ -420,7 +502,7 @@ export default function SettingsPage() {
           </Button>
           <Button
             variant="ghost"
-            className={`${activeTab === 'company' ? 'bg-blue-600 text-white hover:bg-blue-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
+            className={`${activeTab === 'company' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
             onClick={() => setActiveTab('company')}
           >
             <Building2 className="h-4 w-4 mr-2" />
@@ -428,7 +510,7 @@ export default function SettingsPage() {
           </Button>
           <Button
             variant="ghost"
-            className={`${activeTab === 'users' ? 'bg-blue-600 text-white hover:bg-blue-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
+            className={`${activeTab === 'users' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
             onClick={() => setActiveTab('users')}
           >
             <Users className="h-4 w-4 mr-2" />
@@ -436,7 +518,7 @@ export default function SettingsPage() {
           </Button>
           <Button
             variant="ghost"
-            className={`${activeTab === 'payment' ? 'bg-blue-600 text-white hover:bg-blue-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
+            className={`${activeTab === 'payment' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
             onClick={() => setActiveTab('payment')}
           >
             <CreditCard className="h-4 w-4 mr-2" />
@@ -444,11 +526,19 @@ export default function SettingsPage() {
           </Button>
           <Button
             variant="ghost"
-            className={`${activeTab === 'notifications' ? 'bg-blue-600 text-white hover:bg-blue-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
+            className={`${activeTab === 'notifications' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
             onClick={() => setActiveTab('notifications')}
           >
             <Bell className="h-4 w-4 mr-2" />
             Notifications
+          </Button>
+          <Button
+            variant="ghost"
+            className={`${activeTab === 'agency' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
+            onClick={() => setActiveTab('agency')}
+          >
+            <Building2 className="h-4 w-4 mr-2" />
+            Agency Management
           </Button>
         </div>
       </Card>
@@ -459,13 +549,13 @@ export default function SettingsPage() {
           {activeTab === 'profile' && (
             <Card className="p-6">
               <div className="flex items-center gap-3 mb-6">
-                <User className="h-6 w-6 text-blue-600" />
+                <User className="h-6 w-6 text-emerald-600" />
                 <h2 className="text-xl font-semibold">Profile Settings</h2>
               </div>
 
               {loadingProfile ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                  <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -545,7 +635,7 @@ export default function SettingsPage() {
             <>
               {loadingCompany ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                  <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
                 </div>
               ) : (
                 <div className="space-y-6">
@@ -627,8 +717,8 @@ export default function SettingsPage() {
                   {/* Section 2: Contact Information (same as signup step 2) */}
                   <Card className="sr-card">
                     <CardHeader className="text-center">
-                      <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center">
-                        <MapPin className="w-6 h-6 text-blue-600" />
+                      <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center">
+                        <MapPin className="w-6 h-6 text-emerald-600" />
                       </div>
                       <CardTitle className="text-2xl">Contact Information</CardTitle>
                       <CardDescription>Where is your company located?</CardDescription>
@@ -775,7 +865,7 @@ export default function SettingsPage() {
             <Card className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                  <Users className="h-6 w-6 text-blue-600" />
+                  <Users className="h-6 w-6 text-emerald-600" />
                   <div>
                     <h2 className="text-xl font-semibold">User Management</h2>
                     <p className="text-sm text-gray-600">Manage team access and roles</p>
@@ -787,9 +877,9 @@ export default function SettingsPage() {
                 </Button>
               </div>
 
-              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded">
-                <h3 className="text-sm font-semibold text-blue-900 mb-2">Role Permissions:</h3>
-                <ul className="text-xs text-blue-800 space-y-1">
+              <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded">
+                <h3 className="text-sm font-semibold text-emerald-900 mb-2">Role Permissions:</h3>
+                <ul className="text-xs text-emerald-800 space-y-1">
                   <li><strong>Admin:</strong> Full access to all features including user management and billing</li>
                   <li><strong>Director:</strong> Access to analytics, reports, and can manage recruiters and managers</li>
                   <li><strong>Manager:</strong> Can manage job postings, applications, and assigned recruiters</li>
@@ -799,7 +889,7 @@ export default function SettingsPage() {
 
               {loadingUsers ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                  <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
                 </div>
               ) : teamUsers.length === 0 ? (
                 <div className="text-center py-12">
@@ -912,30 +1002,486 @@ export default function SettingsPage() {
             </Card>
           )}
 
-          {/* AI Settings */}
-          {activeTab === 'ai' && (
-            <Card className="p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <Settings className="h-6 w-6 text-blue-600" />
-                <h2 className="text-xl font-semibold">AI Screening Preferences</h2>
-              </div>
+          
+          {/* Agency Management */}
+          {activeTab === 'agency' && (
+            <div className="space-y-4">
+              {/* Sub-tabs for Agency */}
+              <Card className="p-2">
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    className={`${agencySubTab === 'performance' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
+                    onClick={() => setAgencySubTab('performance')}
+                  >
+                    Performance Metrics
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className={`${agencySubTab === 'onboarding' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
+                    onClick={() => setAgencySubTab('onboarding')}
+                  >
+                    Onboarding & Agencies
+                  </Button>
+                </div>
+              </Card>
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-3 border-b">
-                  <div>
-                    <p className="font-medium">Auto AI Screening</p>
-                    <p className="text-sm text-gray-600">Automatically screen new applications with AI</p>
+              {/* Performance Tab - Exact copy of Job Posting Metrics */}
+              {agencySubTab === 'performance' && (
+                <Card className="p-6">
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                      <h5 className="text-sm font-semibold text-blue-900 mb-1">Dashboard KPI Tracking</h5>
+                      <p className="text-xs text-blue-700">
+                        These fields help calculate key metrics like Time to Fill, Cost Per Hire, Hiring Velocity, and Team Capacity Load that appear on your dashboard.
+                      </p>
+                    </div>
+
+                    <h4 className="font-semibold text-lg border-b pb-2">Performance Targets & SLAs</h4>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Expected Hires Per Month
+                        </label>
+                        <input
+                          type="number"
+                          value={performanceMetrics.expectedHiresPerMonth}
+                          onChange={(e) => updatePerformanceMetric('expectedHiresPerMonth', e.target.value)}
+                          className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          placeholder="e.g. 2"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">For Hiring Velocity tracking</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Target Offer Acceptance Rate (%)
+                        </label>
+                        <input
+                          type="number"
+                          value={performanceMetrics.targetOfferAcceptanceRate}
+                          onChange={(e) => updatePerformanceMetric('targetOfferAcceptanceRate', e.target.value)}
+                          className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          placeholder="e.g. 80"
+                          min="0"
+                          max="100"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Manager KPI: Offer acceptance goal</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Candidate Response Time SLA (hours)
+                        </label>
+                        <input
+                          type="number"
+                          value={performanceMetrics.candidateResponseTimeSLA}
+                          onChange={(e) => updatePerformanceMetric('candidateResponseTimeSLA', e.target.value)}
+                          className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          placeholder="e.g. 24"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Recruiter KPI: Response time target</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Interview Schedule SLA (hours)
+                        </label>
+                        <input
+                          type="number"
+                          value={performanceMetrics.interviewScheduleSLA}
+                          onChange={(e) => updatePerformanceMetric('interviewScheduleSLA', e.target.value)}
+                          className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          placeholder="e.g. 48"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Time to schedule after approval</p>
+                      </div>
+                    </div>
+
+                    <h4 className="font-semibold text-lg border-b pb-2 mt-6">Cost Tracking</h4>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Cost Per Hire Budget ($)
+                        </label>
+                        <input
+                          type="number"
+                          value={performanceMetrics.costPerHireBudget}
+                          onChange={(e) => updatePerformanceMetric('costPerHireBudget', e.target.value)}
+                          className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          placeholder="e.g. 4200"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Director KPI: Target cost per hire</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Agency Fee (% of salary)
+                        </label>
+                        <input
+                          type="number"
+                          value={performanceMetrics.agencyFeePercentage}
+                          onChange={(e) => updatePerformanceMetric('agencyFeePercentage', e.target.value)}
+                          className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          placeholder="e.g. 20"
+                          min="0"
+                          max="100"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">If using recruitment agency</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Job Board Costs ($)
+                        </label>
+                        <input
+                          type="number"
+                          value={performanceMetrics.jobBoardCosts}
+                          onChange={(e) => updatePerformanceMetric('jobBoardCosts', e.target.value)}
+                          className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          placeholder="e.g. 500"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">LinkedIn, Indeed, etc. posting costs</p>
+                      </div>
+                    </div>
+
+                    {/* Dashboard Metrics Display */}
+                    <div className="mt-8">
+                      <h4 className="font-semibold text-lg border-b pb-2 mb-4">Dashboard Metrics Display</h4>
+                      
+                      {/* Recruiter Metrics */}
+                      <div className="mb-6">
+                        <h5 className="text-md font-medium text-gray-700 mb-3 flex items-center gap-2">
+                          <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                          Recruiter Metrics
+                        </h5>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+                            <div className="text-2xl font-bold text-gray-900">12</div>
+                            <div className="text-sm text-gray-600">Open Reqs</div>
+                            <div className="text-xs text-green-600 mt-1">↑ +2 from last week</div>
+                          </div>
+                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+                            <div className="text-2xl font-bold text-green-600">68%</div>
+                            <div className="text-sm text-gray-600">Pipeline Health</div>
+                            <div className="text-xs text-gray-500 mt-1">Healthy</div>
+                          </div>
+                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+                            <div className="text-2xl font-bold text-blue-600">18h</div>
+                            <div className="text-sm text-gray-600">Response Time</div>
+                            <div className="text-xs text-green-600 mt-1">Within SLA</div>
+                          </div>
+                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+                            <div className="text-2xl font-bold text-emerald-600">92%</div>
+                            <div className="text-sm text-gray-600">Submittal Quality</div>
+                            <div className="text-xs text-gray-500 mt-1">Excellent</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Manager Metrics */}
+                      <div className="mb-6">
+                        <h5 className="text-md font-medium text-gray-700 mb-3 flex items-center gap-2">
+                          <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                          Manager Metrics
+                        </h5>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+                            <div className="text-2xl font-bold text-gray-900">32d</div>
+                            <div className="text-sm text-gray-600">Time to Fill</div>
+                            <div className="text-xs text-orange-600 mt-1">Above target</div>
+                          </div>
+                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+                            <div className="text-2xl font-bold text-yellow-600">82%</div>
+                            <div className="text-sm text-gray-600">Offer Acceptance Rate</div>
+                            <div className="text-xs text-orange-600 mt-1">Near target</div>
+                          </div>
+                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+                            <div className="text-2xl font-bold text-blue-600">7/7</div>
+                            <div className="text-sm text-gray-600">Team Capacity</div>
+                            <div className="text-xs text-orange-600 mt-1">At capacity</div>
+                          </div>
+                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+                            <div className="text-2xl font-bold text-green-600">A-</div>
+                            <div className="text-sm text-gray-600">Source Quality</div>
+                            <div className="text-xs text-gray-500 mt-1">Good</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Director Metrics */}
+                      <div className="mb-6">
+                        <h5 className="text-md font-medium text-gray-700 mb-3 flex items-center gap-2">
+                          <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                          Director Metrics
+                        </h5>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+                            <div className="text-2xl font-bold text-orange-600">5.2</div>
+                            <div className="text-sm text-gray-600">Hiring Velocity</div>
+                            <div className="text-xs text-orange-600 mt-1">Below target</div>
+                          </div>
+                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+                            <div className="text-2xl font-bold text-green-600">$4,850</div>
+                            <div className="text-sm text-gray-600">Cost Per Hire</div>
+                            <div className="text-xs text-green-600 mt-1">Under budget</div>
+                          </div>
+                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+                            <div className="text-2xl font-bold text-blue-600">94%</div>
+                            <div className="text-sm text-gray-600">Forecast vs Actual</div>
+                            <div className="text-xs text-gray-500 mt-1">On track</div>
+                          </div>
+                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+                            <div className="text-2xl font-bold text-emerald-600">3.2x</div>
+                            <div className="text-sm text-gray-600">ROI</div>
+                            <div className="text-xs text-gray-500 mt-1">Strong</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Real-time Calculation Info */}
+                      <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded">
+                        <h5 className="font-semibold text-sm text-blue-900 mb-2 flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Real-time Calculation
+                        </h5>
+                        <p className="text-xs text-blue-800 mb-2">
+                          Yeh saare metrics company ke internal data aur connected agencies ke data se automatically calculate hote hain. Dono ka data combine hota hai.
+                        </p>
+                        <div className="text-xs text-blue-700 space-y-1">
+                          <p>• Company internal metrics + Connected agencies data = Combined dashboard metrics</p>
+                          <p>• Real-time updates when new agencies are added or targets are changed</p>
+                          <p>• Automatic calculation based on configured SLAs and targets</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <Switch checked={autoScreening} onCheckedChange={setAutoScreening} />
-                </div>
+                </Card>
+              )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="scoreThreshold">Minimum CV Score Threshold</Label>
-                  <Input id="scoreThreshold" type="number" defaultValue="70" min="0" max="100" />
-                  <p className="text-xs text-gray-600">Applications below this score will be flagged for review</p>
+              {/* Onboarding Tab */}
+              {agencySubTab === 'onboarding' && (
+                <div className="space-y-4">
+                  {/* Monthly Targets Section */}
+                  <Card className="p-3">
+                    <h3 className="text-lg font-semibold">Monthly Targets</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label>Target: Number of hiring per Month</Label>
+                        <Input
+                          type="number"
+                          value={monthlyTargets.hiringPerMonth}
+                          onChange={(e) => updateMonthlyTarget('hiringPerMonth', e.target.value)}
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Target: Standard team capacity per Month</Label>
+                        <Input
+                          type="number"
+                          value={monthlyTargets.teamCapacityPerMonth}
+                          onChange={(e) => updateMonthlyTarget('teamCapacityPerMonth', e.target.value)}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Add New Agency/Client Form */}
+                  <Card className="p-4">
+                    <h3 className="text-lg font-semibold">Add New Agency/Client</h3>
+                    <div className="grid grid-cols-3 gap-2 gap-y-8">
+                      <div className="space-y-1">
+                        <Label>Type</Label>
+                        <Select value={newAgency.type} onValueChange={(value: 'Agency' | 'Client') => setNewAgency({ ...newAgency, type: value })}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Agency">Agency</SelectItem>
+                            <SelectItem value="Client">Client</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label>Name</Label>
+                        <Input
+                          placeholder="ABC Consulting"
+                          value={newAgency.name}
+                          onChange={(e) => setNewAgency({ ...newAgency, name: e.target.value })}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label>Contact Person Name</Label>
+                        <Input
+                          placeholder="John Doe"
+                          value={newAgency.contactPerson}
+                          onChange={(e) => setNewAgency({ ...newAgency, contactPerson: e.target.value })}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label>Email</Label>
+                        <Input
+                          type="email"
+                          placeholder="contact@agency.com"
+                          value={newAgency.email}
+                          onChange={(e) => setNewAgency({ ...newAgency, email: e.target.value })}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label>Rate Type</Label>
+                        <Select value={newAgency.rateType} onValueChange={(value: 'Fixed' | '%') => setNewAgency({ ...newAgency, rateType: value })}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Fixed">Fixed ($)</SelectItem>
+                            <SelectItem value="%">Percentage (%)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label>Rate</Label>
+                        <Input
+                          type="number"
+                          placeholder={newAgency.rateType === '%' ? '15' : '5000'}
+                          value={newAgency.rate}
+                          onChange={(e) => setNewAgency({ ...newAgency, rate: e.target.value })}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
+
+                    <Button onClick={handleAddAgency} className="w-full mt-4">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add to List
+                    </Button>
+                  </Card>
+
+                  {/* Connected List Table */}
+                  <Card className="p-6">
+                    <h3 className="text-lg font-semibold">Connected Agencies & Clients</h3>
+                    
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rate</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {connectedList.map((item) => (
+                            <tr key={item.id}>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <Badge className={item.type === 'Agency' ? 'bg-green-100 text-green-800' : 'bg-emerald-100 text-emerald-800'}>
+                                  {item.type}
+                                </Badge>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{item.contact}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.rate}</td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="bg-transparent text-red-600 hover:text-red-700"
+                                  onClick={() => handleDeleteAgency(item.id, item.name)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-3 gap-4 text-center">
+                      <div className="p-3 bg-green-50 border border-green-200 rounded">
+                        <p className="text-2xl font-bold text-green-700">{connectedList.filter(i => i.type === 'Agency').length}</p>
+                        <p className="text-xs text-green-600">Total Agencies</p>
+                      </div>
+                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded">
+                        <p className="text-2xl font-bold text-emerald-700">{connectedList.filter(i => i.type === 'Client').length}</p>
+                        <p className="text-xs text-emerald-600">Total Clients</p>
+                      </div>
+                      <div className="p-3 bg-purple-50 border border-purple-200 rounded">
+                        <p className="text-2xl font-bold text-purple-700">{connectedList.length}</p>
+                        <p className="text-xs text-purple-600">Total Connected</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+                      <strong>Note:</strong> Company + Connected Agencies data combine automatically. Naya add karne par automatically list update ho jayegi.
+                    </div>
+                  </Card>
+
+                  {/* Others Section */}
+                  <Card className="p-6">
+                    <h3 className="text-lg font-semibold mb-4">Quick Stats & Activity</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Left Column - Quick Stats */}
+                      <div className="space-y-3">
+                        <h4 className="font-medium text-gray-700 mb-3">Quick Stats</h4>
+                        <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                          <span className="text-sm text-gray-600">Total Agencies</span>
+                          <span className="font-semibold text-gray-900">{connectedList.filter(i => i.type === 'Agency').length}</span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                          <span className="text-sm text-gray-600">Total Clients</span>
+                          <span className="font-semibold text-gray-900">{connectedList.filter(i => i.type === 'Client').length}</span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                          <span className="text-sm text-gray-600">Active Contracts</span>
+                          <span className="font-semibold text-gray-900">{connectedList.length}</span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                          <span className="text-sm text-gray-600">Avg Agency Fee</span>
+                          <span className="font-semibold text-gray-900">13.5%</span>
+                        </div>
+                      </div>
+
+                      {/* Right Column - Recent Activity */}
+                      <div className="space-y-3">
+                        <h4 className="font-medium text-gray-700 mb-3">Recent Activity</h4>
+                        <div className="space-y-2">
+                          <div className="p-3 bg-gray-50 rounded text-sm">
+                            <p className="font-medium text-gray-900">ABC Consulting added</p>
+                            <p className="text-xs text-gray-500">2 hours ago</p>
+                          </div>
+                          <div className="p-3 bg-gray-50 rounded text-sm">
+                            <p className="font-medium text-gray-900">XYZ Corporation updated</p>
+                            <p className="text-xs text-gray-500">5 hours ago</p>
+                          </div>
+                          <div className="p-3 bg-gray-50 rounded text-sm">
+                            <p className="font-medium text-gray-900">Global Recruiters contract signed</p>
+                            <p className="text-xs text-gray-500">1 day ago</p>
+                          </div>
+                          <div className="p-3 bg-gray-50 rounded text-sm">
+                            <p className="font-medium text-gray-900">Tech Mahindra onboarded</p>
+                            <p className="text-xs text-gray-500">2 days ago</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
                 </div>
-              </div>
-            </Card>
+              )}
+            </div>
           )}
       </div>
 
@@ -967,20 +1513,28 @@ export default function SettingsPage() {
 
             <div className="space-y-2">
               <Label>Role <span className="text-red-500">*</span></Label>
-              <Select
+              <RadioGroup
                 value={newUser.role}
                 onValueChange={(value: UserRole) => setNewUser({ ...newUser, role: value })}
+                className="grid grid-cols-2 gap-4"
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="recruiter">Recruiter</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="director">Director</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="recruiter" id="recruiter" />
+                  <Label htmlFor="recruiter" className="font-normal">Recruiter</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="manager" id="manager" />
+                  <Label htmlFor="manager" className="font-normal">Manager</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="director" id="director" />
+                  <Label htmlFor="director" className="font-normal">Director</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="admin" id="admin" />
+                  <Label htmlFor="admin" className="font-normal">Admin</Label>
+                </div>
+              </RadioGroup>
             </div>
 
             <div className="p-3 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">

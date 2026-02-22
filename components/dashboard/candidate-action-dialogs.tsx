@@ -415,8 +415,10 @@ export function CandidateActionDialog({
           backgroundCheckStatus: backgroundCheckStatus || undefined,
           referenceCheckStatus: referenceCheckStatus || undefined,
           onboardingStatus: onboardingStatus || undefined,
-          qualityOfHireRating: qualityOfHireRating ? parseInt(qualityOfHireRating) : undefined,
-          employmentStatus: employmentStatus || undefined,
+          qualityOfHireRating: (qualityOfHireRating || employmentStatus) ? JSON.stringify({
+            rating: qualityOfHireRating || null,
+            employmentStatus: employmentStatus || null
+          }) : undefined,
         }),
       })
       const data = await res.json()
@@ -807,149 +809,166 @@ export function CandidateActionDialog({
           {/* Hired Stage Actions */}
           {bucketType === 'hired' && (
             <div className="space-y-4">
-              <h4 className="font-semibold text-gray-900">Post-Hire & Onboarding</h4>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="hireDate">Hire Date (Offer Accepted)</Label>
-                  <Input 
-                    id="hireDate" 
-                    type="date"
-                    value={hireDate || candidate?.rawHireDate || new Date().toISOString().split('T')[0]}
-                    onChange={(e) => setHireDate(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="startDate">Expected Start Date</Label>
-                  <Input 
-                    id="startDate" 
-                    type="date"
-                    value={startDate || candidate?.rawStartDate || ''}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <Card className="p-3 bg-gray-50">
-                <h5 className="font-medium text-sm mb-2">Final Package Details</h5>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div>
-                    <Label className="text-xs text-gray-600">Base Salary</Label>
-                    <p className="font-medium">{candidate?.offerAmount || 'N/A'}</p>
+              {/* Check if onboarding is complete */}
+              {(onboardingStatus === 'Complete' || candidate?.hireStatus === 'Complete') ? (
+                // Show only Quality of Hire Rating when onboarding is complete
+                <>
+                  <h4 className="font-semibold text-gray-900">Quality of Hire Rating (After 90 days)</h4>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="hireQuality" className="text-xs text-gray-600">Rating</Label>
+                      <Select value={qualityOfHireRating} onValueChange={setQualityOfHireRating}>
+                        <SelectTrigger id="hireQuality" className="w-full">
+                          <SelectValue placeholder="Select rating..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5 - Exceptional</SelectItem>
+                          <SelectItem value="4">4 - Exceeds Expectations</SelectItem>
+                          <SelectItem value="3">3 - Meets Expectations</SelectItem>
+                          <SelectItem value="2">2 - Below Expectations</SelectItem>
+                          <SelectItem value="1">1 - Not Meeting Expectations</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="employmentStatus" className="text-xs text-gray-600">Employment Status</Label>
+                      <Select value={employmentStatus} onValueChange={setEmploymentStatus}>
+                        <SelectTrigger id="employmentStatus" className="w-full">
+                          <SelectValue placeholder="Select status..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Still with the Firm">Still with the Firm</SelectItem>
+                          <SelectItem value="Left the Firm">Left the Firm</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div>
-                    <Label className="text-xs text-gray-600">Total Compensation</Label>
-                    <p className="font-medium">Calculate from offer data</p>
+
+                  <Button onClick={handleSaveOnboarding} disabled={moveLoading} className="w-full gap-2">
+                    <Mail className="h-4 w-4" />
+                    {moveLoading ? 'Saving...' : 'Save Quality of Hire Rating'}
+                  </Button>
+                </>
+              ) : (
+                // Show all fields except Quality of Hire Rating when onboarding is not complete
+                <>
+                  <h4 className="font-semibold text-gray-900">Post-Hire & Onboarding</h4>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="hireDate">Hire Date (Offer Accepted)</Label>
+                      <Input 
+                        id="hireDate" 
+                        type="date"
+                        value={hireDate || candidate?.rawHireDate || new Date().toISOString().split('T')[0]}
+                        onChange={(e) => setHireDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="startDate">Expected Start Date</Label>
+                      <Input 
+                        id="startDate" 
+                        type="date"
+                        value={startDate || candidate?.rawStartDate || ''}
+                        onChange={(e) => setStartDate(e.target.value)}
+                      />
+                    </div>
                   </div>
-                </div>
-              </Card>
 
-              <div className="space-y-2">
-                <Label htmlFor="backgroundCheck">Background Check Status</Label>
-                <Select value={backgroundCheckStatus} onValueChange={setBackgroundCheckStatus}>
-                  <SelectTrigger id="backgroundCheck">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="inProgress">In Progress</SelectItem>
-                    <SelectItem value="clear">Clear</SelectItem>
-                    <SelectItem value="issues">Issues Found</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  <Card className="p-3 bg-gray-50">
+                    <h5 className="font-medium text-sm mb-2">Final Package Details</h5>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <Label className="text-xs text-gray-600">Base Salary</Label>
+                        <p className="font-medium">{candidate?.offerAmount || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-600">Total Compensation</Label>
+                        <p className="font-medium">Calculate from offer data</p>
+                      </div>
+                    </div>
+                  </Card>
 
-              <div className="space-y-2">
-                <Label htmlFor="referenceCheck">Reference Check Status</Label>
-                <Select value={referenceCheckStatus} onValueChange={setReferenceCheckStatus}>
-                  <SelectTrigger id="referenceCheck">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="inProgress">In Progress</SelectItem>
-                    <SelectItem value="complete">Complete</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Card className="p-3 bg-gray-50">
-                <h5 className="font-medium text-sm mb-2">Onboarding Checklist</h5>
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="equipmentOrdered" />
-                    <Label htmlFor="equipmentOrdered" className="text-sm">Equipment Ordered</Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="backgroundCheck">Background Check Status</Label>
+                      <Select value={backgroundCheckStatus} onValueChange={setBackgroundCheckStatus}>
+                        <SelectTrigger id="backgroundCheck" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="inProgress">In Progress</SelectItem>
+                          <SelectItem value="clear">Clear</SelectItem>
+                          <SelectItem value="issues">Issues Found</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="referenceCheck">Reference Check Status</Label>
+                      <Select value={referenceCheckStatus} onValueChange={setReferenceCheckStatus}>
+                        <SelectTrigger id="referenceCheck" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="inProgress">In Progress</SelectItem>
+                          <SelectItem value="complete">Complete</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="accountsCreated" />
-                    <Label htmlFor="accountsCreated" className="text-sm">Accounts Created</Label>
+
+                  <Card className="p-3 bg-gray-50">
+                    <h5 className="font-medium text-sm mb-2">Onboarding Checklist</h5>
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="equipmentOrdered" />
+                        <Label htmlFor="equipmentOrdered" className="text-sm">Equipment Ordered</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="accountsCreated" />
+                        <Label htmlFor="accountsCreated" className="text-sm">Accounts Created</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="welcomeEmailSent" />
+                        <Label htmlFor="welcomeEmailSent" className="text-sm">Welcome Email Sent</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="docsCollected" />
+                        <Label htmlFor="docsCollected" className="text-sm">Documents Collected</Label>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="onboardingStatus">Onboarding Status</Label>
+                    <Select value={onboardingStatus || candidate?.hireStatus || 'Awaiting Onboarding'} onValueChange={setOnboardingStatus}>
+                      <SelectTrigger id="onboardingStatus">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Awaiting Onboarding">Awaiting Onboarding</SelectItem>
+                        <SelectItem value="Onboarding in Progress">Onboarding in Progress</SelectItem>
+                        <SelectItem value="On Track">On Track</SelectItem>
+                        <SelectItem value="Behind">Behind Schedule</SelectItem>
+                        <SelectItem value="Complete">Onboarding Complete</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="welcomeEmailSent" />
-                    <Label htmlFor="welcomeEmailSent" className="text-sm">Welcome Email Sent</Label>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="onboardingNotes">Onboarding Notes</Label>
+                    <Textarea id="onboardingNotes" placeholder="Progress, issues, feedback..." rows={3} />
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="docsCollected" />
-                    <Label htmlFor="docsCollected" className="text-sm">Documents Collected</Label>
-                  </div>
-                </div>
-              </Card>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="onboardingStatus">Onboarding Status</Label>
-                  <Select value={onboardingStatus || candidate?.hireStatus || 'Awaiting Onboarding'} onValueChange={setOnboardingStatus}>
-                    <SelectTrigger id="onboardingStatus">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Awaiting Onboarding">Awaiting Onboarding</SelectItem>
-                      <SelectItem value="Onboarding in Progress">Onboarding in Progress</SelectItem>
-                      <SelectItem value="On Track">On Track</SelectItem>
-                      <SelectItem value="Behind">Behind Schedule</SelectItem>
-                      <SelectItem value="Complete">Onboarding Complete</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="employmentStatus">Employment Status</Label>
-                  <Select value={employmentStatus} onValueChange={setEmploymentStatus}>
-                    <SelectTrigger id="employmentStatus">
-                      <SelectValue placeholder="Select status..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Still with the Firm">Still with the Firm</SelectItem>
-                      <SelectItem value="Left the Firm">Left the Firm</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="hireQuality">Quality of Hire Rating (After 90 days)</Label>
-                <Select value={qualityOfHireRating} onValueChange={setQualityOfHireRating}>
-                  <SelectTrigger id="hireQuality">
-                    <SelectValue placeholder="Rate after 90 days..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5 - Exceptional</SelectItem>
-                    <SelectItem value="4">4 - Exceeds Expectations</SelectItem>
-                    <SelectItem value="3">3 - Meets Expectations</SelectItem>
-                    <SelectItem value="2">2 - Below Expectations</SelectItem>
-                    <SelectItem value="1">1 - Not Meeting Expectations</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="onboardingNotes">Onboarding Notes</Label>
-                <Textarea id="onboardingNotes" placeholder="Progress, issues, feedback..." rows={3} />
-              </div>
-
-              <Button onClick={handleSaveOnboarding} disabled={moveLoading} className="w-full gap-2">
-                <Mail className="h-4 w-4" />
-                {moveLoading ? 'Saving...' : 'Save Onboarding Data'}
-              </Button>
+                  <Button onClick={handleSaveOnboarding} disabled={moveLoading} className="w-full gap-2">
+                    <Mail className="h-4 w-4" />
+                    {moveLoading ? 'Saving...' : 'Save Onboarding Data'}
+                  </Button>
+                </>
+              )}
             </div>
           )}
 

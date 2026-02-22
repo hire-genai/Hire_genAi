@@ -519,7 +519,14 @@ export async function POST(
       completeEvaluation.summary,
     ])
 
+    // Update application stage to hiring_manager after evaluation is complete
+    await DatabaseService.query(
+      "UPDATE applications SET current_stage = 'hiring_manager' WHERE id = $1::uuid",
+      [applicationId]
+    )
+
     console.log("✅ [EVAL] Evaluation stored in interviews table")
+    console.log("✅ [EVAL] Application stage updated to hiring_manager")
     console.log("=".repeat(80) + "\n")
 
     return NextResponse.json({

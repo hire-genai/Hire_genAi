@@ -54,8 +54,7 @@ type JobFormData = {
   targetTimeToFill: string
   budgetAllocated: string
 
-  // Dashboard Metrics & Tracking
-  jobOpenDate: string
+  // Dashboard Metrics & Tracking (removed jobOpenDate - will be set automatically)
   expectedHiresPerMonth: string
   targetOfferAcceptanceRate: string
   candidateResponseTimeSLA: string
@@ -271,8 +270,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
     targetTimeToFill: '',
     budgetAllocated: '',
     
-    // Dashboard Metrics & Tracking
-    jobOpenDate: '',
+    // Dashboard Metrics & Tracking (removed jobOpenDate - will be set automatically)
     expectedHiresPerMonth: '',
     targetOfferAcceptanceRate: '',
     candidateResponseTimeSLA: '',
@@ -691,7 +689,6 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
     { number: 3, title: 'Interview Questions', fields: 8 },
     { number: 4, title: 'Screening Questions', fields: 4 },
     { number: 5, title: 'Team & Planning', fields: 7 },
-    { number: 6, title: 'Metrics', fields: 8 },
   ]
 
   return (
@@ -1607,156 +1604,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
             </div>
           )}
 
-          {/* Step 6: Metrics & Tracking */}
-          {currentStep === 6 && (
-            <div className="space-y-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                <h5 className="text-sm font-semibold text-blue-900 mb-1">Dashboard KPI Tracking</h5>
-                <p className="text-xs text-blue-700">
-                  These fields help calculate key metrics like Time to Fill, Cost Per Hire, Hiring Velocity, and Team Capacity Load that appear on your dashboard.
-                </p>
-              </div>
-
-              <h4 className="font-semibold text-lg border-b pb-2">Performance Targets & SLAs</h4>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Job Open Date
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.jobOpenDate}
-                    onChange={(e) => updateField('jobOpenDate', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Used to calculate Time to Fill metric</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Expected Hires Per Month
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.expectedHiresPerMonth}
-                    onChange={(e) => updateField('expectedHiresPerMonth', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    placeholder="e.g. 2"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">For Hiring Velocity tracking</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Target Offer Acceptance Rate (%)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.targetOfferAcceptanceRate}
-                    onChange={(e) => updateField('targetOfferAcceptanceRate', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    placeholder="e.g. 80"
-                    min="0"
-                    max="100"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Manager KPI: Offer acceptance goal</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Candidate Response Time SLA (hours)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.candidateResponseTimeSLA}
-                    onChange={(e) => updateField('candidateResponseTimeSLA', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    placeholder="e.g. 24"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Recruiter KPI: Response time target</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Interview Schedule SLA (hours)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.interviewScheduleSLA}
-                    onChange={(e) => updateField('interviewScheduleSLA', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    placeholder="e.g. 48"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Time to schedule after approval</p>
-                </div>
-              </div>
-
-              <h4 className="font-semibold text-lg border-b pb-2 mt-6">Cost Tracking</h4>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Cost Per Hire Budget ($)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.costPerHireBudget}
-                    onChange={(e) => updateField('costPerHireBudget', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    placeholder="e.g. 4200"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Director KPI: Target cost per hire</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Agency Fee (% of salary)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.agencyFeePercentage}
-                    onChange={(e) => updateField('agencyFeePercentage', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    placeholder="e.g. 20"
-                    min="0"
-                    max="100"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">If using recruitment agency</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Job Board Costs ($)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.jobBoardCosts}
-                    onChange={(e) => updateField('jobBoardCosts', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    placeholder="e.g. 500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">LinkedIn, Indeed, etc. posting costs</p>
-                </div>
-              </div>
-
-              <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded">
-                <h5 className="font-semibold text-sm text-green-900 mb-2 flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4" />
-                  Dashboard Metrics Enabled
-                </h5>
-                <p className="text-xs text-green-800 mb-2">
-                  With this data, your dashboard will calculate:
-                </p>
-                <ul className="text-xs text-green-800 space-y-1 list-disc list-inside">
-                  <li><strong>Recruiter:</strong> Open Reqs, Pipeline Health, Response Time, Submittal Quality</li>
-                  <li><strong>Manager:</strong> Time to Fill, Offer Acceptance Rate, Team Capacity, Source Quality</li>
-                  <li><strong>Director:</strong> Hiring Velocity, Cost Per Hire, Forecast vs Actual, ROI</li>
-                </ul>
-              </div>
-            </div>
-          )}
-
+          
           </fieldset>
         </div>
 

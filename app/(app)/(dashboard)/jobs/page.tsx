@@ -78,13 +78,6 @@ interface Job {
 	diversityTargetPercentage?: string
 	selectedCriteriaIds?: string[]
 	generatedQuestions?: any[]
-	expectedHiresPerMonth?: string
-	targetOfferAcceptanceRate?: string
-	candidateResponseTimeSLA?: string
-	interviewScheduleSLA?: string
-	costPerHireBudget?: string
-	agencyFeePercentage?: string
-	jobBoardCosts?: string
 	autoScheduleInterview?: boolean
 	interviewLinkExpiryHours?: number
 	enableScreeningQuestions?: boolean
@@ -237,19 +230,6 @@ export default function JobsPage() {
 				numberOfOpenings: job.number_of_openings?.toString?.() || '',
 				hiringPriority: job.hiring_priority || '',
 				targetTimeToFill: job.target_time_to_fill_days?.toString?.() || '',
-				budgetAllocated: job.budget_allocated?.toString?.() || '',
-				targetSources: job.target_sources || [],
-				diversityGoals: job.diversity_goals || false,
-				diversityTargetPercentage: job.diversity_target_pct?.toString?.() || '',
-				selectedCriteriaIds: job.selected_criteria_ids || job.selected_criteria,
-				generatedQuestions: job.interview_questions || job.questions,
-				expectedHiresPerMonth: job.expected_hires_per_month?.toString?.(),
-				targetOfferAcceptanceRate: job.target_offer_acceptance_pct?.toString?.(),
-				candidateResponseTimeSLA: job.candidate_response_sla_hrs?.toString?.(),
-				interviewScheduleSLA: job.interview_schedule_sla_hrs?.toString?.(),
-				costPerHireBudget: job.cost_per_hire_budget?.toString?.(),
-				agencyFeePercentage: job.agency_fee_pct?.toString?.(),
-				jobBoardCosts: job.job_board_costs?.toString?.(),
 				autoScheduleInterview: job.auto_schedule_interview ?? false,
 				interviewLinkExpiryHours: job.interview_link_expiry_hours ?? 48,
 				enableScreeningQuestions: job.enable_screening_questions ?? false,
@@ -339,37 +319,6 @@ export default function JobsPage() {
 	const totalApplicants = jobs.reduce((sum, job) => sum + job.applicants, 0)
 	const totalHired = jobs.reduce((sum, job) => sum + job.stages.hired, 0)
 
-	const stats = [
-		{
-			title: 'Active Open Jobs',
-			value: openJobs.length.toString(),
-			icon: FolderOpen,
-			change: 'Currently accepting applications',
-			color: 'text-green-600',
-		},
-		{
-			title: 'Total Applicants',
-			value: totalApplicants.toString(),
-			icon: Users,
-			change: 'Across all positions',
-			color: 'text-blue-600',
-		},
-		{
-			title: 'Total Hired',
-			value: totalHired.toString(),
-			icon: Users,
-			change: 'Successful placements',
-			color: 'text-emerald-600',
-		},
-		{
-			title: 'Avg. Time to Fill',
-			value: '28 days',
-			icon: Clock,
-			change: '3 days faster than last month',
-			color: 'text-purple-600',
-		},
-	]
-
 	return (
 		<div className="flex flex-col gap-2 p-4">
 			{/* Header */}
@@ -427,25 +376,6 @@ export default function JobsPage() {
 				</div>
 			</div>
 
-			{/* Stats Grid */}
-			<div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
-				{stats.map((stat) => {
-					const Icon = stat.icon
-					return (
-						<Card key={stat.title} className="p-2">
-							<div className="flex items-center justify-between">
-								<div className="flex-1">
-									<p className="text-xs font-medium text-gray-600">{stat.title}</p>
-									<div className="text-xl font-bold mt-0.5">{stat.value}</div>
-									<p className="text-[10px] text-gray-500 mt-0.5">{stat.change}</p>
-								</div>
-								<Icon className={`h-6 w-6 ${stat.color}`} />
-							</div>
-						</Card>
-					)
-				})}
-			</div>
-
 			{/* Filters and Search - Slim Design */}
 			<div className="bg-white rounded-lg border p-2">
 				<div className="flex flex-wrap items-center gap-2">
@@ -454,7 +384,7 @@ export default function JobsPage() {
 						<Input
 							type="text"
 							placeholder="Search jobs..."
-							className="w-full pl-8 pr-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+							className="w-full pl-8 pr-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
 							value={searchQuery}
 							onChange={(e) => setSearchQuery(e.target.value)}
 						/>
@@ -526,7 +456,7 @@ export default function JobsPage() {
 						<Card
 							key={status}
 							className={`p-2 cursor-pointer transition-all hover:shadow-lg ${
-								activeStatus === status ? 'ring-2 ring-blue-600 shadow-lg bg-blue-50' : 'shadow hover:bg-gray-50'
+								activeStatus === status ? 'ring-2 ring-emerald-600 shadow-lg bg-emerald-50' : 'shadow hover:bg-gray-50'
 							}`}
 							onClick={() => {
 								setActiveStatus(status)
@@ -587,8 +517,8 @@ export default function JobsPage() {
 								<div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
 									<div className="flex-1">
 										<div className="flex items-start gap-2 mb-2">
-											<div className="w-8 h-8 md:w-10 md:h-10 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
-												<Briefcase className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
+											<div className="w-8 h-8 md:w-10 md:h-10 bg-emerald-100 rounded-lg flex items-center justify-center shrink-0">
+												<Briefcase className="h-4 w-4 md:h-5 md:w-5 text-emerald-600" />
 											</div>
 											<div className="flex-1 min-w-0">
 												<div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -697,21 +627,6 @@ export default function JobsPage() {
 													numberOfOpenings: job.numberOfOpenings || '1',
 													hiringPriority: job.hiringPriority || 'Medium',
 													targetTimeToFill: job.targetTimeToFill || '30',
-													budgetAllocated: job.budgetAllocated || '',
-													targetSources: job.targetSources || [],
-													diversityGoals: job.diversityGoals || false,
-													diversityTargetPercentage: job.diversityTargetPercentage || '',
-													applicationDeadline: job.applicationDeadline || '',
-													expectedStartDate: job.expectedStartDate || '',
-													selectedCriteriaIds: job.selectedCriteriaIds || [],
-													generatedQuestions: job.generatedQuestions || [],
-													expectedHiresPerMonth: job.expectedHiresPerMonth || '',
-													targetOfferAcceptanceRate: job.targetOfferAcceptanceRate || '',
-													candidateResponseTimeSLA: job.candidateResponseTimeSLA || '',
-													interviewScheduleSLA: job.interviewScheduleSLA || '',
-													costPerHireBudget: job.costPerHireBudget || '',
-													agencyFeePercentage: job.agencyFeePercentage || '',
-													jobBoardCosts: job.jobBoardCosts || '',
 													autoScheduleInterview: job.autoScheduleInterview ?? false,
 													interviewLinkExpiryHours: job.interviewLinkExpiryHours ?? 48,
 													enableScreeningQuestions: job.enableScreeningQuestions ?? false,

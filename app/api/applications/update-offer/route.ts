@@ -65,8 +65,10 @@ export async function POST(req: NextRequest) {
     if (referenceCheckStatus !== undefined) { fields.push(`reference_check_status = $${idx++}`);  values.push(referenceCheckStatus || null) }
     if (onboardingStatus !== undefined)     { fields.push(`onboarding_status = $${idx++}`);       values.push(onboardingStatus || null) }
     if (onboardingChecklist !== undefined)  { fields.push(`onboarding_checklist = $${idx++}`);    values.push(JSON.stringify(onboardingChecklist)) }
-    if (qualityOfHireRating !== undefined)  { fields.push(`quality_of_hire_rating = $${idx++}`);  values.push(qualityOfHireRating || null) }
-    if (employmentStatus !== undefined)     { fields.push(`employment_status = $${idx++}`);       values.push(employmentStatus || null) }
+    if (qualityOfHireRating !== undefined) { 
+      fields.push(`quality_of_hire_rating = $${idx++}`);
+      values.push(qualityOfHireRating);
+    }
     if (offerCurrency !== undefined)        { fields.push(`offer_currency = $${idx++}`);           values.push(offerCurrency || 'USD') }
 
     if (fields.length === 0) {

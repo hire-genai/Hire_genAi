@@ -291,7 +291,7 @@ export default function CandidatesPage() {
       <tr key={index} className="hover:bg-gray-50 transition-colors border-b">
         <td className="px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
               {application?.name?.split(' ').map((n: string) => n[0]).join('')}
             </div>
             <button 
@@ -299,7 +299,7 @@ export default function CandidatesPage() {
                 setEditableCandidate({...application})
                 setCandidateDetailsOpen(true)
               }}
-              className="font-medium text-blue-600 hover:text-blue-800 text-sm underline decoration-dotted cursor-pointer transition-colors"
+              className="font-medium text-emerald-600 hover:text-emerald-800 text-sm underline decoration-dotted cursor-pointer transition-colors"
             >
               {application?.name}
             </button>
@@ -311,7 +311,7 @@ export default function CandidatesPage() {
               setSelectedCandidate(application)
               setJdDetailsOpen(true)
             }}
-            className="text-sm text-blue-600 hover:text-blue-800 underline decoration-dotted cursor-pointer transition-colors"
+            className="text-sm text-emerald-600 hover:text-emerald-800 underline decoration-dotted cursor-pointer transition-colors"
           >
             {application?.position}
           </button>
@@ -322,7 +322,7 @@ export default function CandidatesPage() {
             <td className="px-6 py-4 text-sm text-gray-600">{application?.appliedDate}</td>
             <td className="px-6 py-4 text-sm text-gray-600">{application?.source}</td>
             <td className="px-6 py-4">
-              <Badge className="bg-blue-100 text-blue-800 font-semibold">
+              <Badge className="bg-emerald-100 text-emerald-800 font-semibold">
                 {application?.screeningScore}
               </Badge>
             </td>
@@ -357,7 +357,7 @@ export default function CandidatesPage() {
         {activeBucket === 'interview' && (
           <>
             <td className="px-6 py-4">
-              <Badge className="bg-blue-100 text-blue-800 font-semibold">
+              <Badge className="bg-emerald-100 text-emerald-800 font-semibold">
                 {application?.cvScore}
               </Badge>
             </td>
@@ -369,7 +369,7 @@ export default function CandidatesPage() {
             <td className="px-6 py-4">
               <Badge className={
                 application?.interviewStatus === 'Completed' ? 'bg-green-100 text-green-800' : 
-                application?.interviewStatus === 'Scheduled' ? 'bg-blue-100 text-blue-800' : 
+                application?.interviewStatus === 'Scheduled' ? 'bg-emerald-100 text-emerald-800' : 
                 'bg-gray-100 text-gray-800'
               }>
                 {application?.interviewStatus}
@@ -448,7 +448,7 @@ export default function CandidatesPage() {
             <td className="px-6 py-4 text-sm text-gray-600">{application?.hireDate}</td>
             <td className="px-6 py-4 text-sm text-gray-600">{application?.startDate}</td>
             <td className="px-6 py-4">
-              <Badge className={application?.hireStatus === 'Onboarded' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}>
+              <Badge className={application?.hireStatus === 'Onboarded' ? 'bg-green-100 text-green-800' : 'bg-emerald-100 text-emerald-800'}>
                 {application?.hireStatus}
               </Badge>
             </td>
@@ -479,7 +479,7 @@ export default function CandidatesPage() {
           <>
             <td className="px-6 py-4 text-sm text-gray-600">{application?.appliedDate}</td>
             <td className="px-6 py-4">
-              <Badge className="bg-blue-100 text-blue-800">{application?.status}</Badge>
+              <Badge className="bg-emerald-100 text-emerald-800">{application?.status}</Badge>
             </td>
             <td className="px-6 py-4 text-sm text-gray-600">{application?.source}</td>
             <td className="px-6 py-4">
@@ -504,12 +504,12 @@ export default function CandidatesPage() {
           </div>
           <div className="flex gap-2 items-center flex-wrap">
             {/* View As Filter */}
-            <div className="flex items-center gap-2 border rounded-md px-2 py-1 bg-blue-50">
+            <div className="flex items-center gap-2 border rounded-md px-2 py-1 bg-emerald-50">
               <span className="text-xs font-medium text-gray-700">View as:</span>
               <select
                 value={viewAsRole}
                 onChange={(e) => setViewAsRole(e.target.value as UserRole)}
-                className="text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-emerald-500"
               >
                 <option value="recruiter">Recruiter</option>
                 <option value="admin">Admin</option>
@@ -522,7 +522,7 @@ export default function CandidatesPage() {
                   <select
                     value={viewAsRecruiter}
                     onChange={(e) => setViewAsRecruiter(e.target.value)}
-                    className="text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   >
                     {recruiters.map(r => (
                       <option key={r.id} value={r.id}>{r.id === user?.id ? `${r.name} (You)` : r.name}</option>
@@ -549,7 +549,7 @@ export default function CandidatesPage() {
             <input
               type="text"
               placeholder="Search applications..."
-              className="w-full pl-3 pr-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full pl-3 pr-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -557,7 +557,7 @@ export default function CandidatesPage() {
           <select
             value={positionFilter}
             onChange={(e) => setPositionFilter(e.target.value)}
-            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
           >
             <option value="all">All Positions</option>
             {positions.map(pos => (
@@ -567,7 +567,7 @@ export default function CandidatesPage() {
           <select
             value={sourceFilter}
             onChange={(e) => setSourceFilter(e.target.value)}
-            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
           >
             <option value="all">All Sources</option>
             {sources.map(src => (
@@ -579,13 +579,13 @@ export default function CandidatesPage() {
             placeholder="Skills"
             value={skillFilter}
             onChange={(e) => setSkillFilter(e.target.value)}
-            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[100px]"
+            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500 min-w-[100px]"
           />
           <input
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
           <Button 
             variant="outline" 
@@ -629,7 +629,7 @@ export default function CandidatesPage() {
             <Card
               key={bucket}
               className={`p-3 md:p-4 cursor-pointer transition-all hover:shadow-lg ${
-                activeBucket === bucket ? 'ring-2 ring-blue-600 shadow-lg bg-blue-50' : 'shadow hover:bg-gray-50'
+                activeBucket === bucket ? 'ring-2 ring-emerald-600 shadow-lg bg-emerald-50' : 'shadow hover:bg-gray-50'
               }`}
               onClick={() => {
                 handleBucketClick(bucket)
@@ -648,7 +648,7 @@ export default function CandidatesPage() {
                       <span className="hidden sm:inline">{data.description}</span>
                     </p>
                   </div>
-                  <div className="text-xl md:text-3xl font-bold text-blue-600">
+                  <div className="text-xl md:text-3xl font-bold text-emerald-600">
                     {dynamicBucketCounts[bucket as BucketType]}
                   </div>
                 </div>
@@ -949,7 +949,7 @@ export default function CandidatesPage() {
                 <h4 className="font-semibold text-gray-900">Technical Stack</h4>
                 <div className="flex flex-wrap gap-2">
                   {['React', 'TypeScript', 'Node.js', 'PostgreSQL', 'AWS', 'Docker', 'Kubernetes', 'GraphQL'].map(tech => (
-                    <Badge key={tech} className="bg-blue-100 text-blue-800">{tech}</Badge>
+                    <Badge key={tech} className="bg-emerald-100 text-emerald-800">{tech}</Badge>
                   ))}
                 </div>
               </div>
