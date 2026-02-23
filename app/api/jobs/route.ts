@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
 import { cookies } from 'next/headers'
 
-// GET - Fetch all jobs for the current user's company
+// GET - Fetch jobs with recruiter-level access control
+// A recruiter sees ONLY jobs they created OR jobs delegated to them with active delegation
 export async function GET(request: NextRequest) {
   try {
     // Get user from session cookie
@@ -10,13 +11,13 @@ export async function GET(request: NextRequest) {
     const sessionCookie = cookieStore.get('session')
     
     let companyId: string | null = request.nextUrl.searchParams.get('companyId')
-    let userId: string | null = null
+    let userId: string | null = request.nextUrl.searchParams.get('userId')
 
     if (sessionCookie?.value) {
       try {
         const session = JSON.parse(sessionCookie.value)
         if (!companyId) companyId = session.companyId || session.company?.id
-        userId = session.userId || session.user?.id
+        if (!userId) userId = session.userId || session.user?.id
       } catch {
         console.log('Failed to parse session cookie')
       }
@@ -27,14 +28,45 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data: [] })
     }
 
-    // Fetch jobs
-    const jobs = await DatabaseService.query(
-      `SELECT jp.*
-      FROM job_postings jp
-      WHERE jp.company_id = $1::uuid
-      ORDER BY jp.created_at DESC`,
-      [companyId]
-    )
+    // Auto-expire delegations whose end_date has passed
+    try {
+      await DatabaseService.query(
+        `UPDATE delegations SET status = 'expired' WHERE status = 'active' AND end_date < CURRENT_DATE AND company_id::text = $1`,
+        [companyId]
+      )
+    } catch { /* delegations table may not exist yet */ }
+
+    // Fetch jobs with ownership + delegation access control
+    // Cast UUID columns to text to avoid 'operator does not exist: text = uuid' with mock auth IDs
+    let jobs: any[]
+    if (userId) {
+      jobs = await DatabaseService.query(
+        `SELECT DISTINCT jp.*
+        FROM job_postings jp
+        WHERE jp.company_id::text = $1
+          AND (
+            jp.created_by::text = $2
+            OR jp.id IN (
+              SELECT d.item_id FROM delegations d
+              WHERE d.delegated_to::text = $2
+                AND d.delegation_type = 'job'
+                AND d.status = 'active'
+                AND CURRENT_DATE >= d.start_date
+                AND CURRENT_DATE <= d.end_date
+            )
+          )
+        ORDER BY jp.created_at DESC`,
+        [companyId, userId]
+      )
+    } else {
+      jobs = await DatabaseService.query(
+        `SELECT jp.*
+        FROM job_postings jp
+        WHERE jp.company_id::text = $1
+        ORDER BY jp.created_at DESC`,
+        [companyId]
+      )
+    }
 
     // Try to get company slug/name (slug column may not exist yet)
     let companySlug = 'company'
