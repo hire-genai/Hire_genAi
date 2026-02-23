@@ -128,12 +128,13 @@ export async function POST(req: NextRequest) {
 
       try {
         await DatabaseService.query(
-          `INSERT INTO talent_pool_entries (company_id, candidate_id, application_id, status, notes, source)
-           VALUES ($1::uuid, $2::uuid, $3::uuid, 'passive'::talent_pool_status, $4, $5)
+          `INSERT INTO talent_pool_entries (company_id, candidate_id, application_id, status, notes, source, last_contacted)
+           VALUES ($1::uuid, $2::uuid, $3::uuid, 'passive'::talent_pool_status, $4, $5, NOW())
            ON CONFLICT (company_id, candidate_id) DO UPDATE
              SET notes = COALESCE(EXCLUDED.notes, talent_pool_entries.notes),
                  source = COALESCE(EXCLUDED.source, talent_pool_entries.source),
-                 application_id = COALESCE(EXCLUDED.application_id, talent_pool_entries.application_id)`,
+                 application_id = COALESCE(EXCLUDED.application_id, talent_pool_entries.application_id),
+                 last_contacted = NOW()`,
           [resolvedCompanyId, candidateId, applicationId, poolNotes, poolSource]
         )
         console.log('✅ Talent pool entry saved for candidate:', candidateId)
@@ -141,11 +142,53 @@ export async function POST(req: NextRequest) {
         console.warn('⚠️ Full talent pool insert failed, trying without new columns:', poolErr?.message)
         // Fallback for databases where migration hasn't run yet
         await DatabaseService.query(
-          `INSERT INTO talent_pool_entries (company_id, candidate_id, status)
-           VALUES ($1::uuid, $2::uuid, 'passive'::talent_pool_status)
-           ON CONFLICT (company_id, candidate_id) DO NOTHING`,
+          `INSERT INTO talent_pool_entries (company_id, candidate_id, status, last_contacted)
+           VALUES ($1::uuid, $2::uuid, 'passive'::talent_pool_status, NOW())
+           ON CONFLICT (company_id, candidate_id) DO UPDATE SET last_contacted = NOW()`,
           [resolvedCompanyId, candidateId]
         )
+      }
+    }
+
+    // Automatic talent pool status updates based on application stage changes
+    if (!isTalentPoolOnly && candidateId && resolvedCompanyId && targetStage) {
+      try {
+        let newTalentPoolStatus: string | null = null
+        let poolNotes = ''
+
+        switch (targetStage) {
+          case 'rejected':
+            newTalentPoolStatus = 'not_interested'
+            poolNotes = `Automatically updated from rejected application. Reason: ${rejectionReason || 'Not specified'}`
+            break
+          case 'hired':
+            newTalentPoolStatus = 'hired'
+            poolNotes = 'Automatically updated - candidate was hired'
+            break
+          case 'ai_interview':
+          case 'hiring_manager':
+          case 'offer':
+            newTalentPoolStatus = 'active_interest'
+            poolNotes = `Automatically updated - application moved to ${targetStage}`
+            break
+        }
+
+        if (newTalentPoolStatus) {
+          await DatabaseService.query(
+            `INSERT INTO talent_pool_entries (company_id, candidate_id, application_id, status, notes, source, last_contacted)
+             VALUES ($1::uuid, $2::uuid, $3::uuid, $4::talent_pool_status, $5, 'application_stage_change', NOW())
+             ON CONFLICT (company_id, candidate_id) DO UPDATE
+               SET status = $4::talent_pool_status,
+                   notes = $5,
+                   last_contacted = NOW(),
+                   updated_at = NOW()`,
+            [resolvedCompanyId, candidateId, applicationId, newTalentPoolStatus, poolNotes]
+          )
+          console.log(`✅ Auto-updated talent pool status to '${newTalentPoolStatus}' for candidate:`, candidateId)
+        }
+      } catch (autoUpdateErr: any) {
+        console.warn('⚠️ Auto talent pool status update failed:', autoUpdateErr?.message)
+        // Don't fail the main operation if talent pool update fails
       }
     }
 

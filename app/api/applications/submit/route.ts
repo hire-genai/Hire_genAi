@@ -214,6 +214,24 @@ export async function POST(req: NextRequest) {
       applicationId = appResult?.[0]?.id || null
     }
 
+    // Automatic talent pool entry for new applications (if not already exists)
+    if (applicationId && candidateId && companyId) {
+      try {
+        await DatabaseService.query(
+          `INSERT INTO talent_pool_entries (company_id, candidate_id, application_id, status, notes, source, last_contacted)
+           VALUES ($1::uuid, $2::uuid, $3::uuid, 'passive'::talent_pool_status, 'New application submitted', 'direct_application', NOW())
+           ON CONFLICT (company_id, candidate_id) DO UPDATE
+             SET last_contacted = NOW(),
+                 updated_at = NOW()`,
+          [companyId, candidateId, applicationId]
+        )
+        console.log('✅ Auto-added candidate to talent pool for new application:', candidateId)
+      } catch (poolErr: any) {
+        console.warn('⚠️ Auto talent pool entry failed for new application:', poolErr?.message)
+        // Don't fail the main application submission
+      }
+    }
+
     console.log(`✅ Application submitted: candidate=${candidateId}, job=${jobId}, app=${applicationId}`)
 
     return NextResponse.json({
