@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
 
     // Build the accessible jobs filter for recruiter-level access control
     // Cast UUID columns to text to avoid 'operator does not exist: text = uuid' with mock auth IDs
-    let accessibleJobsClause = `j.company_id::text = $1`
+    let accessibleJobsClause = `j.company_id::text = $1` 
     let queryParams: any[] = [companyId]
 
     if (userId) {
@@ -106,20 +106,29 @@ export async function GET(req: NextRequest) {
         a.source,
         a.ai_cv_score,
         a.is_qualified,
-        a.interview_status,
-        a.interview_score,
-        a.interview_recommendation,
-        a.interview_feedback,
+        i.interview_status as interview_status,
+        i.interview_score as interview_score,
+        i.interview_recommendation as interview_recommendation,
+        i.interview_feedback as interview_feedback,
         a.hm_status,
+        a.hm_rating,
         a.hm_feedback,
+        a.hm_interview_date,
+        a.hm_feedback_date,
         a.offer_status,
         a.offer_amount,
+        a.offer_bonus,
+        a.offer_equity,
+        a.offer_currency,
         a.hire_date,
         a.start_date,
         a.onboarding_status,
+        a.quality_of_hire_rating,
         a.rejection_reason,
         a.rejection_stage,
         a.remarks,
+        a.expected_salary,
+        a.available_start_date,
         c.id AS c_id,
         c.full_name,
         c.email,
@@ -132,6 +141,7 @@ export async function GET(req: NextRequest) {
         j.id AS j_id,
         j.title AS position,
         j.location AS job_location,
+        j.currency AS job_currency,
         (
           SELECT ash.remarks FROM application_stage_history ash
           WHERE ash.application_id = a.id
@@ -140,6 +150,7 @@ export async function GET(req: NextRequest) {
       FROM applications a
       JOIN candidates c ON a.candidate_id = c.id
       JOIN job_postings j ON a.job_id = j.id
+      LEFT JOIN interviews i ON i.application_id = a.id
       WHERE ${accessibleJobsClause}
       ORDER BY a.applied_at DESC
     `
@@ -171,23 +182,36 @@ export async function GET(req: NextRequest) {
         cvScore: app.ai_cv_score != null ? `${Math.round(app.ai_cv_score)}/100` : '0/100',
         screeningScore: app.ai_cv_score != null ? `${Math.round(app.ai_cv_score)}/100` : '0/100',
         screeningStatus: app.is_qualified ? 'Qualified' : (app.is_qualified === false ? 'Unqualified' : 'Pending'),
-        interviewScore: app.interview_score != null ? `${Math.round(app.interview_score)}/100` : '0/100',
+        interviewScore: app.interview_score != null && app.interview_score !== '' ? `${Math.round(parseFloat(app.interview_score))}/100` : 'N/A',
         interviewStatus: app.interview_status || 'Not Scheduled',
         interviewResult: app.interview_recommendation || 'Pending',
         hmStatus: app.hm_status || 'Waiting for HM feedback',
+        hmRating: app.hm_rating || '',
+        hmFeedback: app.hm_feedback || '',
+        hmInterviewDate: app.hm_interview_date ? new Date(app.hm_interview_date).toISOString().split('T')[0] : '',
+        hmFeedbackDate: app.hm_feedback_date ? new Date(app.hm_feedback_date).toISOString().split('T')[0] : '',
         hiringManager: 'Assigned Manager',
         daysWithHM: '0 days',
         offerAmount: app.offer_amount != null ? `$${Number(app.offer_amount).toLocaleString()}` : '$0',
         offerStatus: formatOfferStatus(app.offer_status),
         hireDate: app.hire_date ? new Date(app.hire_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+        rawHireDate: app.hire_date ? new Date(app.hire_date).toISOString().split('T')[0] : '',
         startDate: app.start_date ? new Date(app.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+        rawStartDate: app.start_date ? new Date(app.start_date).toISOString().split('T')[0] : '',
         hireStatus: app.onboarding_status || 'Awaiting Onboarding',
+        qualityOfHireRating: app.quality_of_hire_rating?.rating || '',
+        employmentStatus: app.quality_of_hire_rating?.employmentStatus || '',
         rejectionStage: formatStage(app.rejection_stage) || '',
         rejectionReason: app.rejection_reason || '',
         comments: app.latest_stage_remarks || app.remarks || app.interview_feedback || app.hm_feedback || '',
         photoUrl: app.photo_url || '',
         linkedinUrl: app.linkedin_url || '',
-        resumeUrl: app.resume_url || ''
+        resumeUrl: app.resume_url || '',
+        expectedSalary: app.expected_salary != null ? `${app.expected_salary}` : '',
+        availableStartDate: app.available_start_date ? new Date(app.available_start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+        jobCurrency: app.job_currency || 'USD',
+        salaryCurrency: app.salary_currency || app.job_currency || 'USD',
+        offerCurrency: app.offer_currency || app.job_currency || 'USD'
       }
 
       applicationsData.all.push(formattedApp)

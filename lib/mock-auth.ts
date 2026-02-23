@@ -40,13 +40,13 @@ export class MockAuthService {
   // Default demo users for development
   private static defaultUsers: MockUserData[] = [
     {
-      id: "user_demo_001",
+      id: "00000000-0000-4000-a000-000000000001",
       email: "demo@example.com",
       password: "demo123",
       name: "Demo User",
       role: "company_admin",
       company: {
-        id: "company_demo_001",
+        id: "00000000-0000-4000-b000-000000000001",
         name: "Demo Company",
         slug: "demo-company",
         industry: "Technology",
@@ -55,13 +55,13 @@ export class MockAuthService {
       }
     },
     {
-      id: "user_admin_001",
+      id: "00000000-0000-4000-a000-000000000002",
       email: "ashwini2kyadav@gmail.com",
       password: "admin123",
       name: "Ashwini Yadav",
       role: "admin",
       company: {
-        id: "company_demo_001",
+        id: "00000000-0000-4000-b000-000000000001",
         name: "Demo Company",
         slug: "demo-company",
         industry: "Technology",
@@ -70,13 +70,13 @@ export class MockAuthService {
       }
     },
     {
-      id: "user_recruiter_001",
+      id: "00000000-0000-4000-a000-000000000003",
       email: "member1@gmail.com",
       password: "recruiter123",
       name: "Member One",
       role: "recruiter",
       company: {
-        id: "company_demo_001",
+        id: "00000000-0000-4000-b000-000000000001",
         name: "Demo Company",
         slug: "demo-company",
         industry: "Technology",
@@ -86,23 +86,85 @@ export class MockAuthService {
     }
   ]
 
+  // Map old non-UUID IDs to new UUIDs for migration
+  private static readonly ID_MIGRATION: Record<string, string> = {
+    "user_demo_001": "00000000-0000-4000-a000-000000000001",
+    "user_admin_001": "00000000-0000-4000-a000-000000000002",
+    "user_recruiter_001": "00000000-0000-4000-a000-000000000003",
+    "company_demo_001": "00000000-0000-4000-b000-000000000001",
+  }
+
+  private static migrateId(id: string): string {
+    return this.ID_MIGRATION[id] || id
+  }
+
+  private static isValidUUID(id: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+  }
+
+  private static migrateUsers(users: MockUserData[]): MockUserData[] {
+    let changed = false
+    const migrated = users.map(u => {
+      const newUserId = this.migrateId(u.id)
+      const newCompanyId = this.migrateId(u.company.id)
+      // For non-default users with non-UUID IDs, generate new UUIDs
+      const finalUserId = this.isValidUUID(newUserId) ? newUserId : crypto.randomUUID()
+      const finalCompanyId = this.isValidUUID(newCompanyId) ? newCompanyId : crypto.randomUUID()
+      if (finalUserId !== u.id || finalCompanyId !== u.company.id) changed = true
+      return { ...u, id: finalUserId, company: { ...u.company, id: finalCompanyId } }
+    })
+    return changed ? migrated : users
+  }
+
   static initializeUsers() {
     if (typeof window === "undefined") return
 
     try {
-      // Initialize both local and global user storage
       const existingUsers = localStorage.getItem(this.USERS_KEY)
       const existingGlobalUsers = localStorage.getItem(this.GLOBAL_USERS_KEY)
 
       if (!existingUsers) {
         localStorage.setItem(this.USERS_KEY, JSON.stringify(this.defaultUsers))
+      } else {
+        // Migrate old non-UUID IDs
+        const users = JSON.parse(existingUsers) as MockUserData[]
+        const migrated = this.migrateUsers(users)
+        if (migrated !== users) {
+          localStorage.setItem(this.USERS_KEY, JSON.stringify(migrated))
+          console.log("🔄 Migrated user IDs to UUIDs")
+        }
       }
 
       if (!existingGlobalUsers) {
         localStorage.setItem(this.GLOBAL_USERS_KEY, JSON.stringify(this.defaultUsers))
+      } else {
+        const users = JSON.parse(existingGlobalUsers) as MockUserData[]
+        const migrated = this.migrateUsers(users)
+        if (migrated !== users) {
+          localStorage.setItem(this.GLOBAL_USERS_KEY, JSON.stringify(migrated))
+        }
       }
 
-      console.log("✅ Mock users initialized in both storages")
+      // Migrate active session if it has old IDs
+      const sessionStr = localStorage.getItem(this.STORAGE_KEY)
+      if (sessionStr) {
+        try {
+          const session = JSON.parse(sessionStr) as AuthSession
+          const newUserId = this.migrateId(session.user.id)
+          const newCompanyId = this.migrateId(session.company.id)
+          const finalUserId = this.isValidUUID(newUserId) ? newUserId : session.user.id
+          const finalCompanyId = this.isValidUUID(newCompanyId) ? newCompanyId : session.company.id
+          if (finalUserId !== session.user.id || finalCompanyId !== session.company.id) {
+            session.user.id = finalUserId
+            session.company.id = finalCompanyId
+            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(session))
+            localStorage.setItem(`${this.STORAGE_KEY}_backup`, JSON.stringify(session))
+            console.log("🔄 Migrated active session IDs to UUIDs")
+          }
+        } catch (e) { /* ignore parse errors */ }
+      }
+
+      console.log("✅ Mock users initialized")
     } catch (error) {
       console.error("Error initializing users:", error)
     }
@@ -176,15 +238,18 @@ export class MockAuthService {
           company: user.company,
         }
 
-        // Sync company data to database
+        // Sync company + user data to database
         try {
           await fetch('/api/auth/sync-company', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ company: user.company })
+            body: JSON.stringify({ 
+              company: user.company,
+              user: { id: user.id, email: user.email, name: user.name, role: user.role }
+            })
           })
         } catch (syncError) {
-          console.warn('Failed to sync company to database:', syncError)
+          console.warn('Failed to sync to database:', syncError)
         }
 
         // Save session to localStorage with enhanced key
@@ -229,13 +294,13 @@ export class MockAuthService {
       }
 
       const newUser: MockUserData = {
-        id: `user_${Date.now()}`,
+        id: crypto.randomUUID(),
         email,
         password,
         name: userName,
         role: "company_admin",
         company: {
-          id: `company_${Date.now()}`,
+          id: crypto.randomUUID(),
           name: companyName,
           slug: this.slugify(companyName) || `company-${Date.now()}`,
           industry: "Technology",
@@ -257,15 +322,18 @@ export class MockAuthService {
         company: newUser.company,
       }
 
-      // Sync company data to database
+      // Sync company + user data to database
       try {
         await fetch('/api/auth/sync-company', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ company: newUser.company })
+          body: JSON.stringify({ 
+            company: newUser.company,
+            user: { id: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role }
+          })
         })
       } catch (syncError) {
-        console.warn('Failed to sync company to database:', syncError)
+        console.warn('Failed to sync to database:', syncError)
       }
 
       // Save session to localStorage
@@ -344,15 +412,18 @@ export class MockAuthService {
         company: user.company,
       }
 
-      // Sync company data to database
+      // Sync company + user data to database
       try {
         await fetch('/api/auth/sync-company', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ company: user.company })
+          body: JSON.stringify({ 
+            company: user.company,
+            user: { id: user.id, email: user.email, name: user.name, role: user.role }
+          })
         })
       } catch (syncError) {
-        console.warn('Failed to sync company to database:', syncError)
+        console.warn('Failed to sync to database:', syncError)
       }
 
       if (typeof window !== "undefined") {
@@ -396,7 +467,7 @@ export class MockAuthService {
     if (!companyOwner) return { error: { message: "Company not found" } }
 
     const newUser: MockUserData = {
-      id: `user_${Date.now()}`,
+      id: crypto.randomUUID(),
       email: memberEmail,
       password: Math.random().toString(36).slice(2, 10),
       name: memberName || memberEmail.split("@")[0],

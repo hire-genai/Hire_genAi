@@ -219,18 +219,18 @@ Provide a professional summary suitable for a hiring manager.`,
       }
     }
 
-    // Update applications table with all interview data
+    // Ensure interview record exists, then update it
+    await DatabaseService.ensureInterviewRecord(applicationId)
     await DatabaseService.query(`
-      UPDATE applications SET
+      UPDATE interviews SET
         interview_status = 'Completed',
         interview_completed_at = NOW(),
         interview_score = $2,
         interview_evaluations = $3::jsonb,
         interview_recommendation = $4,
         interview_summary = $5,
-        interview_feedback = $6,
-        current_stage = 'ai_interview'
-      WHERE id = $1::uuid
+        interview_feedback = $6
+      WHERE application_id = $1::uuid
     `, [
       applicationId,
       overallScore,
@@ -239,6 +239,11 @@ Provide a professional summary suitable for a hiring manager.`,
       summary,
       `Overall: ${overallScore}% - ${recommendation}`
     ])
+
+    // Update application stage separately
+    await DatabaseService.query(`
+      UPDATE applications SET current_stage = 'ai_interview' WHERE id = $1::uuid
+    `, [applicationId])
 
     console.log('[Interview Complete] Updated application with results')
 

@@ -150,6 +150,7 @@ export default function CandidateReportPage({
     scores.skill_match && {
       area: 'Skills Match',
       score: scores.skill_match.score || 0,
+      weight: scores.skill_match.weight || 40,
       points: `+${(explainableScore.skill_contribution || 0).toFixed(1)}`,
       details: `${(scores.skill_match.matched_critical?.length || 0) + (scores.skill_match.matched_important?.length || 0)}/${(scores.skill_match.matched_critical?.length || 0) + (scores.skill_match.matched_important?.length || 0) + (scores.skill_match.missing_critical?.length || 0)} required skills matched`,
       subDetails: [
@@ -160,6 +161,7 @@ export default function CandidateReportPage({
     scores.project_relevance && {
       area: 'Project Relevance',
       score: scores.project_relevance.score || 0,
+      weight: scores.project_relevance.weight || 20,
       points: `+${(explainableScore.project_contribution || 0).toFixed(1)}`,
       details: `${scores.project_relevance.relevant_projects || 0} relevant projects analyzed`,
       subDetails: scores.project_relevance.recent_skills_used?.length ? `Recent skills: ${scores.project_relevance.recent_skills_used.join(', ')}` : ''
@@ -167,6 +169,7 @@ export default function CandidateReportPage({
     scores.experience_match && {
       area: 'Experience Match',
       score: scores.experience_match.score || 0,
+      weight: scores.experience_match.weight || 20,
       points: `+${(explainableScore.experience_contribution || 0).toFixed(1)}`,
       details: `${extracted.relevant_experience_years || extracted.total_experience_years_estimate || 0}+ years in relevant domain`,
       subDetails: scores.experience_match.evidence?.slice(0, 2).join('\n') || ''
@@ -174,6 +177,7 @@ export default function CandidateReportPage({
     scores.education_and_certs && {
       area: 'Education & Certifications',
       score: scores.education_and_certs.score || 0,
+      weight: scores.education_and_certs.weight || 10,
       points: `+${(explainableScore.edu_certs_contribution || 0).toFixed(1)}`,
       details: educationStr !== 'N/A' ? educationStr.split(',')[0] : 'N/A',
       subDetails: (scores.education_and_certs.issued_certs || []).join(', ')
@@ -181,6 +185,7 @@ export default function CandidateReportPage({
     scores.location_and_availability && {
       area: 'Location & Availability',
       score: scores.location_and_availability.score || 0,
+      weight: scores.location_and_availability.weight || 5,
       points: `+${(explainableScore.location_contribution || 0).toFixed(1)}`,
       details: candidate.location || 'N/A',
       subDetails: `Available: ${availabilityStr}`
@@ -188,6 +193,7 @@ export default function CandidateReportPage({
     scores.resume_quality && {
       area: 'Resume Quality',
       score: scores.resume_quality.score || 0,
+      weight: scores.resume_quality.weight || 5,
       points: `+${(explainableScore.quality_contribution || 0).toFixed(1)}`,
       details: `Clarity: ${scores.resume_quality.clarity || 0}, Structure: ${scores.resume_quality.structure || 0}, Completeness: ${scores.resume_quality.completeness || 0}`,
       subDetails: scores.resume_quality.issues?.length ? `Issues: ${scores.resume_quality.issues.join(', ')}` : ''
@@ -364,6 +370,7 @@ export default function CandidateReportPage({
                       <tr className="bg-gray-100">
                         <th className="px-3 py-2 print:py-1.5 text-left font-semibold text-gray-700 w-36">Area</th>
                         <th className="px-3 py-2 print:py-1.5 text-center font-semibold text-gray-700 w-20">Score</th>
+                        <th className="px-3 py-2 print:py-1.5 text-center font-semibold text-gray-700 w-20">Weightage</th>
                         <th className="px-3 py-2 print:py-1.5 text-center font-semibold text-gray-700 w-16">Points</th>
                         <th className="px-3 py-2 print:py-1.5 text-left font-semibold text-gray-700">Details</th>
                       </tr>
@@ -375,6 +382,11 @@ export default function CandidateReportPage({
                           <td className="px-3 py-2 print:py-1.5 text-center">
                             <span className={`inline-block px-2 py-0.5 rounded font-semibold ${getScoreBg(skill.score)} ${getScoreColor(skill.score)}`}>
                               {skill.score}/100
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 print:py-1.5 text-center">
+                            <span className="inline-block px-2 py-0.5 rounded bg-blue-100 text-blue-700 font-semibold">
+                              {skill.weight}%
                             </span>
                           </td>
                           <td className="px-3 py-2 print:py-1.5 text-center text-green-600 font-medium">{skill.points}</td>

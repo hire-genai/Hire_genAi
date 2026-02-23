@@ -82,6 +82,24 @@ export async function GET(
       )
     }
 
+    // Auto-close job if application deadline has passed
+    if (job.application_deadline && job.status === 'open') {
+      const deadline = new Date(job.application_deadline)
+      deadline.setHours(23, 59, 59, 999) // end of deadline day
+      if (new Date() > deadline) {
+        try {
+          await DatabaseService.query(
+            `UPDATE job_postings SET status = 'closed', updated_at = NOW() WHERE id = $1::uuid`,
+            [jobId]
+          )
+          job.status = 'closed'
+        } catch {
+          // ignore update error, still reflect closed status
+          job.status = 'closed'
+        }
+      }
+    }
+
     // Validate job status (must be open/published/draft for preview)
     if (job.status !== 'open' && job.status !== 'published' && job.status !== 'draft') {
       return NextResponse.json(
@@ -173,6 +191,16 @@ export async function PATCH(
       return NextResponse.json({ error: 'Job not found or company mismatch' }, { status: 404 })
     }
 
+    // Quick single-field patch (e.g. toggle autoScheduleInterview from job card)
+    const bodyKeys = Object.keys(body)
+    if (bodyKeys.length === 1 && bodyKeys[0] === 'autoScheduleInterview') {
+      await DatabaseService.query(
+        `UPDATE job_postings SET auto_schedule_interview = $1::boolean, updated_at = NOW() WHERE id = $2::uuid`,
+        [body.autoScheduleInterview === true, jobId]
+      )
+      return NextResponse.json({ success: true })
+    }
+
     const {
       // Basic Info
       jobTitle,
@@ -206,7 +234,7 @@ export async function PATCH(
       diversityGoals,
       diversityTargetPercentage,
       // Metrics
-      jobOpenDate,
+      // Metrics (removed jobOpenDate - will be set automatically)
       expectedHiresPerMonth,
       targetOfferAcceptanceRate,
       candidateResponseTimeSLA,
@@ -266,21 +294,21 @@ export async function PATCH(
         target_sources = $25,
         diversity_goals = $26,
         diversity_target_pct = $27,
-        job_open_date = $28,
-        expected_hires_per_month = $29,
-        target_offer_acceptance_pct = $30,
-        candidate_response_sla_hrs = $31,
-        interview_schedule_sla_hrs = $32,
-        cost_per_hire_budget = $33,
-        agency_fee_pct = $34,
-        job_board_costs = $35,
-        auto_schedule_interview = $36,
-        interview_link_expiry_hours = $37,
-        enable_screening_questions = $38,
-        screening_questions = $39,
-        client_company_name = $40,
-        status = $41,
-        published_at = $42,
+        expected_hires_per_month = $28,
+        target_offer_acceptance_pct = $29,
+        candidate_response_sla_hrs = $30,
+        interview_schedule_sla_hrs = $31,
+        cost_per_hire_budget = $32,
+        agency_fee_pct = $33,
+        job_board_costs = $34,
+        auto_schedule_interview = $35,
+        interview_link_expiry_hours = $36,
+        enable_screening_questions = $37,
+        screening_questions = $38,
+        client_company_name = $39,
+        status = $40,
+        published_at = $41,
+        job_open_date = $42,
         updated_at = NOW()
        WHERE id = $43::uuid`,
       [
@@ -311,7 +339,8 @@ export async function PATCH(
         targetSources || [],
         diversityGoals || false,
         diversityTargetPercentage ? parseFloat(diversityTargetPercentage) : null,
-        jobOpenDate || new Date().toISOString().split('T')[0],
+        // Set job_open_date automatically when publishing
+        status === 'open' || status === 'published' ? new Date().toISOString().split('T')[0] : null,
         expectedHiresPerMonth ? parseInt(expectedHiresPerMonth) : null,
         targetOfferAcceptanceRate ? parseFloat(targetOfferAcceptanceRate) : null,
         candidateResponseTimeSLA ? parseInt(candidateResponseTimeSLA) : null,

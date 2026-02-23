@@ -70,27 +70,8 @@ export async function POST(req: Request) {
       photoUrl = `data:${contentType};base64,${base64Data.substring(0, 100)}...` // Truncated for DB storage
     }
 
-    // Store photo URL in database - update the application record
+    // Store photo URL in database - update the interviews record
     try {
-      const checkCol = await DatabaseService.query(
-        `SELECT EXISTS (
-          SELECT 1 FROM information_schema.columns 
-          WHERE table_schema = 'public' 
-            AND table_name = 'applications' 
-            AND column_name = 'post_interview_photo_url'
-        ) as exists`,
-        []
-      )
-      
-      if (!checkCol?.[0]?.exists) {
-        console.log('[Post-Interview Photo] Adding missing columns to applications table...')
-        await DatabaseService.query(`
-          ALTER TABLE applications 
-          ADD COLUMN IF NOT EXISTS post_interview_photo_url TEXT,
-          ADD COLUMN IF NOT EXISTS post_interview_photo_captured_at TIMESTAMP WITH TIME ZONE
-        `, [])
-      }
-
       // If not uploaded to blob, store in separate table
       if (!uploadedToBlob) {
         console.log('[Post-Interview Photo] Creating photo_storage table for base64 storage...')
@@ -122,32 +103,18 @@ export async function POST(req: Request) {
         }
       }
 
+      // Ensure interview record exists, then save photo reference
+      await DatabaseService.ensureInterviewRecord(applicationId)
       await DatabaseService.query(
-        `UPDATE applications 
+        `UPDATE interviews 
          SET post_interview_photo_url = $1, post_interview_photo_captured_at = NOW()
-         WHERE id = $2::uuid`,
+         WHERE application_id = $2::uuid`,
         [photoUrl, applicationId]
       )
       console.log(`[Post-Interview Photo] ✅ Saved photo reference for application ${applicationId}`)
     } catch (dbError: any) {
       console.error('[Post-Interview Photo] Database error:', dbError.message)
-      // Try to create columns and retry
-      if (dbError.message?.includes('column') && dbError.message?.includes('does not exist')) {
-        await DatabaseService.query(`
-          ALTER TABLE applications 
-          ADD COLUMN IF NOT EXISTS post_interview_photo_url TEXT,
-          ADD COLUMN IF NOT EXISTS post_interview_photo_captured_at TIMESTAMP WITH TIME ZONE
-        `, [])
-        
-        await DatabaseService.query(
-          `UPDATE applications 
-           SET post_interview_photo_url = $1, post_interview_photo_captured_at = NOW()
-           WHERE id = $2::uuid`,
-          [photoUrl, applicationId]
-        )
-      } else {
-        throw dbError
-      }
+      throw dbError
     }
 
     return NextResponse.json({ 

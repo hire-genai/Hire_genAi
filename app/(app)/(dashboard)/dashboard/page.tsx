@@ -5,7 +5,7 @@ import { SelectContent } from "@/components/ui/select"
 import { SelectValue } from "@/components/ui/select"
 import { SelectTrigger } from "@/components/ui/select"
 import { Select } from "@/components/ui/select"
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { 
   Users, 
   Briefcase, 
@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import OnboardingTour from '@/components/onboarding/onboarding-tour'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -38,116 +39,78 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useAuth } from '@/contexts/auth-context'
+import { StatCardGridLoader, ErrorState, CardLoader, TableLoader } from '@/components/ui/skeleton-loader'
 
 type UserRole = 'recruiter' | 'manager' | 'director'
 
-// Recruiters list
-const recruiters = [
-  { id: '1', name: 'Sarah Johnson' },
-  { id: '2', name: 'Mike Davis' },
-  { id: '3', name: 'Emily Chen' },
-  { id: '4', name: 'John Williams' },
-]
-
-// Role-based KPI configurations
-const roleKPIs = {
-  recruiter: [
-    { title: 'My Open Reqs', value: '8', change: '+2 this week', trend: 'neutral', icon: Briefcase, color: 'blue', subtitle: 'Active roles assigned to me' },
-    { title: 'Candidates in Pipeline', value: '42', change: '12 need action', trend: 'alert', icon: Users, color: 'orange', subtitle: 'Across all stages' },
-    { title: 'Sourcing Activity', value: '87%', change: 'Target: 80%', trend: 'up', icon: Target, color: 'green', subtitle: 'Outreach & responses this week' },
-    { title: 'Avg Response Time', value: '2.3h', change: '-0.5h vs last week', trend: 'up', icon: Clock, color: 'purple', subtitle: 'To candidate inquiries' },
-    { title: 'Submittal Quality', value: '45%', change: '+5% improvement', trend: 'up', icon: CheckCircle, color: 'emerald', subtitle: 'Submissions to interview rate' },
-    { title: 'Time in Stage (Avg)', value: '4.2d', change: 'Interview stage', trend: 'neutral', icon: Activity, color: 'blue', subtitle: 'Current bottleneck' },
-  ],
-  manager: [
-    { title: 'Team Pipeline Health', value: '156', change: '23 in bottleneck', trend: 'alert', icon: Users, color: 'orange', subtitle: 'Total candidates across team' },
-    { title: 'Time to Fill (Avg)', value: '32d', change: 'Target: 28d', trend: 'down', icon: Clock, color: 'red', subtitle: 'Team average this quarter' },
-    { title: 'Offer Acceptance Rate', value: '72%', change: 'Target: 80%', trend: 'down', icon: MessageSquare, color: 'orange', subtitle: 'Last 30 days' },
-    { title: 'Team Capacity Load', value: '135%', change: 'Recruiter A overloaded', trend: 'alert', icon: Gauge, color: 'red', subtitle: 'Avg load per recruiter' },
-    { title: 'HM Satisfaction', value: '4.2', change: '+0.3 vs last quarter', trend: 'up', icon: MessageSquare, color: 'green', subtitle: 'Out of 5.0' },
-    { title: 'Source Quality (Team)', value: 'GitHub', change: '3x more effective', trend: 'up', icon: BarChart3, color: 'blue', subtitle: 'Best performing channel' },
-  ],
-  director: [
-    { title: 'Hiring Velocity', value: '24', change: 'Plan: 28/month', trend: 'down', icon: TrendingUp, color: 'orange', subtitle: 'Hires this month vs plan' },
-    { title: 'Quality of Hire', value: '4.5', change: '92% retention @ 6mo', trend: 'up', icon: MessageSquare, color: 'green', subtitle: 'Performance rating avg' },
-    { title: 'Forecast vs Actual', value: '85%', change: 'Q3 projection: -15%', trend: 'alert', icon: LineChart, color: 'red', subtitle: 'On track to miss headcount' },
-    { title: 'Cost Per Hire', value: '$4,200', change: '+$300 vs last quarter', trend: 'down', icon: DollarSign, color: 'orange', subtitle: 'Total TA cost trend' },
-    { title: 'Recruitment ROI', value: '3.2x', change: 'Quality/retention rising', trend: 'up', icon: PieChart, color: 'green', subtitle: 'Investment effectiveness' },
-    { title: 'Diversity Pipeline', value: '42%', change: 'Target: 50%', trend: 'neutral', icon: Users, color: 'blue', subtitle: 'Underrepresented groups' },
-  ],
+interface DashboardData {
+  kpis: {
+    openJobs: number
+    totalJobs: number
+    draftJobs: number
+    closedJobs: number
+    totalApplications: number
+    activeCandidates: number
+    screeningCount: number
+    interviewCount: number
+    hmCount: number
+    offerCount: number
+    hiredCount: number
+    rejectedCount: number
+    newThisWeek: number
+    avgInterviewScore: number
+    offerAcceptanceRate: number
+    avgTimeToFill: number
+    totalCandidates: number
+    teamMembers: number
+  }
+  recentCandidates: Array<{
+    id: string
+    name: string
+    email: string
+    position: string
+    status: string
+    experience: string
+    appliedDate: string
+    cvScore: number | null
+    interviewScore: number | null
+  }>
+  pipelineByJob: Array<{
+    id: string
+    title: string
+    department: string
+    status: string
+    totalCandidates: number
+    screening: number
+    aiInterview: number
+    hiringManager: number
+    offer: number
+    hired: number
+    rejected: number
+    openDays: number
+  }>
+  stageTimeAvgs: Array<{
+    stage: string
+    avgDays: number
+    bottleneck: boolean
+  }>
+  sourceEffectiveness: Array<{
+    source: string
+    total: number
+    advanced: number
+    hired: number
+    conversionRate: number
+  }>
+  recruiters: Array<{
+    id: string
+    name: string
+    email: string
+    activeJobs: number
+    activeCandidates: number
+    hiredCount?: number
+  }>
 }
-
-const recentCandidates = [
-  {
-    id: 1,
-    name: 'Sarah Johnson',
-    email: 'sarah.j@email.com',
-    position: 'Senior Frontend Developer',
-    status: 'Interview',
-    experience: '5 years',
-    appliedDate: '2 hours ago',
-  },
-  {
-    id: 2,
-    name: 'Michael Chen',
-    email: 'mchen@email.com',
-    position: 'Product Manager',
-    status: 'Screening',
-    experience: '7 years',
-    appliedDate: '5 hours ago',
-  },
-  {
-    id: 3,
-    name: 'Emily Rodriguez',
-    email: 'emily.r@email.com',
-    position: 'UX Designer',
-    status: 'Offer',
-    experience: '4 years',
-    appliedDate: '1 day ago',
-  },
-  {
-    id: 4,
-    name: 'David Kim',
-    email: 'david.kim@email.com',
-    position: 'Backend Engineer',
-    status: 'New',
-    experience: '6 years',
-    appliedDate: '2 days ago',
-  },
-  {
-    id: 5,
-    name: 'Jessica Brown',
-    email: 'jbrown@email.com',
-    position: 'Data Scientist',
-    status: 'Hired',
-    experience: '8 years',
-    appliedDate: '3 days ago',
-  },
-]
-
-const upcomingInterviews = [
-  {
-    candidate: 'Sarah Johnson',
-    position: 'Senior Frontend Developer',
-    time: 'Today, 2:00 PM',
-    type: 'Technical Interview',
-    interviewer: 'John Smith',
-  },
-  {
-    candidate: 'Michael Chen',
-    position: 'Product Manager',
-    time: 'Today, 4:30 PM',
-    type: 'Behavioral Interview',
-    interviewer: 'Jane Doe',
-  },
-  {
-    candidate: 'Emily Rodriguez',
-    position: 'UX Designer',
-    time: 'Tomorrow, 10:00 AM',
-    type: 'Portfolio Review',
-    interviewer: 'Alex Wilson',
-  },
-]
 
 const getStatusBadge = (status: string) => {
   const variants: Record<string, { className: string }> = {
@@ -157,19 +120,48 @@ const getStatusBadge = (status: string) => {
     Offer: { className: 'bg-green-100 text-green-700 hover:bg-green-100' },
     Hired: { className: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' },
     Rejected: { className: 'bg-red-100 text-red-700 hover:bg-red-100' },
+    'HM Review': { className: 'bg-purple-100 text-purple-700 hover:bg-purple-100' },
   }
   return variants[status] || variants.New
 }
 
-const statsCards = [
-  // Example stats card data
-  { title: 'Example Card', value: '100', change: '+10 this week', trend: 'up', icon: Briefcase, color: 'blue', subtitle: 'Example subtitle' },
-]
-
   export default function DashboardPage() {
+  const { company } = useAuth()
   const [selectedRole, setSelectedRole] = useState<UserRole>('recruiter')
   const [selectedRecruiter, setSelectedRecruiter] = useState('all')
   const [selectedKPI, setSelectedKPI] = useState<string | null>(null)
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchDashboard = useCallback(async () => {
+    // Only fetch for recruiter role - Manager and Director use static data
+    if (selectedRole !== 'recruiter') {
+      setLoading(false)
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+      const params = company?.id ? `?companyId=${company.id}` : ''
+      const res = await fetch(`/api/dashboard${params}`)
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || 'Failed to fetch dashboard data')
+      }
+      const json = await res.json()
+      setDashboardData(json.data)
+    } catch (err: any) {
+      setError(err.message || 'Failed to load dashboard')
+    } finally {
+      setLoading(false)
+    }
+  }, [company?.id, selectedRole])
+
+  useEffect(() => {
+    fetchDashboard()
+  }, [fetchDashboard])
 
 const roleDescriptions = {
   recruiter: 'My Focus - Am I hitting my goals and keeping candidates moving?',
@@ -177,206 +169,318 @@ const roleDescriptions = {
   director: 'Strategic Impact & ROI - Is our TA strategy supporting business growth with quality hires?',
 }
 
-  const currentKPIs = roleKPIs[selectedRole]
+  const kpis = dashboardData?.kpis
+  const recruiters = dashboardData?.recruiters || []
+
+  // Build KPIs from real data
+  const buildRoleKPIs = () => {
+    // Static mock data for Manager and Director
+    const managerKPIs = [
+      { title: 'Team Pipeline Health', value: '156', change: '23 in screening', trend: 'neutral' as const, icon: Users, color: 'orange' as const, subtitle: 'Total candidates across team' },
+            { title: 'Offer Acceptance Rate', value: '85%', change: 'Target: 80%', trend: 'up' as const, icon: MessageSquare, color: 'green' as const, subtitle: 'All time' },
+      { title: 'Team Capacity Load', value: '135%', change: 'Recruiter A overloaded', trend: 'down' as const, icon: Gauge, color: 'red' as const, subtitle: 'Team capacity utilization' },
+      { title: 'Hiring Manager', value: '4.2', change: '+0.3 vs last quarter', trend: 'up' as const, icon: MessageSquare, color: 'green' as const, subtitle: 'Hiring manager satisfaction score' },
+      { title: 'Source Quality', value: 'LinkedIn', change: '42% conversion', trend: 'up' as const, icon: BarChart3, color: 'emerald' as const, subtitle: 'Best performing channel' },
+    ]
+
+    const directorKPIs = [
+      { title: 'Hiring Velocity', value: '28', change: '234 total apps', trend: 'up' as const, icon: TrendingUp, color: 'orange' as const, subtitle: 'Total hires' },
+      { title: 'Quality of Hire', value: '4.5', change: '92% retention @ 3mo', trend: 'up' as const, icon: MessageSquare, color: 'green' as const, subtitle: 'Performance rating + retention' },
+            { title: 'Cost Per Hire', value: '$4,200', change: '+$300 vs last quarter', trend: 'up' as const, icon: DollarSign, color: 'orange' as const, subtitle: 'Average recruitment cost' },
+      { title: 'Recruitment ROI', value: '3.2x', change: 'Quality/retention rising', trend: 'up' as const, icon: PieChart, color: 'green' as const, subtitle: 'Return on investment' },
+      { title: 'Total Candidates', value: '342', change: '156 active', trend: 'neutral' as const, icon: Users, color: 'emerald' as const, subtitle: 'In database' },
+    ]
+
+    // Recruiter uses backend data
+    if (selectedRole === 'recruiter') {
+      if (!kpis) return []
+      const submittedToInterview = kpis.totalApplications > 0
+        ? Math.round((kpis.interviewCount / kpis.totalApplications) * 100)
+        : 0
+
+      return [
+        { title: 'My Open Reqs', value: String(kpis.openJobs), change: `${kpis.draftJobs} drafts`, trend: kpis.openJobs > 0 ? 'neutral' as const : 'alert' as const, icon: Briefcase, color: 'emerald' as const, subtitle: 'Active open positions' },
+        { title: 'Candidates in Pipeline', value: String(kpis.activeCandidates), change: `${kpis.newThisWeek} new this week`, trend: kpis.newThisWeek > 0 ? 'up' as const : 'neutral' as const, icon: Users, color: 'orange' as const, subtitle: 'Across all stages' },
+        { title: 'Screening', value: String(kpis.screeningCount), change: `${kpis.interviewCount} in interview`, trend: 'neutral' as const, icon: Target, color: 'green' as const, subtitle: 'CV screening stage' },
+        { title: 'Avg Interview Score', value: kpis.avgInterviewScore > 0 ? `${kpis.avgInterviewScore}` : 'N/A', change: `${kpis.interviewCount} interviewed`, trend: kpis.avgInterviewScore >= 70 ? 'up' as const : 'neutral' as const, icon: Clock, color: 'purple' as const, subtitle: 'Average AI interview score' },
+        { title: 'Submittal Quality', value: `${submittedToInterview}%`, change: `${kpis.interviewCount} advanced`, trend: submittedToInterview >= 40 ? 'up' as const : 'down' as const, icon: CheckCircle, color: 'emerald' as const, subtitle: 'Screening to interview rate' },
+        { title: 'Sourcing Activity', value: '87%', change: 'Target: 80%', trend: 'up' as const, icon: Activity, color: 'emerald' as const, subtitle: 'Current bottleneck' },
+      ]
+    }
+
+    // Return static data for Manager and Director
+    if (selectedRole === 'manager') return managerKPIs
+    return directorKPIs
+  }
+
+  const currentKPIs = buildRoleKPIs()
 
   // KPI calculation explanations
   const kpiExplanations: Record<string, { calculation: string; dataContext: string }> = {
     'My Open Reqs': {
-      calculation: 'Count of all active job requisitions currently assigned to you that are accepting applications.',
+      calculation: 'Count of all active job requisitions currently open and accepting applications.',
       dataContext: 'Each row shows a job posting with days open, number of candidates in pipeline, and current status.',
     },
     'Candidates in Pipeline': {
-      calculation: 'Total number of active candidates across all stages of your assigned roles, excluding rejected/hired.',
-      dataContext: 'Shows each candidate, their current stage, days in that stage, and priority level for action.',
+      calculation: 'Total number of active candidates across all stages, excluding rejected/hired/withdrawn.',
+      dataContext: 'Shows recent candidates, their current stage, and application date.',
+    },
+    'Screening': {
+      calculation: 'Count of candidates currently in the CV screening stage.',
+      dataContext: 'Candidates awaiting or undergoing CV evaluation.',
+    },
+    'Avg Interview Score': {
+      calculation: 'Average AI interview score across all completed interviews.',
+      dataContext: 'Recent candidates with their interview scores.',
+    },
+    'Submittal Quality': {
+      calculation: 'Percentage of submitted candidates who advance to interview stage.',
+      dataContext: 'Pipeline breakdown by job showing conversion rates.',
     },
     'Sourcing Activity': {
       calculation: 'Percentage of successful responses from outreach attempts across all sourcing channels this week.',
       dataContext: 'Breakdown by channel showing outreach volume, responses received, conversion rates, and quality assessment.',
     },
-    'Avg Response Time': {
-      calculation: 'Average time taken to respond to candidate inquiries, calculated from inquiry timestamp to response sent.',
-      dataContext: 'Response times by inquiry type with volume count and performance against target SLA.',
-    },
-    'Submittal Quality': {
-      calculation: 'Percentage of submitted candidates who advance to interview stage (Submissions → Interviews ratio).',
-      dataContext: 'Shows submittal-to-interview conversion rate by position with trend indicators.',
-    },
-    'Time in Stage (Avg)': {
-      calculation: 'Average number of days candidates spend in each stage before moving to next stage or disposition.',
-      dataContext: 'Stage-by-stage breakdown identifying bottlenecks where candidates are spending excessive time.',
-    },
     'Team Pipeline Health': {
-      calculation: 'Aggregate view of team capacity showing total candidates managed and stages with delays (bottlenecks).',
-      dataContext: 'Per-recruiter metrics showing workload, bottleneck count, average stage time, and overall efficiency rating.',
+      calculation: 'Total active candidates across all team members.',
+      dataContext: 'Per-recruiter metrics showing workload and active candidates.',
     },
     'Time to Fill (Avg)': {
-      calculation: 'Average days from job posting date to offer acceptance, measured across all closed positions.',
-      dataContext: 'Time to fill by position type compared to target goals with variance and status indicators.',
+      calculation: 'Average days from application to hire for completed hires.',
+      dataContext: 'Pipeline breakdown by job with days open.',
     },
     'Offer Acceptance Rate': {
-      calculation: 'Percentage of offers extended that are accepted by candidates (Accepted Offers ÷ Total Offers).',
-      dataContext: 'Monthly trend showing offers made, acceptances, rate percentage, and directional trend.',
+      calculation: 'Percentage of offers accepted out of all decided offers.',
+      dataContext: 'Offer stage metrics.',
     },
-    'Team Capacity Load': {
-      calculation: 'Team capacity utilization as percentage (Active Reqs ÷ Standard Capacity × 100). Over 100% indicates overload.',
-      dataContext: 'Individual recruiter workloads showing active requisitions vs capacity with load percentage and status flags.',
+    'Team Capacity': {
+      calculation: 'Number of active team members and their workload.',
+      dataContext: 'Per-recruiter active jobs and candidates.',
     },
-    'HM Satisfaction': {
-      calculation: 'Average satisfaction rating from hiring manager surveys on a 5-point scale, weighted by recency.',
-      dataContext: 'Satisfaction scores by hiring manager with verbatim feedback and survey timing.',
+    'Total Hired': {
+      calculation: 'Total number of candidates who reached the hired stage.',
+      dataContext: 'Recent hires with details.',
     },
-    'Source Quality (Team)': {
-      calculation: 'Effectiveness ranking of sourcing channels based on interview rate and offer rate combined metrics.',
-      dataContext: 'Channel performance showing candidate volume, interview conversion, offer conversion, and effectiveness rating.',
+    'Source Quality': {
+      calculation: 'Effectiveness ranking of sourcing channels by conversion rate.',
+      dataContext: 'Channel performance showing candidate volume and conversion.',
     },
     'Hiring Velocity': {
-      calculation: 'Number of hires completed per month compared to hiring plan targets.',
-      dataContext: 'Monthly hiring performance vs plan with variance calculation and fill rate percentage.',
+      calculation: 'Total hires completed.',
+      dataContext: 'Hiring performance overview.',
     },
-    'Quality of Hire': {
-      calculation: 'Average performance rating of new hires combined with 6-month retention rate as quality indicator.',
-      dataContext: 'Cohort analysis showing performance ratings, retention metrics, and quality index by hiring period.',
+    'Pipeline Conversion': {
+      calculation: 'Percentage of applications that result in a hire.',
+      dataContext: 'Pipeline funnel metrics.',
     },
-    'Forecast vs Actual': {
-      calculation: 'Comparison of forecasted headcount growth vs actual hires closed, showing plan attainment percentage.',
-      dataContext: 'Departmental forecast accuracy with variance from plan and business impact assessment.',
+    'Open Positions': {
+      calculation: 'Count of currently open job postings.',
+      dataContext: 'Active job postings with candidate counts.',
     },
-    'Cost Per Hire': {
-      calculation: 'Total recruitment costs divided by number of hires (Agency fees + Job boards + Internal costs ÷ Hires).',
-      dataContext: 'Quarterly cost trends showing per-hire expense, total hiring volume, and aggregate spend.',
+    'Offer Acceptance': {
+      calculation: 'Percentage of offers accepted.',
+      dataContext: 'Offer stage details.',
     },
-    'Recruitment ROI': {
-      calculation: 'Value created by quality hires divided by total recruitment investment (Quality × Retention ÷ Cost).',
-      dataContext: 'ROI components showing investment, value created, quality metrics, and retention impact.',
-    },
-    'Diversity Pipeline': {
-      calculation: 'Percentage of candidates from underrepresented groups in active pipeline compared to target goals.',
-      dataContext: 'Diversity metrics by category showing current percentage, candidate count, target, and progress trend.',
+    'Total Candidates': {
+      calculation: 'Total unique candidates in the database for this company.',
+      dataContext: 'Candidate overview.',
     },
   }
 
-  // Comprehensive data for all KPI drill-downs
-  const getKPIDetails = (kpiTitle: string) => {
+  // Build KPI drill-down data from real API data (Recruiter) or static data (Manager/Director)
+  const getKPIDetails = (kpiTitle: string): any[] => {
+    // Static mock data for Manager and Director drill-downs
+    if (selectedRole === 'manager') {
+      const managerDetails: Record<string, any[]> = {
+        'Team Pipeline Health': [
+          { recruiter: 'Sarah Johnson', activeJobs: 3, activeCandidates: 42, totalHired: 8 },
+          { recruiter: 'Mike Chen', activeJobs: 2, activeCandidates: 35, totalHired: 6 },
+          { recruiter: 'Emily Davis', activeJobs: 4, activeCandidates: 38, totalHired: 7 },
+          { recruiter: 'Alex Kumar', activeJobs: 2, activeCandidates: 25, totalHired: 4 },
+          { recruiter: 'Jessica Lee', activeJobs: 1, activeCandidates: 16, totalHired: 3 },
+        ],
+                'Offer Acceptance Rate': [
+          { recruiter: 'Sarah Johnson', offers: 8, accepted: 6, rate: '75%' },
+          { recruiter: 'Mike Chen', offers: 10, accepted: 7, rate: '70%' },
+          { recruiter: 'Emily Davis', offers: 12, accepted: 9, rate: '75%' },
+          { recruiter: 'Alex Kumar', offers: 5, accepted: 3, rate: '60%' },
+        ],
+        'Team Capacity Load': [
+          { recruiter: 'Sarah Johnson', activeReqs: 8, capacity: 6, loadPercent: '133%', status: 'Overloaded' },
+          { recruiter: 'Mike Davis', activeReqs: 7, capacity: 6, loadPercent: '117%', status: 'High' },
+          { recruiter: 'Jennifer Chen', activeReqs: 9, capacity: 6, loadPercent: '150%', status: 'Critical' },
+          { recruiter: 'Alex Kumar', activeReqs: 5, capacity: 6, loadPercent: '83%', status: 'Optimal' },
+        ],
+        'Hiring Manager': [
+          { managerName: 'John Smith', approved: 12, pending: 3, rejected: 2 },
+          { managerName: 'Sarah Johnson', approved: 8, pending: 2, rejected: 1 },
+          { managerName: 'Mike Chen', approved: 6, pending: 1, rejected: 3 },
+          { managerName: 'Emily Davis', approved: 10, pending: 4, rejected: 2 },
+          { managerName: 'Alex Kumar', approved: 5, pending: 2, rejected: 1 },
+        ],
+        'Source Quality': [
+          { source: 'LinkedIn', candidates: 85, advanced: 42, hired: 12, conversionRate: '42%' },
+          { source: 'Indeed', candidates: 62, advanced: 28, hired: 8, conversionRate: '38%' },
+          { source: 'Referrals', candidates: 24, advanced: 18, hired: 6, conversionRate: '75%' },
+          { source: 'GitHub', candidates: 31, advanced: 15, hired: 2, conversionRate: '48%' },
+        ],
+      }
+      return managerDetails[kpiTitle] || []
+    }
+
+    if (selectedRole === 'director') {
+      const directorDetails: Record<string, any[]> = {
+        'Hiring Velocity': [
+          { month: 'January', hires: 8, plan: 7, variance: '+1', trend: 'up', fillRate: '114%' },
+          { month: 'February', hires: 6, plan: 7, variance: '-1', trend: 'down', fillRate: '86%' },
+          { month: 'March', hires: 10, plan: 7, variance: '+3', trend: 'up', fillRate: '143%' },
+          { month: 'April (Projected)', hires: 5, plan: 7, variance: '-2', trend: 'down', fillRate: '71%' },
+        ],
+        'Quality of Hire': [
+          { cohort: 'Q1 2024 Hires', avgRating: '4.5', retention3mo: '92%', performanceIndex: 'High', count: 24 },
+          { cohort: 'Q4 2023 Hires', avgRating: '4.3', retention3mo: '88%', performanceIndex: 'Medium-High', count: 18 },
+          { cohort: 'Q3 2023 Hires', avgRating: '4.6', retention3mo: '94%', performanceIndex: 'High', count: 21 },
+          { cohort: 'Q2 2023 Hires', avgRating: '4.2', retention3mo: '85%', performanceIndex: 'Medium', count: 19 },
+        ],
+                'Cost Per Hire': [
+          { 
+            quarter: 'Q1 2024', 
+            hired: 30, 
+            recruitmentCost: 30000, 
+            jobBoardCost: 3000, 
+            agencyCost: 100000, 
+            costToCompany: 133000, 
+            clientRevenue: 200000, 
+            totalSpend: -67000 
+          },
+        ],
+        'Recruitment ROI': [
+          { metric: 'Investment', value: '$320K', period: 'Annual', benchmark: 'Industry Avg' },
+          { metric: 'Value Created', value: '$1.02M', period: 'Annual', benchmark: '3.2x ROI' },
+          { metric: 'Quality Score', value: '4.5/5', period: 'YTD', benchmark: 'Top Quartile' },
+          { metric: 'Retention Impact', value: '92%', period: '6 months', benchmark: 'Above Target' },
+        ],
+        'Total Candidates': [
+          { total: 342, active: 156, hired: 28, rejected: 158 },
+        ],
+      }
+      return directorDetails[kpiTitle] || []
+    }
+
+    // Recruiter uses backend data
+    if (!dashboardData) return []
+
     const detailData: Record<string, any[]> = {
-      // Recruiter KPIs
-      'My Open Reqs': [
-        { position: 'Senior Full Stack Developer', department: 'Engineering', openDays: 12, candidates: 8, status: 'Active' },
-        { position: 'Product Manager', department: 'Product', openDays: 8, candidates: 5, status: 'Active' },
-        { position: 'UX Designer', department: 'Design', openDays: 15, candidates: 12, status: 'Active' },
-        { position: 'DevOps Engineer', department: 'Engineering', openDays: 5, candidates: 3, status: 'Active' },
-      ],
-      'Candidates in Pipeline': [
-        { name: 'Sarah Chen', position: 'Senior Developer', stage: 'CV Screening', daysInStage: 2, priority: 'High' },
-        { name: 'Michael Brown', position: 'Product Manager', stage: 'AI Interview', daysInStage: 1, priority: 'Medium' },
-        { name: 'Emma Wilson', position: 'UX Designer', stage: 'Hiring Manager', daysInStage: 5, priority: 'High' },
-        { name: 'John Davis', position: 'DevOps Engineer', stage: 'Offer Stage', daysInStage: 3, priority: 'High' },
-      ],
+      'My Open Reqs': (dashboardData.pipelineByJob || []).map(j => ({
+        position: j.title,
+        department: j.department,
+        openDays: j.openDays,
+        candidates: j.totalCandidates,
+        status: j.status === 'open' ? 'Active' : j.status,
+      })),
+      'Candidates in Pipeline': (dashboardData.recentCandidates || []).map(c => ({
+        name: c.name,
+        position: c.position,
+        stage: c.status,
+        experience: c.experience,
+        applied: c.appliedDate,
+      })),
+      'Screening': (dashboardData.recentCandidates || []).filter(c => c.status === 'Screening').map(c => ({
+        name: c.name,
+        position: c.position,
+        cvScore: c.cvScore != null ? `${c.cvScore}/100` : 'Pending',
+        applied: c.appliedDate,
+      })),
+      'Avg Interview Score': (dashboardData.recentCandidates || []).filter(c => c.interviewScore != null).map(c => ({
+        name: c.name,
+        position: c.position,
+        interviewScore: `${c.interviewScore}/100`,
+        status: c.status,
+      })),
+      'Submittal Quality': (dashboardData.pipelineByJob || []).map(j => ({
+        position: j.title,
+        submitted: j.totalCandidates,
+        interviewed: j.aiInterview + j.hiringManager + j.offer + j.hired,
+        rate: j.totalCandidates > 0 ? `${Math.round(((j.aiInterview + j.hiringManager + j.offer + j.hired) / j.totalCandidates) * 100)}%` : '0%',
+      })),
       'Sourcing Activity': [
-        { channel: 'LinkedIn', outreach: 45, responses: 38, conversionRate: '84%', quality: 'High' },
-        { channel: 'GitHub', outreach: 32, responses: 28, conversionRate: '87%', quality: 'High' },
-        { channel: 'Indeed', outreach: 28, responses: 18, conversionRate: '64%', quality: 'Medium' },
-        { channel: 'Referrals', outreach: 12, responses: 11, conversionRate: '92%', quality: 'High' },
+        { channel: 'LinkedIn', outreach: '45', responses: '38', conversionRate: '84%', quality: 'High' },
+        { channel: 'GitHub', outreach: '32', responses: '28', conversionRate: '87%', quality: 'High' },
+        { channel: 'Indeed', outreach: '28', responses: '18', conversionRate: '64%', quality: 'Medium' },
+        { channel: 'Referrals', outreach: '12', responses: '11', conversionRate: '92%', quality: 'High' },
       ],
-      'Avg Response Time': [
-        { inquiryType: 'Application Status', avgTime: '1.5h', count: 23, target: '2h', status: 'Good' },
-        { inquiryType: 'Interview Scheduling', avgTime: '2.8h', count: 15, target: '3h', status: 'Good' },
-        { inquiryType: 'General Questions', avgTime: '3.2h', count: 18, target: '4h', status: 'Good' },
-        { inquiryType: 'Offer Discussions', avgTime: '1.2h', count: 8, target: '2h', status: 'Excellent' },
-      ],
-      'Submittal Quality': [
-        { position: 'Senior Developer', submitted: 12, interviewed: 8, rate: '67%', trend: 'up' },
-        { position: 'Product Manager', submitted: 8, interviewed: 5, rate: '62%', trend: 'stable' },
-        { position: 'UX Designer', submitted: 15, interviewed: 7, rate: '47%', trend: 'down' },
-        { position: 'DevOps Engineer', submitted: 6, interviewed: 4, rate: '67%', trend: 'up' },
-      ],
-      'Time in Stage (Avg)': [
-        { stage: 'CV Screening', avgDays: '2.3d', count: 18, bottleneck: false },
-        { stage: 'AI Interview', avgDays: '3.1d', count: 12, bottleneck: false },
-        { stage: 'Hiring Manager', avgDays: '6.8d', count: 8, bottleneck: true },
-        { stage: 'Offer Stage', avgDays: '2.5d', count: 3, bottleneck: false },
-      ],
-      
-      // Manager KPIs
-      'Team Pipeline Health': [
-        { recruiter: 'Sarah Johnson', totalCandidates: 42, bottlenecks: 8, avgTimeInStage: '4.2d', efficiency: '85%' },
-        { recruiter: 'Mike Davis', totalCandidates: 38, bottlenecks: 5, avgTimeInStage: '3.8d', efficiency: '90%' },
-        { recruiter: 'Jennifer Chen', totalCandidates: 45, bottlenecks: 10, avgTimeInStage: '5.1d', efficiency: '78%' },
-        { recruiter: 'Alex Kumar', totalCandidates: 31, bottlenecks: 3, avgTimeInStage: '3.5d', efficiency: '92%' },
-      ],
-      'Time to Fill (Avg)': [
-        { position: 'Engineering Roles', avgDays: 35, target: 28, variance: '+7', status: 'Behind' },
-        { position: 'Product Roles', avgDays: 28, target: 28, variance: '0', status: 'On Track' },
-        { position: 'Design Roles', avgDays: 42, target: 28, variance: '+14', status: 'Critical' },
-        { position: 'Sales Roles', avgDays: 25, target: 28, variance: '-3', status: 'Ahead' },
-      ],
-      'Offer Acceptance Rate': [
-        { month: 'January', offers: 8, accepted: 6, rate: '75%', trend: 'up' },
-        { month: 'February', offers: 10, accepted: 7, rate: '70%', trend: 'down' },
-        { month: 'March', offers: 12, accepted: 9, rate: '75%', trend: 'up' },
-        { month: 'April (MTD)', offers: 5, accepted: 3, rate: '60%', trend: 'down' },
-      ],
-      'Team Capacity Load': [
-        { recruiter: 'Sarah Johnson', activeReqs: 8, capacity: 6, loadPercent: '133%', status: 'Overloaded' },
-        { recruiter: 'Mike Davis', activeReqs: 7, capacity: 6, loadPercent: '117%', status: 'High' },
-        { recruiter: 'Jennifer Chen', activeReqs: 9, capacity: 6, loadPercent: '150%', status: 'Critical' },
-        { recruiter: 'Alex Kumar', activeReqs: 5, capacity: 6, loadPercent: '83%', status: 'Optimal' },
-      ],
-      'HM Satisfaction': [
-        { hiringManager: 'David Lee (Eng)', rating: 4.5, feedback: 'Excellent communication', lastSurvey: '2 weeks ago' },
-        { hiringManager: 'Maria Garcia (Product)', rating: 4.2, feedback: 'Good quality candidates', lastSurvey: '1 week ago' },
-        { hiringManager: 'Tom Wilson (Design)', rating: 3.8, feedback: 'Needs faster response', lastSurvey: '3 days ago' },
-        { hiringManager: 'Lisa Chen (Sales)', rating: 4.6, feedback: 'Outstanding service', lastSurvey: '1 week ago' },
-      ],
-      'Source Quality (Team)': [
-        { source: 'GitHub', candidates: 45, interviewRate: '78%', offerRate: '42%', effectiveness: 'Excellent' },
-        { source: 'LinkedIn', candidates: 82, interviewRate: '52%', offerRate: '28%', effectiveness: 'Good' },
-        { source: 'Referrals', candidates: 28, interviewRate: '85%', offerRate: '55%', effectiveness: 'Excellent' },
-        { source: 'Indeed', candidates: 64, interviewRate: '38%', offerRate: '15%', effectiveness: 'Fair' },
-      ],
-      
-      // Director KPIs
-      'Hiring Velocity': [
-        { month: 'January', hires: 8, plan: 7, variance: '+1', trend: 'up', fillRate: '114%' },
-        { month: 'February', hires: 6, plan: 7, variance: '-1', trend: 'down', fillRate: '86%' },
-        { month: 'March', hires: 10, plan: 7, variance: '+3', trend: 'up', fillRate: '143%' },
-        { month: 'April (Projected)', hires: 5, plan: 7, variance: '-2', trend: 'down', fillRate: '71%' },
-      ],
-      'Quality of Hire': [
-        { cohort: 'Q1 2024 Hires', avgRating: 4.5, retention6mo: '92%', performanceIndex: 'High', count: 24 },
-        { cohort: 'Q4 2023 Hires', avgRating: 4.3, retention6mo: '88%', performanceIndex: 'Medium-High', count: 18 },
-        { cohort: 'Q3 2023 Hires', avgRating: 4.6, retention6mo: '94%', performanceIndex: 'High', count: 21 },
-        { cohort: 'Q2 2023 Hires', avgRating: 4.2, retention6mo: '85%', performanceIndex: 'Medium', count: 19 },
-      ],
-      'Forecast vs Actual': [
-        { department: 'Engineering', forecast: 12, actual: 9, variance: '-25%', impact: 'High' },
-        { department: 'Product', forecast: 6, actual: 5, variance: '-17%', impact: 'Medium' },
-        { department: 'Sales', forecast: 10, actual: 11, variance: '+10%', impact: 'Low' },
-        { department: 'Design', forecast: 4, actual: 3, variance: '-25%', impact: 'Medium' },
-      ],
-      'Cost Per Hire': [
-        { quarter: 'Q1 2024', cost: '$4,200', volume: 24, totalSpend: '$100,800', trend: 'up' },
-        { quarter: 'Q4 2023', cost: '$3,900', volume: 18, totalSpend: '$70,200', trend: 'stable' },
-        { quarter: 'Q3 2023', cost: '$3,750', volume: 21, totalSpend: '$78,750', trend: 'down' },
-        { quarter: 'Q2 2023', cost: '$4,100', volume: 19, totalSpend: '$77,900', trend: 'up' },
-      ],
-      'Recruitment ROI': [
-        { metric: 'Investment', value: '$320K', period: 'Annual', benchmark: 'Industry Avg' },
-        { metric: 'Value Created', value: '$1.02M', period: 'Annual', benchmark: '3.2x ROI' },
-        { metric: 'Quality Score', value: '4.5/5', period: 'YTD', benchmark: 'Top Quartile' },
-        { metric: 'Retention Impact', value: '92%', period: '6 months', benchmark: 'Above Target' },
-      ],
-      'Diversity Pipeline': [
-        { category: 'Women in Tech', percentage: '45%', count: 38, target: '50%', trend: 'up' },
-        { category: 'Underrepresented Minorities', percentage: '38%', count: 32, target: '40%', trend: 'stable' },
-        { category: 'Veterans', percentage: '12%', count: 10, target: '10%', trend: 'up' },
-        { category: 'LGBTQ+', percentage: '15%', count: 13, target: '15%', trend: 'stable' },
-      ],
+      'Team Pipeline Health': (dashboardData.recruiters || []).map(r => ({
+        recruiter: r.name,
+        activeJobs: r.activeJobs,
+        activeCandidates: r.activeCandidates,
+        totalHired: r.hiredCount || 0,
+      })),
+      'Time to Fill (Avg)': (dashboardData.pipelineByJob || []).map(j => ({
+        position: j.title,
+        openDays: j.openDays,
+        hired: j.hired,
+        status: j.hired > 0 ? 'Filled' : 'Open',
+      })),
+      'Offer Acceptance Rate': [{
+        metric: 'Acceptance Rate',
+        value: `${dashboardData.kpis.offerAcceptanceRate}%`,
+        offersInProgress: dashboardData.kpis.offerCount,
+        hired: dashboardData.kpis.hiredCount,
+      }],
+      'Team Capacity': (dashboardData.recruiters || []).map(r => ({
+        recruiter: r.name,
+        email: r.email,
+        activeJobs: r.activeJobs,
+        activeCandidates: r.activeCandidates,
+      })),
+      'Total Hired': (dashboardData.recentCandidates || []).filter(c => c.status === 'Hired').map(c => ({
+        name: c.name,
+        position: c.position,
+        applied: c.appliedDate,
+      })),
+      'Source Quality': (dashboardData.sourceEffectiveness || []).map(s => ({
+        source: s.source,
+        candidates: s.total,
+        advanced: s.advanced,
+        hired: s.hired,
+        conversionRate: `${s.conversionRate}%`,
+      })),
+      'Hiring Velocity': [{
+        totalHires: dashboardData.kpis.hiredCount,
+        totalApplications: dashboardData.kpis.totalApplications,
+        conversionRate: dashboardData.kpis.totalApplications > 0 ? `${Math.round((dashboardData.kpis.hiredCount / dashboardData.kpis.totalApplications) * 100)}%` : '0%',
+      }],
+      'Pipeline Conversion': (dashboardData.pipelineByJob || []).map(j => ({
+        position: j.title,
+        total: j.totalCandidates,
+        hired: j.hired,
+        rate: j.totalCandidates > 0 ? `${Math.round((j.hired / j.totalCandidates) * 100)}%` : '0%',
+      })),
+      'Open Positions': (dashboardData.pipelineByJob || []).map(j => ({
+        position: j.title,
+        department: j.department,
+        candidates: j.totalCandidates,
+        openDays: j.openDays,
+      })),
+      'Offer Acceptance': [{
+        rate: `${dashboardData.kpis.offerAcceptanceRate}%`,
+        inOfferStage: dashboardData.kpis.offerCount,
+        hired: dashboardData.kpis.hiredCount,
+      }],
+      'Total Candidates': [{
+        total: dashboardData.kpis.totalCandidates,
+        active: dashboardData.kpis.activeCandidates,
+        hired: dashboardData.kpis.hiredCount,
+        rejected: dashboardData.kpis.rejectedCount,
+      }],
     }
     return detailData[kpiTitle] || []
   }
 
   return (
-    <div className="space-y-4 p-4">
+    <>
+      <OnboardingTour />
+      <div className="space-y-4 p-4">
       {/* Header with Role Selector */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
@@ -405,7 +509,7 @@ const roleDescriptions = {
                 <SelectContent>
                   <SelectItem value="all">All Recruiters</SelectItem>
                   {recruiters.map(r => (
-                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                    <SelectItem key={r.id} value={r.id}>{r.email}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -414,12 +518,21 @@ const roleDescriptions = {
         </div>
       </div>
 
+      {/* Loading State */}
+      {loading && <StatCardGridLoader count={6} />}
+
+      {/* Error State */}
+      {!loading && error && <ErrorState message={error} onRetry={fetchDashboard} />}
+
       {/* Role-Based KPI Cards - Compact */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      {!loading && !error && (<>
+      <div className={`grid grid-cols-2 sm:grid-cols-3 gap-1.5 justify-items-stretch ${
+          currentKPIs.length === 6 ? 'lg:grid-cols-6 xl:grid-cols-6' : 'lg:grid-cols-5 xl:grid-cols-5'
+        }`}>
         {currentKPIs.map((kpi) => {
           const Icon = kpi.icon
           const colorClasses = {
-            blue: 'bg-blue-100 text-blue-700',
+            blue: 'bg-emerald-100 text-emerald-700',
             green: 'bg-green-100 text-green-700',
             emerald: 'bg-emerald-100 text-emerald-700',
             purple: 'bg-purple-100 text-purple-700',
@@ -430,40 +543,40 @@ const roleDescriptions = {
           const getTrendIcon = () => {
             if (kpi.trend === 'up') return <TrendingUp className="w-3 h-3 text-green-600" />
             if (kpi.trend === 'down') return <TrendingDown className="w-3 h-3 text-red-600" />
-            if (kpi.trend === 'alert') return <AlertCircle className="w-3 h-3 text-orange-600" />
             return <Activity className="w-3 h-3 text-gray-600" />
           }
 
           return (
             <Card 
               key={kpi.title} 
-              className={`hover:shadow-lg transition-all cursor-pointer ${
-                selectedKPI === kpi.title ? 'ring-2 ring-blue-600 shadow-lg' : ''
+              className={`hover:shadow-lg transition-all cursor-pointer h-full ${
+                selectedKPI === kpi.title ? 'ring-2 ring-emerald-600 shadow-lg' : ''
               }`}
               onClick={() => setSelectedKPI(selectedKPI === kpi.title ? null : kpi.title)}
             >
-              <CardContent className="p-2">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[10px] font-medium text-gray-600 mb-0.5 truncate">
-                      {kpi.title}
+              <CardContent className="p-1.5 h-full">
+                <div className="flex flex-col h-full">
+                  <div className="flex items-start justify-between mb-1.5">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] font-medium text-gray-600 mb-0.5 truncate">
+                        {kpi.title}
+                      </div>
+                      <div className="text-lg font-bold text-gray-900">{kpi.value}</div>
                     </div>
-                    <div className="text-lg font-bold text-gray-900">{kpi.value}</div>
+                    <div className={`w-6 h-6 ${colorClasses} rounded-md flex items-center justify-center shrink-0 ml-1`}>
+                      <Icon className="w-3 h-3" />
+                    </div>
                   </div>
-                  <div className={`w-7 h-7 ${colorClasses} rounded-md flex items-center justify-center shrink-0 ml-1`}>
-                    <Icon className="w-3.5 h-3.5" />
+                  <div className="flex items-center gap-0.5 text-[10px] mt-auto">
+                    {getTrendIcon()}
+                    <span className={`font-medium truncate ${
+                      kpi.trend === 'up' ? 'text-green-600' : 
+                      kpi.trend === 'down' ? 'text-red-600' : 
+                      'text-gray-600'
+                    }`}>
+                      {kpi.change}
+                    </span>
                   </div>
-                </div>
-                <div className="flex items-center gap-0.5 text-[10px]">
-                  {getTrendIcon()}
-                  <span className={`font-medium truncate ${
-                    kpi.trend === 'up' ? 'text-green-600' : 
-                    kpi.trend === 'down' ? 'text-red-600' : 
-                    kpi.trend === 'alert' ? 'text-orange-600' : 
-                    'text-gray-600'
-                  }`}>
-                    {kpi.change}
-                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -473,8 +586,8 @@ const roleDescriptions = {
 
       {/* KPI Detail View */}
       {selectedKPI && (
-        <Card className="border-2 border-blue-200">
-          <CardHeader className="bg-blue-50 pb-2">
+        <Card className="border-2 border-emerald-200">
+          <CardHeader className="bg-emerald-50 pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">
                 {selectedKPI} - Detailed View
@@ -492,7 +605,7 @@ const roleDescriptions = {
           <CardContent className="p-2 pt-0">
             {/* KPI Explanation Section */}
             {kpiExplanations[selectedKPI] && (
-              <div className="mb-2 p-2 bg-blue-50 border-l-2 border-blue-500 rounded text-xs">
+              <div className="mb-2 p-2 bg-emerald-50 border-l-2 border-emerald-500 rounded text-xs">
                 <div className="space-y-1">
                   <div>
                     <span className="font-semibold text-gray-900">How calculated:</span>{' '}
@@ -557,6 +670,8 @@ const roleDescriptions = {
           </div>
         </Card>
       )}
+      </>)}
     </div>
+    </>
   )
 }

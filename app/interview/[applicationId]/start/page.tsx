@@ -1,12 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { useParams, useSearchParams } from "next/navigation"
+import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Video, CircleDot, Heart, AlertCircle } from "lucide-react"
+import { Video, CircleDot, Heart, AlertCircle, Loader2 } from "lucide-react"
 import {
   Accordion,
   AccordionContent,
@@ -16,6 +16,7 @@ import {
 
 export default function InterviewStartPage() {
   const params = useParams()
+  const router = useRouter()
   const search = useSearchParams()
   const applicationId = (params?.applicationId as string) || ""
 
@@ -26,6 +27,7 @@ export default function InterviewStartPage() {
   const [loading, setLoading] = useState(true)
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false)
   const [showDisclaimerWarning, setShowDisclaimerWarning] = useState(false)
+  const [isStarting, setIsStarting] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -163,23 +165,29 @@ export default function InterviewStartPage() {
               <Button 
                 size="lg" 
                 className={`w-full md:w-auto gap-2 transition-all duration-300 ${
-                  disclaimerAccepted 
+                  disclaimerAccepted && !isStarting
                     ? 'bg-black text-white hover:bg-gray-900 shadow-lg hover:shadow-xl hover:scale-105' 
                     : 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-60'
                 }`}
-                disabled={!disclaimerAccepted}
+                disabled={!disclaimerAccepted || isStarting}
                 onClick={() => {
                   if (!disclaimerAccepted) {
                     setShowDisclaimerWarning(true)
                     return
                   }
+                  setIsStarting(true)
+                  router.push(`/interview/${applicationId}/verify`)
                 }}
               >
-                <Link href={`/interview/${applicationId}/verify`} className={disclaimerAccepted ? '' : 'pointer-events-none'}>
+                {isStarting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin" /> Starting Interview...
+                  </span>
+                ) : (
                   <span className="flex items-center gap-2">
                     <Video className="h-5 w-5" /> Start Video Interview
                   </span>
-                </Link>
+                )}
               </Button>
             </div>
           </div>

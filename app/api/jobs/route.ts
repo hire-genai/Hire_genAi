@@ -121,12 +121,14 @@ export async function GET(request: NextRequest) {
       try {
         if (job.created_by) {
           const user = await DatabaseService.query(
-            `SELECT full_name, email FROM users WHERE id = $1::uuid`,
+            `SELECT full_name, email FROM users WHERE email = $1`,
             [job.created_by]
           )
           if (user.length > 0) {
             job.recruiter_name = user[0].full_name
             job.recruiter_email = user[0].email
+          } else {
+            job.recruiter_email = job.created_by
           }
         }
       } catch {
@@ -272,8 +274,7 @@ export async function POST(request: NextRequest) {
       targetSources,
       diversityGoals,
       diversityTargetPercentage,
-      // Metrics
-      jobOpenDate,
+      // Metrics (removed jobOpenDate - will be set automatically)
       expectedHiresPerMonth,
       targetOfferAcceptanceRate,
       candidateResponseTimeSLA,
@@ -294,21 +295,65 @@ export async function POST(request: NextRequest) {
       isDraft
     } = body
 
-    // Validate company/user exist; for mock auth, auto-create placeholders if missing
+    // Validate company/user exist; auto-create from real session data if missing
+    const sessionUserName: string = body.userName || body.userFullName || 'User'
+    const sessionUserEmail: string = body.userEmail || `user_${userId}@hiregen.ai`
+    const sessionCompanyName: string = body.companyName || 'Company'
+
+    // UUID validation helper
+    const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+
+    console.log('🔍 Job creation validation:', { 
+      userId, 
+      companyId, 
+      sessionUserName, 
+      sessionUserEmail, 
+      sessionCompanyName,
+      userIdIsUUID: isValidUUID(userId || ''),
+      companyIdIsUUID: isValidUUID(companyId || '')
+    })
+
+    // If userId or companyId are not valid UUIDs, we need to look up by email
+    if (!isValidUUID(userId || '') || !isValidUUID(companyId || '')) {
+      console.log('⚠️ Invalid UUID detected, looking up user by email...')
+      try {
+        const userByEmail = await DatabaseService.query(
+          `SELECT u.id as user_id, u.company_id FROM users u WHERE u.email = $1 LIMIT 1`,
+          [sessionUserEmail]
+        )
+        if (userByEmail.length > 0) {
+          console.log('✅ Found user by email:', userByEmail[0])
+          userId = userByEmail[0].user_id
+          companyId = userByEmail[0].company_id
+        } else {
+          console.error('❌ User not found by email and IDs are not valid UUIDs')
+          return NextResponse.json(
+            { error: 'Invalid session. Please clear your browser data (localStorage) and sign in again.' },
+            { status: 400 }
+          )
+        }
+      } catch (lookupError: any) {
+        console.error('❌ Email lookup failed:', lookupError.message)
+        return NextResponse.json(
+          { error: 'Session validation failed. Please clear your browser data and sign in again.' },
+          { status: 400 }
+        )
+      }
+    }
+
     try {
       const companyExists = await DatabaseService.query(
         `SELECT id FROM companies WHERE id = $1::uuid LIMIT 1`,
         [companyId]
       )
       if (companyExists.length === 0) {
-        // Create a lightweight company record for mock auth sessions
         try {
           await DatabaseService.query(
             `INSERT INTO companies (id, name) VALUES ($1::uuid, $2) ON CONFLICT (id) DO NOTHING`,
-            [companyId, 'Mock Company']
+            [companyId, sessionCompanyName]
           )
         } catch (createCompanyError) {
-          console.error('Failed to create placeholder company:', createCompanyError)
+          console.error('Failed to create company record:', createCompanyError)
           return NextResponse.json(
             { error: 'Company not found. Please sign in again.' },
             { status: 400 }
@@ -321,21 +366,42 @@ export async function POST(request: NextRequest) {
         [userId]
       )
       if (userExists.length === 0) {
-        // Create a lightweight user record for mock auth sessions
-        const placeholderEmail = `mock_${userId}@example.com`
+        console.log('🔄 User not found in DB, creating directly...')
         try {
+          // Direct insert - more reliable than API call
           await DatabaseService.query(
-            `INSERT INTO users (id, company_id, email, full_name, status) VALUES ($1::uuid, $2::uuid, $3, $4, 'active')
-             ON CONFLICT (id) DO NOTHING`,
-            [userId, companyId, placeholderEmail, 'Mock User']
+            `INSERT INTO users (id, company_id, email, full_name, status, created_at)
+             VALUES ($1::uuid, $2::uuid, $3, $4, 'active', NOW())
+             ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name`,
+            [userId, companyId, sessionUserEmail, sessionUserName]
           )
-        } catch (createUserError) {
-          console.error('Failed to create placeholder user:', createUserError)
-          return NextResponse.json(
-            { error: 'User not found. Please sign in again.' },
-            { status: 400 }
-          )
+          console.log('✅ User created directly:', sessionUserEmail, userId)
+        } catch (createUserError: any) {
+          console.error('❌ Failed to create user:', createUserError.message)
+          // Try to find existing user by email
+          try {
+            const existingByEmail = await DatabaseService.query(
+              `SELECT id FROM users WHERE email = $1 LIMIT 1`,
+              [sessionUserEmail]
+            )
+            if (existingByEmail.length > 0) {
+              console.log('⚠️ Found existing user by email, using ID:', existingByEmail[0].id)
+              userId = existingByEmail[0].id
+            } else {
+              return NextResponse.json(
+                { error: `Failed to create user: ${createUserError.message}. Please log out and sign in again.` },
+                { status: 400 }
+              )
+            }
+          } catch (lookupError: any) {
+            return NextResponse.json(
+              { error: `User lookup failed: ${lookupError.message}. Please log out and sign in again.` },
+              { status: 400 }
+            )
+          }
         }
+      } else {
+        console.log('✅ User exists in DB:', userId)
       }
     } catch (fkCheckError) {
       console.error('Failed to validate user/company before insert:', fkCheckError)
@@ -364,6 +430,27 @@ export async function POST(request: NextRequest) {
 
     // Insert job posting
     let newJob: any
+    
+    // Debug: Log all field values being inserted
+    console.log('[Jobs POST] Inserting job with fields:', {
+      jobTitle, department, location, jobType: normalizedJobType, workMode: normalizedWorkMode,
+      salaryMin, salaryMax, currency, applicationDeadline, expectedStartDate,
+      jobDescription: jobDescription?.substring(0, 50) + '...',
+      responsibilities: responsibilities?.length,
+      requiredSkills: requiredSkills?.length,
+      preferredSkills: preferredSkills?.length,
+      experienceYears, requiredEducation, certificationsRequired, languagesRequired,
+      hiringManager, hiringManagerEmail, numberOfOpenings, hiringPriority,
+      clientCompanyName, enableScreeningQuestions
+    })
+    
+    console.log('🚀 About to create job with:', { 
+      companyId, 
+      userId, 
+      jobTitle,
+      isDraft: isDraft ? 'draft' : 'published'
+    })
+    
     try {
       const jobResult = await DatabaseService.query(
         `INSERT INTO job_postings (
@@ -375,24 +462,26 @@ export async function POST(request: NextRequest) {
           languages_required, hiring_manager_name, hiring_manager_email,
           number_of_openings, hiring_priority, target_time_to_fill_days,
           budget_allocated, target_sources, diversity_goals, diversity_target_pct,
-          job_open_date, expected_hires_per_month, target_offer_acceptance_pct,
+          expected_hires_per_month, target_offer_acceptance_pct,
           candidate_response_sla_hrs, interview_schedule_sla_hrs,
           cost_per_hire_budget, agency_fee_pct, job_board_costs,
           auto_schedule_interview, interview_link_expiry_hours,
           enable_screening_questions, screening_questions,
           client_company_name,
-          status, published_at
+          status, published_at, job_open_date
         ) VALUES (
-          $1::uuid, $2::uuid, $3, $4, $5, $6, $7,
-          $8, $9, $10, $11, $12, $13, $14, $15, $16,
-          $17, $18, $19, $20, $21, $22, $23, $24,
-          $25, $26, $27, $28, $29, $30, $31, $32,
-          $33, $34, $35, $36, $37, $38, $39, $40,
-          $41, $42, $43, $44,
-          $45, $46
+          $1::uuid, $2, $3, $4, $5,
+          $6::job_type, $7::work_mode, $8, $9, $10,
+          $11, $12, $13, $14, $15, $16,
+          $17, $18, $19, $20, $21, $22,
+          $23, $24::hiring_priority, $25, $26, $27, $28, $29,
+          $30, $31, $32, $33, $34,
+          $35, $36, $37, $38, $39,
+          $40, $41, $42,
+          $43::job_status, $44, $45
         ) RETURNING *`,
         [
-          companyId, userId, jobTitle,
+          companyId, sessionUserEmail, jobTitle,
           department || null, location || null,
           normalizedJobType, normalizedWorkMode,
           salaryMin ? parseFloat(salaryMin) : null,
@@ -403,7 +492,7 @@ export async function POST(request: NextRequest) {
           responsibilities?.filter((r: string) => r.trim()) || [],
           requiredSkills?.filter((s: string) => s.trim()) || [],
           preferredSkills?.filter((s: string) => s.trim()) || [],
-          experienceYears ? parseInt(experienceYears) : null,
+          experienceYears || null,
           requiredEducation || null, certificationsRequired || null,
           languagesRequired || null,
           hiringManager || null, hiringManagerEmail || null,
@@ -413,7 +502,6 @@ export async function POST(request: NextRequest) {
           budgetAllocated ? parseFloat(budgetAllocated) : null,
           targetSources || [], diversityGoals || false,
           diversityTargetPercentage ? parseFloat(diversityTargetPercentage) : null,
-          jobOpenDate || new Date().toISOString().split('T')[0],
           expectedHiresPerMonth ? parseInt(expectedHiresPerMonth) : null,
           targetOfferAcceptanceRate ? parseFloat(targetOfferAcceptanceRate) : null,
           candidateResponseTimeSLA ? parseInt(candidateResponseTimeSLA) : null,
@@ -426,7 +514,9 @@ export async function POST(request: NextRequest) {
           enableScreeningQuestions || false,
           JSON.stringify(screeningQuestions || {}),
           clientCompanyName || null,
-          status, publishedAt
+          status, publishedAt,
+          // Set job_open_date automatically when publishing
+          isDraft ? null : new Date().toISOString().split('T')[0]
         ]
       )
       newJob = jobResult[0]
@@ -437,11 +527,11 @@ export async function POST(request: NextRequest) {
         `INSERT INTO job_postings (
           company_id, created_by, title, job_type, work_mode, status, published_at
         ) VALUES (
-          $1::uuid, $2::uuid, $3, $4::job_type, $5::work_mode, $6, $7
+          $1::uuid, $2, $3, $4::job_type, $5::work_mode, $6, $7
         ) RETURNING *`,
         [
           companyId,
-          userId,
+          sessionUserEmail,
           jobTitle,
           normalizedJobType,
           normalizedWorkMode,
@@ -488,10 +578,11 @@ export async function POST(request: NextRequest) {
       message: isDraft ? 'Job saved as draft' : 'Job published successfully',
       data: newJob
     }, { status: 201 })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating job posting:', error)
+    const errorMessage = error?.message || 'Internal server error'
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: errorMessage },
       { status: 500 }
     )
   }

@@ -22,6 +22,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { CandidateActionDialog } from '@/components/dashboard/candidate-action-dialogs'
 import { useMobileMenu } from '@/components/dashboard/mobile-menu-context'
 import { useAuth } from '@/contexts/auth-context'
+import { StatCardGridLoader, TableLoader, ErrorState } from '@/components/ui/skeleton-loader'
 
 type BucketType = 'all' | 'screening' | 'interview' | 'hiringManager' | 'offer' | 'hired' | 'rejected'
 
@@ -57,13 +58,6 @@ const defaultBucketStats: Record<string, any> = {
 
 type UserRole = 'recruiter' | 'admin' | 'manager' | 'director'
 
-const recruiters = [
-  { id: '1', name: 'Sarah Johnson' },
-  { id: '2', name: 'Mike Davis' },
-  { id: '3', name: 'Emily Chen' },
-  { id: '4', name: 'John Williams' },
-]
-
 export default function CandidatesPage() {
   const { company, user } = useAuth()
   const [activeBucket, setActiveBucket] = useState<BucketType>('all')
@@ -79,19 +73,22 @@ export default function CandidatesPage() {
   const [skillFilter, setSkillFilter] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [viewAsRole, setViewAsRole] = useState<UserRole>('recruiter')
-  const [viewAsRecruiter, setViewAsRecruiter] = useState('1')
+  const [viewAsRecruiter, setViewAsRecruiter] = useState('')
+  const [recruiters, setRecruiters] = useState<{id: string, name: string}[]>([])
 
   // Data state from API
   const [bucketData, setBucketData] = useState(defaultBucketData)
   const [applicationsData, setApplicationsData] = useState<Record<string, any[]>>(defaultApplicationsData)
   const [bucketStats, setBucketStats] = useState<Record<string, any>>(defaultBucketStats)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   // Fetch data from API
   const fetchCandidates = useCallback(async () => {
     if (!company?.id) return
     try {
       setIsLoading(true)
+      setError(null)
       const res = await fetch(`/api/candidates?companyId=${company.id}${user?.id ? `&userId=${user.id}` : ''}`)
       const data = await res.json()
       if (data.ok) {
@@ -107,14 +104,33 @@ export default function CandidatesPage() {
         }))
         setApplicationsData(data.applicationsData || defaultApplicationsData)
         setBucketStats(data.bucketStats || defaultBucketStats)
+      } else {
+        setError(data.error || 'Failed to load candidates')
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch candidates:', err)
+      setError(err.message || 'Failed to load candidates')
     } finally {
       setIsLoading(false)
     }
   }, [company?.id])
 
+  // Fetch company users for the recruiter dropdown
+  useEffect(() => {
+    if (!company?.id) return
+    fetch(`/api/settings/users?companyId=${encodeURIComponent(company.id)}`)
+      .then(res => res.json())
+      .then(data => {
+        const users = (data?.users || []).map((u: any) => ({ id: u.id, name: u.name }))
+        setRecruiters(users)
+        // Default to current logged-in user if found, else first user
+        const currentUser = users.find((u: any) => u.id === user?.id)
+        if (currentUser) setViewAsRecruiter(currentUser.id)
+        else if (users.length > 0) setViewAsRecruiter(users[0].id)
+      })
+      .catch(() => {})
+  }, [company?.id, user?.id])
+  
   useEffect(() => {
     fetchCandidates()
   }, [fetchCandidates])
@@ -275,7 +291,7 @@ export default function CandidatesPage() {
       <tr key={index} className="hover:bg-gray-50 transition-colors border-b">
         <td className="px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
               {application?.name?.split(' ').map((n: string) => n[0]).join('')}
             </div>
             <button 
@@ -283,7 +299,7 @@ export default function CandidatesPage() {
                 setEditableCandidate({...application})
                 setCandidateDetailsOpen(true)
               }}
-              className="font-medium text-blue-600 hover:text-blue-800 text-sm underline decoration-dotted cursor-pointer transition-colors"
+              className="font-medium text-emerald-600 hover:text-emerald-800 text-sm underline decoration-dotted cursor-pointer transition-colors"
             >
               {application?.name}
             </button>
@@ -295,7 +311,7 @@ export default function CandidatesPage() {
               setSelectedCandidate(application)
               setJdDetailsOpen(true)
             }}
-            className="text-sm text-blue-600 hover:text-blue-800 underline decoration-dotted cursor-pointer transition-colors"
+            className="text-sm text-emerald-600 hover:text-emerald-800 underline decoration-dotted cursor-pointer transition-colors"
           >
             {application?.position}
           </button>
@@ -306,7 +322,7 @@ export default function CandidatesPage() {
             <td className="px-6 py-4 text-sm text-gray-600">{application?.appliedDate}</td>
             <td className="px-6 py-4 text-sm text-gray-600">{application?.source}</td>
             <td className="px-6 py-4">
-              <Badge className="bg-blue-100 text-blue-800 font-semibold">
+              <Badge className="bg-emerald-100 text-emerald-800 font-semibold">
                 {application?.screeningScore}
               </Badge>
             </td>
@@ -341,7 +357,7 @@ export default function CandidatesPage() {
         {activeBucket === 'interview' && (
           <>
             <td className="px-6 py-4">
-              <Badge className="bg-blue-100 text-blue-800 font-semibold">
+              <Badge className="bg-emerald-100 text-emerald-800 font-semibold">
                 {application?.cvScore}
               </Badge>
             </td>
@@ -353,7 +369,7 @@ export default function CandidatesPage() {
             <td className="px-6 py-4">
               <Badge className={
                 application?.interviewStatus === 'Completed' ? 'bg-green-100 text-green-800' : 
-                application?.interviewStatus === 'Scheduled' ? 'bg-blue-100 text-blue-800' : 
+                application?.interviewStatus === 'Scheduled' ? 'bg-emerald-100 text-emerald-800' : 
                 'bg-gray-100 text-gray-800'
               }>
                 {application?.interviewStatus}
@@ -432,7 +448,7 @@ export default function CandidatesPage() {
             <td className="px-6 py-4 text-sm text-gray-600">{application?.hireDate}</td>
             <td className="px-6 py-4 text-sm text-gray-600">{application?.startDate}</td>
             <td className="px-6 py-4">
-              <Badge className={application?.hireStatus === 'Onboarded' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}>
+              <Badge className={application?.hireStatus === 'Onboarded' ? 'bg-green-100 text-green-800' : 'bg-emerald-100 text-emerald-800'}>
                 {application?.hireStatus}
               </Badge>
             </td>
@@ -448,9 +464,9 @@ export default function CandidatesPage() {
         {activeBucket === 'rejected' && (
           <>
             <td className="px-6 py-4">
-              <Badge className="bg-red-100 text-red-800">{application?.rejectionStage}</Badge>
+              <Badge className="bg-red-100 text-red-800">{application?.rejectionStage || 'N/A'}</Badge>
             </td>
-            <td className="px-6 py-4 text-sm text-gray-600">{application?.rejectionReason}</td>
+            <td className="px-6 py-4 text-sm text-gray-600">{application?.rejectionReason || <span className="text-gray-400 italic">Not specified</span>}</td>
             <td className="px-6 py-4">
               <Button size="sm" onClick={() => handleViewCandidate(application)}>
                 Action
@@ -463,7 +479,7 @@ export default function CandidatesPage() {
           <>
             <td className="px-6 py-4 text-sm text-gray-600">{application?.appliedDate}</td>
             <td className="px-6 py-4">
-              <Badge className="bg-blue-100 text-blue-800">{application?.status}</Badge>
+              <Badge className="bg-emerald-100 text-emerald-800">{application?.status}</Badge>
             </td>
             <td className="px-6 py-4 text-sm text-gray-600">{application?.source}</td>
             <td className="px-6 py-4">
@@ -488,16 +504,16 @@ export default function CandidatesPage() {
           </div>
           <div className="flex gap-2 items-center flex-wrap">
             {/* View As Filter */}
-            <div className="flex items-center gap-2 border rounded-md px-2 py-1 bg-blue-50">
+            <div className="flex items-center gap-2 border rounded-md px-2 py-1 bg-emerald-50">
               <span className="text-xs font-medium text-gray-700">View as:</span>
               <select
                 value={viewAsRole}
                 onChange={(e) => setViewAsRole(e.target.value as UserRole)}
-                className="text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-emerald-500"
               >
                 <option value="recruiter">Recruiter</option>
                 <option value="admin">Admin</option>
-                <option value="manager">TA Manager</option>
+                <option value="manager">Manager</option>
                 <option value="director">Director</option>
               </select>
               {viewAsRole === 'recruiter' && (
@@ -506,10 +522,10 @@ export default function CandidatesPage() {
                   <select
                     value={viewAsRecruiter}
                     onChange={(e) => setViewAsRecruiter(e.target.value)}
-                    className="text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   >
                     {recruiters.map(r => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
+                      <option key={r.id} value={r.id}>{r.id === user?.id ? `${r.name} (You)` : r.name}</option>
                     ))}
                   </select>
                 </>
@@ -533,7 +549,7 @@ export default function CandidatesPage() {
             <input
               type="text"
               placeholder="Search applications..."
-              className="w-full pl-3 pr-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full pl-3 pr-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -541,7 +557,7 @@ export default function CandidatesPage() {
           <select
             value={positionFilter}
             onChange={(e) => setPositionFilter(e.target.value)}
-            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
           >
             <option value="all">All Positions</option>
             {positions.map(pos => (
@@ -551,7 +567,7 @@ export default function CandidatesPage() {
           <select
             value={sourceFilter}
             onChange={(e) => setSourceFilter(e.target.value)}
-            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
           >
             <option value="all">All Sources</option>
             {sources.map(src => (
@@ -563,13 +579,13 @@ export default function CandidatesPage() {
             placeholder="Skills"
             value={skillFilter}
             onChange={(e) => setSkillFilter(e.target.value)}
-            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[100px]"
+            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500 min-w-[100px]"
           />
           <input
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
           <Button 
             variant="outline" 
@@ -590,7 +606,19 @@ export default function CandidatesPage() {
         </div>
       </div>
 
+      {/* Loading State */}
+      {isLoading && (
+        <>
+          <StatCardGridLoader count={7} />
+          <TableLoader rows={6} columns={6} />
+        </>
+      )}
+
+      {/* Error State */}
+      {!isLoading && error && <ErrorState message={error} onRetry={fetchCandidates} />}
+
       {/* Application Buckets - Mobile Responsive */}
+      {!isLoading && !error && (<>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
         {(Object.keys(bucketData) as BucketType[]).map((bucket) => {
           const data = bucketData[bucket]
@@ -601,7 +629,7 @@ export default function CandidatesPage() {
             <Card
               key={bucket}
               className={`p-3 md:p-4 cursor-pointer transition-all hover:shadow-lg ${
-                activeBucket === bucket ? 'ring-2 ring-blue-600 shadow-lg bg-blue-50' : 'shadow hover:bg-gray-50'
+                activeBucket === bucket ? 'ring-2 ring-emerald-600 shadow-lg bg-emerald-50' : 'shadow hover:bg-gray-50'
               }`}
               onClick={() => {
                 handleBucketClick(bucket)
@@ -620,7 +648,7 @@ export default function CandidatesPage() {
                       <span className="hidden sm:inline">{data.description}</span>
                     </p>
                   </div>
-                  <div className="text-xl md:text-3xl font-bold text-blue-600">
+                  <div className="text-xl md:text-3xl font-bold text-emerald-600">
                     {dynamicBucketCounts[bucket as BucketType]}
                   </div>
                 </div>
@@ -675,6 +703,7 @@ export default function CandidatesPage() {
           </div>
         </div>
       </Card>
+      </>)}
 
       {/* Candidate Action Dialog */}
       <CandidateActionDialog
@@ -920,7 +949,7 @@ export default function CandidatesPage() {
                 <h4 className="font-semibold text-gray-900">Technical Stack</h4>
                 <div className="flex flex-wrap gap-2">
                   {['React', 'TypeScript', 'Node.js', 'PostgreSQL', 'AWS', 'Docker', 'Kubernetes', 'GraphQL'].map(tech => (
-                    <Badge key={tech} className="bg-blue-100 text-blue-800">{tech}</Badge>
+                    <Badge key={tech} className="bg-emerald-100 text-emerald-800">{tech}</Badge>
                   ))}
                 </div>
               </div>

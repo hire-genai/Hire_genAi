@@ -92,6 +92,12 @@ CREATE TYPE offer_status AS ENUM (
   'declined'
 );
 
+-- Candidate source type
+CREATE TYPE candidate_source_type AS ENUM ('Direct', 'Agency', 'Employee Referral');
+
+-- Diversity category
+CREATE TYPE diversity_category AS ENUM ('Underrepresented Minority', 'Veteran', 'LGBTQ+');
+
 -- Delegation status
 CREATE TYPE delegation_status AS ENUM ('active', 'expired', 'revoked');
 
@@ -373,7 +379,7 @@ CREATE INDEX idx_contact_messages_work_email ON contact_messages (work_email);
 CREATE TABLE job_postings (
   id                          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   company_id                  UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  created_by                  UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  created_by                  TEXT NOT NULL,
 
   -- Basic info (Step 1 of JobPostingForm)
   title                       TEXT NOT NULL,
@@ -392,7 +398,7 @@ CREATE TABLE job_postings (
   responsibilities            TEXT[],                -- array of responsibility strings
   required_skills             TEXT[],
   preferred_skills            TEXT[],
-  experience_years            INT,
+  experience_years            TEXT,
   required_education          TEXT,
   certifications_required     TEXT,
   languages_required          TEXT,
@@ -410,15 +416,8 @@ CREATE TABLE job_postings (
   diversity_goals             BOOLEAN DEFAULT FALSE,
   diversity_target_pct        NUMERIC(5,2),
 
-  -- Metrics & tracking (Step 4)
+  -- Metrics & tracking (Step 4) - job_open_date automated on publish
   job_open_date               DATE,
-  expected_hires_per_month    INT,
-  target_offer_acceptance_pct NUMERIC(5,2),
-  candidate_response_sla_hrs  INT,
-  interview_schedule_sla_hrs  INT,
-  cost_per_hire_budget        NUMERIC(12,2),
-  agency_fee_pct              NUMERIC(5,2),
-  job_board_costs             NUMERIC(12,2),
 
   -- Auto Interview Scheduling (48-hour link expiration)
   auto_schedule_interview     BOOLEAN DEFAULT FALSE,
@@ -491,11 +490,17 @@ CREATE TABLE candidates (
   location        TEXT,
   current_company TEXT,
   current_title   TEXT,
-  experience_years INT,
+  experience_years TEXT,
   linkedin_url    TEXT,
   resume_url      TEXT,                              -- S3/blob URL to uploaded CV
   photo_url       TEXT,                              -- Webcam captured photo URL
   source          TEXT,                              -- LinkedIn, Referral, Job Board, etc.
+  source_type     candidate_source_type,             -- Direct, Agency, Employee Referral
+  sub_source      TEXT,                              -- Sub-source for Direct type: LinkedIn, Google, Monster, Indeed, Facebook, Others
+  agency_name     TEXT,                              -- Agency name when source_type is Agency
+  referral_employee_name TEXT,                      -- Employee name when source_type is Employee Referral
+  referral_employee_email TEXT,                      -- Employee email when source_type is Employee Referral
+  diversity_category diversity_category,             -- Underrepresented Minority, Veteran, LGBTQ+
   notes           TEXT,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -545,16 +550,6 @@ CREATE TABLE applications (
   screening_date          DATE,
   screening_remarks       TEXT,
 
-  -- AI Interview
-  interview_status        TEXT DEFAULT 'Not Scheduled',  -- Not Scheduled, Scheduled, Completed, Expired
-  interview_link          TEXT,
-  interview_sent_at       TIMESTAMPTZ,
-  interview_completed_at  TIMESTAMPTZ,
-  interview_score         NUMERIC(5,2),                -- Overall average score
-  interview_evaluations   JSONB DEFAULT '{}',           -- {"Technical Skills": {"score": 85.5, "feedback": "Strong"}, "Communication": {"score": 92.0, "feedback": "Clear"}}
-  interview_recommendation TEXT,                      -- Strongly Recommend, Recommend, On Hold, Reject
-  interview_summary      TEXT,                        -- AI-generated overall summary
-
   -- Hiring Manager Review
   hm_status               TEXT,                       -- Waiting for HM feedback, Under Review, Approved, Rejected, OnHold
   hm_rating               INT CHECK (hm_rating BETWEEN 1 AND 5),
@@ -567,6 +562,7 @@ CREATE TABLE applications (
   offer_amount            NUMERIC(12,2),
   offer_bonus             NUMERIC(12,2),
   offer_equity            TEXT,
+  offer_currency          TEXT DEFAULT 'USD',
   offer_extended_date     DATE,
   offer_expiry_date       DATE,
   negotiation_rounds      INT DEFAULT 0,
@@ -579,6 +575,7 @@ CREATE TABLE applications (
   reference_check_status  TEXT DEFAULT 'pending',     -- pending, inProgress, complete
   onboarding_status       TEXT,                       -- Awaiting Onboarding, In Progress, On Track, Behind, Complete
   onboarding_checklist    JSONB,                      -- { equipmentOrdered: bool, accountsCreated: bool, ... }
+  quality_of_hire_rating  JSONB,                      -- {rating: 1-5, employmentStatus: "Still with the Firm"|"Left the Firm"}
 
   -- Rejection (if rejected at any stage)
   rejection_reason        TEXT,
@@ -587,7 +584,7 @@ CREATE TABLE applications (
 
   -- Application form data
   expected_salary         NUMERIC(12,2),
-  salary_currency         TEXT DEFAULT 'USD',
+  salary_currency         TEXT DEFAULT 'inr',
   salary_period           TEXT DEFAULT 'month',
   location                TEXT,
   linkedin_url            TEXT,
@@ -606,12 +603,6 @@ CREATE TABLE applications (
   is_qualified            BOOLEAN,                     -- Whether candidate passed threshold
   qualification_explanations JSONB,                    -- Full evaluation breakdown JSON
 
-  -- Interview Screenshots & Verification
-  during_interview_screenshot           TEXT,                        -- Screenshot captured silently during interview (last question or closing)
-  during_interview_screenshot_captured_at TIMESTAMPTZ,                -- Timestamp when during-interview screenshot was captured
-  post_interview_photo_url              TEXT,                        -- Photo URL from post-verify page
-  post_interview_photo_captured_at      TIMESTAMPTZ,                -- Timestamp when post-verify photo was captured
-
   -- General
   remarks                 TEXT,
   created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -623,9 +614,54 @@ CREATE INDEX idx_applications_job_id ON applications (job_id);
 CREATE INDEX idx_applications_candidate_id ON applications (candidate_id);
 CREATE INDEX idx_applications_current_stage ON applications (current_stage);
 CREATE INDEX idx_applications_offer_status ON applications (offer_status);
-CREATE INDEX idx_applications_during_interview_screenshot ON applications (during_interview_screenshot) WHERE during_interview_screenshot IS NOT NULL;
-CREATE INDEX idx_applications_post_interview_photo ON applications (post_interview_photo_url) WHERE post_interview_photo_url IS NOT NULL;
 CREATE UNIQUE INDEX idx_applications_job_candidate ON applications (job_id, candidate_id);
+
+
+-- ---------------------------------------------------------------------------
+-- 6c-ii. interviews
+-- WHY: Stores all interview-related data for an application. Separated from
+--       the applications table for proper normalization. Each application has
+--       at most one interview record. Contains scheduling info, AI evaluation
+--       scores, recommendation, transcript, screenshots, and photo verification.
+-- USED BY: /interview (candidate-facing), /candidate (pipeline view),
+--          /dashboard (KPIs), /report (candidate report)
+-- ---------------------------------------------------------------------------
+CREATE TABLE interviews (
+  id                                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  application_id                        UUID NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+
+  -- Interview scheduling & status
+  interview_status                      TEXT DEFAULT 'Not Scheduled',  -- Not Scheduled, Scheduled, In Progress, Completed, Incomplete, Expired
+  interview_link                        TEXT,
+  interview_sent_at                     TIMESTAMPTZ,
+  interview_completed_at                TIMESTAMPTZ,
+
+  -- Scoring & evaluation
+  interview_score                       NUMERIC(5,2),                  -- Overall weighted score (0-100)
+  interview_evaluations                 JSONB DEFAULT '{}',            -- Full evaluation breakdown JSON
+  interview_recommendation              TEXT,                          -- Strongly Recommend, Recommend, On Hold, Reject
+  interview_summary                     TEXT,                          -- AI-generated overall summary
+  interview_feedback                    TEXT,                          -- Full interview transcript
+
+  -- Screenshots & verification
+  during_interview_screenshot           TEXT,                          -- Screenshot captured during interview
+  during_interview_screenshot_captured_at TIMESTAMPTZ,
+  post_interview_photo_url              TEXT,                          -- Photo URL from post-verify page
+  post_interview_photo_captured_at      TIMESTAMPTZ,
+  verification_photo_url                TEXT,                          -- Webcam photo from verify step
+  photo_verified                        BOOLEAN,                       -- Face comparison result
+  photo_match_score                     NUMERIC(5,4),                  -- Euclidean distance (internal)
+  verified_at                           TIMESTAMPTZ,
+
+  -- Timestamps
+  created_at                            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at                            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_interviews_application_id ON interviews (application_id);
+CREATE INDEX idx_interviews_status ON interviews (interview_status);
+CREATE INDEX idx_interviews_score ON interviews (interview_score) WHERE interview_score IS NOT NULL;
+CREATE INDEX idx_interviews_completed_at ON interviews (interview_completed_at) WHERE interview_completed_at IS NOT NULL;
 
 
 -- ---------------------------------------------------------------------------
@@ -639,7 +675,7 @@ CREATE TABLE application_stage_history (
   application_id  UUID NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
   from_stage      application_stage,
   to_stage        application_stage NOT NULL,
-  changed_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+  changed_by      TEXT,
   remarks         TEXT,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -663,10 +699,12 @@ CREATE TABLE talent_pool_entries (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   candidate_id    UUID NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+  application_id  UUID REFERENCES applications(id) ON DELETE SET NULL,  -- Link to original application
   status          talent_pool_status NOT NULL DEFAULT 'passive',
   added_by        UUID REFERENCES users(id) ON DELETE SET NULL,
-  source          TEXT,                              -- LinkedIn, Event, Referral, etc.
+  source          TEXT,                              -- LinkedIn, Event, Referral, rejected_candidate, etc.
   notes           TEXT,
+  skills          TEXT,                              -- Comma-separated skills (e.g., "React, Node.js, TypeScript")
   last_contacted  TIMESTAMPTZ,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -677,6 +715,8 @@ CREATE TABLE talent_pool_entries (
 CREATE INDEX idx_talent_pool_company_id ON talent_pool_entries (company_id);
 CREATE INDEX idx_talent_pool_status ON talent_pool_entries (status);
 CREATE INDEX idx_talent_pool_candidate_id ON talent_pool_entries (candidate_id);
+CREATE INDEX idx_talent_pool_application_id ON talent_pool_entries (application_id);
+CREATE INDEX idx_talent_pool_skills ON talent_pool_entries USING gin(to_tsvector('english', skills));
 
 
 -- ---------------------------------------------------------------------------
@@ -808,7 +848,7 @@ CREATE TABLE support_tickets (
   company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   created_by      UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   ticket_type     TEXT NOT NULL,                     -- support, feedback, bug_report, feature_request
-  category        TEXT,                              -- Account, Billing, Technical, AI Interview, etc.
+  category        TEXT,                              -- dashboard, applications, job_postings, talent_pool, candidates, ai_screening, messages, documents, delegation, analytics, settings, other
   title           TEXT NOT NULL,
   description     TEXT NOT NULL,
   priority        ticket_priority NOT NULL DEFAULT 'medium',
@@ -816,13 +856,18 @@ CREATE TABLE support_tickets (
   screenshot_url  TEXT,
   resolved_at     TIMESTAMPTZ,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  -- Validation constraints
+  CONSTRAINT chk_ticket_type CHECK (ticket_type IN ('support', 'feedback', 'bug_report', 'feature_request'))
 );
 
 CREATE INDEX idx_support_tickets_company_id ON support_tickets (company_id);
 CREATE INDEX idx_support_tickets_created_by ON support_tickets (created_by);
 CREATE INDEX idx_support_tickets_status ON support_tickets (status);
 CREATE INDEX idx_support_tickets_priority ON support_tickets (priority);
+CREATE INDEX idx_support_tickets_created_at ON support_tickets (created_at DESC);
+CREATE INDEX idx_support_tickets_ticket_type ON support_tickets (ticket_type);
 
 
 -- ---------------------------------------------------------------------------
@@ -836,11 +881,18 @@ CREATE TABLE ticket_comments (
   ticket_id   UUID NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
   author_id   UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   author_role TEXT,                                  -- 'user', 'support_agent'
-  message     TEXT NOT NULL,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  message     TEXT,                                   -- Can be empty if image is provided
+  image_url   TEXT,                                   -- URL of image attachment uploaded to Vercel Blob
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  -- Validation constraints
+  CONSTRAINT chk_author_role CHECK (author_role IS NULL OR author_role IN ('user', 'support_agent'))
 );
 
 CREATE INDEX idx_ticket_comments_ticket_id ON ticket_comments (ticket_id);
+CREATE INDEX idx_ticket_comments_author_id ON ticket_comments (author_id);
+CREATE INDEX idx_ticket_comments_created_at ON ticket_comments (created_at);
+CREATE INDEX idx_ticket_comments_image_url ON ticket_comments (image_url) WHERE image_url IS NOT NULL;
 
 
 -- ============================================================================
@@ -970,6 +1022,7 @@ BEGIN
       'assessments',
       'job_postings',
       'applications',
+      'interviews',
       'candidates',
       'talent_pool_entries',
       'support_tickets',
@@ -1007,7 +1060,7 @@ CREATE TABLE IF NOT EXISTS screening_submissions (
   job_id                  UUID NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
   candidate_name          TEXT NOT NULL,
   candidate_email         TEXT NOT NULL,
-  experience_years        INT,
+  experience_years        TEXT,
   expected_salary         NUMERIC(12,2),
   notice_period           TEXT,
   notice_period_negotiable BOOLEAN,
@@ -1057,18 +1110,8 @@ CREATE INDEX IF NOT EXISTS idx_screening_otps_email ON screening_otps (email);
 CREATE INDEX IF NOT EXISTS idx_screening_otps_expires ON screening_otps (expires_at);
 
 
--- ---------------------------------------------------------------------------
--- ALTER TABLE: applications — add photo verification columns
--- WHY: Stores identity verification result from /interview/{id}/verify page.
---      verification_photo_url = captured webcam photo during verify step
---      photo_verified = BOOLEAN result of face comparison
---      photo_match_score = Euclidean distance (internal logs only)
---      verified_at = timestamp of successful verification
--- ---------------------------------------------------------------------------
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS verification_photo_url TEXT;
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS photo_verified BOOLEAN;
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS photo_match_score NUMERIC(5,4);
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+-- NOTE: verification_photo_url, photo_verified, photo_match_score, verified_at
+-- are now stored in the interviews table (see section 6c-ii above).
 
 
 -- ============================================================================

@@ -67,7 +67,7 @@ export interface CVEvaluationResult {
   scores: {
     skill_match: {
       score: number
-      weight: 30
+      weight: 40
       matched_critical: string[]
       matched_important: string[]
       missing_critical: string[]
@@ -93,7 +93,7 @@ export interface CVEvaluationResult {
 
     education_and_certs: {
       score: number
-      weight: 15
+      weight: 10
       degree: string | null
       field_match: boolean
       issued_certs: string[]
@@ -104,7 +104,7 @@ export interface CVEvaluationResult {
 
     location_and_availability: {
       score: number
-      weight: 10
+      weight: 5
       candidate_location: string | null
       job_location: string | null
       remote_possible: boolean
@@ -246,11 +246,11 @@ const COMMON_LANGUAGES = ['english', 'hindi', 'spanish', 'french', 'german', 'ma
 
 // Scoring weights (must sum to 100)
 const WEIGHTS = {
-  skill_match: 30,
+  skill_match: 40,
   project_relevance: 20,
   experience_match: 20,
-  education_and_certs: 15,
-  location_and_availability: 10,
+  education_and_certs: 10,
+  location_and_availability: 5,
   resume_quality: 5
 } as const
 
@@ -784,7 +784,8 @@ export class CVEvaluator {
     resumeText: string, 
     jd: string, 
     yearsActual: number | null,
-    relevantYearsActual: number | null
+    relevantYearsActual: number | null,
+    screeningQuestions?: { minExperience?: string; maxExperience?: string; experienceType?: string } | null
   ): CVEvaluationResult['eligibility'] {
     const failReasons: string[] = []
     
@@ -795,15 +796,50 @@ export class CVEvaluator {
       failReasons.push(domainCheck.reason)
     }
     
-    // Gate 2: Experience Fit (use RELEVANT experience - critical fix!)
-    const expReq = this.extractExperienceRequirement(jd)
+    // Gate 2: Experience Fit
+    // Priority: Use screening questions if available, otherwise fall back to JD parsing
     let experienceFit: EligibilityStatus = "PASS"
+    const yearsToCheck = relevantYearsActual ?? yearsActual
     
-    if (expReq) {
-      // Use relevant experience if available, otherwise total
-      const yearsToCheck = relevantYearsActual ?? yearsActual
+    if (screeningQuestions?.minExperience && yearsToCheck !== null) {
+      // Use screening questions for experience validation
+      const minExp = parseFloat(screeningQuestions.minExperience) || 0
+      const maxExp = screeningQuestions.maxExperience ? parseFloat(screeningQuestions.maxExperience) : null
+      const expType = screeningQuestions.experienceType || 'single'
       
-      if (yearsToCheck !== null) {
+      console.log(`📊 [CV EVALUATOR] Experience check: Candidate has ${yearsToCheck} years, requirement: ${expType === 'range' ? `${minExp}-${maxExp}` : `${minExp}+`}`)
+      
+      if (expType === 'range' && maxExp !== null) {
+        // RANGE: Candidate must be between min and max (inclusive)
+        // e.g., 0-2 years requirement: 0, 1, 2 = VALID; 3+ = INVALID
+        if (yearsToCheck < minExp || yearsToCheck > maxExp) {
+          experienceFit = "FAIL"
+          if (yearsToCheck < minExp) {
+            failReasons.push(
+              `Experience below requirement: ${yearsToCheck} years vs ${minExp}-${maxExp} years required (minimum ${minExp} years needed)`
+            )
+          } else {
+            failReasons.push(
+              `Experience exceeds requirement: ${yearsToCheck} years vs ${minExp}-${maxExp} years required (maximum ${maxExp} years allowed)`
+            )
+          }
+        }
+      } else {
+        // SINGLE: Candidate must have >= min experience
+        // e.g., 3 years requirement: 3+ = VALID; <3 = INVALID
+        const buffer = Math.max(0.5, minExp * 0.2)
+        if (yearsToCheck < minExp - buffer) {
+          experienceFit = "FAIL"
+          failReasons.push(
+            `Experience below requirement: ${yearsToCheck} years vs ${minExp}+ years required (minimum ${(minExp - buffer).toFixed(1)} years allowed)`
+          )
+        }
+      }
+    } else {
+      // Fall back to JD parsing
+      const expReq = this.extractExperienceRequirement(jd)
+      
+      if (expReq && yearsToCheck !== null) {
         const buffer = Math.max(0.5, expReq.min * 0.2)
         if (yearsToCheck < expReq.min - buffer) {
           experienceFit = "FAIL"
@@ -1239,7 +1275,8 @@ export class CVEvaluator {
     jobDescription: string,
     passThreshold: number = 50,
     companyId?: string,
-    openaiClient?: any
+    openaiClient?: any,
+    screeningQuestions?: { minExperience?: string; maxExperience?: string; experienceType?: string } | null
   ): Promise<CVEvaluationResult> {
     console.log('🎯 [CV EVALUATOR v2.0] Starting 3-phase evaluation (DOMAIN-AGNOSTIC)...')
     
@@ -1250,7 +1287,8 @@ export class CVEvaluator {
       console.log('❌ [CV EVALUATOR] Hard reject: Domain mismatch')
       return this.createRejectionResult(
         domainCheck.reason || "Domain mismatch: Required platforms/tools not found in resume",
-        { domain_fit: "FAIL", experience_fit: "PASS", fail_reasons: [domainCheck.reason || "Required platforms not found"] }
+        { domain_fit: "FAIL", experience_fit: "PASS", fail_reasons: [domainCheck.reason || "Required platforms not found"] },
+        { critical: domainCheck.criticalPlatforms, important: [] }
       )
     }
 
@@ -1296,7 +1334,8 @@ export class CVEvaluator {
         resumeText, 
         jobDescription, 
         llmResponse.extracted.total_experience_years_estimate,
-        llmResponse.extracted.relevant_experience_years ?? null
+        llmResponse.extracted.relevant_experience_years ?? null,
+        screeningQuestions
       )
       console.log(`📋 [CV EVALUATOR] Eligibility: ${eligibility.fail_reasons.length === 0 ? 'PASS' : 'FAIL - ' + eligibility.fail_reasons.join('; ')}`)
 
@@ -1316,7 +1355,7 @@ export class CVEvaluator {
       const scores: CVEvaluationResult['scores'] = {
         skill_match: {
           score: llmResponse.llm_scores.skill_match.score,
-          weight: 30,
+          weight: 40,
           matched_critical: llmResponse.llm_scores.skill_match.matched_critical,
           matched_important: llmResponse.llm_scores.skill_match.matched_important,
           missing_critical: llmResponse.llm_scores.skill_match.missing_critical,
@@ -1339,7 +1378,7 @@ export class CVEvaluator {
         },
         education_and_certs: {
           score: this.calculateEducationScore(llmResponse.extracted),
-          weight: 15,
+          weight: 10,
           degree: llmResponse.extracted.education[0]?.degree || null,
           field_match: this.checkFieldMatch(llmResponse.extracted.education, jobDescription),
           issued_certs: llmResponse.extracted.certifications.filter(c => c.status === 'issued').map(c => c.name),
@@ -1349,7 +1388,7 @@ export class CVEvaluator {
         },
         location_and_availability: {
           score: locScore.score,
-          weight: 10,
+          weight: 5,
           candidate_location: llmResponse.extracted.location,
           job_location: this.extractJobLocation(jobDescription),
           remote_possible: locScore.remotePossible,
@@ -1464,7 +1503,8 @@ export class CVEvaluator {
               jp.certifications_required,
               jp.location,
               jp.work_mode,
-              jp.job_type
+              jp.job_type,
+              jp.screening_questions
        FROM applications a
        JOIN job_posting jp ON a.job_id = jp.id
        WHERE a.id = $1::uuid`,
@@ -1478,19 +1518,33 @@ export class CVEvaluator {
     const job = rows[0]
     console.log(`📋 [CV EVALUATOR] Job posting found: ${job.title}`)
     
+    // Parse screening questions for experience validation
+    let screeningQuestions: { minExperience?: string; maxExperience?: string; experienceType?: string } | null = null
+    if (job.screening_questions) {
+      try {
+        screeningQuestions = typeof job.screening_questions === 'string' 
+          ? JSON.parse(job.screening_questions) 
+          : job.screening_questions
+        console.log('📋 [CV EVALUATOR] Screening questions loaded:', screeningQuestions)
+      } catch (e) {
+        console.log('⚠️ [CV EVALUATOR] Failed to parse screening_questions:', e)
+      }
+    }
+    
     // Assemble JD string at runtime (not stored in DB)
     const jdString = this.buildJDFromJobPosting(job)
     
     console.log('🔨 [CV EVALUATOR] JD assembled, starting evaluation...')
     console.log('📝 [CV EVALUATOR] Assembled JD preview:', jdString.substring(0, 200) + '...')
     
-    // Run evaluation with assembled JD
+    // Run evaluation with assembled JD and screening questions
     return this.evaluateCandidate(
       resumeText,
       jdString,
       50,  // passThreshold
       companyId,
-      openaiClient
+      openaiClient,
+      screeningQuestions
     )
   }
 
@@ -1499,20 +1553,71 @@ export class CVEvaluator {
   // =========================================================================
 
   /**
-   * Build LLM prompt for extraction and limited scoring
+   * Parse required skills from JD text into a flat list for explicit checklist injection
    */
+  private static parseRequiredSkillsForPrompt(jobDescription: string): string[] {
+    const skills: string[] = []
+    const lines = jobDescription.split('\n')
+    let inRequiredSection = false
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+
+      // Detect required skills section header
+      if (/required\s+skills?|must\s+have|mandatory|essential\s+skills?|key\s+requirements?/i.test(trimmed)) {
+        inRequiredSection = true
+        continue
+      }
+      // Stop at preferred/nice-to-have section
+      if (/preferred|nice\s+to\s+have|good\s+to\s+have|bonus|desired|optional/i.test(trimmed)) {
+        inRequiredSection = false
+        continue
+      }
+
+      if (inRequiredSection) {
+        // Strip bullet/dash/number prefix
+        const cleaned = trimmed.replace(/^[-•*\d.)\s]+/, '').trim()
+        if (cleaned.length > 2) skills.push(cleaned)
+      }
+    }
+
+    // Fallback: if no section detected, try to find bullet lines anywhere in JD
+    if (skills.length === 0) {
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (/^[-•*]\s+.{5,}/.test(trimmed)) {
+          const cleaned = trimmed.replace(/^[-•*]\s+/, '').trim()
+          if (cleaned.length > 2) skills.push(cleaned)
+        }
+      }
+    }
+
+    return skills.slice(0, 20) // cap at 20 items
+  }
+
   private static buildLLMPrompt(resumeText: string, jobDescription: string): string {
+    // Extract required skills for explicit checklist
+    const requiredSkills = this.parseRequiredSkillsForPrompt(jobDescription)
+    const skillChecklist = requiredSkills.length > 0
+      ? `\n[REQUIRED SKILLS CHECKLIST - YOU MUST EVALUATE EACH ONE]\nFor EVERY skill below, determine if the resume satisfies it (directly or via equivalent tool):\n${requiredSkills.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\nRules:\n- "or" separated skills (e.g. "UiPath or Blue Prism or Automation Anywhere"): matched if resume has ANY one of them\n- A skill is MATCHED if explicitly mentioned OR demonstrated through equivalent tools/projects\n- A skill is MISSING if there is NO evidence in the resume, not even indirect\n- Put matched skills in matched_critical or matched_important\n- Put missing skills in missing_critical\n- Your skill_match score MUST reflect how many of these ${requiredSkills.length} skills are covered\n`
+      : ''
+
     return `Extract data from this resume and score ONLY skill_match, project_relevance, and resume_quality.
 
 [JOB DESCRIPTION]
 ${jobDescription}
-
+${skillChecklist}
 [RESUME]
 ${resumeText}
 
 [INSTRUCTIONS]
 1. Extract all structured data accurately
-2. Score skill_match (0-100): How well do resume skills match JD requirements?
+2. Score skill_match (0-100): Systematically check EACH required skill from the checklist above against the resume. Do NOT give a high score if key required skills are missing.
+   - 90-100: All or nearly all required skills present
+   - 70-89: Most required skills present (≥70%)
+   - 50-69: Partial match (50-69% of required skills)
+   - <50: Major gaps (fewer than half the required skills found)
 3. Score project_relevance (0-100): How relevant are recent projects to the JD?
 4. Score resume_quality (0-100): Clarity, structure, completeness
 5. Identify platforms/tools, languages, and experience flags
@@ -1692,15 +1797,16 @@ Result: total=6, relevant=2.5
    */
   private static createRejectionResult(
     reason: string,
-    eligibility: CVEvaluationResult['eligibility']
+    eligibility: CVEvaluationResult['eligibility'],
+    mustHaveSkills: { critical: string[]; important: string[] }
   ): CVEvaluationResult {
-    const scores = {
-      skill_match: { score: 10, weight: 30 as const, matched_critical: [], matched_important: [], missing_critical: ['Required Platform'], evidence: [] },
-      project_relevance: { score: 10, weight: 20 as const, relevant_projects: 0, recent_skills_used: [], evidence: [] },
-      experience_match: { score: 20, weight: 20 as const, years_actual: null, years_required: "Unknown", match_level: "Below" as const, evidence: [] },
-      education_and_certs: { score: 30, weight: 15 as const, degree: null, field_match: false, issued_certs: [], pursuing_certs: [], missing_required_certs: [], evidence: [] },
-      location_and_availability: { score: 50, weight: 10 as const, candidate_location: null, job_location: null, remote_possible: false, joining_time_days: null, evidence: [] },
-      resume_quality: { score: 50, weight: 5 as const, clarity: 50, structure: 50, completeness: 50, issues: [], evidence: [] }
+    const scores: CVEvaluationResult['scores'] = {
+      skill_match: { score: 0, weight: 40, matched_critical: [], matched_important: [], missing_critical: mustHaveSkills.critical, evidence: [] },
+      project_relevance: { score: 0, weight: 20, relevant_projects: 0, recent_skills_used: [], evidence: [] },
+      experience_match: { score: 20, weight: 20, years_actual: null, years_required: "Unknown", match_level: "Below", evidence: [] },
+      education_and_certs: { score: 30, weight: 10, degree: null, field_match: false, issued_certs: [], pursuing_certs: [], missing_required_certs: [], evidence: [] },
+      location_and_availability: { score: 50, weight: 5, candidate_location: null, job_location: null, remote_possible: false, joining_time_days: null, evidence: [] },
+      resume_quality: { score: 50, weight: 5, clarity: 50, structure: 50, completeness: 50, issues: [], evidence: [] }
     }
     
     return {
@@ -1745,11 +1851,11 @@ Result: total=6, relevant=2.5
     console.log('🔐 [CV EVALUATOR] Using fallback evaluation due to:', errorMessage)
     
     const scores = {
-      skill_match: { score: 50, weight: 30 as const, matched_critical: [], matched_important: [], missing_critical: [], evidence: ["Mock - API unavailable"] },
+      skill_match: { score: 50, weight: 40 as const, matched_critical: [], matched_important: [], missing_critical: [], evidence: ["Mock - API unavailable"] },
       project_relevance: { score: 50, weight: 20 as const, relevant_projects: 0, recent_skills_used: [], evidence: ["Mock - API unavailable"] },
       experience_match: { score: 50, weight: 20 as const, years_actual: null, years_required: "Unknown", match_level: "Within" as const, evidence: ["Mock - API unavailable"] },
-      education_and_certs: { score: 50, weight: 15 as const, degree: null, field_match: false, issued_certs: [], pursuing_certs: [], missing_required_certs: [], evidence: ["Mock - API unavailable"] },
-      location_and_availability: { score: 50, weight: 10 as const, candidate_location: null, job_location: null, remote_possible: false, joining_time_days: null, evidence: ["Mock - API unavailable"] },
+      education_and_certs: { score: 50, weight: 10 as const, degree: null, field_match: false, issued_certs: [], pursuing_certs: [], missing_required_certs: [], evidence: ["Mock - API unavailable"] },
+      location_and_availability: { score: 50, weight: 5 as const, candidate_location: null, job_location: null, remote_possible: false, joining_time_days: null, evidence: ["Mock - API unavailable"] },
       resume_quality: { score: 50, weight: 5 as const, clarity: 50, structure: 50, completeness: 50, issues: ["API unavailable"], evidence: ["Mock - API unavailable"] }
     }
     
