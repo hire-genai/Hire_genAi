@@ -89,7 +89,7 @@ export default function CandidatesPage() {
     try {
       setIsLoading(true)
       setError(null)
-      const res = await fetch(`/api/candidates?companyId=${company.id}`)
+      const res = await fetch(`/api/candidates?companyId=${company.id}${user?.id ? `&userId=${user.id}` : ''}`)
       const data = await res.json()
       if (data.ok) {
         // Update bucket counts while preserving icons/colors/labels
