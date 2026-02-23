@@ -724,8 +724,20 @@ export default function SupportPage() {
                       <div className="bg-blue-500 text-white rounded-lg rounded-tr-none p-3 shadow-sm">
                         <p className="text-sm mb-1">{selectedTicket.description}</p>
                         {selectedTicket.screenshot && (
-                          <div className="mt-2 rounded overflow-hidden">
-                            <img src={selectedTicket.screenshot} alt="Screenshot" className="max-w-full" />
+                          <div className="mt-2 bg-white rounded-lg p-2">
+                            <a 
+                              href={selectedTicket.screenshot} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="block"
+                            >
+                              <img 
+                                src={selectedTicket.screenshot} 
+                                alt="Screenshot" 
+                                className="rounded cursor-pointer hover:opacity-90 transition-opacity border border-gray-200"
+                                style={{ maxHeight: '200px', maxWidth: '100%', display: 'block' }}
+                              />
+                            </a>
                           </div>
                         )}
                       </div>
@@ -756,8 +768,20 @@ export default function SupportPage() {
                                 </p>
                               )}
                               {comment.image && (
-                                <div className={`${comment.message ? 'mt-2' : ''} rounded overflow-hidden`}>
-                                  <img src={comment.image} alt="Attachment" className="max-w-full rounded" />
+                                <div className={`${comment.message ? 'mt-2' : ''} bg-white rounded-lg p-2`}>
+                                  <a 
+                                    href={comment.image} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="block"
+                                  >
+                                    <img 
+                                      src={comment.image} 
+                                      alt="Attachment" 
+                                      className="rounded cursor-pointer hover:opacity-90 transition-opacity border border-gray-200"
+                                      style={{ maxHeight: '200px', maxWidth: '100%', display: 'block' }}
+                                    />
+                                  </a>
                                 </div>
                               )}
                             </div>

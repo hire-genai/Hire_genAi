@@ -398,7 +398,7 @@ CREATE TABLE job_postings (
   responsibilities            TEXT[],                -- array of responsibility strings
   required_skills             TEXT[],
   preferred_skills            TEXT[],
-  experience_years            INT,
+  experience_years            TEXT,
   required_education          TEXT,
   certifications_required     TEXT,
   languages_required          TEXT,
@@ -490,7 +490,7 @@ CREATE TABLE candidates (
   location        TEXT,
   current_company TEXT,
   current_title   TEXT,
-  experience_years INT,
+  experience_years TEXT,
   linkedin_url    TEXT,
   resume_url      TEXT,                              -- S3/blob URL to uploaded CV
   photo_url       TEXT,                              -- Webcam captured photo URL
@@ -704,6 +704,7 @@ CREATE TABLE talent_pool_entries (
   added_by        UUID REFERENCES users(id) ON DELETE SET NULL,
   source          TEXT,                              -- LinkedIn, Event, Referral, rejected_candidate, etc.
   notes           TEXT,
+  skills          TEXT,                              -- Comma-separated skills (e.g., "React, Node.js, TypeScript")
   last_contacted  TIMESTAMPTZ,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -715,6 +716,7 @@ CREATE INDEX idx_talent_pool_company_id ON talent_pool_entries (company_id);
 CREATE INDEX idx_talent_pool_status ON talent_pool_entries (status);
 CREATE INDEX idx_talent_pool_candidate_id ON talent_pool_entries (candidate_id);
 CREATE INDEX idx_talent_pool_application_id ON talent_pool_entries (application_id);
+CREATE INDEX idx_talent_pool_skills ON talent_pool_entries USING gin(to_tsvector('english', skills));
 
 
 -- ---------------------------------------------------------------------------
@@ -1058,7 +1060,7 @@ CREATE TABLE IF NOT EXISTS screening_submissions (
   job_id                  UUID NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
   candidate_name          TEXT NOT NULL,
   candidate_email         TEXT NOT NULL,
-  experience_years        INT,
+  experience_years        TEXT,
   expected_salary         NUMERIC(12,2),
   notice_period           TEXT,
   notice_period_negotiable BOOLEAN,
@@ -1253,6 +1255,103 @@ CREATE TABLE IF NOT EXISTS usage_ledger (
 CREATE INDEX IF NOT EXISTS idx_usage_ledger_company_id ON usage_ledger (company_id);
 CREATE INDEX IF NOT EXISTS idx_usage_ledger_entry_type ON usage_ledger (entry_type);
 CREATE INDEX IF NOT EXISTS idx_usage_ledger_created_at ON usage_ledger (created_at DESC);
+
+
+-- ============================================================================
+-- TALENT POOL AUTO-UPDATE TRIGGERS
+-- ============================================================================
+
+-- Function to update talent pool status based on application stage
+CREATE OR REPLACE FUNCTION update_talent_pool_from_application()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Update talent pool status when application changes
+    IF TG_OP = 'UPDATE' AND OLD.current_stage IS DISTINCT FROM NEW.current_stage THEN
+        -- If application is rejected, update talent pool to 'not_interested'
+        IF NEW.current_stage = 'rejected' THEN
+            UPDATE talent_pool_entries tpe
+            SET status = 'not_interested',
+                last_contacted = NOW(),
+                updated_at = NOW()
+            WHERE tpe.candidate_id = NEW.candidate_id 
+              AND tpe.company_id = NEW.company_id;
+        
+        -- If application is hired, update talent pool to 'hired'
+        ELSIF NEW.current_stage = 'hired' THEN
+            UPDATE talent_pool_entries tpe
+            SET status = 'hired',
+                last_contacted = NOW(),
+                updated_at = NOW()
+            WHERE tpe.candidate_id = NEW.candidate_id 
+              AND tpe.company_id = NEW.company_id;
+        
+        -- If application moves to interview, update talent pool to 'active_interest'
+        ELSIF NEW.current_stage IN ('ai_interview', 'hiring_manager', 'offer') THEN
+            UPDATE talent_pool_entries tpe
+            SET status = 'active_interest',
+                last_contacted = NOW(),
+                updated_at = NOW()
+            WHERE tpe.candidate_id = NEW.candidate_id 
+              AND tpe.company_id = NEW.company_id
+              AND tpe.status != 'hired';
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger for applications table
+DROP TRIGGER IF EXISTS trigger_update_talent_pool_from_application ON applications;
+CREATE TRIGGER trigger_update_talent_pool_from_application
+    AFTER UPDATE ON applications
+    FOR EACH ROW
+    EXECUTE FUNCTION update_talent_pool_from_application();
+
+-- Function to add rejected candidates to talent pool automatically
+CREATE OR REPLACE FUNCTION add_rejected_candidate_to_talent_pool()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- When application is rejected, add candidate to talent pool if not already there
+    IF TG_OP = 'UPDATE' AND OLD.current_stage IS DISTINCT FROM NEW.current_stage 
+       AND NEW.current_stage = 'rejected' THEN
+        
+        INSERT INTO talent_pool_entries (
+            company_id,
+            candidate_id,
+            status,
+            source,
+            notes,
+            last_contacted,
+            created_at,
+            updated_at
+        ) VALUES (
+            NEW.company_id,
+            NEW.candidate_id,
+            'not_interested',
+            'rejected_candidate',
+            'Automatically added from rejected application',
+            NOW(),
+            NOW(),
+            NOW()
+        )
+        ON CONFLICT (company_id, candidate_id) 
+        DO UPDATE SET
+            status = 'not_interested',
+            last_contacted = NOW(),
+            updated_at = NOW();
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger for auto-adding rejected candidates
+DROP TRIGGER IF EXISTS trigger_add_rejected_to_talent_pool ON applications;
+CREATE TRIGGER trigger_add_rejected_to_talent_pool
+    AFTER UPDATE ON applications
+    FOR EACH ROW
+    EXECUTE FUNCTION add_rejected_candidate_to_talent_pool();
 
 
 -- ============================================================================

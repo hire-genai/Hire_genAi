@@ -97,6 +97,7 @@ export async function GET(
         tc.author_id,
         tc.author_role,
         tc.message,
+        tc.image_url,
         tc.created_at,
         u.full_name as author_name,
         u.email as author_email
@@ -113,6 +114,7 @@ export async function GET(
       author: comment.author_name || comment.author_email || 'Unknown',
       role: comment.author_role === 'support_agent' ? 'support' : 'recruiter',
       message: comment.message,
+      image: comment.image_url,
       timestamp: formatDateTime(comment.created_at)
     }))
 

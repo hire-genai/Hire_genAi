@@ -1122,32 +1122,70 @@ export default function TalentPoolPage() {
             {/* Action Buttons */}
             <div className="flex gap-3 pt-4 border-t">
               <Button 
-                onClick={() => {
+                onClick={async () => {
                   if (!newCandidate.name || !newCandidate.position || !newCandidate.email) {
                     alert('Please fill in required fields: Name, Position, and Email')
                     return
                   }
-                  console.log('[v0] Adding candidate to pool:', newCandidate)
-                  alert(`Successfully added ${newCandidate.name} to talent pool!`)
-                  setShowAddCandidateDialog(false)
-                  setNewCandidate({
-                    name: '',
-                    position: '',
-                    email: '',
-                    phone: '',
-                    source: 'Manual Entry',
-                    status: 'Passive',
-                    skills: '',
-                    experience: '',
-                    location: '',
-                    currentCompany: '',
-                    linkedIn: '',
-                    notes: ''
-                  })
+                  
+                  try {
+                    setLoading(true)
+                    const response = await fetch('/api/talent-pool', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        name: newCandidate.name,
+                        position: newCandidate.position,
+                        email: newCandidate.email,
+                        phone: newCandidate.phone,
+                        source: newCandidate.source,
+                        status: newCandidate.status,
+                        skills: newCandidate.skills,
+                        experience: newCandidate.experience,
+                        location: newCandidate.location,
+                        currentCompany: newCandidate.currentCompany,
+                        linkedIn: newCandidate.linkedIn,
+                        notes: newCandidate.notes,
+                        companyId: company?.id,
+                      }),
+                    })
+
+                    const data = await response.json()
+
+                    if (!response.ok) {
+                      throw new Error(data.error || 'Failed to add candidate')
+                    }
+
+                    alert(`Successfully added ${newCandidate.name} to talent pool!`)
+                    setShowAddCandidateDialog(false)
+                    setNewCandidate({
+                      name: '',
+                      position: '',
+                      email: '',
+                      phone: '',
+                      source: 'Manual Entry',
+                      status: 'Passive',
+                      skills: '',
+                      experience: '',
+                      location: '',
+                      currentCompany: '',
+                      linkedIn: '',
+                      notes: ''
+                    })
+                    
+                    // Refresh the talent pool data
+                    await fetchTalentPool()
+                  } catch (error: any) {
+                    console.error('Error adding candidate:', error)
+                    alert(error.message || 'Failed to add candidate to talent pool')
+                  } finally {
+                    setLoading(false)
+                  }
                 }} 
                 className="flex-1"
+                disabled={loading}
               >
-                Add to Talent Pool
+                {loading ? 'Adding...' : 'Add to Talent Pool'}
               </Button>
               <Button 
                 variant="outline" 

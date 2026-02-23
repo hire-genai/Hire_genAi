@@ -129,13 +129,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         console.log("🔄 Initializing auth system...")
 
-        // Check if session has expired
-        if (!SessionManager.isSessionValid() && SessionManager.getRemainingTime() === 0 && localStorage.getItem('mockAuth')) {
+        // Check if session has expired (only clear if mockAuth exists but session is expired)
+        const hasMockAuth = localStorage.getItem('mockAuth')
+        if (hasMockAuth && !SessionManager.isSessionValid()) {
           console.log("⏰ Session expired on init, clearing...")
           SessionManager.clearSession()
           MockAuthService.signOut()
           setLoading(false)
           return
+        }
+        
+        // If mockAuth exists but no session timer, start one (for existing logged-in users)
+        if (hasMockAuth && !localStorage.getItem('sessionExpiresAt')) {
+          console.log("🔧 Starting session timer for existing user...")
+          SessionManager.startSession()
         }
 
         // Initialize mock users and storage

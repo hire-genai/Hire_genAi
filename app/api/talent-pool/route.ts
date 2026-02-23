@@ -32,11 +32,12 @@ export async function GET(request: NextRequest) {
     }
 
     // --- 1. Talent pool entries with candidate info, skills, and application scores ---
-    // Note: Using only columns that exist in the actual DB - minimal set (tp table has: id, company_id, candidate_id, status, added_by)
     const entriesQuery = `
       SELECT 
         tp.id AS pool_id,
         tp.status AS pool_status,
+        tp.skills AS pool_skills,
+        tp.last_contacted,
         c.created_at AS added_date,
         c.id AS candidate_id,
         c.full_name,
@@ -58,6 +59,8 @@ export async function GET(request: NextRequest) {
         -- Get rejection info from most recent application
         (SELECT a.rejection_stage FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid AND a.current_stage = 'rejected' ORDER BY a.updated_at DESC LIMIT 1) AS rejection_stage,
         (SELECT a.rejection_reason FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid AND a.current_stage = 'rejected' ORDER BY a.updated_at DESC LIMIT 1) AS rejection_reason,
+        -- Get most recent interaction date
+        (SELECT MAX(tpi.contacted_at) FROM talent_pool_interactions tpi WHERE tpi.talent_pool_id = tp.id) AS last_interaction_date,
         -- Default added by name since tp.added_by doesn't exist
         'System' AS added_by_name
       FROM talent_pool_entries tp
@@ -67,29 +70,8 @@ export async function GET(request: NextRequest) {
     `
     const entries = await DatabaseService.query(entriesQuery, [companyId])
 
-    // --- 2. Get skills for all candidates in the pool ---
+    // --- 2. Get candidate IDs for application history ---
     const candidateIds = entries.map((e: any) => e.candidate_id)
-    let skillsMap: Record<string, string[]> = {}
-
-    if (candidateIds.length > 0) {
-      // Build a parameterized query for candidate IDs
-      const placeholders = candidateIds.map((_: any, i: number) => `$${i + 1}::uuid`).join(', ')
-      const skillsQuery = `
-        SELECT candidate_id, skill_name 
-        FROM candidate_skills 
-        WHERE candidate_id IN (${placeholders})
-        ORDER BY skill_name
-      `
-      try {
-        const skillsResult = await DatabaseService.query(skillsQuery, candidateIds)
-        for (const row of skillsResult) {
-          if (!skillsMap[row.candidate_id]) skillsMap[row.candidate_id] = []
-          skillsMap[row.candidate_id].push(row.skill_name)
-        }
-      } catch {
-        // candidate_skills table might be empty
-      }
-    }
 
     // --- 3. Get interaction history for each pool entry ---
     const poolIds = entries.map((e: any) => e.pool_id)
@@ -188,7 +170,8 @@ export async function GET(request: NextRequest) {
     }
 
     const formattedEntries = entries.map((e: any) => {
-      const skills = skillsMap[e.candidate_id] || []
+      // Parse skills from comma-separated string to array
+      const skills = e.pool_skills ? e.pool_skills.split(',').map((s: string) => s.trim()).filter(Boolean) : []
       const interactions = interactionsMap[e.pool_id] || []
       const appHistory = appHistoryMap[e.candidate_id] || []
 
@@ -236,7 +219,21 @@ export async function GET(request: NextRequest) {
         addedDate: e.added_date ? new Date(e.added_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
         source: e.candidate_source || 'Unknown',
         status: statusMap[e.pool_status] || e.pool_status,
-        lastContact: 'Never',
+        lastContact: (() => {
+          // Use the most recent of last_contacted or last_interaction_date
+          const lastContacted = e.last_contacted ? new Date(e.last_contacted) : null
+          const lastInteraction = e.last_interaction_date ? new Date(e.last_interaction_date) : null
+          
+          if (!lastContacted && !lastInteraction) {
+            return 'Never'
+          }
+          
+          const mostRecent = lastContacted && lastInteraction 
+            ? (lastContacted > lastInteraction ? lastContacted : lastInteraction)
+            : (lastContacted || lastInteraction)
+          
+          return mostRecent!.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        })(),
         skills,
         cvScore: e.best_cv_score != null ? `${Math.round(e.best_cv_score)}/100` : null,
         interviewScore: e.best_interview_score != null ? `${Math.round(e.best_interview_score)}/100` : null,
@@ -291,6 +288,179 @@ export async function GET(request: NextRequest) {
     console.error('Talent Pool API error:', error)
     return NextResponse.json(
       { error: error?.message || 'Failed to fetch talent pool data' },
+      { status: 500 }
+    )
+  }
+}
+
+// POST - Add a new candidate to talent pool
+export async function POST(request: NextRequest) {
+  try {
+    if (!DatabaseService.isDatabaseConfigured()) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 })
+    }
+
+    const body = await request.json()
+    const { 
+      name, 
+      position, 
+      email, 
+      phone, 
+      source, 
+      status, 
+      skills, 
+      experience, 
+      location, 
+      currentCompany, 
+      linkedIn, 
+      notes,
+      companyId 
+    } = body
+
+    // Get companyId from body or session
+    let finalCompanyId = companyId
+
+    if (!finalCompanyId) {
+      try {
+        const cookieStore = await cookies()
+        const sessionCookie = cookieStore.get('session')
+        if (sessionCookie?.value) {
+          const session = JSON.parse(sessionCookie.value)
+          finalCompanyId = session.companyId || session.company?.id || null
+        }
+      } catch {
+        console.log('Failed to parse session cookie for talent-pool POST')
+      }
+    }
+
+    if (!finalCompanyId) {
+      return NextResponse.json({ error: 'Company ID is required' }, { status: 400 })
+    }
+
+    // Validate required fields
+    if (!name || !email) {
+      return NextResponse.json({ error: 'Name and email are required' }, { status: 400 })
+    }
+
+    // Map status from frontend to database enum
+    const statusMap: Record<string, string> = {
+      'Active Interest': 'active_interest',
+      'Passive': 'passive',
+      'Not Interested': 'not_interested',
+      'Hired': 'hired',
+      'Archived': 'archived',
+    }
+    const dbStatus = statusMap[status] || 'passive'
+
+    // 1. Check if candidate already exists
+    const checkCandidateQuery = `
+      SELECT id FROM candidates 
+      WHERE company_id = $1::uuid AND email = $2
+      LIMIT 1
+    `
+    const existingCandidate = await DatabaseService.query(checkCandidateQuery, [finalCompanyId, email])
+    
+    let candidateId: string
+    
+    if (existingCandidate && existingCandidate.length > 0) {
+      // Update existing candidate
+      candidateId = existingCandidate[0].id
+      const updateCandidateQuery = `
+        UPDATE candidates SET
+          full_name = $1,
+          phone = $2,
+          location = $3,
+          current_company = $4,
+          current_title = $5,
+          experience_years = $6,
+          linkedin_url = $7,
+          source = $8,
+          notes = $9
+        WHERE id = $10::uuid
+      `
+      const experienceYears = experience ? parseInt(experience) : null
+      await DatabaseService.query(updateCandidateQuery, [
+        name,
+        phone || null,
+        location || null,
+        currentCompany || null,
+        position || null,
+        experienceYears,
+        linkedIn || null,
+        source || 'Manual Entry',
+        notes || null,
+        candidateId,
+      ])
+    } else {
+      // Create new candidate
+      const insertCandidateQuery = `
+        INSERT INTO candidates (
+          company_id, 
+          full_name, 
+          email, 
+          phone, 
+          location, 
+          current_company, 
+          current_title, 
+          experience_years, 
+          linkedin_url, 
+          source, 
+          notes
+        ) VALUES (
+          $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+        )
+        RETURNING id
+      `
+      const experienceYears = experience ? parseInt(experience) : null
+      const candidateResult = await DatabaseService.query(insertCandidateQuery, [
+        finalCompanyId,
+        name,
+        email,
+        phone || null,
+        location || null,
+        currentCompany || null,
+        position || null,
+        experienceYears,
+        linkedIn || null,
+        source || 'Manual Entry',
+        notes || null,
+      ])
+      candidateId = candidateResult[0].id
+    }
+
+    // 2. Add to talent pool with skills
+    const talentPoolQuery = `
+      INSERT INTO talent_pool_entries (
+        company_id,
+        candidate_id,
+        status,
+        skills
+      ) VALUES (
+        $1::uuid, $2::uuid, $3::talent_pool_status, $4
+      )
+      ON CONFLICT (company_id, candidate_id) 
+      DO UPDATE SET
+        status = EXCLUDED.status,
+        skills = EXCLUDED.skills
+      RETURNING id
+    `
+    
+    await DatabaseService.query(talentPoolQuery, [
+      finalCompanyId,
+      candidateId,
+      dbStatus,
+      skills || null,
+    ])
+
+    return NextResponse.json({
+      success: true,
+      message: 'Candidate added to talent pool successfully',
+      candidateId,
+    })
+  } catch (error: any) {
+    console.error('Talent Pool POST error:', error)
+    return NextResponse.json(
+      { error: error?.message || 'Failed to add candidate to talent pool' },
       { status: 500 }
     )
   }
