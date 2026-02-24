@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
 
     // --- 5. Available job descriptions (open jobs for sending JDs) ---
     const jdsQuery = `
-      SELECT id, title, department, location
+      SELECT id, title, department, location, responsibilities, required_skills, description
       FROM job_postings
       WHERE company_id = $1::uuid AND status = 'open'
       ORDER BY created_at DESC
@@ -220,6 +220,9 @@ export async function GET(request: NextRequest) {
           title: jd.title,
           department: jd.department || 'General',
           location: jd.location || 'Not specified',
+          responsibilities: jd.responsibilities || [],
+          required_skills: jd.required_skills || [],
+          description: jd.description || '',
         })),
         recruiters: (recruiters || []).map((r: any) => ({
           id: r.id,

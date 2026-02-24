@@ -53,7 +53,7 @@ interface TalentPoolData {
     recentlyContacted: number
     avgSkillsPerCandidate: string
   }
-  availableJDs: Array<{ id: string; title: string; department: string; location: string }>
+  availableJDs: Array<{ id: string; title: string; department: string; location: string; responsibilities: string[]; required_skills: string[]; description: string }>
   recruiters: Array<{ id: string; name: string }>
 }
 
@@ -79,6 +79,8 @@ Required Skills:
 • [Skill 3]
 
 This role offers competitive compensation, comprehensive benefits, and the opportunity to work on cutting-edge projects.
+
+👉 **Apply Here:** [Apply Link]
 
 Would you be interested in learning more? I'd love to schedule a call to discuss this opportunity in detail.
 
@@ -142,7 +144,7 @@ Warm regards,
 // Data is now fetched from API
 
 export default function TalentPoolPage() {
-  const { company } = useAuth()
+  const { company, user } = useAuth()
   const [poolData, setPoolData] = useState<TalentPoolData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -179,6 +181,9 @@ export default function TalentPoolPage() {
     notes: ''
   })
   const [showBulkEmail, setShowBulkEmail] = useState(false)
+  const [isSendingEmail, setIsSendingEmail] = useState(false)
+  const [selectedJDForSend, setSelectedJDForSend] = useState<string>('')
+  const [jdEmailPreview, setJdEmailPreview] = useState<{ subject: string; body: string } | null>(null)
 
   const fetchTalentPool = useCallback(async () => {
     try {
@@ -735,10 +740,37 @@ export default function TalentPoolPage() {
                         className="p-3 border rounded hover:bg-gray-50 cursor-pointer transition-colors"
                         onClick={() => {
                           setSelectedJD(jd.id)
+                          // Generate company slug from name if not available
+                          const companyName = company?.name || 'Company'
+                          const companySlug = companyName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+                          const applyLink = `https://${window.location.host}/jobs/${companySlug}/${jd.id}/apply`
+                          
+                          // Format responsibilities from job data
+                          let responsibilitiesText = '• Lead technical architecture and implementation\n• Collaborate with cross-functional teams\n• Mentor junior team members'
+                          if (jd.responsibilities && jd.responsibilities.length > 0) {
+                            responsibilitiesText = jd.responsibilities
+                              .slice(0, 5) // Limit to 5 responsibilities
+                              .map(resp => `• ${resp}`)
+                              .join('\n')
+                          }
+                          
+                          // Format required skills from job data
+                          let skillsText = '• [Skill 1]\n• [Skill 2]\n• [Skill 3]'
+                          if (jd.required_skills && jd.required_skills.length > 0) {
+                            skillsText = jd.required_skills
+                              .slice(0, 5) // Limit to 5 skills
+                              .map(skill => `• ${skill}`)
+                              .join('\n')
+                          }
+                          
+                          // Update email body with all job details
                           const updatedBody = emailBody
                             .replace('[Job Title]', jd.title)
                             .replace('[Location]', jd.location)
                             .replace('[Department]', jd.department)
+                            .replace('[Apply Link]', applyLink)
+                            .replace(/• Lead technical architecture and implementation\n• Collaborate with cross-functional teams\n• Mentor junior team members/, responsibilitiesText)
+                            .replace(/• \[Skill 1\]\n• \[Skill 2\]\n• \[Skill 3\]/, skillsText)
                           setEmailBody(updatedBody)
                           setEmailSubject(`Exciting Opportunity: ${jd.title} at [Company Name]`)
                         }}
@@ -822,16 +854,50 @@ export default function TalentPoolPage() {
                       Cancel
                     </Button>
                     <Button 
-                      onClick={() => {
-                        alert(`Email sent to ${selectedCandidates.length} candidate(s)!\n\nSubject: ${emailSubject}\n\nCandidates have been marked as contacted.`)
-                        setShowEmailDialog(false)
-                        setEmailType('')
-                        setSelectedJD('')
-                        setEmailSubject('')
-                        setEmailBody('')
-                        setSelectedCandidates([])
+                      onClick={async () => {
+                        try {
+                          setIsSendingEmail(true)
+                          
+                          // Get candidates' details for personalization
+                          const selectedCandidateDetails = filteredCandidates.filter(c => selectedCandidates.includes(c.email))
+                          
+                          // Send email to all selected candidates
+                          const response = await fetch('/api/talent-pool/send-email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              recipients: selectedCandidates,
+                              subject: emailSubject,
+                              emailContent: emailBody,
+                              emailType: emailType,
+                              companyId: company?.id // Explicitly pass company ID
+                            })
+                          })
+                          
+                          if (!response.ok) {
+                            const errorData = await response.json()
+                            throw new Error(errorData.error || 'Failed to send emails')
+                          }
+                          
+                          const result = await response.json()
+                          alert(`Email sent to ${result.sentTo} candidate(s)!\n\nSubject: ${emailSubject}\n\nCandidates have been marked as contacted.`)
+                          setShowEmailDialog(false)
+                          setEmailType('')
+                          setSelectedJD('')
+                          setEmailSubject('')
+                          setEmailBody('')
+                          setSelectedCandidates([])
+                          
+                          // Refresh talent pool data to show updated contact status
+                          fetchTalentPool()
+                        } catch (error) {
+                          console.error('Error sending emails:', error)
+                          alert(`Error sending emails: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                        } finally {
+                          setIsSendingEmail(false)
+                        }
                       }}
-                      disabled={!emailSubject || !emailBody}
+                      disabled={!emailSubject || !emailBody || isSendingEmail}
                       className="bg-transparent"
                     >
                       <Send className="h-4 w-4 mr-1" />
@@ -848,19 +914,24 @@ export default function TalentPoolPage() {
       {/* Send JD Dialog */}
       {showJDDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+          <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b flex items-center justify-between bg-gray-50">
               <h3 className="text-lg font-semibold">Send Job Description</h3>
               <Button 
                 variant="ghost" 
                 size="icon"
-                onClick={() => setShowJDDialog(false)}
+                onClick={() => {
+                  setShowJDDialog(false)
+                  setSelectedJDForSend('')
+                  setJdEmailPreview(null)
+                }}
                 className="bg-transparent"
               >
                 <X className="h-4 w-4" />
               </Button>
             </div>
             <div className="p-4 space-y-4">
+              {/* Recipients */}
               <div>
                 <p className="text-sm text-gray-600 mb-2">
                   Sending to {selectedCandidates.length} candidate(s)
@@ -876,38 +947,184 @@ export default function TalentPoolPage() {
                 </div>
               </div>
 
+              {/* Job Selection Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Job Description
                 </label>
-                <div className="space-y-2">
+                <select
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={selectedJDForSend}
+                  onChange={(e) => {
+                    const jobId = e.target.value
+                    setSelectedJDForSend(jobId)
+                    
+                    if (jobId) {
+                      const selectedJob = availableJDs.find(j => j.id === jobId)
+                      if (selectedJob) {
+                        const companyName = company?.name || 'Company'
+                        const companySlug = companyName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+                        const applyLink = `https://${window.location.host}/jobs/${companySlug}/${selectedJob.id}/apply`
+                        
+                        // Format responsibilities from job data
+                        let responsibilitiesText = '• No responsibilities specified'
+                        if (selectedJob.responsibilities && Array.isArray(selectedJob.responsibilities) && selectedJob.responsibilities.length > 0) {
+                          responsibilitiesText = selectedJob.responsibilities
+                            .slice(0, 5)
+                            .map(resp => `• ${resp}`)
+                            .join('\n')
+                        }
+                        
+                        // Format required skills from job data
+                        let skillsText = '• No skills specified'
+                        if (selectedJob.required_skills && Array.isArray(selectedJob.required_skills) && selectedJob.required_skills.length > 0) {
+                          skillsText = selectedJob.required_skills
+                            .slice(0, 5)
+                            .map(skill => `• ${skill}`)
+                            .join('\n')
+                        }
+                        
+                        // Build email preview
+                        const emailSubject = `Exciting Opportunity: ${selectedJob.title} at ${companyName}`
+                        const emailBody = `Hi [Candidate Name],
+
+I hope this email finds you well! I wanted to reach out to share an exciting opportunity that I think would be a great fit for your background and skills.
+
+We're currently hiring for: ${selectedJob.title}
+Location: ${selectedJob.location || 'Not specified'}
+Department: ${selectedJob.department || 'Not specified'}
+
+Key Responsibilities:
+${responsibilitiesText}
+
+Required Skills:
+${skillsText}
+
+This role offers competitive compensation, comprehensive benefits, and the opportunity to work on cutting-edge projects.
+
+👉 **Apply Here:** ${applyLink}
+
+Would you be interested in learning more? I'd love to schedule a call to discuss this opportunity in detail.
+
+Best regards,
+${user?.full_name || '[Your Name]'}
+${companyName} Talent Acquisition Team`
+                        
+                        setJdEmailPreview({ subject: emailSubject, body: emailBody })
+                      }
+                    } else {
+                      setJdEmailPreview(null)
+                    }
+                  }}
+                >
+                  <option value="">-- Select a Job --</option>
                   {availableJDs.map(jd => (
-                    <div
-                      key={jd.id}
-                      className="p-3 border rounded hover:bg-gray-50 cursor-pointer transition-colors"
-                      onClick={() => {
-                        // Mark candidates as contacted for this JD
-                        alert(`JD "${jd.title}" sent to ${selectedCandidates.length} candidate(s) and marked as contacted`)
-                        setShowJDDialog(false)
-                        setSelectedCandidates([])
-                      }}
-                    >
-                      <div className="font-medium text-sm">{jd.title}</div>
-                      <div className="text-xs text-gray-600 mt-1">
-                        {jd.department} • {jd.location}
-                      </div>
-                    </div>
+                    <option key={jd.id} value={jd.id}>
+                      {jd.title} ({jd.department} • {jd.location})
+                    </option>
                   ))}
-                </div>
+                </select>
               </div>
 
+              {/* Email Preview */}
+              {jdEmailPreview && (
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Email Preview
+                  </label>
+                  
+                  {/* Subject */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Subject</label>
+                    <div className="px-3 py-2 bg-gray-50 border rounded text-sm">
+                      {jdEmailPreview.subject}
+                    </div>
+                  </div>
+                  
+                  {/* Body */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Body</label>
+                    <div className="px-3 py-3 bg-gray-50 border rounded text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto">
+                      {jdEmailPreview.body}
+                    </div>
+                  </div>
+                  
+                  <p className="text-xs text-gray-500 italic">
+                    Note: [Candidate Name] and [Your Name] will be replaced with actual names when sending.
+                  </p>
+                </div>
+              )}
+
+              {/* Loading State */}
+              {isSendingEmail && (
+                <div className="p-3 border rounded bg-blue-50 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                    <span className="text-sm font-medium">Sending emails to {selectedCandidates.length} candidates...</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
               <div className="flex justify-end gap-2 pt-4 border-t">
                 <Button 
                   variant="outline"
-                  onClick={() => setShowJDDialog(false)}
+                  onClick={() => {
+                    setShowJDDialog(false)
+                    setSelectedJDForSend('')
+                    setJdEmailPreview(null)
+                  }}
                   className="bg-transparent"
                 >
                   Cancel
+                </Button>
+                <Button
+                  disabled={!selectedJDForSend || !jdEmailPreview || isSendingEmail}
+                  onClick={async () => {
+                    if (!jdEmailPreview || !selectedJDForSend) return
+                    
+                    try {
+                      setIsSendingEmail(true)
+                      
+                      // Send email to all selected candidates
+                      const response = await fetch('/api/talent-pool/send-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          recipients: selectedCandidates,
+                          subject: jdEmailPreview.subject,
+                          emailContent: jdEmailPreview.body,
+                          jobId: selectedJDForSend,
+                          emailType: 'jd',
+                          companyId: company?.id
+                        })
+                      })
+                      
+                      if (!response.ok) {
+                        const errorData = await response.json()
+                        throw new Error(errorData.error || 'Failed to send emails')
+                      }
+                      
+                      const result = await response.json()
+                      alert(`JD sent to ${result.sentTo} candidate(s) successfully!`)
+                      setShowJDDialog(false)
+                      setSelectedJDForSend('')
+                      setJdEmailPreview(null)
+                      setSelectedCandidates([])
+                      
+                      // Refresh talent pool data
+                      fetchTalentPool()
+                    } catch (error) {
+                      console.error('Error sending JD emails:', error)
+                      alert(`Error sending emails: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                    } finally {
+                      setIsSendingEmail(false)
+                    }
+                  }}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Send className="h-4 w-4 mr-1" />
+                  Send Email
                 </Button>
               </div>
             </div>
@@ -917,7 +1134,7 @@ export default function TalentPoolPage() {
 
       {/* Add Candidate Dialog */}
       <Dialog open={showAddCandidateDialog} onOpenChange={setShowAddCandidateDialog}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto w-[90vw]">
           <DialogHeader>
             <DialogTitle className="text-2xl">Add Candidate to Talent Pool</DialogTitle>
           </DialogHeader>
@@ -938,10 +1155,38 @@ export default function TalentPoolPage() {
                         const input = document.createElement('input')
                         input.type = 'file'
                         input.accept = '.xlsx,.xls,.csv'
-                        input.onchange = (e: any) => {
+                        input.onchange = async (e: any) => {
                           const file = e.target.files[0]
-                          console.log('[v0] Importing file:', file.name)
-                          alert(`Importing candidates from ${file.name}`)
+                          if (!file) return
+                          
+                          try {
+                            const formData = new FormData()
+                            formData.append('file', file)
+                            // Add company ID to form data
+                            if (company?.id) {
+                              formData.append('companyId', company.id)
+                            }
+                            
+                            const response = await fetch('/api/talent-pool/import', {
+                              method: 'POST',
+                              body: formData
+                            })
+                            
+                            const result = await response.json()
+                            
+                            if (!response.ok) {
+                              throw new Error(result.error || 'Failed to import')
+                            }
+                            
+                            alert(`✅ Import Complete!\n\nImported: ${result.imported} candidate(s)\nErrors: ${result.errors}\n\n${result.errorDetails?.length > 0 ? 'Error Details:\n' + result.errorDetails.join('\n') : ''}`)
+                            
+                            // Refresh talent pool data
+                            fetchTalentPool()
+                            setShowAddCandidateDialog(false)
+                          } catch (error) {
+                            console.error('Import error:', error)
+                            alert(`❌ Import Failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                          }
                         }
                         input.click()
                       }}
@@ -954,8 +1199,8 @@ export default function TalentPoolPage() {
                       size="sm" 
                       variant="outline"
                       onClick={() => {
-                        console.log('[v0] Downloading template')
-                        alert('Downloading Excel template with required columns:\nName, Position, Email, Phone, Skills, Experience, Location, Current Company, LinkedIn, Source, Status, Notes')
+                        // Download Excel template from API
+                        window.location.href = '/api/talent-pool/template'
                       }}
                       className="bg-transparent"
                     >
@@ -1345,9 +1590,7 @@ export default function TalentPoolPage() {
                   <div className="space-y-4">
                     {selectedCandidateDetails.history.map((item: any, index: number) => (
                       <div key={index} className="relative pl-8 pb-4 border-l-2 border-gray-200 last:border-0 last:pb-0">
-                        <div className="absolute left-0 top-0 -translate-x-1/2">
-                          <div className="w-4 h-4 rounded-full bg-blue-500 border-2 border-white"></div>
-                        </div>
+                        {/* Timeline indicator removed */}
                         <div className="bg-gray-50 rounded-lg p-3">
                           <div className="flex items-start justify-between mb-1">
                             <span className="font-semibold text-sm text-gray-900">{item.event}</span>
@@ -1377,8 +1620,8 @@ export default function TalentPoolPage() {
                     size="sm"
                     onClick={() => {
                       setShowCandidateDetailsDialog(false)
-                      setShowBulkEmail(true)
                       setSelectedCandidates([selectedCandidateDetails.email])
+                      setShowJDDialog(true) // Use the Send JD dialog instead
                     }}
                   >
                     <Mail className="h-3 w-3 mr-1" />
