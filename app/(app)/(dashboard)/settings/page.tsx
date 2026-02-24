@@ -64,7 +64,7 @@ const countryOptions = [
 ]
 
 type UserRole = 'admin' | 'director' | 'manager' | 'recruiter' | 'hiring_manager' | 'viewer' | string
-type SettingsTab = 'profile' | 'company' | 'users' | 'payment' | 'notifications' | 'agency'
+type SettingsTab = 'company' | 'users' | 'payment' | 'agency'
 type AgencySubTab = 'performance' | 'onboarding'
 
 interface TeamUser {
@@ -78,27 +78,12 @@ interface TeamUser {
 
 export default function SettingsPage() {
   const { user, company } = useAuth()
-  const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
-  const [emailNotifications, setEmailNotifications] = useState(true)
-  const [pushNotifications, setPushNotifications] = useState(true)
-  const [autoScreening, setAutoScreening] = useState(true)
+  const [activeTab, setActiveTab] = useState<SettingsTab>('company')
   const [showAddUserDialog, setShowAddUserDialog] = useState(false)
   const [newUser, setNewUser] = useState({ name: '', email: '', role: 'recruiter' as UserRole })
 
-  // Loading states
-  const [loadingProfile, setLoadingProfile] = useState(false)
   const [loadingCompany, setLoadingCompany] = useState(false)
-  const [savingProfile, setSavingProfile] = useState(false)
   const [savingCompany, setSavingCompany] = useState(false)
-
-  // Profile form state
-  const [profileForm, setProfileForm] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    role: '',
-    bio: '',
-  })
 
   // Company form state (matching signup structure)
   const [companyForm, setCompanyForm] = useState({
@@ -131,7 +116,6 @@ export default function SettingsPage() {
   
   // Performance metrics state (matching job posting form)
   const [performanceMetrics, setPerformanceMetrics] = useState({
-    expectedHiresPerMonth: '',
     targetOfferAcceptanceRate: '',
     candidateResponseTimeSLA: '',
     interviewScheduleSLA: '',
@@ -163,68 +147,6 @@ export default function SettingsPage() {
     { id: '5', name: 'Innovative Solutions', type: 'Agency', contact: 'info@innovative.com', rate: '10%', role: 'Director' },
   ])
 
-  // Fetch profile data
-  const fetchProfileData = useCallback(async () => {
-    if (!user?.id && !user?.email) return
-    setLoadingProfile(true)
-    try {
-      // Use email for lookup (more reliable with mock auth system)
-      const params = new URLSearchParams()
-      if (user?.email) params.append('email', user.email)
-      if (user?.id) params.append('userId', user.id)
-      
-      const res = await fetch(`/api/settings/profile?${params.toString()}`)
-      const data = await res.json()
-      console.log('📋 [SETTINGS] Profile data received:', data)
-      
-      if (data.user) {
-        // Use database data
-        const u = data.user
-        const fullName = u.full_name || ''
-        const spaceIdx = fullName.indexOf(' ')
-        const firstName = spaceIdx >= 0 ? fullName.substring(0, spaceIdx) : fullName
-        const lastName = spaceIdx >= 0 ? fullName.substring(spaceIdx + 1) : ''
-        setProfileForm({
-          firstName,
-          lastName,
-          email: u.email || '',
-          role: u.role || u.job_title || '',
-          bio: '',
-        })
-      } else if (user) {
-        // Fallback to auth context data when user not in database
-        const fullName = user.full_name || ''
-        const spaceIdx = fullName.indexOf(' ')
-        const firstName = spaceIdx >= 0 ? fullName.substring(0, spaceIdx) : fullName
-        const lastName = spaceIdx >= 0 ? fullName.substring(spaceIdx + 1) : ''
-        setProfileForm({
-          firstName,
-          lastName,
-          email: user.email || '',
-          role: user.role || '',
-          bio: '',
-        })
-      }
-    } catch (error) {
-      console.error('Failed to fetch profile:', error)
-      // Fallback to auth context data on error
-      if (user) {
-        const fullName = user.full_name || ''
-        const spaceIdx = fullName.indexOf(' ')
-        const firstName = spaceIdx >= 0 ? fullName.substring(0, spaceIdx) : fullName
-        const lastName = spaceIdx >= 0 ? fullName.substring(spaceIdx + 1) : ''
-        setProfileForm({
-          firstName,
-          lastName,
-          email: user.email || '',
-          role: user.role || '',
-          bio: '',
-        })
-      }
-    } finally {
-      setLoadingProfile(false)
-    }
-  }, [user])
 
   // Fetch company data
   const fetchCompanyData = useCallback(async () => {
@@ -280,41 +202,13 @@ export default function SettingsPage() {
 
   // Fetch data on mount and tab change
   useEffect(() => {
-    if (activeTab === 'profile') {
-      fetchProfileData()
-    } else if (activeTab === 'company') {
+    if (activeTab === 'company') {
       fetchCompanyData()
     } else if (activeTab === 'users') {
       fetchTeamUsers()
     }
-  }, [activeTab, fetchProfileData, fetchCompanyData, fetchTeamUsers])
+  }, [activeTab, fetchCompanyData, fetchTeamUsers])
 
-  // Save profile
-  const handleSaveProfile = async () => {
-    if (!user?.id) return
-    setSavingProfile(true)
-    try {
-      const res = await fetch('/api/settings/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.id,
-          full_name: `${profileForm.firstName} ${profileForm.lastName}`.trim(),
-        }),
-      })
-      if (res.ok) {
-        alert('Profile updated successfully!')
-      } else {
-        const data = await res.json()
-        alert(data.error || 'Failed to update profile')
-      }
-    } catch (error) {
-      console.error('Failed to save profile:', error)
-      alert('Failed to update profile')
-    } finally {
-      setSavingProfile(false)
-    }
-  }
 
   // Save company (only editable fields)
   const handleSaveCompany = async () => {
@@ -494,14 +388,6 @@ export default function SettingsPage() {
         <div className="flex flex-wrap gap-2">
           <Button
             variant="ghost"
-            className={`${activeTab === 'profile' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
-            onClick={() => setActiveTab('profile')}
-          >
-            <User className="h-4 w-4 mr-2" />
-            Profile
-          </Button>
-          <Button
-            variant="ghost"
             className={`${activeTab === 'company' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
             onClick={() => setActiveTab('company')}
           >
@@ -526,109 +412,17 @@ export default function SettingsPage() {
           </Button>
           <Button
             variant="ghost"
-            className={`${activeTab === 'notifications' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
-            onClick={() => setActiveTab('notifications')}
-          >
-            <Bell className="h-4 w-4 mr-2" />
-            Notifications
-          </Button>
-          <Button
-            variant="ghost"
             className={`${activeTab === 'agency' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
             onClick={() => setActiveTab('agency')}
           >
             <Building2 className="h-4 w-4 mr-2" />
-            Agency Management
+            Other
           </Button>
         </div>
       </Card>
 
       {/* Settings Content */}
       <div className="space-y-4">
-          {/* Profile Settings */}
-          {activeTab === 'profile' && (
-            <Card className="p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <User className="h-6 w-6 text-emerald-600" />
-                <h2 className="text-xl font-semibold">Profile Settings</h2>
-              </div>
-
-              {loadingProfile ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name</Label>
-                      <Input 
-                        id="firstName" 
-                        value={profileForm.firstName}
-                        onChange={(e) => setProfileForm(prev => ({ ...prev, firstName: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name</Label>
-                      <Input 
-                        id="lastName" 
-                        value={profileForm.lastName}
-                        onChange={(e) => setProfileForm(prev => ({ ...prev, lastName: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      value={profileForm.email}
-                      disabled
-                      className="bg-gray-50"
-                    />
-                    <p className="text-xs text-gray-500">Email cannot be changed</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Role</Label>
-                    <Input 
-                      id="role" 
-                      value={profileForm.role || 'Not assigned'}
-                      disabled 
-                      className="bg-gray-50"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="bio">Bio</Label>
-                    <Textarea 
-                      id="bio" 
-                      placeholder="Tell us about yourself..." 
-                      rows={3}
-                      value={profileForm.bio}
-                      onChange={(e) => setProfileForm(prev => ({ ...prev, bio: e.target.value }))}
-                    />
-                  </div>
-
-                  <Button 
-                    className="w-full sm:w-auto" 
-                    onClick={handleSaveProfile}
-                    disabled={savingProfile}
-                  >
-                    {savingProfile ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      'Save Changes'
-                    )}
-                  </Button>
-                </div>
-              )}
-            </Card>
-          )}
 
           {/* Company Profile - Signup Style UI */}
           {activeTab === 'company' && (
@@ -963,45 +757,7 @@ export default function SettingsPage() {
             <BillingContent companyId={company?.id || ''} />
           )}
 
-          {/* Notification Settings */}
-          {activeTab === 'notifications' && (
-            <Card className="p-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-3 border-b">
-                  <div>
-                    <p className="font-medium">Email Notifications</p>
-                    <p className="text-sm text-gray-600">Receive email updates about applications</p>
-                  </div>
-                  <Switch checked={emailNotifications} onCheckedChange={setEmailNotifications} />
-                </div>
-
-                <div className="flex items-center justify-between py-3 border-b">
-                  <div>
-                    <p className="font-medium">Push Notifications</p>
-                    <p className="text-sm text-gray-600">Receive push notifications in browser</p>
-                  </div>
-                  <Switch checked={pushNotifications} onCheckedChange={setPushNotifications} />
-                </div>
-
-                <div className="flex items-center justify-between py-3 border-b">
-                  <div>
-                    <p className="font-medium">New Application Alerts</p>
-                    <p className="text-sm text-gray-600">Get notified when new candidates apply</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-
-                <div className="flex items-center justify-between py-3">
-                  <div>
-                    <p className="font-medium">Interview Reminders</p>
-                    <p className="text-sm text-gray-600">Reminders 1 hour before interviews</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-              </div>
-            </Card>
-          )}
-
+          
           
           {/* Agency Management */}
           {activeTab === 'agency' && (
@@ -1021,7 +777,7 @@ export default function SettingsPage() {
                     className={`${agencySubTab === 'onboarding' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
                     onClick={() => setAgencySubTab('onboarding')}
                   >
-                    Onboarding & Agencies
+                    Agency & Client Management
                   </Button>
                 </div>
               </Card>
@@ -1039,21 +795,37 @@ export default function SettingsPage() {
 
                     <h4 className="font-semibold text-lg border-b pb-2">Performance Targets & SLAs</h4>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Expected Hires Per Month
+                          Number of Hiring Per Month
                         </label>
                         <input
                           type="number"
-                          value={performanceMetrics.expectedHiresPerMonth}
-                          onChange={(e) => updatePerformanceMetric('expectedHiresPerMonth', e.target.value)}
+                          value={monthlyTargets.hiringPerMonth}
+                          onChange={(e) => updateMonthlyTarget('hiringPerMonth', e.target.value)}
                           className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          placeholder="e.g. 2"
+                          placeholder="e.g. 7"
                         />
                         <p className="text-xs text-gray-500 mt-1">For Hiring Velocity tracking</p>
                       </div>
 
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Standard Team Capacity Per Month
+                        </label>
+                        <input
+                          type="number"
+                          value={monthlyTargets.teamCapacityPerMonth}
+                          onChange={(e) => updateMonthlyTarget('teamCapacityPerMonth', e.target.value)}
+                          className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          placeholder="e.g. 7"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Team capacity for hiring</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Target Offer Acceptance Rate (%)
@@ -1264,31 +1036,7 @@ export default function SettingsPage() {
               {/* Onboarding Tab */}
               {agencySubTab === 'onboarding' && (
                 <div className="space-y-4">
-                  {/* Monthly Targets Section */}
-                  <Card className="p-3">
-                    <h3 className="text-lg font-semibold">Monthly Targets</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label>Target: Number of hiring per Month</Label>
-                        <Input
-                          type="number"
-                          value={monthlyTargets.hiringPerMonth}
-                          onChange={(e) => updateMonthlyTarget('hiringPerMonth', e.target.value)}
-                          className="w-full"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Target: Standard team capacity per Month</Label>
-                        <Input
-                          type="number"
-                          value={monthlyTargets.teamCapacityPerMonth}
-                          onChange={(e) => updateMonthlyTarget('teamCapacityPerMonth', e.target.value)}
-                          className="w-full"
-                        />
-                      </div>
-                    </div>
-                  </Card>
-
+                  
                   {/* Add New Agency/Client Form */}
                   <Card className="p-4">
                     <h3 className="text-lg font-semibold">Add New Agency/Client</h3>
@@ -1430,56 +1178,7 @@ export default function SettingsPage() {
                     </div>
                   </Card>
 
-                  {/* Others Section */}
-                  <Card className="p-6">
-                    <h3 className="text-lg font-semibold mb-4">Quick Stats & Activity</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Left Column - Quick Stats */}
-                      <div className="space-y-3">
-                        <h4 className="font-medium text-gray-700 mb-3">Quick Stats</h4>
-                        <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                          <span className="text-sm text-gray-600">Total Agencies</span>
-                          <span className="font-semibold text-gray-900">{connectedList.filter(i => i.type === 'Agency').length}</span>
-                        </div>
-                        <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                          <span className="text-sm text-gray-600">Total Clients</span>
-                          <span className="font-semibold text-gray-900">{connectedList.filter(i => i.type === 'Client').length}</span>
-                        </div>
-                        <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                          <span className="text-sm text-gray-600">Active Contracts</span>
-                          <span className="font-semibold text-gray-900">{connectedList.length}</span>
-                        </div>
-                        <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                          <span className="text-sm text-gray-600">Avg Agency Fee</span>
-                          <span className="font-semibold text-gray-900">13.5%</span>
-                        </div>
-                      </div>
-
-                      {/* Right Column - Recent Activity */}
-                      <div className="space-y-3">
-                        <h4 className="font-medium text-gray-700 mb-3">Recent Activity</h4>
-                        <div className="space-y-2">
-                          <div className="p-3 bg-gray-50 rounded text-sm">
-                            <p className="font-medium text-gray-900">ABC Consulting added</p>
-                            <p className="text-xs text-gray-500">2 hours ago</p>
-                          </div>
-                          <div className="p-3 bg-gray-50 rounded text-sm">
-                            <p className="font-medium text-gray-900">XYZ Corporation updated</p>
-                            <p className="text-xs text-gray-500">5 hours ago</p>
-                          </div>
-                          <div className="p-3 bg-gray-50 rounded text-sm">
-                            <p className="font-medium text-gray-900">Global Recruiters contract signed</p>
-                            <p className="text-xs text-gray-500">1 day ago</p>
-                          </div>
-                          <div className="p-3 bg-gray-50 rounded text-sm">
-                            <p className="font-medium text-gray-900">Tech Mahindra onboarded</p>
-                            <p className="text-xs text-gray-500">2 days ago</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                </div>
+                                  </div>
               )}
             </div>
           )}

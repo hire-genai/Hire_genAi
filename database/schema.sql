@@ -460,7 +460,6 @@ CREATE TABLE job_interview_questions (
   questions           JSONB NOT NULL DEFAULT '[]',     -- e.g. [{"id": 1, "question": "...", "criterion": "Technical Skills", "difficulty": "High", "marks": 15}, ...]
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
   UNIQUE (job_id)
 );
 
@@ -719,22 +718,6 @@ CREATE INDEX idx_talent_pool_application_id ON talent_pool_entries (application_
 CREATE INDEX idx_talent_pool_skills ON talent_pool_entries USING gin(to_tsvector('english', skills));
 
 
--- ---------------------------------------------------------------------------
--- 7b. talent_pool_interactions
--- WHY: Tracks contact history with talent pool candidates.
---      The talent pool page shows interaction timeline per candidate.
--- USED BY: /talent-pool (contact history section)
--- ---------------------------------------------------------------------------
-CREATE TABLE talent_pool_interactions (
-  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  talent_pool_id    UUID NOT NULL REFERENCES talent_pool_entries(id) ON DELETE CASCADE,
-  interaction_type  TEXT NOT NULL,                    -- email, call, meeting, linkedin_message
-  summary           TEXT,
-  contacted_by      UUID REFERENCES users(id) ON DELETE SET NULL,
-  contacted_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_tp_interactions_pool_id ON talent_pool_interactions (talent_pool_id);
 
 
 -- ============================================================================

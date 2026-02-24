@@ -125,6 +125,33 @@ export async function GET(
         .filter((s: string) => s.length > 0)
     }
 
+    // Fetch interview questions from job_interview_questions table
+    let selectedCriteria = []
+    let interviewQuestions = []
+    try {
+      const questionsResult = await DatabaseService.query(
+        `SELECT selected_criteria, questions FROM job_interview_questions WHERE job_id = $1::uuid`,
+        [jobId]
+      )
+      
+      if (questionsResult.length > 0) {
+        // Parse JSON fields
+        selectedCriteria = questionsResult[0].selected_criteria || []
+        interviewQuestions = questionsResult[0].questions || []
+        
+        // Ensure proper format
+        if (typeof selectedCriteria === 'string') {
+          try { selectedCriteria = JSON.parse(selectedCriteria) } catch { selectedCriteria = [] }
+        }
+        
+        if (typeof interviewQuestions === 'string') {
+          try { interviewQuestions = JSON.parse(interviewQuestions) } catch { interviewQuestions = [] }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching interview questions:', error)
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -150,6 +177,12 @@ export async function GET(
         status: job.status,
         publishedAt: job.published_at,
         clientCompanyName: job.client_company_name || null,
+        // Interview questions data
+        selectedCriteria,
+        interviewQuestions,
+        // For backward compatibility with form
+        selectedCriteriaIds: selectedCriteria,
+        generatedQuestions: interviewQuestions,
         // Screening config
         screeningEnabled,
         screeningConfig,

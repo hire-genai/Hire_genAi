@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
         WHERE jp.company_id::text = $1
           AND (
             jp.created_by::text = $2
+            OR jp.created_by = (SELECT email FROM users WHERE id::text = $2 LIMIT 1)
             OR jp.id IN (
               SELECT d.item_id FROM delegations d
               WHERE d.delegated_to::text = $2
@@ -121,7 +122,7 @@ export async function GET(request: NextRequest) {
       try {
         if (job.created_by) {
           const user = await DatabaseService.query(
-            `SELECT full_name, email FROM users WHERE email = $1`,
+            `SELECT full_name, email FROM users WHERE id::text = $1 OR email = $1`,
             [job.created_by]
           )
           if (user.length > 0) {
@@ -204,6 +205,57 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+// Track submission IDs to prevent duplicate job submissions (using submissionId, not title)
+const recentSubmissions = new Map<string, number>();
+
+// Cleanup old submission entries every hour
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, timestamp] of recentSubmissions.entries()) {
+    // Remove entries older than 30 minutes
+    if (now - timestamp > 30 * 60 * 1000) {
+      recentSubmissions.delete(key);
+    }
+  }
+}, 60 * 60 * 1000);
+
+// Check if this is a duplicate submission using submissionId
+function isDuplicateSubmission(submissionId: string): boolean {
+  if (!submissionId) return false;
+  
+  const existing = recentSubmissions.get(submissionId);
+  if (existing) {
+    console.log(`🛑 Detected duplicate submission ID: ${submissionId}`);
+    return true;
+  }
+  
+  recentSubmissions.set(submissionId, Date.now());
+  return false;
+}
+
+// Check if a job with same title+company was created in last 5 seconds (prevents race condition duplicates)
+async function checkRecentDuplicate(companyId: string, title: string): Promise<boolean> {
+  if (!companyId || !title) return false;
+  
+  try {
+    const result = await DatabaseService.query(
+      `SELECT id FROM job_postings 
+       WHERE company_id::text = $1 AND title = $2 AND created_at > NOW() - INTERVAL '5 seconds'
+       LIMIT 1`,
+      [companyId, title.trim()]
+    );
+    
+    if (result.length > 0) {
+      console.log(`🛑 Found recent duplicate job: ${title} (created within 5 seconds)`);
+      return true;
+    }
+  } catch (err) {
+    console.error('Error checking for recent duplicate:', err);
+  }
+  
+  return false;
 }
 
 // POST - Create a new job posting
@@ -428,8 +480,8 @@ export async function POST(request: NextRequest) {
     const status = isDraft ? 'draft' : 'open'
     const publishedAt = isDraft ? null : new Date().toISOString()
 
-    // Insert job posting
-    let newJob: any
+    // Job will be inserted below after duplicate checks
+    // let newJob declared later
     
     // Debug: Log all field values being inserted
     console.log('[Jobs POST] Inserting job with fields:', {
@@ -451,100 +503,179 @@ export async function POST(request: NextRequest) {
       isDraft: isDraft ? 'draft' : 'published'
     })
     
-    try {
-      const jobResult = await DatabaseService.query(
-        `INSERT INTO job_postings (
-          company_id, created_by, title, department, location,
-          job_type, work_mode, salary_min, salary_max, currency,
-          application_deadline, expected_start_date, description,
-          responsibilities, required_skills, preferred_skills,
-          experience_years, required_education, certifications_required,
-          languages_required, hiring_manager_name, hiring_manager_email,
-          number_of_openings, hiring_priority, target_time_to_fill_days,
-          budget_allocated, target_sources, diversity_goals, diversity_target_pct,
-          expected_hires_per_month, target_offer_acceptance_pct,
-          candidate_response_sla_hrs, interview_schedule_sla_hrs,
-          cost_per_hire_budget, agency_fee_pct, job_board_costs,
-          auto_schedule_interview, interview_link_expiry_hours,
-          enable_screening_questions, screening_questions,
-          client_company_name,
-          status, published_at, job_open_date
-        ) VALUES (
-          $1::uuid, $2, $3, $4, $5,
-          $6::job_type, $7::work_mode, $8, $9, $10,
-          $11, $12, $13, $14, $15, $16,
-          $17, $18, $19, $20, $21, $22,
-          $23, $24::hiring_priority, $25, $26, $27, $28, $29,
-          $30, $31, $32, $33, $34,
-          $35, $36, $37, $38, $39,
-          $40, $41, $42,
-          $43::job_status, $44, $45
-        ) RETURNING *`,
-        [
-          companyId, sessionUserEmail, jobTitle,
-          department || null, location || null,
-          normalizedJobType, normalizedWorkMode,
-          salaryMin ? parseFloat(salaryMin) : null,
-          salaryMax ? parseFloat(salaryMax) : null,
-          currency || 'USD',
-          applicationDeadline || null, expectedStartDate || null,
-          jobDescription || null,
-          responsibilities?.filter((r: string) => r.trim()) || [],
-          requiredSkills?.filter((s: string) => s.trim()) || [],
-          preferredSkills?.filter((s: string) => s.trim()) || [],
-          experienceYears || null,
-          requiredEducation || null, certificationsRequired || null,
-          languagesRequired || null,
-          hiringManager || null, hiringManagerEmail || null,
-          numberOfOpenings ? parseInt(numberOfOpenings) : 1,
-          hiringPriority || 'Medium',
-          targetTimeToFill ? parseInt(targetTimeToFill) : null,
-          budgetAllocated ? parseFloat(budgetAllocated) : null,
-          targetSources || [], diversityGoals || false,
-          diversityTargetPercentage ? parseFloat(diversityTargetPercentage) : null,
-          expectedHiresPerMonth ? parseInt(expectedHiresPerMonth) : null,
-          targetOfferAcceptanceRate ? parseFloat(targetOfferAcceptanceRate) : null,
-          candidateResponseTimeSLA ? parseInt(candidateResponseTimeSLA) : null,
-          interviewScheduleSLA ? parseInt(interviewScheduleSLA) : null,
-          costPerHireBudget ? parseFloat(costPerHireBudget) : null,
-          agencyFeePercentage ? parseFloat(agencyFeePercentage) : null,
-          jobBoardCosts ? parseFloat(jobBoardCosts) : null,
-          autoScheduleInterview || false,
-          interviewLinkExpiryHours || 48,
-          enableScreeningQuestions || false,
-          JSON.stringify(screeningQuestions || {}),
-          clientCompanyName || null,
-          status, publishedAt,
-          // Set job_open_date automatically when publishing
-          isDraft ? null : new Date().toISOString().split('T')[0]
-        ]
-      )
-      newJob = jobResult[0]
-    } catch (fullInsertError: any) {
-      // Fallback: minimal insert but still satisfy NOT NULL columns (job_type, work_mode)
-      console.log('Full insert failed, trying minimal insert:', fullInsertError.message)
-      const jobResult = await DatabaseService.query(
-        `INSERT INTO job_postings (
-          company_id, created_by, title, job_type, work_mode, status, published_at
-        ) VALUES (
-          $1::uuid, $2, $3, $4::job_type, $5::work_mode, $6, $7
-        ) RETURNING *`,
-        [
-          companyId,
-          sessionUserEmail,
-          jobTitle,
-          normalizedJobType,
-          normalizedWorkMode,
-          status,
-          publishedAt
-        ]
-      )
-      newJob = jobResult[0]
+    // Sanitize data before database insert
+    const sanitizedData = {
+      // Basic Job Information
+      companyId,
+      userId,
+      jobTitle,
+      department: department || null,
+      location: location || null,
+      jobType: normalizedJobType,
+      workMode: normalizedWorkMode,
+      salaryMin: salaryMin ? parseFloat(salaryMin) : null,
+      salaryMax: salaryMax ? parseFloat(salaryMax) : null,
+      currency: currency || 'USD',
+      applicationDeadline: applicationDeadline || null, 
+      expectedStartDate: expectedStartDate || null,
+      
+      // Job Details
+      jobDescription: jobDescription || null,
+      responsibilities: Array.isArray(responsibilities) ? 
+        responsibilities.filter((r: string) => r && r.trim()) : [],
+      requiredSkills: Array.isArray(requiredSkills) ? 
+        requiredSkills.filter((s: string) => s && s.trim()) : [],
+      preferredSkills: Array.isArray(preferredSkills) ? 
+        preferredSkills.filter((s: string) => s && s.trim()) : [],
+      experienceYears: experienceYears || null,
+      requiredEducation: requiredEducation || null, 
+      certificationsRequired: certificationsRequired || null,
+      languagesRequired: languagesRequired || null,
+      
+      // Team & Planning
+      hiringManager: hiringManager || null, 
+      hiringManagerEmail: hiringManagerEmail || null,
+      numberOfOpenings: numberOfOpenings ? parseInt(numberOfOpenings) : 1,
+      hiringPriority: hiringPriority || 'Medium',
+      targetTimeToFill: targetTimeToFill ? parseInt(targetTimeToFill) : null,
+      budgetAllocated: budgetAllocated ? parseFloat(budgetAllocated) : null,
+      targetSources: Array.isArray(targetSources) ? targetSources : [],
+      diversityGoals: diversityGoals || false,
+      diversityTargetPercentage: diversityTargetPercentage ? parseFloat(diversityTargetPercentage) : null,
+      
+      // Metrics
+      expectedHiresPerMonth: expectedHiresPerMonth ? parseInt(expectedHiresPerMonth) : null,
+      targetOfferAcceptanceRate: targetOfferAcceptanceRate ? parseFloat(targetOfferAcceptanceRate) : null,
+      candidateResponseTimeSLA: candidateResponseTimeSLA ? parseInt(candidateResponseTimeSLA) : null,
+      interviewScheduleSLA: interviewScheduleSLA ? parseInt(interviewScheduleSLA) : null,
+      costPerHireBudget: costPerHireBudget ? parseFloat(costPerHireBudget) : null,
+      agencyFeePercentage: agencyFeePercentage ? parseFloat(agencyFeePercentage) : null,
+      jobBoardCosts: jobBoardCosts ? parseFloat(jobBoardCosts) : null,
+      
+      // Interview and Screening - explicitly handle boolean values
+      autoScheduleInterview: autoScheduleInterview === true ? true : false,
+      interviewLinkExpiryHours: interviewLinkExpiryHours || 48,
+      enableScreeningQuestions: enableScreeningQuestions === true ? true : false,
+      screeningQuestions: JSON.stringify(screeningQuestions || {}),
+      clientCompanyName: clientCompanyName || null,
+      
+      // Status
+      status,
+      publishedAt,
+      jobOpenDate: isDraft ? null : new Date().toISOString().split('T')[0]
     }
-
-    // Insert interview questions if provided (table may not exist yet)
-    if (selectedCriteria?.length > 0 || interviewQuestions?.length > 0) {
-      try {
+    
+    // Use consistent variable names for debugging
+    console.log('📊 Sanitized data:', {
+      companyId: sanitizedData.companyId,
+      userId: sanitizedData.userId,
+      jobTitle: sanitizedData.jobTitle,
+      responsibilities: sanitizedData.responsibilities,
+      requiredSkills: sanitizedData.requiredSkills
+    })
+    
+    // Extract submissionId from the request body
+    const submissionId = body.submissionId || '';
+    
+    // DUPLICATE PREVENTION LAYER 1: Check submissionId (prevents double-click)
+    if (submissionId && isDuplicateSubmission(submissionId)) {
+      console.log('🛑 Duplicate submission blocked by submissionId:', submissionId);
+      return NextResponse.json({
+        success: true, 
+        data: { id: 'duplicate_prevented', title: jobTitle },
+        message: 'Duplicate submission detected and prevented'
+      });
+    }
+    
+    // DUPLICATE PREVENTION LAYER 2: Check if same title+company job was created in last 5 seconds
+    if (companyId && jobTitle) {
+      const recentDuplicate = await checkRecentDuplicate(companyId.toString(), jobTitle);
+      if (recentDuplicate) {
+        console.log('� Duplicate job blocked by 5-second check:', jobTitle);
+        return NextResponse.json({
+          success: true, 
+          data: { id: 'duplicate_prevented', title: jobTitle },
+          message: 'A job with this title was just created. Please wait a moment.'
+        });
+      }
+    }
+      
+    // Single INSERT with all fields - NO separate updates, NO emergency fallback
+    let newJob: any = null;
+    
+    try {
+      console.log('🔄 Inserting job with all fields in single query');
+      
+      const insertQuery = `
+        INSERT INTO job_postings (
+          company_id, created_by, title, job_type, work_mode, status, auto_schedule_interview,
+          department, location, description, responsibilities, required_skills, preferred_skills,
+          experience_years, published_at, job_open_date, salary_min, salary_max, currency,
+          application_deadline, expected_start_date, required_education, certifications_required,
+          languages_required, hiring_manager_name, hiring_manager_email, number_of_openings,
+          hiring_priority, target_time_to_fill_days, budget_allocated, target_sources,
+          diversity_goals, diversity_target_pct, client_company_name, interview_link_expiry_hours,
+          enable_screening_questions, screening_questions
+        ) VALUES (
+          $1::uuid, $2, $3, $4, $5, $6, $7,
+          $8, $9, $10, $11, $12, $13,
+          $14, $15, $16, $17, $18, $19,
+          $20, $21, $22, $23,
+          $24, $25, $26, $27,
+          $28, $29, $30, $31,
+          $32, $33, $34, $35,
+          $36, $37
+        )
+        RETURNING *
+      `;
+      
+      const insertParams = [
+        sanitizedData.companyId,
+        sanitizedData.userId,
+        sanitizedData.jobTitle,
+        sanitizedData.jobType,
+        sanitizedData.workMode,
+        sanitizedData.status,
+        sanitizedData.autoScheduleInterview,
+        sanitizedData.department,
+        sanitizedData.location,
+        sanitizedData.jobDescription,
+        sanitizedData.responsibilities,
+        sanitizedData.requiredSkills,
+        sanitizedData.preferredSkills,
+        sanitizedData.experienceYears,
+        sanitizedData.publishedAt,
+        sanitizedData.jobOpenDate,
+        sanitizedData.salaryMin,
+        sanitizedData.salaryMax,
+        sanitizedData.currency,
+        sanitizedData.applicationDeadline,
+        sanitizedData.expectedStartDate,
+        sanitizedData.requiredEducation,
+        sanitizedData.certificationsRequired,
+        sanitizedData.languagesRequired,
+        sanitizedData.hiringManager,
+        sanitizedData.hiringManagerEmail,
+        sanitizedData.numberOfOpenings,
+        sanitizedData.hiringPriority,
+        sanitizedData.targetTimeToFill,
+        sanitizedData.budgetAllocated,
+        sanitizedData.targetSources,
+        sanitizedData.diversityGoals,
+        sanitizedData.diversityTargetPercentage,
+        sanitizedData.clientCompanyName,
+        sanitizedData.interviewLinkExpiryHours,
+        sanitizedData.enableScreeningQuestions,
+        sanitizedData.screeningQuestions
+      ];
+      
+      const result = await DatabaseService.query(insertQuery, insertParams);
+      newJob = result[0];
+      const jobId = newJob.id;
+      console.log('✅ Created job with ID:', jobId);
+      
+      // Insert interview questions if provided
+      if (selectedCriteria?.length > 0 || interviewQuestions?.length > 0) {
         await DatabaseService.query(
           `INSERT INTO job_interview_questions (job_id, selected_criteria, questions)
            VALUES ($1::uuid, $2, $3)
@@ -553,15 +684,22 @@ export async function POST(request: NextRequest) {
              questions = $3,
              updated_at = NOW()`,
           [
-            newJob.id,
+            jobId,
             JSON.stringify(selectedCriteria || []),
             JSON.stringify(interviewQuestions || [])
           ]
-        )
-      } catch (iqError) {
-        console.log('Could not save interview questions (table may not exist):', iqError)
+        );
+        console.log('✅ Interview questions stored');
       }
+      
+    } catch (error) {
+      // Log the error but DO NOT create a fallback insert (this was causing duplicates)
+      console.error('❌ Job creation failed:', error);
+      throw new Error(`Failed to create job posting: ${(error as any).message}`);
     }
+
+    // Note: Interview questions are now handled inside the transaction
+    // to ensure consistency with the job posting
 
     // Reconcile draft question generation usage with real job_id
     if (draftJobId && newJob?.id) {
