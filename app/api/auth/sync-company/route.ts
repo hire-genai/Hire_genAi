@@ -43,16 +43,21 @@ export async function POST(request: NextRequest) {
 
     // Ensure user exists in database (if user data provided)
     if (user?.id && user?.email) {
+      let syncedUserId: string = user.id
       try {
-        await DatabaseService.query(
+        // Use email as the conflict target — never change an existing user's id
+        const userRows = await DatabaseService.query(
           `INSERT INTO users (id, company_id, email, full_name, status, created_at)
            VALUES ($1::uuid, $2::uuid, $3, $4, 'active', NOW())
-           ON CONFLICT (id) DO UPDATE SET 
-             email = EXCLUDED.email, 
-             full_name = EXCLUDED.full_name`,
+           ON CONFLICT (email) DO UPDATE SET
+             company_id = EXCLUDED.company_id,
+             full_name = EXCLUDED.full_name,
+             status = 'active'
+           RETURNING id`,
           [user.id, company.id, user.email, user.name || user.email]
-        )
-        console.log('✅ User synced to database:', user.email, user.id)
+        ) as any[]
+        syncedUserId = userRows[0]?.id || user.id
+        console.log('✅ User synced to database:', user.email, syncedUserId)
 
         // Also sync user role into user_roles table
         if (user.role) {
@@ -61,36 +66,23 @@ export async function POST(request: NextRequest) {
               `INSERT INTO user_roles (user_id, role, granted_at)
                VALUES ($1::uuid, $2, NOW())
                ON CONFLICT (user_id, role) DO NOTHING`,
-              [user.id, user.role]
+              [syncedUserId, user.role]
             )
-            console.log('✅ User role synced:', user.role)
+            console.log('✅ User role synced:', user.role, 'for user:', syncedUserId)
           } catch (roleError: any) {
             console.warn('⚠️ Could not sync user role (non-critical):', roleError.message)
           }
         }
       } catch (userError: any) {
-        // If email unique conflict, update by email instead
-        if (userError.message?.includes('email') || userError.message?.includes('unique')) {
-          try {
-            await DatabaseService.query(
-              `UPDATE users SET id = $1::uuid, company_id = $2::uuid, full_name = $3 WHERE email = $4`,
-              [user.id, company.id, user.name || user.email, user.email]
-            )
-          } catch (retryError: any) {
-            console.error('Failed to sync user (retry):', retryError.message)
-          }
-        } else {
-          console.error('Failed to sync user:', userError.message)
-          return NextResponse.json({ error: 'Failed to sync user' }, { status: 500 })
-        }
+        console.error('Failed to sync user:', userError.message)
       }
     }
 
     // Ensure company_billing exists
     try {
       await DatabaseService.query(
-        `INSERT INTO company_billing (company_id, wallet_balance, auto_recharge_enabled, auto_recharge_amount, auto_recharge_threshold, monthly_budget_cap, current_month_spent, total_spent, created_at, updated_at)
-         VALUES ($1::uuid, 100.00, true, 50.00, 10.00, 500.00, 0, 0, NOW(), NOW())
+        `INSERT INTO company_billing (company_id, wallet_balance, auto_recharge_enabled, auto_recharge_amount, auto_recharge_threshold, current_month_spent, total_spent, created_at, updated_at)
+         VALUES ($1::uuid, 100.00, true, 50.00, 10.00, 0, 0, NOW(), NOW())
          ON CONFLICT (company_id) DO NOTHING`,
         [company.id]
       )

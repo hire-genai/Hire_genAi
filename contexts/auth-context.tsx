@@ -176,6 +176,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               }
               setUser(newUser)
               setCompany(newCompany)
+              // Sync session to cookie for API routes
+              MockAuthService.syncSessionToCookie()
               console.log("✅ Restored session for:", currentUser.user.email)
 
               // Sync user+company to database on session restore

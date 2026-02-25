@@ -24,7 +24,9 @@ export async function POST(request: NextRequest) {
       const cookieStore = await cookies()
       const sessionCookie = cookieStore.get('session')
       if (sessionCookie?.value) {
-        const session = JSON.parse(sessionCookie.value)
+        let cookieValue = sessionCookie.value
+        try { cookieValue = decodeURIComponent(cookieValue) } catch { /* use raw */ }
+        const session = JSON.parse(cookieValue)
         companyId = session.companyId || session.company?.id || null
         userId = session.userId || session.user?.id || null
       }
@@ -44,6 +46,43 @@ export async function POST(request: NextRequest) {
     
     if (!file) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
+    }
+
+    // Ensure added_by column exists (migration guard)
+    try {
+      await DatabaseService.query(
+        `ALTER TABLE talent_pool_entries ADD COLUMN IF NOT EXISTS added_by UUID REFERENCES users(id) ON DELETE SET NULL`
+      )
+    } catch { /* column already exists or no permission — safe to ignore */ }
+
+    // Resolve actual DB user ID from session (handles mock ID mismatch)
+    let actualUserId: string | null = userId
+    if (userId) {
+      try {
+        // First try to find by ID
+        const userById = await DatabaseService.query(
+          `SELECT id FROM users WHERE id::text = $1 LIMIT 1`, [userId]
+        )
+        if (userById.length > 0) {
+          actualUserId = userById[0].id
+        } else {
+          // Try by email from session cookie
+          const cookieStore2 = await cookies()
+          const sessionCookie2 = cookieStore2.get('session')
+          if (sessionCookie2?.value) {
+            let cv = sessionCookie2.value
+            try { cv = decodeURIComponent(cv) } catch { /* ignore */ }
+            const sess = JSON.parse(cv)
+            const sessionEmail = sess.email || null
+            if (sessionEmail) {
+              const userByEmail = await DatabaseService.query(
+                `SELECT id FROM users WHERE email = $1 LIMIT 1`, [sessionEmail]
+              )
+              if (userByEmail.length > 0) actualUserId = userByEmail[0].id
+            }
+          }
+        }
+      } catch { actualUserId = null }
     }
 
     // Read the file
@@ -155,7 +194,7 @@ export async function POST(request: NextRequest) {
           )
         } else {
           // Create new talent pool entry - created_at and updated_at have DEFAULT NOW() in schema
-          const query = userId 
+          const query = actualUserId 
             ? `INSERT INTO talent_pool_entries (
                 company_id, candidate_id, status, skills, notes, source, added_by
               ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::uuid)`
@@ -163,8 +202,8 @@ export async function POST(request: NextRequest) {
                 company_id, candidate_id, status, skills, notes, source
               ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6)`;
           
-          const params = userId 
-            ? [companyId, candidateId, dbStatus, skills, notes, source, userId]
+          const params = actualUserId 
+            ? [companyId, candidateId, dbStatus, skills, notes, source, actualUserId]
             : [companyId, candidateId, dbStatus, skills, notes, source];
             
           await DatabaseService.query(query, params)

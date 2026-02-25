@@ -116,11 +116,9 @@ export default function SettingsPage() {
   
   // Performance metrics state (matching job posting form)
   const [performanceMetrics, setPerformanceMetrics] = useState({
-    targetOfferAcceptanceRate: '',
-    candidateResponseTimeSLA: '',
-    interviewScheduleSLA: '',
-    costPerHireBudget: '',
-    agencyFeePercentage: '',
+    targetOfferAcceptanceRate: '80',
+    interviewScheduleSLA: '48',
+    costPerHireBudget: '100',
     jobBoardCosts: '',
   })
 
@@ -200,14 +198,48 @@ export default function SettingsPage() {
     }
   }, [company?.id])
 
+  // Fetch performance settings
+  const fetchPerformanceSettings = useCallback(async () => {
+    if (!company?.id) return
+    try {
+      const res = await fetch(`/api/settings/performance?companyId=${company.id}`)
+      const data = await res.json()
+      if (data.settings) {
+        setPerformanceMetrics(data.settings)
+      }
+    } catch (error) {
+      console.error('Failed to fetch performance settings:', error)
+    }
+  }, [company?.id])
+
+  // Fetch agency/client connections
+  const fetchAgencyClientData = useCallback(async () => {
+    if (!company?.id) return
+    try {
+      const res = await fetch(`/api/settings/agency-client?companyId=${company.id}`)
+      const data = await res.json()
+      if (data.connections) {
+        setConnectedList(data.connections)
+      }
+      if (data.monthlyTargets) {
+        setMonthlyTargets(data.monthlyTargets)
+      }
+    } catch (error) {
+      console.error('Failed to fetch agency/client data:', error)
+    }
+  }, [company?.id])
+
   // Fetch data on mount and tab change
   useEffect(() => {
     if (activeTab === 'company') {
       fetchCompanyData()
     } else if (activeTab === 'users') {
       fetchTeamUsers()
+    } else if (activeTab === 'agency') {
+      fetchPerformanceSettings()
+      fetchAgencyClientData()
     }
-  }, [activeTab, fetchCompanyData, fetchTeamUsers])
+  }, [activeTab, fetchCompanyData, fetchTeamUsers, fetchPerformanceSettings, fetchAgencyClientData])
 
 
   // Save company (only editable fields)
@@ -248,6 +280,98 @@ export default function SettingsPage() {
       setSavingCompany(false)
     }
   }
+
+  // Save all performance settings
+  const handleSaveAllPerformanceSettings = async () => {
+    if (!company?.id) return
+    try {
+      // Save performance metrics
+      const perfRes = await fetch('/api/settings/performance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: company.id,
+          ...performanceMetrics,
+        }),
+      })
+      
+      // Save monthly targets
+      const targetsRes = await fetch('/api/settings/monthly-targets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: company.id,
+          ...monthlyTargets,
+        }),
+      })
+      
+      if (perfRes.ok && targetsRes.ok) {
+        alert('Performance settings saved successfully!')
+      } else {
+        alert('Failed to save some performance settings')
+      }
+    } catch (error) {
+      console.error('Failed to save performance settings:', error)
+      alert('Failed to save performance settings')
+    }
+  }
+
+  // Add agency/client connection
+  const handleAddAgencyClient = async () => {
+    if (!company?.id || !newAgency.name) {
+      alert('Please fill in the required fields')
+      return
+    }
+    try {
+      const res = await fetch('/api/settings/agency-client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: company.id,
+          type: newAgency.type,
+          name: newAgency.name,
+          contactPerson: newAgency.contactPerson,
+          email: newAgency.email,
+          rateType: newAgency.rateType,
+          rate: newAgency.rate,
+          role: 'Manager',
+        }),
+      })
+      if (res.ok) {
+        alert('Connection added successfully!')
+        setNewAgency({ type: 'Agency', name: '', contactPerson: '', email: '', rateType: 'Fixed', rate: '' })
+        fetchAgencyClientData()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to add connection')
+      }
+    } catch (error) {
+      console.error('Failed to add connection:', error)
+      alert('Failed to add connection')
+    }
+  }
+
+  // Delete agency/client connection
+  const handleDeleteAgencyClient = async (id: string) => {
+    if (!confirm('Are you sure you want to remove this connection?')) return
+    try {
+      const res = await fetch(`/api/settings/agency-client?id=${id}`, {
+        method: 'DELETE',
+      })
+      if (res.ok) {
+        alert('Connection removed successfully!')
+        fetchAgencyClientData()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to remove connection')
+      }
+    } catch (error) {
+      console.error('Failed to remove connection:', error)
+      alert('Failed to remove connection')
+    }
+  }
+
+  // This function was merged into handleSaveAllPerformanceSettings
 
   const handleDeleteUser = async (userId: string, userName: string) => {
     if (!confirm(`Are you sure you want to remove ${userName} from the team?`)) return
@@ -327,41 +451,6 @@ export default function SettingsPage() {
       viewer: 'bg-gray-100 text-gray-800',
     }
     return colors[role] || 'bg-gray-100 text-gray-700'
-  }
-
-  // Agency tab handlers
-  const handleAddAgency = () => {
-    if (!newAgency.name || !newAgency.email || !newAgency.contactPerson || !newAgency.rate) {
-      alert('Please fill in all required fields')
-      return
-    }
-
-    const rateDisplay = newAgency.rateType === '%' ? `${newAgency.rate}%` : `$${newAgency.rate}`
-    
-    setConnectedList([...connectedList, {
-      id: Date.now().toString(),
-      name: newAgency.name,
-      type: newAgency.type,
-      contact: newAgency.email,
-      rate: rateDisplay,
-      role: 'Manager', // Default role since role field is removed
-    }])
-
-    setNewAgency({
-      type: 'Agency',
-      name: '',
-      contactPerson: '',
-      email: '',
-      rateType: 'Fixed',
-      rate: '',
-    })
-
-    alert('Successfully added to list!')
-  }
-
-  const handleDeleteAgency = (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to remove ${name}?`)) return
-    setConnectedList(connectedList.filter(item => item.id !== id))
   }
 
   const updatePerformanceMetric = (key: string, value: string) => {
@@ -824,6 +913,8 @@ export default function SettingsPage() {
                         <p className="text-xs text-gray-500 mt-1">Team capacity for hiring</p>
                       </div>
                     </div>
+                    
+                    {/* No separate save button here */}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
@@ -840,20 +931,6 @@ export default function SettingsPage() {
                           max="100"
                         />
                         <p className="text-xs text-gray-500 mt-1">Manager KPI: Offer acceptance goal</p>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Candidate Response Time SLA (hours)
-                        </label>
-                        <input
-                          type="number"
-                          value={performanceMetrics.candidateResponseTimeSLA}
-                          onChange={(e) => updatePerformanceMetric('candidateResponseTimeSLA', e.target.value)}
-                          className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          placeholder="e.g. 24"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Recruiter KPI: Response time target</p>
                       </div>
 
                       <div>
@@ -890,22 +967,6 @@ export default function SettingsPage() {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Agency Fee (% of salary)
-                        </label>
-                        <input
-                          type="number"
-                          value={performanceMetrics.agencyFeePercentage}
-                          onChange={(e) => updatePerformanceMetric('agencyFeePercentage', e.target.value)}
-                          className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          placeholder="e.g. 20"
-                          min="0"
-                          max="100"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">If using recruitment agency</p>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
                           Job Board Costs ($)
                         </label>
                         <input
@@ -919,115 +980,14 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    {/* Dashboard Metrics Display */}
-                    <div className="mt-8">
-                      <h4 className="font-semibold text-lg border-b pb-2 mb-4">Dashboard Metrics Display</h4>
-                      
-                      {/* Recruiter Metrics */}
-                      <div className="mb-6">
-                        <h5 className="text-md font-medium text-gray-700 mb-3 flex items-center gap-2">
-                          <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                          Recruiter Metrics
-                        </h5>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-                            <div className="text-2xl font-bold text-gray-900">12</div>
-                            <div className="text-sm text-gray-600">Open Reqs</div>
-                            <div className="text-xs text-green-600 mt-1">↑ +2 from last week</div>
-                          </div>
-                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-                            <div className="text-2xl font-bold text-green-600">68%</div>
-                            <div className="text-sm text-gray-600">Pipeline Health</div>
-                            <div className="text-xs text-gray-500 mt-1">Healthy</div>
-                          </div>
-                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-                            <div className="text-2xl font-bold text-blue-600">18h</div>
-                            <div className="text-sm text-gray-600">Response Time</div>
-                            <div className="text-xs text-green-600 mt-1">Within SLA</div>
-                          </div>
-                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-                            <div className="text-2xl font-bold text-emerald-600">92%</div>
-                            <div className="text-sm text-gray-600">Submittal Quality</div>
-                            <div className="text-xs text-gray-500 mt-1">Excellent</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Manager Metrics */}
-                      <div className="mb-6">
-                        <h5 className="text-md font-medium text-gray-700 mb-3 flex items-center gap-2">
-                          <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                          Manager Metrics
-                        </h5>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-                            <div className="text-2xl font-bold text-gray-900">32d</div>
-                            <div className="text-sm text-gray-600">Time to Fill</div>
-                            <div className="text-xs text-orange-600 mt-1">Above target</div>
-                          </div>
-                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-                            <div className="text-2xl font-bold text-yellow-600">82%</div>
-                            <div className="text-sm text-gray-600">Offer Acceptance Rate</div>
-                            <div className="text-xs text-orange-600 mt-1">Near target</div>
-                          </div>
-                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-                            <div className="text-2xl font-bold text-blue-600">7/7</div>
-                            <div className="text-sm text-gray-600">Team Capacity</div>
-                            <div className="text-xs text-orange-600 mt-1">At capacity</div>
-                          </div>
-                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-                            <div className="text-2xl font-bold text-green-600">A-</div>
-                            <div className="text-sm text-gray-600">Source Quality</div>
-                            <div className="text-xs text-gray-500 mt-1">Good</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Director Metrics */}
-                      <div className="mb-6">
-                        <h5 className="text-md font-medium text-gray-700 mb-3 flex items-center gap-2">
-                          <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-                          Director Metrics
-                        </h5>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-                            <div className="text-2xl font-bold text-orange-600">5.2</div>
-                            <div className="text-sm text-gray-600">Hiring Velocity</div>
-                            <div className="text-xs text-orange-600 mt-1">Below target</div>
-                          </div>
-                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-                            <div className="text-2xl font-bold text-green-600">$4,850</div>
-                            <div className="text-sm text-gray-600">Cost Per Hire</div>
-                            <div className="text-xs text-green-600 mt-1">Under budget</div>
-                          </div>
-                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-                            <div className="text-2xl font-bold text-blue-600">94%</div>
-                            <div className="text-sm text-gray-600">Forecast vs Actual</div>
-                            <div className="text-xs text-gray-500 mt-1">On track</div>
-                          </div>
-                          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-                            <div className="text-2xl font-bold text-emerald-600">3.2x</div>
-                            <div className="text-sm text-gray-600">ROI</div>
-                            <div className="text-xs text-gray-500 mt-1">Strong</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Real-time Calculation Info */}
-                      <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded">
-                        <h5 className="font-semibold text-sm text-blue-900 mb-2 flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4" />
-                          Real-time Calculation
-                        </h5>
-                        <p className="text-xs text-blue-800 mb-2">
-                          Yeh saare metrics company ke internal data aur connected agencies ke data se automatically calculate hote hain. Dono ka data combine hota hai.
-                        </p>
-                        <div className="text-xs text-blue-700 space-y-1">
-                          <p>• Company internal metrics + Connected agencies data = Combined dashboard metrics</p>
-                          <p>• Real-time updates when new agencies are added or targets are changed</p>
-                          <p>• Automatic calculation based on configured SLAs and targets</p>
-                        </div>
-                      </div>
+                    {/* Unified Save Button */}
+                    <div className="flex justify-end mt-6 pt-4 border-t">
+                      <Button 
+                        onClick={handleSaveAllPerformanceSettings}
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                      >
+                        Save Settings
+                      </Button>
                     </div>
                   </div>
                 </Card>
@@ -1110,7 +1070,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    <Button onClick={handleAddAgency} className="w-full mt-4">
+                    <Button onClick={handleAddAgencyClient} className="w-full mt-4">
                       <Plus className="h-4 w-4 mr-2" />
                       Add to List
                     </Button>
@@ -1147,7 +1107,7 @@ export default function SettingsPage() {
                                   size="sm"
                                   variant="outline"
                                   className="bg-transparent text-red-600 hover:text-red-700"
-                                  onClick={() => handleDeleteAgency(item.id, item.name)}
+                                  onClick={() => handleDeleteAgencyClient(item.id)}
                                 >
                                   <Trash2 className="h-3 w-3" />
                                 </Button>
