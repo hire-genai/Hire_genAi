@@ -176,6 +176,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               }
               setUser(newUser)
               setCompany(newCompany)
+              // Sync session to cookie for API routes
+              MockAuthService.syncSessionToCookie()
               console.log("✅ Restored session for:", currentUser.user.email)
 
               // Sync user+company to database on session restore
@@ -423,7 +425,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // No role provided — fetch from DB, fall back to mock auth role
-      const mockUserFallback = { id: userObj.id, email: userObj.email, name: userObj.full_name, role: 'admin' }
+      const mockUserFallback = { id: userObj.id, email: userObj.email, name: userObj.full_name, role: 'recruiter' }
       MockAuthService.setSessionFromServer(mockUserFallback, mockCompany)
       setUser(userObj)
       setCompany(companyObj)

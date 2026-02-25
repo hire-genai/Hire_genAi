@@ -460,7 +460,6 @@ CREATE TABLE job_interview_questions (
   questions           JSONB NOT NULL DEFAULT '[]',     -- e.g. [{"id": 1, "question": "...", "criterion": "Technical Skills", "difficulty": "High", "marks": 15}, ...]
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
   UNIQUE (job_id)
 );
 
@@ -719,22 +718,6 @@ CREATE INDEX idx_talent_pool_application_id ON talent_pool_entries (application_
 CREATE INDEX idx_talent_pool_skills ON talent_pool_entries USING gin(to_tsvector('english', skills));
 
 
--- ---------------------------------------------------------------------------
--- 7b. talent_pool_interactions
--- WHY: Tracks contact history with talent pool candidates.
---      The talent pool page shows interaction timeline per candidate.
--- USED BY: /talent-pool (contact history section)
--- ---------------------------------------------------------------------------
-CREATE TABLE talent_pool_interactions (
-  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  talent_pool_id    UUID NOT NULL REFERENCES talent_pool_entries(id) ON DELETE CASCADE,
-  interaction_type  TEXT NOT NULL,                    -- email, call, meeting, linkedin_message
-  summary           TEXT,
-  contacted_by      UUID REFERENCES users(id) ON DELETE SET NULL,
-  contacted_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_tp_interactions_pool_id ON talent_pool_interactions (talent_pool_id);
 
 
 -- ============================================================================
@@ -1326,6 +1309,82 @@ UPDATE delegations
 SET status = 'expired' 
 WHERE status = 'active' 
   AND end_date < CURRENT_DATE;
+
+-- ============================================================================
+-- 12. PERFORMANCE SETTINGS
+-- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 12a. performance_settings
+-- WHY: Stores company-level performance metrics and KPI targets.
+--      Used in /settings page Performance tab.
+-- USED BY: /settings (Performance tab), /dashboard (KPI tracking)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS performance_settings (
+  id                          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id                  UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  target_offer_acceptance_rate NUMERIC(5,2),              -- Manager KPI: e.g. 80%
+  interview_schedule_sla      INTEGER,                    -- Hours to schedule after approval
+  cost_per_hire_budget        NUMERIC(12,2),              -- Director KPI: Target cost per hire
+  job_board_costs             NUMERIC(12,2),              -- LinkedIn, Indeed, etc. posting costs
+  created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  UNIQUE (company_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_performance_settings_company_id ON performance_settings (company_id);
+
+
+-- ============================================================================
+-- 13. AGENCY & CLIENT MANAGEMENT
+-- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 13a. agency_client_connections
+-- WHY: Stores agency and client connections for a company.
+--      Used in /settings page Agency & Client Management tab.
+-- USED BY: /settings (Agency & Client Management tab)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS agency_client_connections (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id        UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  connection_type   TEXT NOT NULL CHECK (connection_type IN ('Agency', 'Client')),
+  name              TEXT NOT NULL,
+  contact_person    TEXT,
+  email             TEXT,
+  rate_type         TEXT CHECK (rate_type IN ('Fixed', '%')),
+  rate              TEXT,
+  role              TEXT,                                 -- Admin, Manager, Director, etc.
+  status            TEXT NOT NULL DEFAULT 'active',       -- active, inactive
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_agency_client_company_id ON agency_client_connections (company_id);
+CREATE INDEX IF NOT EXISTS idx_agency_client_type ON agency_client_connections (connection_type);
+CREATE INDEX IF NOT EXISTS idx_agency_client_status ON agency_client_connections (status);
+
+
+-- ---------------------------------------------------------------------------
+-- 13b. monthly_hiring_targets
+-- WHY: Stores monthly hiring targets for a company.
+--      Used in /settings page Agency & Client Management tab (Onboarding).
+-- USED BY: /settings (Agency & Client Management tab)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS monthly_hiring_targets (
+  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id              UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  hiring_per_month        INTEGER,                        -- Target hires per month
+  team_capacity_per_month INTEGER,                        -- Team capacity per month
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  UNIQUE (company_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_monthly_targets_company_id ON monthly_hiring_targets (company_id);
+
 
 -- ============================================================================
 -- END OF SCHEMA

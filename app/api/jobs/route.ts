@@ -13,18 +13,31 @@ export async function GET(request: NextRequest) {
     let companyId: string | null = request.nextUrl.searchParams.get('companyId')
     let userId: string | null = request.nextUrl.searchParams.get('userId')
 
+    let sessionEmail: string | null = null
+
     if (sessionCookie?.value) {
       try {
-        const session = JSON.parse(sessionCookie.value)
+        // Handle URL-encoded session cookie
+        let cookieValue = sessionCookie.value
+        try {
+          cookieValue = decodeURIComponent(cookieValue)
+        } catch { /* use raw value if decode fails */ }
+        
+        const session = JSON.parse(cookieValue)
         if (!companyId) companyId = session.companyId || session.company?.id
         if (!userId) userId = session.userId || session.user?.id
-      } catch {
-        console.log('Failed to parse session cookie')
+        sessionEmail = session.email || session.user?.email || null
+        console.log('🔍 [Jobs GET] Session parsed:', { companyId, userId, sessionEmail })
+      } catch (e) {
+        console.log('Failed to parse session cookie:', e)
       }
     }
 
+    console.log('🔍 [Jobs GET] Final params:', { companyId, userId })
+
     // If no company, return empty list — never fallback to another company's data
     if (!companyId) {
+      console.log('❌ [Jobs GET] No companyId found, returning empty list')
       return NextResponse.json({ success: true, data: [] })
     }
 
@@ -37,27 +50,70 @@ export async function GET(request: NextRequest) {
     } catch { /* delegations table may not exist yet */ }
 
     // Fetch jobs with ownership + delegation access control
-    // Cast UUID columns to text to avoid 'operator does not exist: text = uuid' with mock auth IDs
+    // For admin users or when no userId, show all company jobs
+    // Otherwise, show jobs created by the user or delegated to them
     let jobs: any[]
     if (userId) {
-      jobs = await DatabaseService.query(
-        `SELECT DISTINCT jp.*
-        FROM job_postings jp
-        WHERE jp.company_id::text = $1
-          AND (
-            jp.created_by::text = $2
-            OR jp.id IN (
-              SELECT d.item_id FROM delegations d
-              WHERE d.delegated_to::text = $2
-                AND d.delegation_type = 'job'
-                AND d.status = 'active'
-                AND CURRENT_DATE >= d.start_date
-                AND CURRENT_DATE <= d.end_date
+      // Check if user is admin - admins see all company jobs
+      let isAdmin = false
+      try {
+        // First check if user_roles table exists
+        await DatabaseService.query(`SELECT 1 FROM user_roles LIMIT 1`)
+        
+        // Look up role by userId OR by session email (handles userId=companyId mismatch in cookie)
+        const roleCheck = await DatabaseService.query(
+          `SELECT ur.role FROM user_roles ur 
+           JOIN users u ON ur.user_id = u.id 
+           WHERE u.company_id::text = $2
+           AND (
+             u.id::text = $1
+             OR ($3::text IS NOT NULL AND u.email = $3::text)
+           )
+           LIMIT 1`,
+          [userId, companyId, sessionEmail]
+        )
+        isAdmin = roleCheck.length > 0 && roleCheck[0].role === 'admin'
+        console.log('🔑 [Jobs GET] Role check:', { isAdmin, roleFound: roleCheck.length > 0, role: roleCheck[0]?.role })
+      } catch (roleErr: any) {
+        console.log('⚠️ [Jobs GET] Role check failed, defaulting to show all company jobs:', roleErr.message)
+        isAdmin = true // On error, default to showing all company jobs (safe for single-company setup)
+      }
+
+      if (isAdmin) {
+        // Admin sees all company jobs
+        console.log('👑 [Jobs GET] Admin user, showing all company jobs')
+        jobs = await DatabaseService.query(
+          `SELECT jp.*
+          FROM job_postings jp
+          WHERE jp.company_id::text = $1
+          ORDER BY jp.created_at DESC`,
+          [companyId]
+        )
+      } else {
+        // Regular user - show jobs they created or delegated to them
+        // Also check by actual user ID from email lookup (handles ID mismatch)
+        console.log('👤 [Jobs GET] Regular user, showing jobs created by them or delegated')
+        jobs = await DatabaseService.query(
+          `SELECT DISTINCT jp.*
+          FROM job_postings jp
+          WHERE jp.company_id::text = $1
+            AND (
+              jp.created_by::text = $2
+              OR jp.created_by = (SELECT id::text FROM users WHERE email = (SELECT email FROM users WHERE id::text = $2 LIMIT 1) LIMIT 1)
+              OR jp.created_by = (SELECT email FROM users WHERE id::text = $2 LIMIT 1)
+              OR jp.id IN (
+                SELECT d.item_id FROM delegations d
+                WHERE d.delegated_to::text = $2
+                  AND d.delegation_type = 'job'
+                  AND d.status = 'active'
+                  AND CURRENT_DATE >= d.start_date
+                  AND CURRENT_DATE <= d.end_date
+              )
             )
-          )
-        ORDER BY jp.created_at DESC`,
-        [companyId, userId]
-      )
+          ORDER BY jp.created_at DESC`,
+          [companyId, userId]
+        )
+      }
     } else {
       jobs = await DatabaseService.query(
         `SELECT jp.*
@@ -121,7 +177,7 @@ export async function GET(request: NextRequest) {
       try {
         if (job.created_by) {
           const user = await DatabaseService.query(
-            `SELECT full_name, email FROM users WHERE email = $1`,
+            `SELECT full_name, email FROM users WHERE id::text = $1 OR email = $1`,
             [job.created_by]
           )
           if (user.length > 0) {
@@ -206,6 +262,57 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Track submission IDs to prevent duplicate job submissions (using submissionId, not title)
+const recentSubmissions = new Map<string, number>();
+
+// Cleanup old submission entries every hour
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, timestamp] of recentSubmissions.entries()) {
+    // Remove entries older than 30 minutes
+    if (now - timestamp > 30 * 60 * 1000) {
+      recentSubmissions.delete(key);
+    }
+  }
+}, 60 * 60 * 1000);
+
+// Check if this is a duplicate submission using submissionId
+function isDuplicateSubmission(submissionId: string): boolean {
+  if (!submissionId) return false;
+  
+  const existing = recentSubmissions.get(submissionId);
+  if (existing) {
+    console.log(`🛑 Detected duplicate submission ID: ${submissionId}`);
+    return true;
+  }
+  
+  recentSubmissions.set(submissionId, Date.now());
+  return false;
+}
+
+// Check if a job with same title+company was created in last 5 seconds (prevents race condition duplicates)
+async function checkRecentDuplicate(companyId: string, title: string): Promise<boolean> {
+  if (!companyId || !title) return false;
+  
+  try {
+    const result = await DatabaseService.query(
+      `SELECT id FROM job_postings 
+       WHERE company_id::text = $1 AND title = $2 AND created_at > NOW() - INTERVAL '5 seconds'
+       LIMIT 1`,
+      [companyId, title.trim()]
+    );
+    
+    if (result.length > 0) {
+      console.log(`🛑 Found recent duplicate job: ${title} (created within 5 seconds)`);
+      return true;
+    }
+  } catch (err) {
+    console.error('Error checking for recent duplicate:', err);
+  }
+  
+  return false;
+}
+
 // POST - Create a new job posting
 export async function POST(request: NextRequest) {
   try {
@@ -215,31 +322,38 @@ export async function POST(request: NextRequest) {
     
     let userId: string | null = null
     let companyId: string | null = null
+    let sessionEmail: string | null = null
+    let sessionFullName: string | null = null
 
     const body = await request.json()
 
+    // Parse session cookie - try both encoded and raw formats
     if (sessionCookie?.value) {
       try {
-        const session = JSON.parse(sessionCookie.value)
-        userId = session.userId || session.user?.id
-        companyId = session.companyId || session.company?.id
-      } catch {
-        console.log('Failed to parse session cookie')
+        // First try decoding (cookie was URL-encoded)
+        let cookieValue = sessionCookie.value
+        try {
+          cookieValue = decodeURIComponent(sessionCookie.value)
+        } catch { /* use raw value if decode fails */ }
+        
+        const session = JSON.parse(cookieValue)
+        userId = session.userId || session.user?.id || null
+        companyId = session.companyId || session.company?.id || null
+        sessionEmail = session.email || null
+        sessionFullName = session.fullName || session.user?.name || null
+        
+        console.log('🍪 Session cookie parsed:', { userId, companyId, sessionEmail })
+      } catch (parseError) {
+        console.error('Failed to parse session cookie:', parseError)
       }
     }
 
-    // Fallback to request body for userId and companyId (mock auth uses localStorage, not cookies)
-    if (!companyId) {
-      companyId = body.companyId || null
-    }
-    if (!userId) {
-      userId = body.userId || null
-    }
-
+    // SECURITY: Only use authenticated session data - never accept userId/companyId from request body
     if (!userId || !companyId) {
+      console.error('❌ No valid session found in cookie')
       return NextResponse.json(
-        { error: 'No user or company found. Please sign up first.' },
-        { status: 400 }
+        { error: 'Unauthorized. Please sign in to create a job posting.' },
+        { status: 401 }
       )
     }
     const {
@@ -295,121 +409,110 @@ export async function POST(request: NextRequest) {
       isDraft
     } = body
 
-    // Validate company/user exist; auto-create from real session data if missing
-    const sessionUserName: string = body.userName || body.userFullName || 'User'
-    const sessionUserEmail: string = body.userEmail || `user_${userId}@hiregen.ai`
-    const sessionCompanyName: string = body.companyName || 'Company'
-
     // UUID validation helper
     const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
 
-    console.log('🔍 Job creation validation:', { 
-      userId, 
-      companyId, 
-      sessionUserName, 
-      sessionUserEmail, 
-      sessionCompanyName,
-      userIdIsUUID: isValidUUID(userId || ''),
-      companyIdIsUUID: isValidUUID(companyId || '')
-    })
-
-    // If userId or companyId are not valid UUIDs, we need to look up by email
+    // Validate that userId and companyId are valid UUIDs
     if (!isValidUUID(userId || '') || !isValidUUID(companyId || '')) {
-      console.log('⚠️ Invalid UUID detected, looking up user by email...')
-      try {
-        const userByEmail = await DatabaseService.query(
-          `SELECT u.id as user_id, u.company_id FROM users u WHERE u.email = $1 LIMIT 1`,
-          [sessionUserEmail]
-        )
-        if (userByEmail.length > 0) {
-          console.log('✅ Found user by email:', userByEmail[0])
-          userId = userByEmail[0].user_id
-          companyId = userByEmail[0].company_id
-        } else {
-          console.error('❌ User not found by email and IDs are not valid UUIDs')
-          return NextResponse.json(
-            { error: 'Invalid session. Please clear your browser data (localStorage) and sign in again.' },
-            { status: 400 }
-          )
-        }
-      } catch (lookupError: any) {
-        console.error('❌ Email lookup failed:', lookupError.message)
-        return NextResponse.json(
-          { error: 'Session validation failed. Please clear your browser data and sign in again.' },
-          { status: 400 }
-        )
-      }
+      console.error('❌ Invalid UUID in session:', { userId, companyId })
+      return NextResponse.json(
+        { error: 'Invalid session. Please sign out and sign in again.' },
+        { status: 401 }
+      )
     }
 
+    // STRICT: Ensure user and company exist in database - create from session if missing, FAIL if creation fails
+    // Check/create company
+    console.log('🔍 Checking company exists:', companyId)
+    let companyVerified = false
     try {
       const companyExists = await DatabaseService.query(
         `SELECT id FROM companies WHERE id = $1::uuid LIMIT 1`,
         [companyId]
       )
       if (companyExists.length === 0) {
-        try {
-          await DatabaseService.query(
-            `INSERT INTO companies (id, name) VALUES ($1::uuid, $2) ON CONFLICT (id) DO NOTHING`,
-            [companyId, sessionCompanyName]
-          )
-        } catch (createCompanyError) {
-          console.error('Failed to create company record:', createCompanyError)
-          return NextResponse.json(
-            { error: 'Company not found. Please sign in again.' },
-            { status: 400 }
-          )
-        }
+        // Create company from authenticated session data
+        const companyName = body.companyName || 'Company'
+        console.log('🔄 Creating company from session:', companyId, companyName)
+        await DatabaseService.query(
+          `INSERT INTO companies (id, name, status, verified, created_at)
+           VALUES ($1::uuid, $2, 'active', false, NOW())
+           ON CONFLICT (id) DO NOTHING`,
+          [companyId, companyName]
+        )
+        console.log('✅ Company created successfully')
+      } else {
+        console.log('✅ Company already exists')
       }
+      companyVerified = true
+    } catch (companyError: any) {
+      console.error('❌ Failed to verify/create company:', companyError.message)
+      return NextResponse.json(
+        { error: 'Failed to verify company. Please try again.' },
+        { status: 500 }
+      )
+    }
 
-      const userExists = await DatabaseService.query(
+    // Check/create user - check by ID first, then by email to handle ID mismatch
+    console.log('🔍 Checking user exists:', userId)
+    let userVerified = false
+    let actualUserId = userId
+    try {
+      // First check by ID
+      const userExistsById = await DatabaseService.query(
         `SELECT id FROM users WHERE id = $1::uuid LIMIT 1`,
         [userId]
       )
-      if (userExists.length === 0) {
-        console.log('🔄 User not found in DB, creating directly...')
-        try {
-          // Direct insert - more reliable than API call
+      if (userExistsById.length > 0) {
+        console.log('✅ User already exists by ID')
+        userVerified = true
+      } else if (sessionEmail) {
+        // User not found by ID - check if exists by email (ID mismatch scenario)
+        const userExistsByEmail = await DatabaseService.query(
+          `SELECT id FROM users WHERE email = $1 LIMIT 1`,
+          [sessionEmail]
+        )
+        if (userExistsByEmail.length > 0) {
+          // User exists with different ID - use the existing user's ID
+          actualUserId = userExistsByEmail[0].id
+          console.log('✅ User found by email with different ID, using:', actualUserId)
+          userVerified = true
+        } else {
+          // User doesn't exist at all - create new
+          console.log('🔄 Creating user from session:', userId, sessionEmail)
           await DatabaseService.query(
             `INSERT INTO users (id, company_id, email, full_name, status, created_at)
              VALUES ($1::uuid, $2::uuid, $3, $4, 'active', NOW())
-             ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name`,
-            [userId, companyId, sessionUserEmail, sessionUserName]
+             ON CONFLICT (id) DO NOTHING`,
+            [userId, companyId, sessionEmail, sessionFullName || sessionEmail]
           )
-          console.log('✅ User created directly:', sessionUserEmail, userId)
-        } catch (createUserError: any) {
-          console.error('❌ Failed to create user:', createUserError.message)
-          // Try to find existing user by email
-          try {
-            const existingByEmail = await DatabaseService.query(
-              `SELECT id FROM users WHERE email = $1 LIMIT 1`,
-              [sessionUserEmail]
-            )
-            if (existingByEmail.length > 0) {
-              console.log('⚠️ Found existing user by email, using ID:', existingByEmail[0].id)
-              userId = existingByEmail[0].id
-            } else {
-              return NextResponse.json(
-                { error: `Failed to create user: ${createUserError.message}. Please log out and sign in again.` },
-                { status: 400 }
-              )
-            }
-          } catch (lookupError: any) {
-            return NextResponse.json(
-              { error: `User lookup failed: ${lookupError.message}. Please log out and sign in again.` },
-              { status: 400 }
-            )
-          }
+          console.log('✅ User created successfully')
+          userVerified = true
         }
       } else {
-        console.log('✅ User exists in DB:', userId)
+        console.error('❌ User not found and no email in session:', userId)
+        return NextResponse.json(
+          { error: 'User not found. Please sign out and sign in again.' },
+          { status: 401 }
+        )
       }
-    } catch (fkCheckError) {
-      console.error('Failed to validate user/company before insert:', fkCheckError)
+    } catch (userError: any) {
+      console.error('❌ Failed to verify/create user:', userError.message)
       return NextResponse.json(
-        { error: 'Unable to validate user/company. Please try again.' },
-        { status: 400 }
+        { error: 'Failed to verify user. Please try again.' },
+        { status: 500 }
       )
     }
+
+    // STRICT: Do not proceed if verification failed
+    if (!companyVerified || !userVerified) {
+      console.error('❌ Verification incomplete:', { companyVerified, userVerified })
+      return NextResponse.json(
+        { error: 'Authentication verification failed. Please sign in again.' },
+        { status: 401 }
+      )
+    }
+    console.log('✅ User and company fully verified in DB:', { userId: actualUserId, companyId })
 
     // Normalize enums to valid values
     const allowedJobTypes = ['Full-time', 'Part-time', 'Contract', 'Temporary']
@@ -428,8 +531,8 @@ export async function POST(request: NextRequest) {
     const status = isDraft ? 'draft' : 'open'
     const publishedAt = isDraft ? null : new Date().toISOString()
 
-    // Insert job posting
-    let newJob: any
+    // Job will be inserted below after duplicate checks
+    // let newJob declared later
     
     // Debug: Log all field values being inserted
     console.log('[Jobs POST] Inserting job with fields:', {
@@ -446,105 +549,184 @@ export async function POST(request: NextRequest) {
     
     console.log('🚀 About to create job with:', { 
       companyId, 
-      userId, 
+      userId: actualUserId, 
       jobTitle,
       isDraft: isDraft ? 'draft' : 'published'
     })
     
-    try {
-      const jobResult = await DatabaseService.query(
-        `INSERT INTO job_postings (
-          company_id, created_by, title, department, location,
-          job_type, work_mode, salary_min, salary_max, currency,
-          application_deadline, expected_start_date, description,
-          responsibilities, required_skills, preferred_skills,
-          experience_years, required_education, certifications_required,
-          languages_required, hiring_manager_name, hiring_manager_email,
-          number_of_openings, hiring_priority, target_time_to_fill_days,
-          budget_allocated, target_sources, diversity_goals, diversity_target_pct,
-          expected_hires_per_month, target_offer_acceptance_pct,
-          candidate_response_sla_hrs, interview_schedule_sla_hrs,
-          cost_per_hire_budget, agency_fee_pct, job_board_costs,
-          auto_schedule_interview, interview_link_expiry_hours,
-          enable_screening_questions, screening_questions,
-          client_company_name,
-          status, published_at, job_open_date
-        ) VALUES (
-          $1::uuid, $2, $3, $4, $5,
-          $6::job_type, $7::work_mode, $8, $9, $10,
-          $11, $12, $13, $14, $15, $16,
-          $17, $18, $19, $20, $21, $22,
-          $23, $24::hiring_priority, $25, $26, $27, $28, $29,
-          $30, $31, $32, $33, $34,
-          $35, $36, $37, $38, $39,
-          $40, $41, $42,
-          $43::job_status, $44, $45
-        ) RETURNING *`,
-        [
-          companyId, sessionUserEmail, jobTitle,
-          department || null, location || null,
-          normalizedJobType, normalizedWorkMode,
-          salaryMin ? parseFloat(salaryMin) : null,
-          salaryMax ? parseFloat(salaryMax) : null,
-          currency || 'USD',
-          applicationDeadline || null, expectedStartDate || null,
-          jobDescription || null,
-          responsibilities?.filter((r: string) => r.trim()) || [],
-          requiredSkills?.filter((s: string) => s.trim()) || [],
-          preferredSkills?.filter((s: string) => s.trim()) || [],
-          experienceYears || null,
-          requiredEducation || null, certificationsRequired || null,
-          languagesRequired || null,
-          hiringManager || null, hiringManagerEmail || null,
-          numberOfOpenings ? parseInt(numberOfOpenings) : 1,
-          hiringPriority || 'Medium',
-          targetTimeToFill ? parseInt(targetTimeToFill) : null,
-          budgetAllocated ? parseFloat(budgetAllocated) : null,
-          targetSources || [], diversityGoals || false,
-          diversityTargetPercentage ? parseFloat(diversityTargetPercentage) : null,
-          expectedHiresPerMonth ? parseInt(expectedHiresPerMonth) : null,
-          targetOfferAcceptanceRate ? parseFloat(targetOfferAcceptanceRate) : null,
-          candidateResponseTimeSLA ? parseInt(candidateResponseTimeSLA) : null,
-          interviewScheduleSLA ? parseInt(interviewScheduleSLA) : null,
-          costPerHireBudget ? parseFloat(costPerHireBudget) : null,
-          agencyFeePercentage ? parseFloat(agencyFeePercentage) : null,
-          jobBoardCosts ? parseFloat(jobBoardCosts) : null,
-          autoScheduleInterview || false,
-          interviewLinkExpiryHours || 48,
-          enableScreeningQuestions || false,
-          JSON.stringify(screeningQuestions || {}),
-          clientCompanyName || null,
-          status, publishedAt,
-          // Set job_open_date automatically when publishing
-          isDraft ? null : new Date().toISOString().split('T')[0]
-        ]
-      )
-      newJob = jobResult[0]
-    } catch (fullInsertError: any) {
-      // Fallback: minimal insert but still satisfy NOT NULL columns (job_type, work_mode)
-      console.log('Full insert failed, trying minimal insert:', fullInsertError.message)
-      const jobResult = await DatabaseService.query(
-        `INSERT INTO job_postings (
-          company_id, created_by, title, job_type, work_mode, status, published_at
-        ) VALUES (
-          $1::uuid, $2, $3, $4::job_type, $5::work_mode, $6, $7
-        ) RETURNING *`,
-        [
-          companyId,
-          sessionUserEmail,
-          jobTitle,
-          normalizedJobType,
-          normalizedWorkMode,
-          status,
-          publishedAt
-        ]
-      )
-      newJob = jobResult[0]
+    // Sanitize data before database insert
+    const sanitizedData = {
+      // Basic Job Information
+      companyId,
+      userId: actualUserId,
+      jobTitle,
+      department: department || null,
+      location: location || null,
+      jobType: normalizedJobType,
+      workMode: normalizedWorkMode,
+      salaryMin: salaryMin ? parseFloat(salaryMin) : null,
+      salaryMax: salaryMax ? parseFloat(salaryMax) : null,
+      currency: currency || 'USD',
+      applicationDeadline: applicationDeadline || null, 
+      expectedStartDate: expectedStartDate || null,
+      
+      // Job Details
+      jobDescription: jobDescription || null,
+      responsibilities: Array.isArray(responsibilities) ? 
+        responsibilities.filter((r: string) => r && r.trim()) : [],
+      requiredSkills: Array.isArray(requiredSkills) ? 
+        requiredSkills.filter((s: string) => s && s.trim()) : [],
+      preferredSkills: Array.isArray(preferredSkills) ? 
+        preferredSkills.filter((s: string) => s && s.trim()) : [],
+      experienceYears: experienceYears || null,
+      requiredEducation: requiredEducation || null, 
+      certificationsRequired: certificationsRequired || null,
+      languagesRequired: languagesRequired || null,
+      
+      // Team & Planning
+      hiringManager: hiringManager || null, 
+      hiringManagerEmail: hiringManagerEmail || null,
+      numberOfOpenings: numberOfOpenings ? parseInt(numberOfOpenings) : 1,
+      hiringPriority: hiringPriority || 'Medium',
+      targetTimeToFill: targetTimeToFill ? parseInt(targetTimeToFill) : null,
+      budgetAllocated: budgetAllocated ? parseFloat(budgetAllocated) : null,
+      targetSources: Array.isArray(targetSources) ? targetSources : [],
+      diversityGoals: diversityGoals || false,
+      diversityTargetPercentage: diversityTargetPercentage ? parseFloat(diversityTargetPercentage) : null,
+      
+      // Metrics
+      expectedHiresPerMonth: expectedHiresPerMonth ? parseInt(expectedHiresPerMonth) : null,
+      targetOfferAcceptanceRate: targetOfferAcceptanceRate ? parseFloat(targetOfferAcceptanceRate) : null,
+      candidateResponseTimeSLA: candidateResponseTimeSLA ? parseInt(candidateResponseTimeSLA) : null,
+      interviewScheduleSLA: interviewScheduleSLA ? parseInt(interviewScheduleSLA) : null,
+      costPerHireBudget: costPerHireBudget ? parseFloat(costPerHireBudget) : null,
+      agencyFeePercentage: agencyFeePercentage ? parseFloat(agencyFeePercentage) : null,
+      jobBoardCosts: jobBoardCosts ? parseFloat(jobBoardCosts) : null,
+      
+      // Interview and Screening - explicitly handle boolean values
+      autoScheduleInterview: autoScheduleInterview === true ? true : false,
+      interviewLinkExpiryHours: interviewLinkExpiryHours || 48,
+      enableScreeningQuestions: enableScreeningQuestions === true ? true : false,
+      screeningQuestions: JSON.stringify(screeningQuestions || {}),
+      clientCompanyName: clientCompanyName || null,
+      
+      // Status
+      status,
+      publishedAt,
+      jobOpenDate: isDraft ? null : new Date().toISOString().split('T')[0]
     }
-
-    // Insert interview questions if provided (table may not exist yet)
-    if (selectedCriteria?.length > 0 || interviewQuestions?.length > 0) {
-      try {
+    
+    // Use consistent variable names for debugging
+    console.log('📊 Sanitized data:', {
+      companyId: sanitizedData.companyId,
+      userId: sanitizedData.userId,
+      jobTitle: sanitizedData.jobTitle,
+      responsibilities: sanitizedData.responsibilities,
+      requiredSkills: sanitizedData.requiredSkills
+    })
+    
+    // Extract submissionId from the request body
+    const submissionId = body.submissionId || '';
+    
+    // DUPLICATE PREVENTION LAYER 1: Check submissionId (prevents double-click)
+    if (submissionId && isDuplicateSubmission(submissionId)) {
+      console.log('🛑 Duplicate submission blocked by submissionId:', submissionId);
+      return NextResponse.json({
+        success: true, 
+        data: { id: 'duplicate_prevented', title: jobTitle },
+        message: 'Duplicate submission detected and prevented'
+      });
+    }
+    
+    // DUPLICATE PREVENTION LAYER 2: Check if same title+company job was created in last 5 seconds
+    if (companyId && jobTitle) {
+      const recentDuplicate = await checkRecentDuplicate(companyId.toString(), jobTitle);
+      if (recentDuplicate) {
+        console.log('� Duplicate job blocked by 5-second check:', jobTitle);
+        return NextResponse.json({
+          success: true, 
+          data: { id: 'duplicate_prevented', title: jobTitle },
+          message: 'A job with this title was just created. Please wait a moment.'
+        });
+      }
+    }
+      
+    // Single INSERT with all fields - NO separate updates, NO emergency fallback
+    let newJob: any = null;
+    
+    try {
+      console.log('🔄 Inserting job with all fields in single query');
+      
+      const insertQuery = `
+        INSERT INTO job_postings (
+          company_id, created_by, title, job_type, work_mode, status, auto_schedule_interview,
+          department, location, description, responsibilities, required_skills, preferred_skills,
+          experience_years, published_at, job_open_date, salary_min, salary_max, currency,
+          application_deadline, expected_start_date, required_education, certifications_required,
+          languages_required, hiring_manager_name, hiring_manager_email, number_of_openings,
+          hiring_priority, target_time_to_fill_days, budget_allocated, target_sources,
+          diversity_goals, diversity_target_pct, client_company_name, interview_link_expiry_hours,
+          enable_screening_questions, screening_questions
+        ) VALUES (
+          $1::uuid, $2, $3, $4, $5, $6, $7,
+          $8, $9, $10, $11, $12, $13,
+          $14, $15, $16, $17, $18, $19,
+          $20, $21, $22, $23,
+          $24, $25, $26, $27,
+          $28, $29, $30, $31,
+          $32, $33, $34, $35,
+          $36, $37
+        )
+        RETURNING *
+      `;
+      
+      const insertParams = [
+        sanitizedData.companyId,
+        sanitizedData.userId,
+        sanitizedData.jobTitle,
+        sanitizedData.jobType,
+        sanitizedData.workMode,
+        sanitizedData.status,
+        sanitizedData.autoScheduleInterview,
+        sanitizedData.department,
+        sanitizedData.location,
+        sanitizedData.jobDescription,
+        sanitizedData.responsibilities,
+        sanitizedData.requiredSkills,
+        sanitizedData.preferredSkills,
+        sanitizedData.experienceYears,
+        sanitizedData.publishedAt,
+        sanitizedData.jobOpenDate,
+        sanitizedData.salaryMin,
+        sanitizedData.salaryMax,
+        sanitizedData.currency,
+        sanitizedData.applicationDeadline,
+        sanitizedData.expectedStartDate,
+        sanitizedData.requiredEducation,
+        sanitizedData.certificationsRequired,
+        sanitizedData.languagesRequired,
+        sanitizedData.hiringManager,
+        sanitizedData.hiringManagerEmail,
+        sanitizedData.numberOfOpenings,
+        sanitizedData.hiringPriority,
+        sanitizedData.targetTimeToFill,
+        sanitizedData.budgetAllocated,
+        sanitizedData.targetSources,
+        sanitizedData.diversityGoals,
+        sanitizedData.diversityTargetPercentage,
+        sanitizedData.clientCompanyName,
+        sanitizedData.interviewLinkExpiryHours,
+        sanitizedData.enableScreeningQuestions,
+        sanitizedData.screeningQuestions
+      ];
+      
+      const result = await DatabaseService.query(insertQuery, insertParams);
+      newJob = result[0];
+      const jobId = newJob.id;
+      console.log('✅ Created job with ID:', jobId);
+      
+      // Insert interview questions if provided
+      if (selectedCriteria?.length > 0 || interviewQuestions?.length > 0) {
         await DatabaseService.query(
           `INSERT INTO job_interview_questions (job_id, selected_criteria, questions)
            VALUES ($1::uuid, $2, $3)
@@ -553,15 +735,22 @@ export async function POST(request: NextRequest) {
              questions = $3,
              updated_at = NOW()`,
           [
-            newJob.id,
+            jobId,
             JSON.stringify(selectedCriteria || []),
             JSON.stringify(interviewQuestions || [])
           ]
-        )
-      } catch (iqError) {
-        console.log('Could not save interview questions (table may not exist):', iqError)
+        );
+        console.log('✅ Interview questions stored');
       }
+      
+    } catch (error) {
+      // Log the error but DO NOT create a fallback insert (this was causing duplicates)
+      console.error('❌ Job creation failed:', error);
+      throw new Error(`Failed to create job posting: ${(error as any).message}`);
     }
+
+    // Note: Interview questions are now handled inside the transaction
+    // to ensure consistency with the job posting
 
     // Reconcile draft question generation usage with real job_id
     if (draftJobId && newJob?.id) {

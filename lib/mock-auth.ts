@@ -256,6 +256,8 @@ export class MockAuthService {
         if (typeof window !== "undefined") {
           localStorage.setItem(this.STORAGE_KEY, JSON.stringify(session))
           localStorage.setItem(`${this.STORAGE_KEY}_backup`, JSON.stringify(session))
+          // Sync to cookie for API routes
+          this.syncSessionToCookie()
           console.log("✅ Session saved for user:", user.email)
         }
 
@@ -340,6 +342,8 @@ export class MockAuthService {
       if (typeof window !== "undefined") {
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(session))
         localStorage.setItem(`${this.STORAGE_KEY}_backup`, JSON.stringify(session))
+        // Sync to cookie for API routes
+        this.syncSessionToCookie()
         console.log("✅ New user registered and session saved:", email)
       }
 
@@ -382,6 +386,8 @@ export class MockAuthService {
             if (typeof window !== "undefined") {
               localStorage.setItem(this.STORAGE_KEY, JSON.stringify(session))
               localStorage.setItem(`${this.STORAGE_KEY}_backup`, JSON.stringify(session))
+              // Sync to cookie for API routes
+              this.syncSessionToCookie()
             }
 
             return {
@@ -429,6 +435,8 @@ export class MockAuthService {
       if (typeof window !== "undefined") {
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(session))
         localStorage.setItem(`${this.STORAGE_KEY}_backup`, JSON.stringify(session))
+        // Sync to cookie for API routes
+        this.syncSessionToCookie()
       }
 
       return {
@@ -504,6 +512,8 @@ export class MockAuthService {
       if (typeof window !== "undefined") {
         localStorage.removeItem(this.STORAGE_KEY)
         localStorage.removeItem(`${this.STORAGE_KEY}_backup`)
+        // Clear session cookie
+        this.clearSessionCookie()
         // Set flag to prevent session restoration on next load
         sessionStorage.setItem('skipAuthRestore', 'true')
         console.log("✅ Session cleared and skip flag set")
@@ -607,9 +617,43 @@ export class MockAuthService {
         })
       )
       
+      // Sync to cookie for API routes
+      this.syncSessionToCookie()
+      
       console.log('📱 Saved user profile with phone:', user.phone)
     } catch (e) {
       console.error("Failed to set mock auth session:", e)
     }
+  }
+
+  // Sync localStorage session to cookie so API routes can read it
+  static syncSessionToCookie() {
+    if (typeof window === "undefined") return
+
+    try {
+      const currentUser = this.getCurrentUser()
+      if (currentUser) {
+        const cookieData = {
+          userId: currentUser.user.id,
+          companyId: currentUser.company.id,
+          fullName: currentUser.user.name,
+          email: currentUser.user.email,
+          role: currentUser.user.role
+        }
+        // Set cookie with 7 day expiry, accessible by all paths
+        const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toUTCString()
+        document.cookie = `session=${encodeURIComponent(JSON.stringify(cookieData))}; path=/; expires=${expires}; SameSite=Lax`
+        console.log('🍪 Session synced to cookie for user:', currentUser.user.email)
+      }
+    } catch (e) {
+      console.error("Failed to sync session to cookie:", e)
+    }
+  }
+
+  // Clear session cookie
+  static clearSessionCookie() {
+    if (typeof window === "undefined") return
+    document.cookie = 'session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    console.log('🍪 Session cookie cleared')
   }
 }

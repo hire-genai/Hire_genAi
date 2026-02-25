@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
     if (userId) {
       accessibleJobsClause = `j.company_id::text = $1 AND (
         j.created_by::text = $2
+        OR j.created_by = (SELECT email FROM users WHERE id::text = $2 LIMIT 1)
         OR j.id IN (
           SELECT d.item_id FROM delegations d
           WHERE d.delegated_to::text = $2
@@ -301,6 +302,7 @@ function buildAccessFilter(companyId: string, userId: string | null): { clause: 
     return {
       clause: `a.company_id::text = $1 AND (
         j.created_by::text = $2
+        OR j.created_by = (SELECT email FROM users WHERE id::text = $2 LIMIT 1)
         OR j.id IN (
           SELECT d.item_id FROM delegations d
           WHERE d.delegated_to::text = $2 AND d.delegation_type = 'job'
@@ -346,10 +348,11 @@ async function getInterviewStats(companyId: string, userId: string | null) {
   const result = await DatabaseService.query(`
     SELECT 
       COUNT(*) AS total,
-      COUNT(*) FILTER (WHERE a.interview_recommendation IN ('Strongly Recommend', 'Recommend')) AS qualified,
-      COUNT(*) FILTER (WHERE a.interview_recommendation IN ('Reject', 'On Hold')) AS unqualified
+      COUNT(*) FILTER (WHERE i.interview_recommendation IN ('Strongly Recommend', 'Recommend')) AS qualified,
+      COUNT(*) FILTER (WHERE i.interview_recommendation IN ('Reject', 'On Hold')) AS unqualified
     FROM applications a
     JOIN job_postings j ON a.job_id = j.id
+    LEFT JOIN interviews i ON i.application_id = a.id
     WHERE a.current_stage = 'ai_interview' AND ${clause}
   `, params)
   const r = result?.[0] || {}

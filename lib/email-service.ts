@@ -11,6 +11,108 @@ export interface EmailTemplate {
 
 export class EmailService {
   /**
+   * Send talent pool emails (JD, newsletter, greeting) to candidates
+   */
+  static async sendTalentPoolEmail({
+    to,
+    subject,
+    emailContent,
+    candidateName,
+    companyName,
+    senderName,
+    emailType,
+  }: {
+    to: string;
+    subject: string;
+    emailContent: string;
+    candidateName?: string;
+    companyName?: string;
+    senderName?: string;
+    emailType: string;
+  }) {
+    // Replace placeholders with actual values
+    let personalizedContent = emailContent;
+    
+    if (candidateName) {
+      personalizedContent = personalizedContent.replace(/\[Candidate Name\]/g, candidateName);
+    }
+    
+    if (companyName) {
+      personalizedContent = personalizedContent.replace(/\[Company Name\]/g, companyName);
+    }
+    
+    if (senderName) {
+      personalizedContent = personalizedContent.replace(/\[Your Name\]/g, senderName);
+    }
+    
+    // Process Apply Link for HTML version
+    let processedContent = personalizedContent;
+    
+    // Replace Apply Link with styled button
+    if (processedContent.includes('👉 **Apply Here:** [Apply Link]')) {
+      const applyLinkRegex = /👉 \*\*Apply Here:\*\* \[(.*?)\]/g;
+      processedContent = processedContent.replace(applyLinkRegex, (match, url) => {
+        return `<div style="text-align: center; margin: 25px 0;">
+          <a href="${url}" style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
+            👉 Apply Now
+          </a>
+        </div>`;  
+      });
+    }
+    
+    // Create HTML version with enhanced styling
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 8px 8px 0 0; text-align: center; color: white; }
+          .content { background: #fff; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb; border-top: none; }
+          .footer { margin-top: 20px; text-align: center; font-size: 12px; color: #6b7280; }
+          .apply-button { display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; margin: 25px 0; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4); }
+          .job-title { font-size: 22px; font-weight: bold; color: #111827; margin-top: 20px; }
+          .job-details { background: #f9fafb; padding: 15px; border-radius: 8px; margin: 15px 0; }
+          .section-title { font-weight: bold; color: #111827; margin-top: 20px; }
+          ul { padding-left: 20px; }
+          li { margin-bottom: 5px; }
+        </style>
+      </head>
+      <body style="margin: 0; padding: 0; background-color: #f4f7fa;">
+        <div class="container">
+          <div class="header">
+            <h1>HireGenAI</h1>
+          </div>
+          <div class="content">
+            ${processedContent.replace(/\n/g, '<br>')}
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} HireGenAI. All rights reserved.</p>
+            <p>This email was sent by HireGenAI on behalf of ${companyName || 'your company'}.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Plain text version
+    const text = personalizedContent;
+
+    // Send the email
+    return await sendMail({
+      to,
+      subject,
+      html,
+      text,
+      from: process.env.EMAIL_FROM || 'HireGenAI <no-reply@hire-genai.com>',
+      replyTo: process.env.EMAIL_REPLY_TO,
+    });
+  }
+
+  /**
    * Send contact form confirmation email to user
    */
   static async sendContactFormConfirmation({

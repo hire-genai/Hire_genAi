@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -611,19 +611,45 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
 
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Add form submission tracking
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const submissionTimeRef = useRef<number | null>(null);
+
   const handleSubmit = async (isDraft: boolean) => {
+    // Prevent duplicate submissions
+    const currentTime = Date.now();
+    if (isSubmitted) {
+      alert('Your job is already being submitted. Please wait...')
+      return;
+    }
+
+    // Check for rapid re-submission (within 5 seconds)
+    if (submissionTimeRef.current && (currentTime - submissionTimeRef.current < 5000)) {
+      console.log('Prevented duplicate submission attempt');
+      return;
+    }
+
+    // Mark as submitted and record submission time
+    setIsSubmitted(true);
+    submissionTimeRef.current = currentTime;
+
     // Check if user and company exist
     if (!user || !company) {
       alert('No user or company found. Please sign in again.')
+      setIsSubmitted(false); // Reset submission state
       return
     }
 
     if (!formData.jobTitle.trim()) {
       alert('Please enter a job title')
+      setIsSubmitted(false); // Reset submission state
       return
     }
 
     const status = isDraft ? 'draft' : 'open'
+
+    // Include submission timestamp to help backend prevent duplicates
+    const submissionId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
     const payload = {
       ...formData,
@@ -634,6 +660,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
       companyName: company?.name || 'Company',
       jobType: formData.jobType || 'Full-time',
       workMode: formData.workMode || 'Hybrid',
+      submissionId, // Add unique submission ID to help backend identify duplicates
       status,
       // Merge fetched values into screeningQuestions before saving
       screeningQuestions: formData.enableScreeningQuestions
@@ -674,12 +701,20 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
         throw new Error(result.error || 'Failed to save job posting')
       }
 
-      alert(isDraft ? 'Job saved as draft!' : 'Job published successfully!')
-      onClose()
+      // Check if this was a duplicate prevention response
+      if (result.message?.includes('duplicate')) {
+        alert('A similar job was just created. Please check the job listing or modify the details to create a unique job.')
+      } else {
+        alert(isDraft ? 'Job saved as draft!' : 'Job published successfully!')
+        onClose()
+      }
     } catch (error) {
       console.error('Error saving job:', error)
       alert(error instanceof Error ? error.message : 'Failed to save job')
     } finally {
+      // Reset submission state so future submissions are possible
+      setIsSubmitted(false)
+      submissionTimeRef.current = null
       setIsSubmitting(false)
     }
   }

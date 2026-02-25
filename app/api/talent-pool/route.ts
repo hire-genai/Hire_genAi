@@ -59,9 +59,7 @@ export async function GET(request: NextRequest) {
         -- Get rejection info from most recent application
         (SELECT a.rejection_stage FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid AND a.current_stage = 'rejected' ORDER BY a.updated_at DESC LIMIT 1) AS rejection_stage,
         (SELECT a.rejection_reason FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid AND a.current_stage = 'rejected' ORDER BY a.updated_at DESC LIMIT 1) AS rejection_reason,
-        -- Get most recent interaction date
-        (SELECT MAX(tpi.contacted_at) FROM talent_pool_interactions tpi WHERE tpi.talent_pool_id = tp.id) AS last_interaction_date,
-        -- Default added by name since tp.added_by doesn't exist
+                -- Default added by name since tp.added_by doesn't exist
         'System' AS added_by_name
       FROM talent_pool_entries tp
       JOIN candidates c ON tp.candidate_id = c.id
@@ -73,39 +71,7 @@ export async function GET(request: NextRequest) {
     // --- 2. Get candidate IDs for application history ---
     const candidateIds = entries.map((e: any) => e.candidate_id)
 
-    // --- 3. Get interaction history for each pool entry ---
-    const poolIds = entries.map((e: any) => e.pool_id)
-    let interactionsMap: Record<string, any[]> = {}
-
-    if (poolIds.length > 0) {
-      const placeholders = poolIds.map((_: any, i: number) => `$${i + 1}::uuid`).join(', ')
-      const interactionsQuery = `
-        SELECT 
-          tpi.talent_pool_id,
-          tpi.interaction_type,
-          tpi.summary,
-          tpi.contacted_at,
-          (SELECT u.full_name FROM users u WHERE u.id = tpi.contacted_by) AS contacted_by_name
-        FROM talent_pool_interactions tpi
-        WHERE tpi.talent_pool_id IN (${placeholders})
-        ORDER BY tpi.contacted_at DESC
-      `
-      try {
-        const interactionsResult = await DatabaseService.query(interactionsQuery, poolIds)
-        for (const row of interactionsResult) {
-          if (!interactionsMap[row.talent_pool_id]) interactionsMap[row.talent_pool_id] = []
-          interactionsMap[row.talent_pool_id].push({
-            type: row.interaction_type,
-            summary: row.summary,
-            date: row.contacted_at ? new Date(row.contacted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
-            contactedBy: row.contacted_by_name || 'Unknown',
-          })
-        }
-      } catch {
-        // talent_pool_interactions table might be empty
-      }
-    }
-
+    
     // --- 4. Get application history for past-application candidates ---
     let appHistoryMap: Record<string, any[]> = {}
     if (candidateIds.length > 0) {
@@ -143,7 +109,7 @@ export async function GET(request: NextRequest) {
 
     // --- 5. Available job descriptions (open jobs for sending JDs) ---
     const jdsQuery = `
-      SELECT id, title, department, location
+      SELECT id, title, department, location, responsibilities, required_skills, description
       FROM job_postings
       WHERE company_id = $1::uuid AND status = 'open'
       ORDER BY created_at DESC
@@ -172,7 +138,6 @@ export async function GET(request: NextRequest) {
     const formattedEntries = entries.map((e: any) => {
       // Parse skills from comma-separated string to array
       const skills = e.pool_skills ? e.pool_skills.split(',').map((s: string) => s.trim()).filter(Boolean) : []
-      const interactions = interactionsMap[e.pool_id] || []
       const appHistory = appHistoryMap[e.candidate_id] || []
 
       // Build combined history
@@ -191,15 +156,7 @@ export async function GET(request: NextRequest) {
         history.push(ah)
       }
 
-      // Add interaction events
-      for (const int of interactions) {
-        history.push({
-          date: int.date,
-          event: `${int.type.charAt(0).toUpperCase() + int.type.slice(1)} - ${int.contactedBy}`,
-          description: int.summary || `${int.type} interaction`,
-        })
-      }
-
+      
       // Sort history by date descending
       history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
@@ -219,21 +176,7 @@ export async function GET(request: NextRequest) {
         addedDate: e.added_date ? new Date(e.added_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
         source: e.candidate_source || 'Unknown',
         status: statusMap[e.pool_status] || e.pool_status,
-        lastContact: (() => {
-          // Use the most recent of last_contacted or last_interaction_date
-          const lastContacted = e.last_contacted ? new Date(e.last_contacted) : null
-          const lastInteraction = e.last_interaction_date ? new Date(e.last_interaction_date) : null
-          
-          if (!lastContacted && !lastInteraction) {
-            return 'Never'
-          }
-          
-          const mostRecent = lastContacted && lastInteraction 
-            ? (lastContacted > lastInteraction ? lastContacted : lastInteraction)
-            : (lastContacted || lastInteraction)
-          
-          return mostRecent!.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-        })(),
+        lastContact: e.last_contacted ? new Date(e.last_contacted).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Never',
         skills,
         cvScore: e.best_cv_score != null ? `${Math.round(e.best_cv_score)}/100` : null,
         interviewScore: e.best_interview_score != null ? `${Math.round(e.best_interview_score)}/100` : null,
@@ -277,6 +220,9 @@ export async function GET(request: NextRequest) {
           title: jd.title,
           department: jd.department || 'General',
           location: jd.location || 'Not specified',
+          responsibilities: jd.responsibilities || [],
+          required_skills: jd.required_skills || [],
+          description: jd.description || '',
         })),
         recruiters: (recruiters || []).map((r: any) => ({
           id: r.id,

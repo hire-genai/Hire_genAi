@@ -199,28 +199,35 @@ export async function POST(request: NextRequest) {
     let userId: string = ''
     let userName: string = 'User'
 
+    let sessionEmail: string = ''
+    
+    // Parse session cookie - try both encoded and raw formats
     if (sessionCookie?.value) {
       try {
-        const session = JSON.parse(sessionCookie.value)
-        if (!companyId) companyId = session.companyId || session.company?.id
-        if (!userId) userId = session.userId || session.user?.id
+        // First try decoding (cookie was URL-encoded)
+        let cookieValue = sessionCookie.value
+        try {
+          cookieValue = decodeURIComponent(sessionCookie.value)
+        } catch { /* use raw value if decode fails */ }
+        
+        const session = JSON.parse(cookieValue)
+        companyId = session.companyId || session.company?.id || ''
+        userId = session.userId || session.user?.id || ''
         userName = session.fullName || session.user?.full_name || session.user?.fullName || 'User'
-      } catch {
-        console.log('Failed to parse session cookie')
+        sessionEmail = session.email || ''
+        
+        console.log('🍪 Session cookie parsed:', { userId, companyId, sessionEmail })
+      } catch (parseError) {
+        console.error('Failed to parse session cookie:', parseError)
       }
     }
 
-    // Fallback to request body for mock auth
-    if (!userId || !companyId) {
-      if (!userId) userId = body.userId
-      if (!companyId) companyId = body.companyId
-      if (!userName || userName === 'User') userName = body.userName
-    }
-
+    // SECURITY: Only use authenticated session data - never accept userId/companyId from request body
     if (!companyId || !userId) {
+      console.error('❌ No valid session found in cookie')
       return NextResponse.json(
-        { error: 'No user or company found. Please sign in first.' },
-        { status: 400 }
+        { error: 'Unauthorized. Please sign in to create a support ticket.' },
+        { status: 401 }
       )
     }
 
@@ -248,51 +255,89 @@ export async function POST(request: NextRequest) {
     const validPriorities = ['low', 'medium', 'high', 'urgent']
     const ticketPriority = validPriorities.includes(priority) ? priority : 'medium'
 
-    // Ensure user and company exist in database
+    // STRICT: Ensure user and company exist in database - create from session if missing, FAIL if creation fails
+    // Check/create company
+    console.log('🔍 Checking company exists:', companyId)
+    let companyVerified = false
     try {
-      // First check and create company
       const companyCheck = await DatabaseService.query(
         'SELECT id FROM companies WHERE id = $1::uuid',
         [companyId]
       )
       
       if (!companyCheck || companyCheck.length === 0) {
-        console.log('Company not found, creating:', companyId)
+        // Create company from authenticated session data
+        console.log('🔄 Creating company from session:', companyId)
         await DatabaseService.query(
-          `INSERT INTO companies (id, name, slug, industry, company_size, created_at, updated_at)
-           VALUES ($1::uuid, 'Demo Company', 'demo-company', 'Technology', '1-10', NOW(), NOW())`,
-          [companyId]
+          `INSERT INTO companies (id, name, status, verified, created_at)
+           VALUES ($1::uuid, $2, 'active', false, NOW())
+           ON CONFLICT (id) DO NOTHING`,
+          [companyId, 'Company']
         )
+        console.log('✅ Company created successfully')
+      } else {
+        console.log('✅ Company already exists')
       }
+      companyVerified = true
+    } catch (companyError: any) {
+      console.error('❌ Failed to verify/create company:', companyError.message)
+      return NextResponse.json(
+        { error: 'Failed to verify company. Please try again.' },
+        { status: 500 }
+      )
+    }
 
-      // Then check and create/update user
+    // Check/create user
+    console.log('🔍 Checking user exists:', userId)
+    let userVerified = false
+    try {
       const userCheck = await DatabaseService.query(
         'SELECT id, full_name FROM users WHERE id = $1::uuid',
         [userId]
       )
       
       if (!userCheck || userCheck.length === 0) {
-        console.log('User not found, creating:', userId, 'with name:', userName)
+        // Create user from authenticated session data
+        if (!sessionEmail) {
+          console.error('❌ User not found and no email in session:', userId)
+          return NextResponse.json(
+            { error: 'User not found. Please sign out and sign in again.' },
+            { status: 401 }
+          )
+        }
+        console.log('🔄 Creating user from session:', userId, sessionEmail)
         await DatabaseService.query(
-          `INSERT INTO users (id, company_id, email, full_name, status, created_at, updated_at)
-           VALUES ($1::uuid, $2::uuid, 'user@example.com', $3, 'active', NOW(), NOW())`,
-          [userId, companyId, userName || 'User']
+          `INSERT INTO users (id, company_id, email, full_name, status, created_at)
+           VALUES ($1::uuid, $2::uuid, $3, $4, 'active', NOW())
+           ON CONFLICT (id) DO NOTHING`,
+          [userId, companyId, sessionEmail, userName || sessionEmail]
         )
-      } else if (userCheck[0].full_name === 'User' && userName && userName !== 'User') {
-        // Update user name if it's still the default 'User'
-        console.log('Updating user name from User to:', userName)
-        await DatabaseService.query(
-          `UPDATE users SET full_name = $1, updated_at = NOW() WHERE id = $2::uuid`,
-          [userName, userId]
-        )
+        console.log('✅ User created successfully')
+      } else {
+        console.log('✅ User already exists')
+        // Use the actual user name from database if available
+        if (userCheck[0].full_name && userCheck[0].full_name !== 'User') {
+          userName = userCheck[0].full_name
+        }
       }
-    } catch (setupError: any) {
-      console.error('Error setting up user/company:', setupError)
+      userVerified = true
+    } catch (userError: any) {
+      console.error('❌ Failed to verify/create user:', userError.message)
       return NextResponse.json(
-        { error: `Setup failed: ${setupError.message}. Please ensure you are logged in.` },
-        { status: 400 }
+        { error: 'Failed to verify user. Please try again.' },
+        { status: 500 }
       )
     }
+
+    // STRICT: Do not proceed if verification failed
+    if (!companyVerified || !userVerified) {
+      console.error('❌ Verification incomplete:', { companyVerified, userVerified })
+      return NextResponse.json(
+        { error: 'Authentication verification failed. Please sign in again.' },
+        { status: 401 }
+      )
+    }
+    console.log('✅ User and company fully verified in DB:', { userId, companyId })
 
     // Insert ticket
     const result = await DatabaseService.query(
