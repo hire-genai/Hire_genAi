@@ -41,6 +41,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data: [] })
     }
 
+    // Resolve actual DB user ID - same logic as delegations API
+    let resolvedUserId: string | null = userId
+    if (userId && sessionEmail) {
+      try {
+        const byIdRow = await DatabaseService.query(
+          `SELECT id::text AS id FROM users WHERE id::text = $1::text LIMIT 1`,
+          [userId]
+        )
+        if (byIdRow.length > 0) {
+          resolvedUserId = byIdRow[0].id
+        } else {
+          const byEmailRow = await DatabaseService.query(
+            `SELECT id::text AS id FROM users WHERE email = $1 LIMIT 1`,
+            [sessionEmail]
+          )
+          if (byEmailRow.length > 0) resolvedUserId = byEmailRow[0].id
+        }
+      } catch (e) {
+        console.log('[Jobs GET] User resolve failed, using raw userId:', e)
+      }
+    }
+
     // Auto-expire delegations whose end_date has passed
     try {
       await DatabaseService.query(
@@ -60,17 +82,17 @@ export async function GET(request: NextRequest) {
         // First check if user_roles table exists
         await DatabaseService.query(`SELECT 1 FROM user_roles LIMIT 1`)
         
-        // Look up role by userId OR by session email (handles userId=companyId mismatch in cookie)
+        // Look up role by resolvedUserId OR by session email
         const roleCheck = await DatabaseService.query(
           `SELECT ur.role FROM user_roles ur 
            JOIN users u ON ur.user_id = u.id 
-           WHERE u.company_id::text = $2
+           WHERE u.company_id::text = $2::text
            AND (
-             u.id::text = $1
+             u.id::text = $1::text
              OR ($3::text IS NOT NULL AND u.email = $3::text)
            )
            LIMIT 1`,
-          [userId, companyId, sessionEmail]
+          [resolvedUserId, companyId, sessionEmail]
         )
         isAdmin = roleCheck.length > 0 && roleCheck[0].role === 'admin'
         console.log('🔑 [Jobs GET] Role check:', { isAdmin, roleFound: roleCheck.length > 0, role: roleCheck[0]?.role })
@@ -83,9 +105,10 @@ export async function GET(request: NextRequest) {
         // Admin sees all company jobs
         console.log('👑 [Jobs GET] Admin user, showing all company jobs')
         jobs = await DatabaseService.query(
-          `SELECT jp.*
+          `SELECT jp.*, u.full_name as recruiter_name
           FROM job_postings jp
-          WHERE jp.company_id::text = $1
+          LEFT JOIN users u ON jp.created_by = u.id::text
+          WHERE jp.company_id::text = $1::text
           ORDER BY jp.created_at DESC`,
           [companyId]
         )
@@ -94,16 +117,15 @@ export async function GET(request: NextRequest) {
         // Also check by actual user ID from email lookup (handles ID mismatch)
         console.log('👤 [Jobs GET] Regular user, showing jobs created by them or delegated')
         jobs = await DatabaseService.query(
-          `SELECT DISTINCT jp.*
+          `SELECT DISTINCT jp.*, u.full_name as recruiter_name
           FROM job_postings jp
-          WHERE jp.company_id::text = $1
+          LEFT JOIN users u ON jp.created_by = u.id::text
+          WHERE jp.company_id::text = $1::text
             AND (
-              jp.created_by::text = $2
-              OR jp.created_by = (SELECT id::text FROM users WHERE email = (SELECT email FROM users WHERE id::text = $2 LIMIT 1) LIMIT 1)
-              OR jp.created_by = (SELECT email FROM users WHERE id::text = $2 LIMIT 1)
+              jp.created_by = $2::text
               OR jp.id IN (
                 SELECT d.item_id FROM delegations d
-                WHERE d.delegated_to::text = $2
+                WHERE d.delegated_to::text = $2::text
                   AND d.delegation_type = 'job'
                   AND d.status = 'active'
                   AND CURRENT_DATE >= d.start_date
@@ -111,14 +133,15 @@ export async function GET(request: NextRequest) {
               )
             )
           ORDER BY jp.created_at DESC`,
-          [companyId, userId]
+          [companyId, resolvedUserId]
         )
       }
     } else {
       jobs = await DatabaseService.query(
-        `SELECT jp.*
+        `SELECT jp.*, u.full_name as recruiter_name
         FROM job_postings jp
-        WHERE jp.company_id::text = $1
+        LEFT JOIN users u ON jp.created_by = u.id::text
+        WHERE jp.company_id::text = $1::text
         ORDER BY jp.created_at DESC`,
         [companyId]
       )
@@ -173,22 +196,10 @@ export async function GET(request: NextRequest) {
         // job_interview_questions table may not exist yet
       }
 
-      // Try to get recruiter name
-      try {
-        if (job.created_by) {
-          const user = await DatabaseService.query(
-            `SELECT full_name, email FROM users WHERE id::text = $1 OR email = $1`,
-            [job.created_by]
-          )
-          if (user.length > 0) {
-            job.recruiter_name = user[0].full_name
-            job.recruiter_email = user[0].email
-          } else {
-            job.recruiter_email = job.created_by
-          }
-        }
-      } catch {
-        // users table lookup failed
+      // Recruiter name is now included via LEFT JOIN in the main query
+      if (!job.recruiter_name && job.created_by) {
+        job.recruiter_name = 'Unknown'
+        job.recruiter_email = job.created_by
       }
 
       // Try to get candidate counts

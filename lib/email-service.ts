@@ -887,4 +887,146 @@ This is an automated notification from HireGenAI booking system.
       from: 'HireGenAI <no-reply@hire-genai.com>',
     });
   }
+
+  /**
+   * Send delegation notification email to the assigned recruiter
+   */
+  static async sendDelegationNotification({
+    to,
+    recruiterName,
+    delegatorName,
+    companyName,
+    delegationType,
+    itemName,
+    startDate,
+    endDate,
+    reason,
+  }: {
+    to: string;
+    recruiterName: string;
+    delegatorName: string;
+    companyName: string;
+    delegationType: string;
+    itemName: string;
+    startDate: string;
+    endDate: string;
+    reason: string;
+  }) {
+    const subject = `Delegation Assigned: ${itemName} — ${companyName}`;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      </head>
+      <body style="margin:0;padding:0;background-color:#f4f7fa;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f7fa;padding:40px 20px;">
+          <tr>
+            <td align="center">
+              <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+                <!-- Header -->
+                <tr>
+                  <td style="background:linear-gradient(135deg,#10b981 0%,#059669 100%);padding:40px 30px;border-radius:16px 16px 0 0;text-align:center;">
+                    <h1 style="color:white;margin:0;font-size:28px;font-weight:700;letter-spacing:-0.5px;">Hire<span style="color:#a7f3d0;">GenAI</span></h1>
+                    <p style="color:#d1fae5;margin:8px 0 0 0;font-size:14px;">Delegation Management</p>
+                  </td>
+                </tr>
+                <!-- Main Content -->
+                <tr>
+                  <td style="background:white;padding:40px 30px;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;">
+                    <h2 style="color:#1f2937;margin:0 0 8px 0;font-size:22px;font-weight:600;">Hello ${recruiterName},</h2>
+                    <p style="color:#4b5563;font-size:15px;line-height:1.7;margin:0 0 25px 0;">
+                      A new task has been delegated to you by <strong>${delegatorName}</strong> at <strong>${companyName}</strong>. Please review the details below.
+                    </p>
+
+                    <!-- Delegation Details Box -->
+                    <div style="background:linear-gradient(135deg,#f0fdf4 0%,#ecfdf5 100%);border:1px solid #bbf7d0;border-radius:12px;padding:25px;margin:0 0 25px 0;">
+                      <h3 style="color:#166534;margin:0 0 16px 0;font-size:15px;font-weight:600;">📋 Delegation Details</h3>
+                      <table style="width:100%;border-collapse:collapse;">
+                        <tr>
+                          <td style="color:#6b7280;font-size:14px;padding:7px 0;width:130px;vertical-align:top;">Type:</td>
+                          <td style="color:#1f2937;font-size:14px;padding:7px 0;font-weight:500;">${delegationType}</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#6b7280;font-size:14px;padding:7px 0;vertical-align:top;">Item:</td>
+                          <td style="color:#1f2937;font-size:14px;padding:7px 0;font-weight:600;">${itemName}</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#6b7280;font-size:14px;padding:7px 0;vertical-align:top;">Delegated By:</td>
+                          <td style="color:#1f2937;font-size:14px;padding:7px 0;font-weight:500;">${delegatorName}</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#6b7280;font-size:14px;padding:7px 0;vertical-align:top;">Start Date:</td>
+                          <td style="color:#1f2937;font-size:14px;padding:7px 0;font-weight:500;">${startDate}</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#6b7280;font-size:14px;padding:7px 0;vertical-align:top;">End Date:</td>
+                          <td style="color:#1f2937;font-size:14px;padding:7px 0;font-weight:500;">${endDate}</td>
+                        </tr>
+                        <tr>
+                          <td style="color:#6b7280;font-size:14px;padding:7px 0;vertical-align:top;">Reason:</td>
+                          <td style="color:#1f2937;font-size:14px;padding:7px 0;">${reason}</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <!-- Info Note -->
+                    <div style="background:#eff6ff;border-left:4px solid #3b82f6;border-radius:6px;padding:16px 20px;margin:0 0 25px 0;">
+                      <p style="color:#1e40af;font-size:14px;margin:0;line-height:1.6;">
+                        <strong>What this means:</strong> You now have access to the above ${delegationType.toLowerCase()} during the delegation period. Please log in to HireGenAI to view and manage your delegated tasks.
+                      </p>
+                    </div>
+
+                    <p style="color:#6b7280;font-size:13px;line-height:1.6;margin:0;">
+                      If you have any questions regarding this delegation, please reach out to <strong>${delegatorName}</strong> directly.
+                    </p>
+                  </td>
+                </tr>
+                <!-- Footer -->
+                <tr>
+                  <td style="background:#f9fafb;padding:25px 30px;border-radius:0 0 16px 16px;border:1px solid #e5e7eb;border-top:none;text-align:center;">
+                    <p style="color:#9ca3af;font-size:12px;margin:0;">
+                      © ${new Date().getFullYear()} HireGenAI. All rights reserved.<br>
+                      This notification was sent on behalf of ${companyName}.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>`;
+
+    const text = `
+Hello ${recruiterName},
+
+A new task has been delegated to you by ${delegatorName} at ${companyName}.
+
+Delegation Details:
+- Type: ${delegationType}
+- Item: ${itemName}
+- Delegated By: ${delegatorName}
+- Start Date: ${startDate}
+- End Date: ${endDate}
+- Reason: ${reason}
+
+Please log in to HireGenAI to view and manage your delegated tasks.
+
+If you have any questions, please reach out to ${delegatorName} directly.
+
+---
+© ${new Date().getFullYear()} HireGenAI. All rights reserved.
+    `;
+
+    return await sendMail({
+      to,
+      subject,
+      html,
+      text,
+      from: process.env.EMAIL_FROM || 'HireGenAI <no-reply@hire-genai.com>',
+    });
+  }
 }

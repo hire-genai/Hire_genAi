@@ -15,13 +15,17 @@ export async function GET(req: NextRequest) {
     let companyId: string | null = req.nextUrl.searchParams.get('companyId')
     let userId: string | null = req.nextUrl.searchParams.get('userId')
 
+    let sessionEmail: string | null = null
     try {
       const cookieStore = await cookies()
       const sessionCookie = cookieStore.get('session')
       if (sessionCookie?.value) {
-        const session = JSON.parse(sessionCookie.value)
+        let cookieValue = sessionCookie.value
+        try { cookieValue = decodeURIComponent(cookieValue) } catch { /* use raw */ }
+        const session = JSON.parse(cookieValue)
         if (!companyId) companyId = session.companyId || session.company?.id || null
         if (!userId) userId = session.userId || session.user?.id || null
+        sessionEmail = session.email || session.user?.email || null
       }
     } catch {
       console.log('Failed to parse session cookie for candidates')
@@ -31,41 +35,88 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Company ID is required' }, { status: 400 })
     }
 
+    // Resolve actual DB user ID (handles session ID mismatch)
+    let resolvedUserId: string | null = userId
+    if (userId && sessionEmail) {
+      try {
+        const byIdRow = await DatabaseService.query(
+          `SELECT id::text AS id FROM users WHERE id::text = $1::text LIMIT 1`,
+          [userId]
+        )
+        if (byIdRow.length > 0) {
+          resolvedUserId = byIdRow[0].id
+        } else {
+          const byEmailRow = await DatabaseService.query(
+            `SELECT id::text AS id FROM users WHERE email = $1 LIMIT 1`,
+            [sessionEmail]
+          )
+          if (byEmailRow.length > 0) resolvedUserId = byEmailRow[0].id
+        }
+      } catch (e) {
+        console.log('[Candidates] User resolve failed, using raw userId:', e)
+      }
+    }
+
     // Auto-expire delegations whose end_date has passed
     try {
       await DatabaseService.query(
-        `UPDATE delegations SET status = 'expired' WHERE status = 'active' AND end_date < CURRENT_DATE AND company_id::text = $1`,
+        `UPDATE delegations SET status = 'expired' WHERE status = 'active' AND end_date < CURRENT_DATE AND company_id::text = $1::text`,
         [companyId]
       )
     } catch { /* delegations table may not exist yet */ }
 
-    // Build the accessible jobs filter for recruiter-level access control
-    // Cast UUID columns to text to avoid 'operator does not exist: text = uuid' with mock auth IDs
-    let accessibleJobsClause = `j.company_id::text = $1` 
+    // Build access control filter for recruiter-level visibility
+    // KEY LOGIC:
+    //   1. Owner sees ALL candidates for their jobs (no date restriction)
+    //   2. Job delegation: delegatee sees ONLY candidates whose applied_at is within delegation date range
+    //   3. Application delegation: delegatee sees ONLY the specific delegated candidate
+    //   4. Delegation must be active and within date range
+    let accessibleJobsClause = `j.company_id::text = $1::text`
     let queryParams: any[] = [companyId]
 
-    if (userId) {
-      accessibleJobsClause = `j.company_id::text = $1 AND (
-        j.created_by::text = $2
-        OR j.created_by = (SELECT email FROM users WHERE id::text = $2 LIMIT 1)
-        OR j.id IN (
-          SELECT d.item_id FROM delegations d
-          WHERE d.delegated_to::text = $2
-            AND d.delegation_type = 'job'
-            AND d.status = 'active'
-            AND CURRENT_DATE >= d.start_date
-            AND CURRENT_DATE <= d.end_date
+    if (resolvedUserId) {
+      accessibleJobsClause = `j.company_id::text = $1::text AND (
+        j.created_by = $2::text
+        OR (
+          j.id IN (
+            SELECT d.item_id FROM delegations d
+            WHERE d.delegated_to::text = $2::text
+              AND d.delegation_type = 'job'
+              AND d.status = 'active'
+              AND CURRENT_DATE >= d.start_date
+              AND CURRENT_DATE <= d.end_date
+          )
+          AND a.applied_at::date >= (
+            SELECT d.start_date FROM delegations d
+            WHERE d.delegated_to::text = $2::text
+              AND d.delegation_type = 'job'
+              AND d.item_id = j.id
+              AND d.status = 'active'
+              AND CURRENT_DATE >= d.start_date
+              AND CURRENT_DATE <= d.end_date
+            LIMIT 1
+          )
+          AND a.applied_at::date <= (
+            SELECT d.end_date FROM delegations d
+            WHERE d.delegated_to::text = $2::text
+              AND d.delegation_type = 'job'
+              AND d.item_id = j.id
+              AND d.status = 'active'
+              AND CURRENT_DATE >= d.start_date
+              AND CURRENT_DATE <= d.end_date
+            LIMIT 1
+          )
         )
         OR a.id IN (
           SELECT d.item_id FROM delegations d
-          WHERE d.delegated_to::text = $2
+          WHERE d.delegated_to::text = $2::text
             AND d.delegation_type = 'application'
             AND d.status = 'active'
             AND CURRENT_DATE >= d.start_date
             AND CURRENT_DATE <= d.end_date
         )
       )`
-      queryParams = [companyId, userId]
+      queryParams = [companyId, resolvedUserId]
     }
 
     // Get bucket counts filtered by ownership + delegation
@@ -232,12 +283,12 @@ export async function GET(req: NextRequest) {
         hired: bucketData.hired.count,
         rejected: bucketData.rejected.count
       },
-      screening: await getScreeningStats(companyId, userId),
-      interview: await getInterviewStats(companyId, userId),
-      hiringManager: await getHiringManagerStats(companyId, userId),
-      offer: await getOfferStats(companyId, userId),
-      hired: await getHiredStats(companyId, userId),
-      rejected: await getRejectedStats(companyId, userId)
+      screening: await getScreeningStats(companyId, resolvedUserId),
+      interview: await getInterviewStats(companyId, resolvedUserId),
+      hiringManager: await getHiringManagerStats(companyId, resolvedUserId),
+      offer: await getOfferStats(companyId, resolvedUserId),
+      hired: await getHiredStats(companyId, resolvedUserId),
+      rejected: await getRejectedStats(companyId, resolvedUserId)
     }
 
     return NextResponse.json({
@@ -296,28 +347,43 @@ function formatOfferStatus(status: string | null): string {
 }
 
 // Helper to build the accessible jobs WHERE clause for stats queries
-// Uses ::text cast on UUID columns to avoid 'operator does not exist: text = uuid' with mock auth IDs
+// Uses same delegation date-range filtering as the main query
 function buildAccessFilter(companyId: string, userId: string | null): { clause: string, params: any[] } {
   if (userId) {
     return {
-      clause: `a.company_id::text = $1 AND (
-        j.created_by::text = $2
-        OR j.created_by = (SELECT email FROM users WHERE id::text = $2 LIMIT 1)
-        OR j.id IN (
-          SELECT d.item_id FROM delegations d
-          WHERE d.delegated_to::text = $2 AND d.delegation_type = 'job'
-            AND d.status = 'active' AND CURRENT_DATE >= d.start_date AND CURRENT_DATE <= d.end_date
+      clause: `a.company_id::text = $1::text AND (
+        j.created_by = $2::text
+        OR (
+          j.id IN (
+            SELECT d.item_id FROM delegations d
+            WHERE d.delegated_to::text = $2::text AND d.delegation_type = 'job'
+              AND d.status = 'active' AND CURRENT_DATE >= d.start_date AND CURRENT_DATE <= d.end_date
+          )
+          AND a.applied_at::date >= (
+            SELECT d.start_date FROM delegations d
+            WHERE d.delegated_to::text = $2::text AND d.delegation_type = 'job'
+              AND d.item_id = j.id AND d.status = 'active'
+              AND CURRENT_DATE >= d.start_date AND CURRENT_DATE <= d.end_date
+            LIMIT 1
+          )
+          AND a.applied_at::date <= (
+            SELECT d.end_date FROM delegations d
+            WHERE d.delegated_to::text = $2::text AND d.delegation_type = 'job'
+              AND d.item_id = j.id AND d.status = 'active'
+              AND CURRENT_DATE >= d.start_date AND CURRENT_DATE <= d.end_date
+            LIMIT 1
+          )
         )
         OR a.id IN (
           SELECT d.item_id FROM delegations d
-          WHERE d.delegated_to::text = $2 AND d.delegation_type = 'application'
+          WHERE d.delegated_to::text = $2::text AND d.delegation_type = 'application'
             AND d.status = 'active' AND CURRENT_DATE >= d.start_date AND CURRENT_DATE <= d.end_date
         )
       )`,
       params: [companyId, userId]
     }
   }
-  return { clause: `a.company_id::text = $1`, params: [companyId] }
+  return { clause: `a.company_id::text = $1::text`, params: [companyId] }
 }
 
 async function getScreeningStats(companyId: string, userId: string | null) {
