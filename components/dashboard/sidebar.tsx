@@ -8,7 +8,6 @@ import {
   Users, 
   Briefcase, 
   Calendar,
-  MessageSquare,
   FileText,
   BarChart3,
   Settings,
@@ -42,7 +41,6 @@ const navigationItems = [
   {
     title: 'MANAGEMENT',
     items: [
-      { name: 'Messages', href: '/messages', icon: MessageSquare },
       { name: 'Delegation', href: '/delegation', icon: UserCog },
       { name: 'Support', href: '/support', icon: HeadphonesIcon },
       { name: 'Settings', href: '/settings', icon: Settings },

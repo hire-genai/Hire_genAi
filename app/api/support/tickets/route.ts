@@ -287,40 +287,55 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check/create user
+    // Check/create user - check by ID first, then by email to handle ID mismatch
     console.log('🔍 Checking user exists:', userId)
     let userVerified = false
+    let actualUserId = userId
     try {
-      const userCheck = await DatabaseService.query(
-        'SELECT id, full_name FROM users WHERE id = $1::uuid',
+      // First check by ID
+      const userExistsById = await DatabaseService.query(
+        `SELECT id, full_name FROM users WHERE id = $1::uuid LIMIT 1`,
         [userId]
       )
-      
-      if (!userCheck || userCheck.length === 0) {
-        // Create user from authenticated session data
-        if (!sessionEmail) {
-          console.error('❌ User not found and no email in session:', userId)
-          return NextResponse.json(
-            { error: 'User not found. Please sign out and sign in again.' },
-            { status: 401 }
-          )
+      if (userExistsById.length > 0) {
+        console.log('✅ User already exists by ID')
+        userVerified = true
+        if (userExistsById[0].full_name && userExistsById[0].full_name !== 'User') {
+          userName = userExistsById[0].full_name
         }
-        console.log('🔄 Creating user from session:', userId, sessionEmail)
-        await DatabaseService.query(
-          `INSERT INTO users (id, company_id, email, full_name, status, created_at)
-           VALUES ($1::uuid, $2::uuid, $3, $4, 'active', NOW())
-           ON CONFLICT (id) DO NOTHING`,
-          [userId, companyId, sessionEmail, userName || sessionEmail]
+      } else if (sessionEmail) {
+        // User not found by ID - check if exists by email (ID mismatch scenario)
+        const userExistsByEmail = await DatabaseService.query(
+          `SELECT id, full_name FROM users WHERE email = $1 LIMIT 1`,
+          [sessionEmail]
         )
-        console.log('✅ User created successfully')
-      } else {
-        console.log('✅ User already exists')
-        // Use the actual user name from database if available
-        if (userCheck[0].full_name && userCheck[0].full_name !== 'User') {
-          userName = userCheck[0].full_name
+        if (userExistsByEmail.length > 0) {
+          // User exists with different ID - use the existing user's ID
+          actualUserId = userExistsByEmail[0].id
+          console.log('✅ User found by email with different ID, using:', actualUserId)
+          userVerified = true
+          if (userExistsByEmail[0].full_name && userExistsByEmail[0].full_name !== 'User') {
+            userName = userExistsByEmail[0].full_name
+          }
+        } else {
+          // User doesn't exist at all - create new
+          console.log('🔄 Creating user from session:', userId, sessionEmail)
+          await DatabaseService.query(
+            `INSERT INTO users (id, company_id, email, full_name, status, created_at)
+             VALUES ($1::uuid, $2::uuid, $3, $4, 'active', NOW())
+             ON CONFLICT (id) DO NOTHING`,
+            [userId, companyId, sessionEmail, userName || sessionEmail]
+          )
+          console.log('✅ User created successfully')
+          userVerified = true
         }
+      } else {
+        console.error('❌ User not found and no email in session:', userId)
+        return NextResponse.json(
+          { error: 'User not found. Please sign out and sign in again.' },
+          { status: 401 }
+        )
       }
-      userVerified = true
     } catch (userError: any) {
       console.error('❌ Failed to verify/create user:', userError.message)
       return NextResponse.json(
@@ -337,7 +352,7 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
-    console.log('✅ User and company fully verified in DB:', { userId, companyId })
+    console.log('✅ User and company fully verified in DB:', { actualUserId, companyId })
 
     // Insert ticket
     const result = await DatabaseService.query(
@@ -349,7 +364,7 @@ export async function POST(request: NextRequest) {
       ) RETURNING *`,
       [
         companyId,
-        userId,
+        actualUserId,
         ticketType,
         category || 'other',
         title.trim(),

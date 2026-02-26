@@ -36,7 +36,6 @@ import { useAuth } from '@/contexts/auth-context'
 import { CardLoader, ErrorState } from '@/components/ui/skeleton-loader'
 
 type JobStatusType = 'all' | 'open' | 'closed' | 'onhold' | 'cancelled' | 'draft'
-type UserRole = 'recruiter' | 'admin' | 'manager' | 'director'
 
 interface Job {
 	id: string
@@ -101,8 +100,6 @@ export default function JobsPage() {
 	const [recruiterFilter, setRecruiterFilter] = useState('all')
 	const { setIsCollapsed } = useMobileMenu()
 	const [showJobPostingDialog, setShowJobPostingDialog] = useState(false)
-	const [viewAsRole, setViewAsRole] = useState<UserRole>('recruiter')
-	const [viewAsRecruiter, setViewAsRecruiter] = useState('all')
 	const [jobFormInitialData, setJobFormInitialData] = useState<any>(null)
 	const [jobFormMode, setJobFormMode] = useState<'create' | 'view'>('create')
 	const [jobFormJobId, setJobFormJobId] = useState<string | null>(null)
@@ -115,8 +112,8 @@ export default function JobsPage() {
 	const [copiedJobId, setCopiedJobId] = useState<string | null>(null)
 	const [togglingJobId, setTogglingJobId] = useState<string | null>(null)
 	
-	// Permission check - only recruiters can modify
-	const canModify = viewAsRole === 'recruiter'
+	// Permission check - all users can modify
+	const canModify = true
 
 	// Copy JD link to clipboard
 	const copyJDLink = async (job: Job) => {
@@ -329,51 +326,19 @@ export default function JobsPage() {
 						Manage and track all your open positions
 					</p>
 				</div>
-				<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-					{/* View As Filter */}
-					<div className="flex items-center gap-2 flex-wrap">
-						<span className="text-sm font-medium text-gray-700">View as:</span>
-						<Select value={viewAsRole} onValueChange={(value) => setViewAsRole(value as UserRole)}>
-							<SelectTrigger className="w-[140px] h-9">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="recruiter">Recruiter</SelectItem>
-								<SelectItem value="manager">Manager</SelectItem>
-								<SelectItem value="director">Director</SelectItem>
-							</SelectContent>
-						</Select>
-						{viewAsRole === 'recruiter' && recruiters.length > 0 && (
-							<>
-								<span className="text-sm text-gray-400">|</span>
-								<Select value={viewAsRecruiter} onValueChange={setViewAsRecruiter}>
-									<SelectTrigger className="w-[140px] h-9">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="all">All Recruiters</SelectItem>
-										{recruiters.map(r => (
-											<SelectItem key={r} value={r}>{r}</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</>
-						)}
-					</div>
-					<Button
-						className="gap-2"
-						size="sm"
-						onClick={() => {
-							setJobFormInitialData(null)
-							setJobFormMode('create')
-							setJobFormJobId(null)
-							setShowJobPostingDialog(true)
-						}}
-					>
-						<Plus className="h-3 w-3" />
-						Post New Job
-					</Button>
-				</div>
+				<Button
+					className="gap-2"
+					size="sm"
+					onClick={() => {
+						setJobFormInitialData(null)
+						setJobFormMode('create')
+						setJobFormJobId(null)
+						setShowJobPostingDialog(true)
+					}}
+				>
+					<Plus className="h-3 w-3" />
+					Post New Job
+				</Button>
 			</div>
 
 			{/* Filters and Search - Slim Design */}
