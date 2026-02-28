@@ -55,6 +55,7 @@ export default function DelegationPage() {
     type: 'job' as DelegationType,
     delegateTo: '',
     selectedJobId: '',
+    selectedJobIdForApplications: '', // For application delegation job filter
     selectedApplicationIds: [] as string[],
     startDate: '',
     endDate: '',
@@ -155,6 +156,7 @@ export default function DelegationPage() {
         type: 'job',
         delegateTo: '',
         selectedJobId: '',
+        selectedJobIdForApplications: '',
         selectedApplicationIds: [],
         startDate: '',
         endDate: '',
@@ -643,6 +645,7 @@ export default function DelegationPage() {
                     ...formData, 
                     type: value as DelegationType,
                     selectedJobId: '',
+                    selectedJobIdForApplications: '',
                     selectedApplicationIds: []
                   })}
                 >
@@ -732,41 +735,89 @@ export default function DelegationPage() {
 
             {/* Application Selection */}
             {formData.type === 'application' && (
-              <div>
-                <Label>Select Applications (from your jobs) <span className="text-red-500">*</span></Label>
-                <div className="mt-2 border rounded max-h-48 overflow-y-auto">
-                  {myApplications.length === 0 && (
-                    <div className="p-4 text-center text-sm text-gray-500">
-                      No applications found for your jobs
-                    </div>
-                  )}
-                  {myApplications.map((app: any) => (
-                    <label 
-                      key={app.id}
-                      className="flex items-center gap-3 p-2.5 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={formData.selectedApplicationIds.includes(app.id)}
-                        onChange={(e) => {
-                          const newIds = e.target.checked
-                            ? [...formData.selectedApplicationIds, app.id]
-                            : formData.selectedApplicationIds.filter((id: string) => id !== app.id)
-                          setFormData({...formData, selectedApplicationIds: newIds})
-                        }}
-                        className="w-4 h-4"
-                      />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-gray-900">{app.candidate_name}</div>
-                        <div className="text-xs text-gray-500">{app.job_title} &bull; {app.current_stage}</div>
-                      </div>
-                      <Badge variant="secondary" className="text-xs">{app.current_stage}</Badge>
-                    </label>
-                  ))}
+              <div className="space-y-4">
+                {/* First: Job Selection for Applications */}
+                <div>
+                  <Label>Select Job (to filter candidates) <span className="text-red-500">*</span></Label>
+                  <Select 
+                    value={formData.selectedJobIdForApplications} 
+                    onValueChange={(value) => setFormData({
+                      ...formData, 
+                      selectedJobIdForApplications: value,
+                      selectedApplicationIds: [] // Clear selected applications when job changes
+                    })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose job to see its candidates" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {myJobs.length === 0 && (
+                        <SelectItem value="_none" disabled>No jobs found - you must own a job</SelectItem>
+                      )}
+                      {myJobs.map((job: any) => (
+                        <SelectItem key={job.id} value={job.id}>
+                          {job.title} ({job.status})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Select a job first to see candidates who applied to it
+                  </p>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  {formData.selectedApplicationIds.length} selected
-                </p>
+
+                {/* Second: Candidates for Selected Job */}
+                {formData.selectedJobIdForApplications && (
+                  <div>
+                    <Label>Select Candidates <span className="text-red-500">*</span></Label>
+                    <div className="mt-2 border rounded max-h-48 overflow-y-auto">
+                      {(() => {
+                        console.log('[Delegation Debug] All applications:', myApplications)
+                        console.log('[Delegation Debug] Selected job ID:', formData.selectedJobIdForApplications)
+                        const filteredApps = myApplications.filter((app: any) => {
+                          console.log('[Delegation Debug] Comparing:', app.job_id, '===', formData.selectedJobIdForApplications, '?', app.job_id === formData.selectedJobIdForApplications)
+                          return app.job_id === formData.selectedJobIdForApplications
+                        })
+                        console.log('[Delegation Debug] Filtered applications:', filteredApps)
+                        
+                        if (filteredApps.length === 0) {
+                          return (
+                            <div className="p-4 text-center text-sm text-gray-500">
+                              No candidates found for this job
+                            </div>
+                          )
+                        }
+                        
+                        return filteredApps.map((app: any) => (
+                          <label 
+                            key={app.id}
+                            className="flex items-center gap-3 p-2.5 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={formData.selectedApplicationIds.includes(app.id)}
+                              onChange={(e) => {
+                                const newIds = e.target.checked
+                                  ? [...formData.selectedApplicationIds, app.id]
+                                  : formData.selectedApplicationIds.filter((id: string) => id !== app.id)
+                                setFormData({...formData, selectedApplicationIds: newIds})
+                              }}
+                              className="w-4 h-4"
+                            />
+                            <div className="flex-1">
+                              <div className="text-sm font-medium text-gray-900">{app.candidate_name}</div>
+                              <div className="text-xs text-gray-500">{app.job_title} &bull; {app.current_stage}</div>
+                            </div>
+                            <Badge variant="secondary" className="text-xs">{app.current_stage}</Badge>
+                          </label>
+                        ))
+                      })()}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formData.selectedApplicationIds.length} selected
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

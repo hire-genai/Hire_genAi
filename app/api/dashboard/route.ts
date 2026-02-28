@@ -159,7 +159,55 @@ export async function GET(request: NextRequest) {
     `
     const sourceEffectiveness = await DatabaseService.query(sourceQuery, [companyId])
 
-    // --- 6. Recruiters list (team members) ---
+    // --- 6. Sourcing Activity ---
+    const sourcingActivityQuery = `
+      WITH source_mapping AS (
+        SELECT 
+          c.id as candidate_id,
+          CASE 
+            WHEN c.source_type = 'Direct' THEN COALESCE(c.sub_source, 'Direct')
+            WHEN c.source_type = 'Agency' THEN 'Agency'
+            WHEN c.source_type = 'Employee Referral' THEN 'Referrals'
+            ELSE 'Direct'
+          END as channel,
+          c.source_type,
+          c.sub_source,
+          a.id as application_id,
+          a.current_stage
+        FROM candidates c
+        LEFT JOIN applications a ON c.id = a.candidate_id
+        WHERE c.company_id = $1::uuid
+      ),
+      source_stats AS (
+        SELECT 
+          channel,
+          COUNT(DISTINCT candidate_id) as outreach,
+          COUNT(DISTINCT application_id) as responses,
+          COUNT(DISTINCT CASE WHEN current_stage IN ('ai_interview', 'hiring_manager', 'offer', 'hired') THEN application_id END) as advanced
+        FROM source_mapping
+        GROUP BY channel
+        HAVING COUNT(DISTINCT candidate_id) > 0
+        ORDER BY outreach DESC
+      )
+      SELECT 
+        channel,
+        outreach::text,
+        responses::text,
+        CASE 
+          WHEN outreach > 0 THEN ROUND((responses::decimal / outreach::decimal) * 100, 0)::text
+          ELSE '0'
+        END as conversion_rate,
+        CASE 
+          WHEN outreach > 0 AND (advanced::decimal / outreach::decimal) >= 0.5 THEN 'High'
+          WHEN outreach > 0 AND (advanced::decimal / outreach::decimal) >= 0.3 THEN 'Medium'
+          WHEN outreach > 0 THEN 'Low'
+          ELSE 'Medium'
+        END as quality
+      FROM source_stats
+    `
+    const sourcingActivity = await DatabaseService.query(sourcingActivityQuery, [companyId])
+
+    // --- 7. Recruiters list (team members) ---
     const recruitersQuery = `
       SELECT u.id, u.full_name AS name, u.email,
         (SELECT COUNT(*) FROM job_postings jp WHERE jp.created_by = u.email AND jp.status = 'open') AS active_jobs,
@@ -171,6 +219,33 @@ export async function GET(request: NextRequest) {
       ORDER BY u.full_name
     `
     const recruiters = await DatabaseService.query(recruitersQuery, [companyId])
+
+    // --- 8. Manager Team Pipeline Health Data ---
+    // Get recruiters under the manager using user role table
+    const teamPipelineQuery = `
+      SELECT DISTINCT 
+        u.id,
+        u.email,
+        u.full_name AS name,
+        -- Active Jobs count from job_posting filtered by created_by (recruiter email)
+        (SELECT COUNT(*) FROM job_postings jp 
+         WHERE jp.created_by = u.email AND jp.status = 'open') AS active_jobs,
+        -- Active Candidates count from applications table filtered by recruiter
+        (SELECT COUNT(*) FROM applications a 
+         JOIN job_postings jp ON a.job_id = jp.id 
+         WHERE jp.created_by = u.email AND a.current_stage NOT IN ('hired', 'rejected', 'withdrawn')) AS active_candidates,
+        -- Total Hired count from applications where status = hired
+        (SELECT COUNT(*) FROM applications a 
+         JOIN job_postings jp ON a.job_id = jp.id 
+         WHERE jp.created_by = u.email AND a.current_stage = 'hired') AS total_hired
+      FROM users u
+      JOIN user_roles ur ON u.id = ur.user_id
+      WHERE u.company_id = $1::uuid 
+        AND u.status = 'active'
+        AND ur.role = 'recruiter'
+      ORDER BY u.full_name
+    `
+    const teamPipelineData = await DatabaseService.query(teamPipelineQuery, [companyId])
 
     // --- Build response ---
     const offerAcceptanceRate = parseInt(kpi.offers_decided) > 0
@@ -239,12 +314,27 @@ export async function GET(request: NextRequest) {
             ? Math.round((parseInt(se.advanced) / parseInt(se.total)) * 100)
             : 0,
         })),
+        sourcingActivity: (sourcingActivity || []).map((sa: any) => ({
+          channel: sa.channel,
+          outreach: sa.outreach,
+          responses: sa.responses,
+          conversionRate: sa.conversion_rate,
+          quality: sa.quality,
+        })),
         recruiters: (recruiters || []).map((r: any) => ({
           id: r.id,
           name: r.name,
           email: r.email,
           activeJobs: parseInt(r.active_jobs) || 0,
           activeCandidates: parseInt(r.active_candidates) || 0,
+        })),
+        teamPipelineHealth: (teamPipelineData || []).map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          email: t.email,
+          activeJobs: parseInt(t.active_jobs) || 0,
+          activeCandidates: parseInt(t.active_candidates) || 0,
+          totalHired: parseInt(t.total_hired) || 0,
         })),
       }
     })

@@ -73,7 +73,6 @@ export default function ApplyPage() {
     agencyName: '',
     referralEmployeeName: '',
     referralEmployeeEmail: '',
-    diversityCategory: '',
   })
 
   const [languages, setLanguages] = useState<Array<{ language: string; proficiency: string }>>([
@@ -268,7 +267,6 @@ export default function ApplyPage() {
           agencyName: formData.agencyName || null,
           referralEmployeeName: formData.referralEmployeeName || null,
           referralEmployeeEmail: formData.referralEmployeeEmail || null,
-          diversityCategory: formData.diversityCategory || null,
         },
         resume: resumeFile ? {
           name: resumeFile.name,
@@ -562,26 +560,6 @@ export default function ApplyPage() {
             </div>
           </section>
 
-          {/* Diversity Information */}
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-semibold text-sm text-slate-900 mb-3">Diversity Information</h3>
-            <div className="space-y-1">
-              <Label htmlFor="diversityCategory" className="text-xs">Diversity Category (Optional)</Label>
-              <select 
-                id="diversityCategory" 
-                value={formData.diversityCategory} 
-                onChange={(e) => setFormData(p => ({ ...p, diversityCategory: e.target.value }))} 
-                className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none"
-                disabled={isSubmitting}
-              >
-                <option value="">Prefer not to say</option>
-                <option value="Underrepresented Minority">Underrepresented Minority</option>
-                <option value="Veteran">Veteran</option>
-                <option value="LGBTQ+">LGBTQ+</option>
-              </select>
-              <p className="text-[10px] text-slate-400 mt-1">This information is voluntary and used for diversity tracking purposes.</p>
-            </div>
-          </section>
 
           {/* Resume Upload + Photo — merged into one card */}
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

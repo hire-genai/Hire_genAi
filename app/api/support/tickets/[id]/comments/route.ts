@@ -178,12 +178,53 @@ export async function POST(
       )
     }
 
+    // Ensure user exists in database before inserting comment
+    let actualUserId = userId;
+    if (userId) {
+      const userExists = await DatabaseService.query(
+        `SELECT id FROM users WHERE id = $1::uuid`,
+        [userId]
+      );
+      
+      if (!userExists || userExists.length === 0) {
+        // User doesn't exist, try to find by email or create a placeholder
+        const userEmail = sessionCookie?.value ? (() => {
+          try {
+            const session = JSON.parse(sessionCookie.value);
+            return session.user?.email || session.email;
+          } catch {
+            return null;
+          }
+        })() : null;
+        
+        if (userEmail) {
+          const existingUser = await DatabaseService.query(
+            `SELECT id FROM users WHERE email = $1`,
+            [userEmail]
+          );
+          
+          if (existingUser && existingUser.length > 0) {
+            actualUserId = existingUser[0].id;
+          } else {
+            // Create user record if it doesn't exist
+            const newUser = await DatabaseService.query(
+              `INSERT INTO users (id, company_id, email, full_name, status)
+               VALUES ($1::uuid, $2::uuid, $3, $4, 'active')
+               RETURNING id`,
+              [userId, companyId, userEmail, userName]
+            );
+            actualUserId = newUser[0]?.id || userId;
+          }
+        }
+      }
+    }
+
     // Insert comment
     const result = await DatabaseService.query(
       `INSERT INTO ticket_comments (ticket_id, author_id, author_role, message, image_url)
        VALUES ($1::uuid, $2::uuid, 'user', $3, $4)
        RETURNING *`,
-      [id, userId, message?.trim() || '', imageUrl || null]
+      [id, actualUserId, message?.trim() || '', imageUrl || null]
     )
 
     if (!result || result.length === 0) {

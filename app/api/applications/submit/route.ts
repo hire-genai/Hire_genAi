@@ -68,9 +68,8 @@ export async function POST(req: NextRequest) {
           sub_source = $10,
           agency_name = $11,
           referral_employee_name = $12,
-          referral_employee_email = $13,
-          diversity_category = COALESCE($14::diversity_category, diversity_category)
-        WHERE id = $15::uuid`,
+          referral_employee_email = $13
+        WHERE id = $14::uuid`,
         [
           fullName,
           firstName || null,
@@ -85,7 +84,6 @@ export async function POST(req: NextRequest) {
           candidate.sourceType === 'Agency' ? candidate.agencyName || null : null,
           candidate.sourceType === 'Employee Referral' ? candidate.referralEmployeeName || null : null,
           candidate.sourceType === 'Employee Referral' ? candidate.referralEmployeeEmail || null : null,
-          candidate.diversityCategory || null,
           candidateId,
         ]
       )
@@ -94,14 +92,12 @@ export async function POST(req: NextRequest) {
       const insertResult = await DatabaseService.query(
         `INSERT INTO candidates (
           company_id, full_name, first_name, last_name, email, phone,
-          location, linkedin_url, resume_url, photo_url, source,
-          source_type, sub_source, agency_name, referral_employee_name, referral_employee_email,
-          diversity_category
+          location, linkedin_url, resume_url, photo_url,
+          source_type, sub_source, agency_name, referral_employee_name, referral_employee_email
         ) VALUES (
           $1::uuid, $2, $3, $4, $5, $6,
-          $7, $8, $9, $10, $11,
-          $12::candidate_source_type, $13, $14, $15, $16,
-          $17::diversity_category
+          $7, $8, $9, $10,
+          $11::candidate_source_type, $12, $13, $14, $15
         ) RETURNING id`,
         [
           companyId,
@@ -114,13 +110,11 @@ export async function POST(req: NextRequest) {
           candidate.linkedinUrl || null,
           resume?.url || null,
           photoUrl || null,
-          source,
           candidate.sourceType || null,
           candidate.sourceType === 'Direct' ? candidate.subSource || null : null,
           candidate.sourceType === 'Agency' ? candidate.agencyName || null : null,
           candidate.sourceType === 'Employee Referral' ? candidate.referralEmployeeName || null : null,
           candidate.sourceType === 'Employee Referral' ? candidate.referralEmployeeEmail || null : null,
-          candidate.diversityCategory || null,
         ]
       )
 
