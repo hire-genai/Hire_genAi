@@ -125,6 +125,37 @@ interface DashboardData {
     activeCandidates: number
     totalHired: number
   }>
+  teamOfferAcceptance: Array<{
+    id: string
+    name: string
+    email: string
+    offers: number
+    accepted: number
+    rate: string
+  }>
+  teamCapacityLoad: Array<{
+    id: string
+    name: string
+    email: string
+    activeReqs: number
+    capacity: number
+    loadPercent: string
+    status: string
+  }>
+  hiringManagerStats: Array<{
+    id: string
+    managerName: string
+    email: string
+    approved: number
+    pending: number
+    rejected: number
+    userRole?: string
+  }>
+  hiringManagerSatisfaction: {
+    currentRating: string
+    previousRating: string
+    change: string
+  }
 }
 
 const getStatusBadge = (status: string) => {
@@ -189,15 +220,32 @@ const roleDescriptions = {
 
   // Build KPIs from real data
   const buildRoleKPIs = () => {
-    // Static mock data for Manager and Director (but update Team Pipeline Health with real data)
+    // Static mock data for Manager and Director (but update Team Pipeline Health, Offer Acceptance Rate, and Team Capacity Load with real data)
     const totalTeamCandidates = dashboardData?.teamPipelineHealth?.reduce((sum, recruiter) => sum + recruiter.activeCandidates, 0) || 0
     const totalScreening = dashboardData?.teamPipelineHealth?.reduce((sum, recruiter) => sum + recruiter.activeCandidates, 0) || 0
     
+    // Calculate real team offer acceptance rate
+    const totalOffersGiven = dashboardData?.teamOfferAcceptance?.reduce((sum, recruiter) => sum + recruiter.offers, 0) || 0
+    const totalOffersAccepted = dashboardData?.teamOfferAcceptance?.reduce((sum, recruiter) => sum + recruiter.accepted, 0) || 0
+    const teamOfferRate = totalOffersGiven > 0 ? Math.round((totalOffersAccepted / totalOffersGiven) * 100) : 0
+    
+    // Calculate real team capacity load
+    const totalActiveReqs = dashboardData?.teamCapacityLoad?.reduce((sum, recruiter) => sum + recruiter.activeReqs, 0) || 0
+    const totalCapacity = dashboardData?.teamCapacityLoad?.reduce((sum, recruiter) => sum + recruiter.capacity, 0) || 7
+    const teamCapacityLoad = totalCapacity > 0 ? Math.round((totalActiveReqs / totalCapacity) * 100) : 0
+    const overloadedRecruiter = dashboardData?.teamCapacityLoad?.find(r => r.status === 'Overloaded')?.name || 'Recruiter A'
+    
+    // Get real hiring manager satisfaction data
+    const hmSatisfaction = dashboardData?.hiringManagerSatisfaction
+    const hmRating = hmSatisfaction?.currentRating || '0.0'
+    const hmChangeNum = parseFloat(hmSatisfaction?.change || '0.0')
+    const hmTrend = hmChangeNum > 0 ? 'up' as const : hmChangeNum < 0 ? 'down' as const : 'neutral' as const
+    
     const managerKPIs = [
       { title: 'Team Pipeline Health', value: String(totalTeamCandidates), change: `${totalScreening} in screening`, trend: 'neutral' as const, icon: Users, color: 'orange' as const, subtitle: 'Total candidates across team' },
-            { title: 'Offer Acceptance Rate', value: '85%', change: 'Target: 80%', trend: 'up' as const, icon: MessageSquare, color: 'green' as const, subtitle: 'All time' },
-      { title: 'Team Capacity Load', value: '135%', change: 'Recruiter A overloaded', trend: 'down' as const, icon: Gauge, color: 'red' as const, subtitle: 'Team capacity utilization' },
-      { title: 'Hiring Manager', value: '4.2', change: '+0.3 vs last quarter', trend: 'up' as const, icon: MessageSquare, color: 'green' as const, subtitle: 'Hiring manager satisfaction score' },
+            { title: 'Offer Acceptance Rate', value: `${teamOfferRate}%`, change: 'Target: 80%', trend: teamOfferRate >= 80 ? 'up' as const : teamOfferRate >= 60 ? 'neutral' as const : 'down' as const, icon: MessageSquare, color: 'green' as const, subtitle: 'All time' },
+      { title: 'Team Capacity Load', value: `${teamCapacityLoad}%`, change: `${overloadedRecruiter} overloaded`, trend: teamCapacityLoad > 100 ? 'down' as const : teamCapacityLoad >= 70 ? 'neutral' as const : 'up' as const, icon: Gauge, color: 'red' as const, subtitle: 'Team capacity utilization' },
+      { title: 'Hiring Manager', value: hmRating, change: `${hmChangeNum > 0 ? '+' : ''}${hmChangeNum} vs last quarter`, trend: hmTrend, icon: MessageSquare, color: 'green' as const, subtitle: 'Hiring manager satisfaction score' },
       { title: 'Source Quality', value: 'LinkedIn', change: '42% conversion', trend: 'up' as const, icon: BarChart3, color: 'emerald' as const, subtitle: 'Best performing channel' },
     ]
 
@@ -271,9 +319,9 @@ const roleDescriptions = {
       calculation: 'Percentage of offers accepted out of all decided offers.',
       dataContext: 'Offer stage metrics.',
     },
-    'Team Capacity': {
-      calculation: 'Number of active team members and their workload.',
-      dataContext: 'Per-recruiter active jobs and candidates.',
+    'Team Capacity Load': {
+      calculation: 'Team capacity utilization as percentage (Active Reqs ÷ Standard Capacity × 100). Over 100% indicates overload.',
+      dataContext: 'Individual recruiter workloads showing active requisitions vs capacity with load percentage and status flags.',
     },
     'Total Hired': {
       calculation: 'Total number of candidates who reached the hired stage.',
@@ -310,7 +358,7 @@ const roleDescriptions = {
     // Static mock data for Manager and Director drill-downs (except Team Pipeline Health for Manager)
     if (selectedRole === 'manager') {
       // Use real data for Team Pipeline Health
-      if (kpiTitle === 'Team Pipeline Health' && dashboardData?.teamPipelineHealth) {
+      if (kpiTitle === 'Team Pipeline Health' && dashboardData?.teamPipelineHealth && dashboardData.teamPipelineHealth.length > 0) {
         return dashboardData.teamPipelineHealth.map(t => ({
           recruiter: t.name,
           email: t.email,
@@ -320,26 +368,36 @@ const roleDescriptions = {
         }))
       }
 
+      if (kpiTitle === 'Offer Acceptance Rate' && dashboardData?.teamOfferAcceptance && dashboardData.teamOfferAcceptance.length > 0) {
+        return dashboardData.teamOfferAcceptance.map(o => ({
+          recruiter: o.name,
+          offers: o.offers,
+          accepted: o.accepted,
+          rate: o.rate
+        }))
+      }
+
+      if (kpiTitle === 'Team Capacity Load' && dashboardData?.teamCapacityLoad && dashboardData.teamCapacityLoad.length > 0) {
+        return dashboardData.teamCapacityLoad.map(c => ({
+          recruiter: c.name,
+          email: c.email,
+          activeReqs: c.activeReqs,
+          capacity: c.capacity,
+          loadPercent: c.loadPercent,
+          status: c.status
+        }))
+      }
+
+      if (kpiTitle === 'Hiring Manager' && dashboardData?.hiringManagerStats && dashboardData.hiringManagerStats.length > 0) {
+        return dashboardData.hiringManagerStats.map(hm => ({
+          managerName: hm.managerName,
+          approved: hm.approved,
+          pending: hm.pending,
+          rejected: hm.rejected
+        }))
+      }
+
       const managerDetails: Record<string, any[]> = {
-        'Offer Acceptance Rate': [
-          { recruiter: 'Sarah Johnson', offers: 8, accepted: 6, rate: '75%' },
-          { recruiter: 'Mike Chen', offers: 10, accepted: 7, rate: '70%' },
-          { recruiter: 'Emily Davis', offers: 12, accepted: 9, rate: '75%' },
-          { recruiter: 'Alex Kumar', offers: 5, accepted: 3, rate: '60%' },
-        ],
-        'Team Capacity Load': [
-          { recruiter: 'Sarah Johnson', activeReqs: 8, capacity: 6, loadPercent: '133%', status: 'Overloaded' },
-          { recruiter: 'Mike Davis', activeReqs: 7, capacity: 6, loadPercent: '117%', status: 'High' },
-          { recruiter: 'Jennifer Chen', activeReqs: 9, capacity: 6, loadPercent: '150%', status: 'Critical' },
-          { recruiter: 'Alex Kumar', activeReqs: 5, capacity: 6, loadPercent: '83%', status: 'Optimal' },
-        ],
-        'Hiring Manager': [
-          { managerName: 'John Smith', approved: 12, pending: 3, rejected: 2 },
-          { managerName: 'Sarah Johnson', approved: 8, pending: 2, rejected: 1 },
-          { managerName: 'Mike Chen', approved: 6, pending: 1, rejected: 3 },
-          { managerName: 'Emily Davis', approved: 10, pending: 4, rejected: 2 },
-          { managerName: 'Alex Kumar', approved: 5, pending: 2, rejected: 1 },
-        ],
         'Source Quality': [
           { source: 'LinkedIn', candidates: 85, advanced: 42, hired: 12, conversionRate: '42%' },
           { source: 'Indeed', candidates: 62, advanced: 28, hired: 8, conversionRate: '38%' },

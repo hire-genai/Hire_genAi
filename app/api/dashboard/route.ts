@@ -247,6 +247,107 @@ export async function GET(request: NextRequest) {
     `
     const teamPipelineData = await DatabaseService.query(teamPipelineQuery, [companyId])
 
+    // --- 9. Manager Offer Acceptance Rate Data ---
+    // Calculate real offer acceptance rate for team recruiters
+    const offerAcceptanceQuery = `
+      SELECT 
+        u.id,
+        u.full_name AS name,
+        u.email,
+        -- Offers Given = count where offer_status = 'sent' or 'under_review' or 'negotiating'
+        (SELECT COUNT(*) FROM applications a 
+         JOIN job_postings jp ON a.job_id = jp.id 
+         WHERE jp.created_by = u.email AND a.offer_status IN ('sent', 'under_review', 'negotiating')) AS offers_given,
+        -- Offers Accepted = count where offer_status = 'accepted'
+        (SELECT COUNT(*) FROM applications a 
+         JOIN job_postings jp ON a.job_id = jp.id 
+         WHERE jp.created_by = u.email AND a.offer_status = 'accepted') AS offers_accepted
+      FROM users u
+      JOIN user_roles ur ON u.id = ur.user_id
+      WHERE u.company_id = $1::uuid 
+        AND u.status = 'active'
+        AND ur.role = 'recruiter'
+      ORDER BY u.full_name
+    `
+    const offerAcceptanceData = await DatabaseService.query(offerAcceptanceQuery, [companyId])
+
+    // --- 10. Manager Team Capacity Load Data ---
+    // Calculate real capacity load for team recruiters
+    const capacityLoadQuery = `
+      SELECT 
+        u.id,
+        u.full_name AS name,
+        u.email,
+        -- Active Reqs = count of active job_posting where created_by = recruiter email and status = 'open'
+        (SELECT COUNT(*) FROM job_postings jp 
+         WHERE jp.created_by = u.email AND jp.status = 'open') AS active_reqs
+      FROM users u
+      JOIN user_roles ur ON u.id = ur.user_id
+      WHERE u.company_id = $1::uuid 
+        AND u.status = 'active'
+        AND ur.role = 'recruiter'
+      ORDER BY u.full_name
+    `
+    const capacityLoadData = await DatabaseService.query(capacityLoadQuery, [companyId])
+
+    // Get performance settings for capacity defaults
+    const performanceQuery = `
+      SELECT interview_schedule_sla, cost_per_hire_budget, hiring_per_month
+      FROM performance_settings 
+      WHERE company_id = $1::uuid
+    `
+    const performanceSettings = await DatabaseService.query(performanceQuery, [companyId])
+    const defaultCapacity = performanceSettings?.[0]?.hiring_per_month || performanceSettings?.[0]?.interview_schedule_sla || 7 // Use hiring_per_month first, then SLA, then default to 7
+
+    // --- 11. Manager Hiring Manager Data ---
+    // Get hiring managers and their application counts
+    const hiringManagerQuery = `
+      SELECT 
+        u.id,
+        COALESCE(u.full_name, 'Unknown') AS "managerName",
+        u.email,
+        ur.role as "userRole",
+        -- Approved = count applications where hm_status = 'Approved'
+        (SELECT COUNT(*) FROM applications a 
+         WHERE a.hm_status = 'Approved' AND 
+         EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a.job_id AND jp.company_id = $1::uuid)) AS approved,
+        -- Pending = count applications where hm_status IN ('Waiting for HM feedback', 'Under Review', 'OnHold')
+        (SELECT COUNT(*) FROM applications a 
+         WHERE a.hm_status IN ('Waiting for HM feedback', 'Under Review', 'OnHold') AND 
+         EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a.job_id AND jp.company_id = $1::uuid)) AS pending,
+        -- Rejected = count applications where hm_status = 'Rejected'
+        (SELECT COUNT(*) FROM applications a 
+         WHERE a.hm_status = 'Rejected' AND 
+         EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a.job_id AND jp.company_id = $1::uuid)) AS rejected,
+        -- Average rating from hm_rating field
+        (SELECT AVG(a.hm_rating) FROM applications a 
+         WHERE a.hm_rating IS NOT NULL AND 
+         EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a.job_id AND jp.company_id = $1::uuid)) AS avg_rating,
+        -- Previous quarter rating (simplified - using older applications)
+        (SELECT AVG(a.hm_rating) FROM applications a 
+         WHERE a.hm_rating IS NOT NULL AND a.created_at < NOW() - INTERVAL '3 months'
+         AND EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a.job_id AND jp.company_id = $1::uuid)) AS prev_quarter_rating
+      FROM users u
+      JOIN user_roles ur ON u.id = ur.user_id
+      WHERE u.company_id = $1::uuid 
+        AND u.status = 'active'
+        AND LOWER(ur.role) IN ('hiring_manager', 'manager', 'hiringmanager')
+      ORDER BY u.full_name
+    `
+    const hiringManagerData = await DatabaseService.query(hiringManagerQuery, [companyId])
+    
+    // Debug logging
+    console.log('Hiring Manager Query Result:', hiringManagerData)
+
+    // Calculate satisfaction score from actual hiring managers data
+    const currentRating = hiringManagerData && hiringManagerData.length > 0 
+      ? hiringManagerData.reduce((sum: number, hm: any) => sum + (parseFloat(hm.avg_rating) || 0), 0) / hiringManagerData.length
+      : 0
+    const previousRating = hiringManagerData && hiringManagerData.length > 0
+      ? hiringManagerData.reduce((sum: number, hm: any) => sum + (parseFloat(hm.prev_quarter_rating) || 0), 0) / hiringManagerData.length  
+      : 0
+    const ratingChange = currentRating - previousRating
+
     // --- Build response ---
     const offerAcceptanceRate = parseInt(kpi.offers_decided) > 0
       ? Math.round((parseInt(kpi.offers_accepted) / parseInt(kpi.offers_decided)) * 100)
@@ -336,6 +437,52 @@ export async function GET(request: NextRequest) {
           activeCandidates: parseInt(t.active_candidates) || 0,
           totalHired: parseInt(t.total_hired) || 0,
         })),
+        teamOfferAcceptance: (offerAcceptanceData || []).map((o: any) => {
+          const offersGiven = parseInt(o.offers_given) || 0
+          const offersAccepted = parseInt(o.offers_accepted) || 0
+          const rate = offersGiven > 0 ? Math.round((offersAccepted / offersGiven) * 100) : 0
+          return {
+            id: o.id,
+            name: o.name,
+            email: o.email,
+            offers: offersGiven,
+            accepted: offersAccepted,
+            rate: `${rate}%`
+          }
+        }),
+        teamCapacityLoad: (capacityLoadData || []).map((c: any) => {
+          const activeReqs = parseInt(c.active_reqs) || 0
+          const standardCapacity = defaultCapacity // Use performance settings or default to 10
+          const loadPercent = Math.round((activeReqs / standardCapacity) * 100)
+          
+          let status = 'Normal'
+          if (loadPercent > 100) status = 'Overloaded'
+          else if (loadPercent >= 70) status = 'High'
+          
+          return {
+            id: c.id,
+            name: c.name,
+            email: c.email,
+            activeReqs: activeReqs,
+            capacity: standardCapacity,
+            loadPercent: `${loadPercent}%`,
+            status: status
+          }
+        }),
+        hiringManagerStats: (hiringManagerData || []).map((hm: any) => ({
+          id: hm.id,
+          managerName: hm.managerName, // Now using COALESCE from SQL
+          email: hm.email,
+          approved: parseInt(hm.approved) || 0,
+          pending: parseInt(hm.pending) || 0,
+          rejected: parseInt(hm.rejected) || 0,
+          userRole: hm.userRole // Add role for debugging
+        })),
+        hiringManagerSatisfaction: {
+          currentRating: currentRating.toFixed(1),
+          previousRating: previousRating.toFixed(1),
+          change: ratingChange.toFixed(1)
+        },
       }
     })
   } catch (error: any) {
