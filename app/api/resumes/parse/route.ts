@@ -441,10 +441,6 @@ export async function POST(request: NextRequest) {
           const params: any[] = []
           let p = 1
 
-          if (cols.has('full_name') && parsed.name) {
-            updates.push(`full_name = $${p++}`)
-            params.push(parsed.name)
-          }
           if (cols.has('phone') && parsed.phone) {
             updates.push(`phone = $${p++}`)
             params.push(parsed.phone)

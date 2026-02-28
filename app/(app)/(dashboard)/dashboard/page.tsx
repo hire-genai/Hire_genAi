@@ -102,6 +102,13 @@ interface DashboardData {
     hired: number
     conversionRate: number
   }>
+  sourcingActivity: Array<{
+    channel: string
+    outreach: string
+    responses: string
+    conversionRate: string
+    quality: string
+  }>
   recruiters: Array<{
     id: string
     name: string
@@ -109,6 +116,14 @@ interface DashboardData {
     activeJobs: number
     activeCandidates: number
     hiredCount?: number
+  }>
+  teamPipelineHealth: Array<{
+    id: string
+    name: string
+    email: string
+    activeJobs: number
+    activeCandidates: number
+    totalHired: number
   }>
 }
 
@@ -135,8 +150,8 @@ const getStatusBadge = (status: string) => {
   const [error, setError] = useState<string | null>(null)
 
   const fetchDashboard = useCallback(async () => {
-    // Only fetch for recruiter role - Manager and Director use static data
-    if (selectedRole !== 'recruiter') {
+    // Fetch for recruiter and manager roles - Director uses static data
+    if (selectedRole === 'director') {
       setLoading(false)
       return
     }
@@ -174,9 +189,12 @@ const roleDescriptions = {
 
   // Build KPIs from real data
   const buildRoleKPIs = () => {
-    // Static mock data for Manager and Director
+    // Static mock data for Manager and Director (but update Team Pipeline Health with real data)
+    const totalTeamCandidates = dashboardData?.teamPipelineHealth?.reduce((sum, recruiter) => sum + recruiter.activeCandidates, 0) || 0
+    const totalScreening = dashboardData?.teamPipelineHealth?.reduce((sum, recruiter) => sum + recruiter.activeCandidates, 0) || 0
+    
     const managerKPIs = [
-      { title: 'Team Pipeline Health', value: '156', change: '23 in screening', trend: 'neutral' as const, icon: Users, color: 'orange' as const, subtitle: 'Total candidates across team' },
+      { title: 'Team Pipeline Health', value: String(totalTeamCandidates), change: `${totalScreening} in screening`, trend: 'neutral' as const, icon: Users, color: 'orange' as const, subtitle: 'Total candidates across team' },
             { title: 'Offer Acceptance Rate', value: '85%', change: 'Target: 80%', trend: 'up' as const, icon: MessageSquare, color: 'green' as const, subtitle: 'All time' },
       { title: 'Team Capacity Load', value: '135%', change: 'Recruiter A overloaded', trend: 'down' as const, icon: Gauge, color: 'red' as const, subtitle: 'Team capacity utilization' },
       { title: 'Hiring Manager', value: '4.2', change: '+0.3 vs last quarter', trend: 'up' as const, icon: MessageSquare, color: 'green' as const, subtitle: 'Hiring manager satisfaction score' },
@@ -287,19 +305,23 @@ const roleDescriptions = {
     },
   }
 
-  // Build KPI drill-down data from real API data (Recruiter) or static data (Manager/Director)
+  // Build KPI drill-down data from real API data (Recruiter/Manager) or static data (Director)
   const getKPIDetails = (kpiTitle: string): any[] => {
-    // Static mock data for Manager and Director drill-downs
+    // Static mock data for Manager and Director drill-downs (except Team Pipeline Health for Manager)
     if (selectedRole === 'manager') {
+      // Use real data for Team Pipeline Health
+      if (kpiTitle === 'Team Pipeline Health' && dashboardData?.teamPipelineHealth) {
+        return dashboardData.teamPipelineHealth.map(t => ({
+          recruiter: t.name,
+          email: t.email,
+          activeJobs: t.activeJobs,
+          activeCandidates: t.activeCandidates,
+          totalHired: t.totalHired,
+        }))
+      }
+
       const managerDetails: Record<string, any[]> = {
-        'Team Pipeline Health': [
-          { recruiter: 'Sarah Johnson', activeJobs: 3, activeCandidates: 42, totalHired: 8 },
-          { recruiter: 'Mike Chen', activeJobs: 2, activeCandidates: 35, totalHired: 6 },
-          { recruiter: 'Emily Davis', activeJobs: 4, activeCandidates: 38, totalHired: 7 },
-          { recruiter: 'Alex Kumar', activeJobs: 2, activeCandidates: 25, totalHired: 4 },
-          { recruiter: 'Jessica Lee', activeJobs: 1, activeCandidates: 16, totalHired: 3 },
-        ],
-                'Offer Acceptance Rate': [
+        'Offer Acceptance Rate': [
           { recruiter: 'Sarah Johnson', offers: 8, accepted: 6, rate: '75%' },
           { recruiter: 'Mike Chen', offers: 10, accepted: 7, rate: '70%' },
           { recruiter: 'Emily Davis', offers: 12, accepted: 9, rate: '75%' },
@@ -403,12 +425,13 @@ const roleDescriptions = {
         interviewed: j.aiInterview + j.hiringManager + j.offer + j.hired,
         rate: j.totalCandidates > 0 ? `${Math.round(((j.aiInterview + j.hiringManager + j.offer + j.hired) / j.totalCandidates) * 100)}%` : '0%',
       })),
-      'Sourcing Activity': [
-        { channel: 'LinkedIn', outreach: '45', responses: '38', conversionRate: '84%', quality: 'High' },
-        { channel: 'GitHub', outreach: '32', responses: '28', conversionRate: '87%', quality: 'High' },
-        { channel: 'Indeed', outreach: '28', responses: '18', conversionRate: '64%', quality: 'Medium' },
-        { channel: 'Referrals', outreach: '12', responses: '11', conversionRate: '92%', quality: 'High' },
-      ],
+      'Sourcing Activity': (dashboardData.sourcingActivity || []).map(s => ({
+        channel: s.channel,
+        outreach: s.outreach,
+        responses: s.responses,
+        conversionRate: s.conversionRate,
+        quality: s.quality,
+      })),
       'Team Pipeline Health': (dashboardData.recruiters || []).map(r => ({
         recruiter: r.name,
         activeJobs: r.activeJobs,

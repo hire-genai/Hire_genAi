@@ -95,8 +95,6 @@ CREATE TYPE offer_status AS ENUM (
 -- Candidate source type
 CREATE TYPE candidate_source_type AS ENUM ('Direct', 'Agency', 'Employee Referral');
 
--- Diversity category
-CREATE TYPE diversity_category AS ENUM ('Underrepresented Minority', 'Veteran', 'LGBTQ+');
 
 -- Delegation status
 CREATE TYPE delegation_status AS ENUM ('active', 'expired', 'revoked');
@@ -413,8 +411,6 @@ CREATE TABLE job_postings (
   target_time_to_fill_days    INT,
   budget_allocated            NUMERIC(12,2),
   target_sources              TEXT[],                -- e.g. ['LinkedIn', 'GitHub', 'Referral']
-  diversity_goals             BOOLEAN DEFAULT FALSE,
-  diversity_target_pct        NUMERIC(5,2),
 
   -- Metrics & tracking (Step 4) - job_open_date automated on publish
   job_open_date               DATE,
@@ -493,13 +489,11 @@ CREATE TABLE candidates (
   linkedin_url    TEXT,
   resume_url      TEXT,                              -- S3/blob URL to uploaded CV
   photo_url       TEXT,                              -- Webcam captured photo URL
-  source          TEXT,                              -- LinkedIn, Referral, Job Board, etc.
   source_type     candidate_source_type,             -- Direct, Agency, Employee Referral
   sub_source      TEXT,                              -- Sub-source for Direct type: LinkedIn, Google, Monster, Indeed, Facebook, Others
   agency_name     TEXT,                              -- Agency name when source_type is Agency
   referral_employee_name TEXT,                      -- Employee name when source_type is Employee Referral
   referral_employee_email TEXT,                      -- Employee email when source_type is Employee Referral
-  diversity_category diversity_category,             -- Underrepresented Minority, Veteran, LGBTQ+
   notes           TEXT,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()

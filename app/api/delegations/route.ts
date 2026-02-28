@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
       console.log('[Delegations] User resolve failed, using raw userId:', e)
     }
 
-    // Fetch delegations where user is either delegator or delegatee
+    // Fetch delegations where user is the delegator (only show on creator's page)
     const delegations = await DatabaseService.query(
       `SELECT 
         d.*,
@@ -87,12 +87,12 @@ export async function GET(req: NextRequest) {
       LEFT JOIN users u_by ON d.delegated_by = u_by.id
       LEFT JOIN users u_to ON d.delegated_to = u_to.id
       WHERE d.company_id::text = $1::text
-        AND (d.delegated_by::text = $2::text OR d.delegated_to::text = $2::text)
+        AND d.delegated_by::text = $2::text
       ORDER BY d.created_at DESC`,
       [companyId, resolvedUserId]
     )
 
-    // Fetch audit logs for this company
+    // Fetch audit logs for delegations created by current user
     const auditLogs = await DatabaseService.query(
       `SELECT 
         dal.*,
@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
       LEFT JOIN users u_by ON d.delegated_by = u_by.id
       LEFT JOIN users u_to ON d.delegated_to = u_to.id
       WHERE d.company_id::text = $1::text
-        AND (d.delegated_by::text = $2::text OR d.delegated_to::text = $2::text)
+        AND d.delegated_by::text = $2::text
       ORDER BY dal.created_at DESC
       LIMIT 100`,
       [companyId, resolvedUserId]
@@ -140,6 +140,7 @@ export async function GET(req: NextRequest) {
     const myApplications = await DatabaseService.query(
       `SELECT 
         a.id::text as id, 
+        a.job_id::text as job_id,
         a.current_stage,
         a.applied_at,
         c.full_name AS candidate_name,

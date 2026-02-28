@@ -82,23 +82,7 @@ export async function GET(
       )
     }
 
-    // Auto-close job if application deadline has passed
-    if (job.application_deadline && job.status === 'open') {
-      const deadline = new Date(job.application_deadline)
-      deadline.setHours(23, 59, 59, 999) // end of deadline day
-      if (new Date() > deadline) {
-        try {
-          await DatabaseService.query(
-            `UPDATE job_postings SET status = 'closed', updated_at = NOW() WHERE id = $1::uuid`,
-            [jobId]
-          )
-          job.status = 'closed'
-        } catch {
-          // ignore update error, still reflect closed status
-          job.status = 'closed'
-        }
-      }
-    }
+    // Note: application_deadline field exists but doesn't auto-close jobs
 
     // Validate job status (must be open/published/draft for preview)
     if (job.status !== 'open' && job.status !== 'published' && job.status !== 'draft') {
