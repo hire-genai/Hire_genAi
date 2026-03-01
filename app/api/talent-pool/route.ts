@@ -50,7 +50,12 @@ export async function GET(request: NextRequest) {
         c.linkedin_url,
         c.resume_url,
         c.photo_url,
-        c.source AS candidate_source,
+        CASE 
+          WHEN c.source_type = 'Direct' THEN COALESCE(c.sub_source, 'Direct')
+          WHEN c.source_type = 'Agency' THEN COALESCE(c.agency_name, 'Agency')
+          WHEN c.source_type = 'Employee Referral' THEN COALESCE(c.referral_employee_name, 'Referral')
+          ELSE 'Direct'
+        END AS candidate_source,
         c.notes AS candidate_notes,
         -- Get best CV score from any application
         (SELECT MAX(a.ai_cv_score) FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid) AS best_cv_score,
@@ -320,9 +325,10 @@ export async function POST(request: NextRequest) {
           current_title = $5,
           experience_years = $6,
           linkedin_url = $7,
-          source = $8,
-          notes = $9
-        WHERE id = $10::uuid
+          source_type = $8,
+          sub_source = $9,
+          notes = $10
+        WHERE id = $11::uuid
       `
       const experienceYears = experience ? parseInt(experience) : null
       await DatabaseService.query(updateCandidateQuery, [
@@ -333,6 +339,7 @@ export async function POST(request: NextRequest) {
         position || null,
         experienceYears,
         linkedIn || null,
+        'Direct',
         source || 'Manual Entry',
         notes || null,
         candidateId,
@@ -350,10 +357,11 @@ export async function POST(request: NextRequest) {
           current_title, 
           experience_years, 
           linkedin_url, 
-          source, 
+          source_type, 
+          sub_source,
           notes
         ) VALUES (
-          $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+          $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10::candidate_source_type, $11, $12
         )
         RETURNING id
       `
@@ -368,6 +376,7 @@ export async function POST(request: NextRequest) {
         position || null,
         experienceYears,
         linkedIn || null,
+        'Direct',
         source || 'Manual Entry',
         notes || null,
       ])

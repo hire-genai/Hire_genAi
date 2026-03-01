@@ -59,7 +59,7 @@ export class MockAuthService {
       email: "ashwini2kyadav@gmail.com",
       password: "admin123",
       name: "Ashwini Yadav",
-      role: "admin",
+      role: "manager",
       company: {
         id: "00000000-0000-4000-b000-000000000001",
         name: "Demo Company",

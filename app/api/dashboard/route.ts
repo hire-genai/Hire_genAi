@@ -11,9 +11,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 })
     }
 
-    // Get companyId from query param or session cookie
+    // Get companyId and date filters from query params
     let companyId: string | null = request.nextUrl.searchParams.get('companyId')
     let userId: string | null = null
+    const startDate = request.nextUrl.searchParams.get('startDate')
+    const endDate = request.nextUrl.searchParams.get('endDate')
+    const userRole = request.nextUrl.searchParams.get('userRole') || 'recruiter'
+    
+    // Validate date parameters
+    if (!startDate || !endDate) {
+      return NextResponse.json({ error: 'Start date and end date are required' }, { status: 400 })
+    }
+    
+    // Parse dates and validate
+    const filterStartDate = new Date(startDate + 'T00:00:00.000Z')
+    const filterEndDate = new Date(endDate + 'T23:59:59.999Z')
+    
+    if (isNaN(filterStartDate.getTime()) || isNaN(filterEndDate.getTime())) {
+      return NextResponse.json({ error: 'Invalid date format' }, { status: 400 })
+    }
 
     if (!companyId) {
       try {
@@ -32,49 +48,76 @@ export async function GET(request: NextRequest) {
     if (!companyId) {
       return NextResponse.json({ error: 'Company ID is required' }, { status: 400 })
     }
+    
+    // Get user's actual role from database for validation
+    let userActualRole: string = 'recruiter'
+    if (userId) {
+      try {
+        const roleQuery = `
+          SELECT ur.role FROM user_roles ur 
+          JOIN users u ON ur.user_id = u.id 
+          WHERE u.id = $1::uuid AND u.company_id = $2::uuid
+          LIMIT 1
+        `
+        const roleResult = await DatabaseService.query(roleQuery, [userId, companyId])
+        if (roleResult.length > 0) {
+          userActualRole = roleResult[0].role
+        }
+      } catch (roleErr) {
+        console.log('Could not verify user role, defaulting to recruiter')
+      }
+    }
+    
+    // Enforce role-based restrictions: recruiters can only access recruiter data
+    const allowedRole = userActualRole === 'recruiter' ? 'recruiter' : userRole
+    if (userActualRole === 'recruiter' && userRole !== 'recruiter') {
+      return NextResponse.json({ 
+        error: 'Access denied: Recruiters can only access recruiter-level data' 
+      }, { status: 403 })
+    }
 
-    // --- 1. KPI Stats (single efficient query) ---
+    // --- 1. KPI Stats (single efficient query with date filtering) ---
     const kpiQuery = `
       SELECT
-        -- Job counts
-        (SELECT COUNT(*) FROM job_postings WHERE company_id = $1::uuid AND status = 'open') AS open_jobs,
-        (SELECT COUNT(*) FROM job_postings WHERE company_id = $1::uuid) AS total_jobs,
-        (SELECT COUNT(*) FROM job_postings WHERE company_id = $1::uuid AND status = 'draft') AS draft_jobs,
-        (SELECT COUNT(*) FROM job_postings WHERE company_id = $1::uuid AND status = 'closed') AS closed_jobs,
+        -- Job counts (filter by creation date)
+        (SELECT COUNT(*) FROM job_postings WHERE company_id = $1::uuid AND status = 'open' AND created_at >= $2::timestamp AND created_at <= $3::timestamp) AS open_jobs,
+        (SELECT COUNT(*) FROM job_postings WHERE company_id = $1::uuid AND created_at >= $2::timestamp AND created_at <= $3::timestamp) AS total_jobs,
+        (SELECT COUNT(*) FROM job_postings WHERE company_id = $1::uuid AND status = 'draft' AND created_at >= $2::timestamp AND created_at <= $3::timestamp) AS draft_jobs,
+        (SELECT COUNT(*) FROM job_postings WHERE company_id = $1::uuid AND status = 'closed' AND created_at >= $2::timestamp AND created_at <= $3::timestamp) AS closed_jobs,
         
-        -- Application / pipeline counts
-        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid) AS total_applications,
-        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND current_stage NOT IN ('hired', 'rejected', 'withdrawn')) AS active_candidates,
-        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND current_stage = 'screening') AS screening_count,
-        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND current_stage = 'ai_interview') AS interview_count,
-        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND current_stage = 'hiring_manager') AS hm_count,
-        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND current_stage = 'offer') AS offer_count,
-        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND current_stage = 'hired') AS hired_count,
-        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND current_stage = 'rejected') AS rejected_count,
+        -- Application / pipeline counts (filter by application date)
+        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND applied_at >= $2::timestamp AND applied_at <= $3::timestamp) AS total_applications,
+        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND current_stage NOT IN ('hired', 'rejected', 'withdrawn') AND applied_at >= $2::timestamp AND applied_at <= $3::timestamp) AS active_candidates,
+        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND current_stage = 'screening' AND applied_at >= $2::timestamp AND applied_at <= $3::timestamp) AS screening_count,
+        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND current_stage = 'ai_interview' AND applied_at >= $2::timestamp AND applied_at <= $3::timestamp) AS interview_count,
+        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND current_stage = 'hiring_manager' AND applied_at >= $2::timestamp AND applied_at <= $3::timestamp) AS hm_count,
+        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND current_stage = 'offer' AND applied_at >= $2::timestamp AND applied_at <= $3::timestamp) AS offer_count,
+        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND current_stage = 'hired' AND applied_at >= $2::timestamp AND applied_at <= $3::timestamp) AS hired_count,
+        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND current_stage = 'rejected' AND applied_at >= $2::timestamp AND applied_at <= $3::timestamp) AS rejected_count,
         
-        -- This week's new applications
-        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND applied_at >= NOW() - INTERVAL '7 days') AS new_this_week,
+        -- New applications in the date range
+        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND applied_at >= $2::timestamp AND applied_at <= $3::timestamp) AS new_in_period,
         
-        -- Avg interview score (from interviews table)
-        (SELECT ROUND(AVG(i.interview_score)::numeric, 1) FROM interviews i JOIN applications a ON i.application_id = a.id WHERE a.company_id = $1::uuid AND i.interview_score IS NOT NULL) AS avg_interview_score,
+        -- Avg interview score (from interviews table, filter by application date)
+        (SELECT ROUND(AVG(i.interview_score)::numeric, 1) FROM interviews i JOIN applications a ON i.application_id = a.id WHERE a.company_id = $1::uuid AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp AND i.interview_score IS NOT NULL) AS avg_interview_score,
         
-        -- Offer acceptance rate
-        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND offer_status = 'accepted') AS offers_accepted,
-        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND offer_status IN ('accepted', 'declined')) AS offers_decided,
+        -- Offer acceptance rate (filter by application date)
+        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND offer_status = 'accepted' AND applied_at >= $2::timestamp AND applied_at <= $3::timestamp) AS offers_accepted,
+        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND offer_status IN ('accepted', 'declined') AND applied_at >= $2::timestamp AND applied_at <= $3::timestamp) AS offers_decided,
         
-        -- Avg time to fill (simplified - just count hired)
-        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND current_stage = 'hired') AS hired_total,
+        -- Hired count in date range
+        (SELECT COUNT(*) FROM applications WHERE company_id = $1::uuid AND current_stage = 'hired' AND applied_at >= $2::timestamp AND applied_at <= $3::timestamp) AS hired_total,
         
-        -- Candidate count
-        (SELECT COUNT(*) FROM candidates WHERE company_id = $1::uuid) AS total_candidates,
+        -- Candidate count (filter by creation date)
+        (SELECT COUNT(*) FROM candidates WHERE company_id = $1::uuid AND created_at >= $2::timestamp AND created_at <= $3::timestamp) AS total_candidates,
         
-        -- Team members
+        -- Team members (no date filter needed)
         (SELECT COUNT(*) FROM users WHERE company_id = $1::uuid AND status = 'active') AS team_members
     `
-    const kpiResult = await DatabaseService.query(kpiQuery, [companyId])
+    const kpiResult = await DatabaseService.query(kpiQuery, [companyId, filterStartDate, filterEndDate])
     const kpi = kpiResult[0] || {}
 
-    // --- 2. Recent candidates (last 10 applications with candidate + job info) ---
+    // --- 2. Recent candidates (filter by date range) ---
     const recentQuery = `
       SELECT 
         a.id,
@@ -90,13 +133,15 @@ export async function GET(request: NextRequest) {
       JOIN candidates c ON a.candidate_id = c.id
       JOIN job_postings j ON a.job_id = j.id
       LEFT JOIN interviews i ON i.application_id = a.id
-      WHERE a.company_id = $1::uuid
+      WHERE a.company_id = $1::uuid 
+        AND a.applied_at >= $2::timestamp 
+        AND a.applied_at <= $3::timestamp
       ORDER BY a.applied_at DESC
       LIMIT 10
     `
-    const recentCandidates = await DatabaseService.query(recentQuery, [companyId])
+    const recentCandidates = await DatabaseService.query(recentQuery, [companyId, filterStartDate, filterEndDate])
 
-    // --- 3. Pipeline breakdown by job (top 10 active jobs) ---
+    // --- 3. Pipeline breakdown by job (filter applications by date range) ---
     const pipelineQuery = `
       SELECT 
         j.id,
@@ -104,13 +149,13 @@ export async function GET(request: NextRequest) {
         j.department,
         j.status,
         j.created_at,
-        COUNT(a.id) AS total_candidates,
-        COUNT(a.id) FILTER (WHERE a.current_stage = 'screening') AS screening,
-        COUNT(a.id) FILTER (WHERE a.current_stage = 'ai_interview') AS ai_interview,
-        COUNT(a.id) FILTER (WHERE a.current_stage = 'hiring_manager') AS hiring_manager,
-        COUNT(a.id) FILTER (WHERE a.current_stage = 'offer') AS offer,
-        COUNT(a.id) FILTER (WHERE a.current_stage = 'hired') AS hired,
-        COUNT(a.id) FILTER (WHERE a.current_stage = 'rejected') AS rejected
+        COUNT(a.id) FILTER (WHERE a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp) AS total_candidates,
+        COUNT(a.id) FILTER (WHERE a.current_stage = 'screening' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp) AS screening,
+        COUNT(a.id) FILTER (WHERE a.current_stage = 'ai_interview' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp) AS ai_interview,
+        COUNT(a.id) FILTER (WHERE a.current_stage = 'hiring_manager' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp) AS hiring_manager,
+        COUNT(a.id) FILTER (WHERE a.current_stage = 'offer' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp) AS offer,
+        COUNT(a.id) FILTER (WHERE a.current_stage = 'hired' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp) AS hired,
+        COUNT(a.id) FILTER (WHERE a.current_stage = 'rejected' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp) AS rejected
       FROM job_postings j
       LEFT JOIN applications a ON j.id = a.job_id
       WHERE j.company_id = $1::uuid AND j.status IN ('open', 'onhold')
@@ -118,9 +163,9 @@ export async function GET(request: NextRequest) {
       ORDER BY j.created_at DESC
       LIMIT 10
     `
-    const pipelineByJob = await DatabaseService.query(pipelineQuery, [companyId])
+    const pipelineByJob = await DatabaseService.query(pipelineQuery, [companyId, filterStartDate, filterEndDate])
 
-    // --- 4. Stage time averages (bottleneck detection) ---
+    // --- 4. Stage time averages (filter by application date) ---
     const stageTimeQuery = `
       SELECT 
         to_stage,
@@ -133,18 +178,20 @@ export async function GET(request: NextRequest) {
         )) / 86400)::numeric, 1) AS avg_days
       FROM application_stage_history ash
       JOIN applications a ON ash.application_id = a.id
-      WHERE a.company_id = $1::uuid
+      WHERE a.company_id = $1::uuid 
+        AND a.applied_at >= $2::timestamp 
+        AND a.applied_at <= $3::timestamp
       GROUP BY to_stage
       ORDER BY avg_days DESC
     `
     let stageTimeAvgs: any[] = []
     try {
-      stageTimeAvgs = await DatabaseService.query(stageTimeQuery, [companyId])
+      stageTimeAvgs = await DatabaseService.query(stageTimeQuery, [companyId, filterStartDate, filterEndDate])
     } catch {
       // application_stage_history might be empty
     }
 
-    // --- 5. Source effectiveness ---
+    // --- 5. Source effectiveness (filter by date range) ---
     const sourceQuery = `
       SELECT 
         COALESCE(a.source, 'Direct') AS source,
@@ -152,12 +199,14 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE a.current_stage IN ('ai_interview', 'hiring_manager', 'offer', 'hired')) AS advanced,
         COUNT(*) FILTER (WHERE a.current_stage = 'hired') AS hired
       FROM applications a
-      WHERE a.company_id = $1::uuid
+      WHERE a.company_id = $1::uuid 
+        AND a.applied_at >= $2::timestamp 
+        AND a.applied_at <= $3::timestamp
       GROUP BY COALESCE(a.source, 'Direct')
       ORDER BY total DESC
       LIMIT 8
     `
-    const sourceEffectiveness = await DatabaseService.query(sourceQuery, [companyId])
+    const sourceEffectiveness = await DatabaseService.query(sourceQuery, [companyId, filterStartDate, filterEndDate])
 
     // --- 6. Sourcing Activity ---
     const sourcingActivityQuery = `
@@ -369,7 +418,7 @@ export async function GET(request: NextRequest) {
           offerCount: parseInt(kpi.offer_count) || 0,
           hiredCount: parseInt(kpi.hired_count) || 0,
           rejectedCount: parseInt(kpi.rejected_count) || 0,
-          newThisWeek: parseInt(kpi.new_this_week) || 0,
+          newThisWeek: parseInt(kpi.new_in_period) || 0,
           avgInterviewScore: parseFloat(kpi.avg_interview_score) || 0,
           offerAcceptanceRate,
           avgTimeToFill: 14, // Default placeholder - actual calculation requires proper date columns

@@ -76,8 +76,8 @@ export async function GET(request: NextRequest) {
     // Otherwise, show jobs created by the user or delegated to them
     let jobs: any[]
     if (userId) {
-      // Check if user is admin - admins see all company jobs
-      let isAdmin = false
+      // Check if user is manager/director - they see all company jobs
+      let isManager = false
       try {
         // First check if user_roles table exists
         await DatabaseService.query(`SELECT 1 FROM user_roles LIMIT 1`)
@@ -94,16 +94,16 @@ export async function GET(request: NextRequest) {
            LIMIT 1`,
           [resolvedUserId, companyId, sessionEmail]
         )
-        isAdmin = roleCheck.length > 0 && roleCheck[0].role === 'admin'
-        console.log('🔑 [Jobs GET] Role check:', { isAdmin, roleFound: roleCheck.length > 0, role: roleCheck[0]?.role })
+        isManager = roleCheck.length > 0 && (roleCheck[0].role === 'manager' || roleCheck[0].role === 'director')
+        console.log('🔑 [Jobs GET] Role check:', { isManager, roleFound: roleCheck.length > 0, role: roleCheck[0]?.role })
       } catch (roleErr: any) {
         console.log('⚠️ [Jobs GET] Role check failed, defaulting to show all company jobs:', roleErr.message)
-        isAdmin = true // On error, default to showing all company jobs (safe for single-company setup)
+        isManager = true // On error, default to showing all company jobs (safe for single-company setup)
       }
 
-      if (isAdmin) {
-        // Admin sees all company jobs
-        console.log('👑 [Jobs GET] Admin user, showing all company jobs')
+      if (isManager) {
+        // Manager/Director sees all company jobs
+        console.log('👑 [Jobs GET] Manager/Director user, showing all company jobs')
         jobs = await DatabaseService.query(
           `SELECT jp.*, u.full_name as recruiter_name
           FROM job_postings jp

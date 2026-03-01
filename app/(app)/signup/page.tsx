@@ -115,7 +115,7 @@ export default function SignupPage() {
     s === 1 ? 'company' :
     s === 2 ? 'contact' :
     s === 3 ? 'legal' :
-    s === 4 ? 'admin' :
+    s === 4 ? 'manager' :
     'review'
   )
   const sectionToStep = (sec?: string | null) => {
@@ -123,7 +123,7 @@ export default function SignupPage() {
       case 'company': return 1
       case 'contact': return 2
       case 'legal': return 3
-      case 'admin': return 4
+      case 'manager': return 4
       case 'review': return 5
       default: return 1
     }
@@ -553,8 +553,8 @@ export default function SignupPage() {
                 <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-purple-100 flex items-center justify-center">
                   <User2 className="w-6 h-6 text-purple-600" />
                 </div>
-                <CardTitle className="text-2xl">Admin Account</CardTitle>
-                <CardDescription>Set up the primary administrator account</CardDescription>
+                <CardTitle className="text-2xl">Manager Account</CardTitle>
+                <CardDescription>Set up the primary manager account</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -15,6 +15,8 @@ import {
   TrendingDown,
   Clock,
   ArrowUpRight,
+  ArrowRight,
+  ChevronLeft,
   Target,
   Activity,
   Gauge,
@@ -28,6 +30,8 @@ import {
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import OnboardingTour from '@/components/onboarding/onboarding-tour'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -172,13 +176,87 @@ const getStatusBadge = (status: string) => {
 }
 
   export default function DashboardPage() {
-  const { company } = useAuth()
+  const { company, user } = useAuth()
   const [selectedRole, setSelectedRole] = useState<UserRole>('recruiter')
   const [selectedRecruiter, setSelectedRecruiter] = useState('all')
+  const [selectedDateFilter, setSelectedDateFilter] = useState('last90Days')
+  const [customStartDate, setCustomStartDate] = useState('')
+  const [customEndDate, setCustomEndDate] = useState('')
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [hoveredDate, setHoveredDate] = useState<Date | null>(null)
   const [selectedKPI, setSelectedKPI] = useState<string | null>(null)
+  const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Calculate date range based on filter
+  const getDateRange = useCallback(() => {
+    const today = new Date()
+    let startDate: Date
+    let endDate: Date
+
+    switch (selectedDateFilter) {
+      case 'weekToDate':
+        const dayOfWeek = today.getDay()
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - dayOfWeek)
+        endDate = new Date(today)
+        break
+      case 'monthToDate':
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1)
+        endDate = new Date(today)
+        break
+      case 'last7Days':
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 7)
+        endDate = new Date(today)
+        break
+      case 'last14Days':
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 14)
+        endDate = new Date(today)
+        break
+      case 'last30Days':
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 30)
+        endDate = new Date(today)
+        break
+      case 'last90Days':
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 90)
+        endDate = new Date(today)
+        break
+      case 'custom':
+        if (customStartDate && customEndDate) {
+          startDate = new Date(customStartDate)
+          endDate = new Date(customEndDate)
+        } else {
+          startDate = new Date(today)
+          startDate.setDate(today.getDate() - 90)
+          endDate = new Date(today)
+        }
+        break
+      default:
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 90)
+        endDate = new Date(today)
+    }
+
+    // Use local date format
+    const startYear = startDate.getFullYear()
+    const startMonth = String(startDate.getMonth() + 1).padStart(2, '0')
+    const startDay = String(startDate.getDate()).padStart(2, '0')
+    const endYear = endDate.getFullYear()
+    const endMonth = String(endDate.getMonth() + 1).padStart(2, '0')
+    const endDay = String(endDate.getDate()).padStart(2, '0')
+
+    return {
+      startDate: `${startYear}-${startMonth}-${startDay}`,
+      endDate: `${endYear}-${endMonth}-${endDay}`
+    }
+  }, [selectedDateFilter])
 
   const fetchDashboard = useCallback(async () => {
     // Fetch for recruiter and manager roles - Director uses static data
@@ -190,8 +268,13 @@ const getStatusBadge = (status: string) => {
     try {
       setLoading(true)
       setError(null)
-      const params = company?.id ? `?companyId=${company.id}` : ''
-      const res = await fetch(`/api/dashboard${params}`)
+      const dateRange = getDateRange()
+      const params = new URLSearchParams()
+      if (company?.id) params.append('companyId', company.id)
+      params.append('startDate', dateRange.startDate)
+      params.append('endDate', dateRange.endDate)
+      
+      const res = await fetch(`/api/dashboard?${params.toString()}`)
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
         throw new Error(errData.error || 'Failed to fetch dashboard data')
@@ -203,11 +286,212 @@ const getStatusBadge = (status: string) => {
     } finally {
       setLoading(false)
     }
-  }, [company?.id, selectedRole])
+  }, [company?.id, selectedRole, getDateRange])
 
+  // Set user role from auth context and restrict view
+  useEffect(() => {
+    if (user?.role) {
+      const role = user.role as UserRole
+      setUserRole(role)
+      // If user is recruiter, lock them to recruiter view only
+      if (role === 'recruiter') {
+        setSelectedRole('recruiter')
+      }
+    }
+  }, [user])
+
+  // Initial fetch only - no automatic refetching
   useEffect(() => {
     fetchDashboard()
-  }, [fetchDashboard])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Note: Data will only be fetched when Apply button is clicked
+
+  // Handle preset date filter selection
+  const handlePresetDateFilter = (preset: string) => {
+    const today = new Date()
+    let startDate: Date
+    let endDate = new Date(today)
+
+    switch (preset) {
+      case 'weekToDate':
+        const dayOfWeek = today.getDay()
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - dayOfWeek)
+        break
+      case 'monthToDate':
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1)
+        break
+      case 'last7Days':
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 7)
+        break
+      case 'last14Days':
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 14)
+        break
+      case 'last30Days':
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 30)
+        break
+      case 'last90Days':
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 90)
+        break
+      default:
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 90)
+    }
+
+    // Use local date format
+    const startYear = startDate.getFullYear()
+    const startMonth = String(startDate.getMonth() + 1).padStart(2, '0')
+    const startDay = String(startDate.getDate()).padStart(2, '0')
+    const endYear = endDate.getFullYear()
+    const endMonth = String(endDate.getMonth() + 1).padStart(2, '0')
+    const endDay = String(endDate.getDate()).padStart(2, '0')
+    
+    setCustomStartDate(`${startYear}-${startMonth}-${startDay}`)
+    setCustomEndDate(`${endYear}-${endMonth}-${endDay}`)
+    setSelectedDateFilter(preset)
+    setShowDatePicker(false)
+    
+    // Auto-fetch for preset filters (not custom date selection)
+    fetchDashboard()
+  }
+
+  // Generate calendar days for current month
+  const getCalendarDays = (month: Date) => {
+    const year = month.getFullYear()
+    const monthIndex = month.getMonth()
+    const firstDay = new Date(year, monthIndex, 1)
+    const lastDay = new Date(year, monthIndex + 1, 0)
+    const daysInMonth = lastDay.getDate()
+    const startingDayOfWeek = firstDay.getDay()
+
+    const days: (Date | null)[] = []
+    
+    // Add empty cells for days before month starts
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      days.push(null)
+    }
+    
+    // Add all days in month
+    for (let day = 1; day <= daysInMonth; day++) {
+      days.push(new Date(year, monthIndex, day))
+    }
+    
+    return days
+  }
+
+  // Check if date is in the future (after today)
+  const isDateInFuture = (date: Date) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0) // Set to start of day for comparison
+    const compareDate = new Date(date)
+    compareDate.setHours(0, 0, 0, 0)
+    return compareDate > today
+  }
+
+  // Handle date selection in calendar
+  const handleDateClick = (date: Date) => {
+    // Prevent selection of future dates
+    if (isDateInFuture(date)) {
+      return
+    }
+    
+    // Use local date format to avoid timezone issues
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const dateStr = `${year}-${month}-${day}`
+    
+    if (!customStartDate || (customStartDate && customEndDate)) {
+      // Start new selection
+      setCustomStartDate(dateStr)
+      setCustomEndDate('')
+      setSelectedDateFilter('custom')
+    } else {
+      // Complete selection
+      if (date < new Date(customStartDate)) {
+        setCustomEndDate(customStartDate)
+        setCustomStartDate(dateStr)
+      } else {
+        setCustomEndDate(dateStr)
+      }
+      setSelectedDateFilter('custom')
+    }
+  }
+
+  // Check if date is in selected range
+  const isDateInRange = (date: Date) => {
+    if (!customStartDate) return false
+    // Use local date format to match stored dates
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const dateStr = `${year}-${month}-${day}`
+    const start = customStartDate
+    const end = customEndDate || customStartDate
+    return dateStr >= start && dateStr <= end
+  }
+
+  // Check if date is start or end of range
+  const isRangeEdge = (date: Date) => {
+    // Use local date format to match stored dates
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const dateStr = `${year}-${month}-${day}`
+    return dateStr === customStartDate || dateStr === customEndDate
+  }
+
+  // Format date range for display
+  const getDateRangeDisplay = () => {
+    // Show custom date range when dates are selected
+    if (customStartDate && customEndDate) {
+      // Parse the local date strings and format them
+      const [startYear, startMonth, startDay] = customStartDate.split('-')
+      const [endYear, endMonth, endDay] = customEndDate.split('-')
+      const startStr = `${startDay}/${startMonth}/${startYear.slice(-2)}`
+      const endStr = `${endDay}/${endMonth}/${endYear.slice(-2)}`
+      return `${startStr} - ${endStr}`
+    }
+    
+    // Show single date when only start date is selected
+    if (customStartDate && !customEndDate) {
+      // Parse the local date string and format it
+      const [year, month, day] = customStartDate.split('-')
+      return `${day}/${month}/${year.slice(-2)}`
+    }
+    
+    // Show preset filter names
+    switch (selectedDateFilter) {
+      case 'weekToDate':
+        return 'Week to date'
+      case 'monthToDate':
+        return 'Month to date'
+      case 'last7Days':
+        return 'Last 7 days'
+      case 'last14Days':
+        return 'Last 14 days'
+      case 'last30Days':
+        return 'Last 30 days'
+      case 'last90Days':
+      default:
+        return 'Last 90 Days'
+    }
+  }
+
+  // Handle role change with restriction
+  const handleRoleChange = (value: UserRole) => {
+    // Prevent recruiter from changing view
+    if (userRole === 'recruiter') {
+      return
+    }
+    setSelectedRole(value)
+  }
 
 const roleDescriptions = {
   recruiter: 'My Focus - Am I hitting my goals and keeping candidates moving?',
@@ -569,22 +853,27 @@ const roleDescriptions = {
           <p className="text-sm text-gray-600 mt-1">{roleDescriptions[selectedRole]}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-gray-700">View as:</span>
-          <Select value={selectedRole} onValueChange={(value) => setSelectedRole(value as UserRole)}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="recruiter">Recruiter</SelectItem>
-              <SelectItem value="manager">Manager</SelectItem>
-              <SelectItem value="director">Director</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Only show View As dropdown for manager/director */}
+          {userRole && (userRole === 'manager' || userRole === 'director') && (
+            <>
+              <span className="text-sm font-medium text-gray-700">View as:</span>
+              <Select value={selectedRole} onValueChange={handleRoleChange}>
+                <SelectTrigger className="w-[120px] h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recruiter">Recruiter</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="director">Director</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          )}
           {selectedRole === 'recruiter' && (
             <>
               <span className="text-sm text-gray-400">|</span>
               <Select value={selectedRecruiter} onValueChange={setSelectedRecruiter}>
-                <SelectTrigger className="w-[160px]">
+                <SelectTrigger className="w-auto min-w-[120px] h-8 text-sm whitespace-nowrap">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -596,7 +885,157 @@ const roleDescriptions = {
               </Select>
             </>
           )}
+          {userRole && (userRole === 'manager' || userRole === 'director') && (
+            <span className="text-sm text-gray-400">|</span>
+          )}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDatePicker(!showDatePicker)}
+              className="h-8 px-3 text-sm font-normal bg-white text-gray-700 hover:bg-gray-50 border-gray-300"
+            >
+              <Calendar className="w-4 h-4 mr-2" />
+              {getDateRangeDisplay()}
+            </Button>
+            
+            {showDatePicker && (
+              <div className="absolute right-0 top-10 z-50 bg-white text-gray-900 rounded-lg shadow-2xl border border-gray-200 p-3 w-[480px]">
+                <div className="flex gap-3">
+                  {/* Preset Options Sidebar */}
+                  <div className="w-32 border-r border-gray-200 pr-3">
+                    <div className="space-y-1">
+                      <button
+                        onClick={() => handlePresetDateFilter('weekToDate')}
+                        className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                      >
+                        Week to date
+                      </button>
+                      <button
+                        onClick={() => handlePresetDateFilter('monthToDate')}
+                        className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                      >
+                        Month to date
+                      </button>
+                      <button
+                        onClick={() => handlePresetDateFilter('last7Days')}
+                        className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                      >
+                        Last 7 days
+                      </button>
+                      <button
+                        onClick={() => handlePresetDateFilter('last14Days')}
+                        className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                      >
+                        Last 14 days
+                      </button>
+                      <button
+                        onClick={() => handlePresetDateFilter('last30Days')}
+                        className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                      >
+                        Last 30 days
+                      </button>
+                      <button
+                        onClick={() => handlePresetDateFilter('last90Days')}
+                        className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                      >
+                        Last 90 days
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Calendar */}
+                  <div className="flex-1">
+                    {/* Month Navigation */}
+                    <div className="flex items-center justify-between mb-3">
+                      <button
+                        onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+                        className="p-1 hover:bg-gray-100 rounded"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <span className="font-medium text-sm">
+                        {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                      </span>
+                      <button
+                        onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+                        className="p-1 hover:bg-gray-100 rounded"
+                      >
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Calendar Grid */}
+                    <div className="grid grid-cols-7 gap-0.5">
+                      {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                        <div key={day} className="text-center text-xs text-gray-500 py-1 font-medium">
+                          {day}
+                        </div>
+                      ))}
+                      {getCalendarDays(currentMonth).map((date, idx) => (
+                        <div key={idx}>
+                          {date ? (
+                            <button
+                              onClick={() => handleDateClick(date)}
+                              onMouseEnter={() => setHoveredDate(date)}
+                              onMouseLeave={() => setHoveredDate(null)}
+                              disabled={isDateInFuture(date)}
+                              style={!isDateInFuture(date) ? { border: '1px solid transparent' } : {}}
+                              className={`w-full aspect-square text-xs rounded flex items-center justify-center transition-all duration-200 ${
+                                isDateInFuture(date)
+                                  ? 'text-gray-300 cursor-not-allowed'
+                                  : isRangeEdge(date)
+                                  ? 'bg-emerald-600 text-white font-semibold'
+                                  : isDateInRange(date)
+                                  ? 'bg-emerald-100 text-emerald-600'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-300'
+                              }`}
+                            >
+                              {date.getDate()}
+                            </button>
+                          ) : (
+                            <div className="w-full aspect-square" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-gray-200">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setShowDatePicker(false)
+                          handlePresetDateFilter('last90Days')
+                        }}
+                        className="bg-transparent border-gray-300 text-gray-700 hover:bg-gray-50 h-7 text-xs"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          if (customStartDate && customEndDate) {
+                            setShowDatePicker(false)
+                            fetchDashboard()
+                          }
+                        }}
+                        disabled={!customStartDate || !customEndDate}
+                        className="bg-emerald-600 text-white hover:bg-emerald-700 h-7 text-xs"
+                      >
+                        Apply
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+      </div>
+
+      <div>
       </div>
 
       {/* Loading State */}

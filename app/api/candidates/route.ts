@@ -189,7 +189,12 @@ export async function GET(req: NextRequest) {
         c.linkedin_url,
         c.resume_url,
         c.photo_url,
-        c.source AS candidate_source,
+        CASE 
+          WHEN c.source_type = 'Direct' THEN COALESCE(c.sub_source, 'Direct')
+          WHEN c.source_type = 'Agency' THEN COALESCE(c.agency_name, 'Agency')
+          WHEN c.source_type = 'Employee Referral' THEN COALESCE(c.referral_employee_name, 'Referral')
+          ELSE 'Direct'
+        END AS candidate_source,
         j.id AS j_id,
         j.title AS position,
         j.location AS job_location,
