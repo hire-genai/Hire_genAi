@@ -63,7 +63,7 @@ const countryOptions = [
   { name: "Other", code: "XX" },
 ]
 
-type UserRole = 'admin' | 'director' | 'manager' | 'recruiter' | 'hiring_manager' | 'viewer' | string
+type UserRole = 'director' | 'manager' | 'recruiter' | string
 type SettingsTab = 'company' | 'users' | 'payment' | 'agency'
 type AgencySubTab = 'performance' | 'onboarding'
 
@@ -140,7 +140,7 @@ export default function SettingsPage() {
   const [connectedList, setConnectedList] = useState([
     { id: '1', name: 'ABC Consulting', type: 'Agency', contact: 'john@abc.com', rate: '15%', role: 'Manager' },
     { id: '2', name: 'XYZ Corporation', type: 'Client', contact: 'sarah@xyz.com', rate: '$5,000', role: 'Director' },
-    { id: '3', name: 'Global Recruiters', type: 'Agency', contact: 'mike@global.com', rate: '12%', role: 'Admin' },
+    { id: '3', name: 'Global Recruiters', type: 'Agency', contact: 'mike@global.com', rate: '12%', role: 'Manager' },
     { id: '4', name: 'Tech Mahindra', type: 'Client', contact: 'tech@mahindra.com', rate: '$7,500', role: 'Manager' },
     { id: '5', name: 'Innovative Solutions', type: 'Agency', contact: 'info@innovative.com', rate: '10%', role: 'Director' },
   ])
@@ -443,12 +443,9 @@ export default function SettingsPage() {
 
   const getRoleBadgeColor = (role: string) => {
     const colors: Record<string, string> = {
-      admin: 'bg-red-100 text-red-800',
       director: 'bg-purple-100 text-purple-800',
       manager: 'bg-emerald-100 text-emerald-800',
-      hiring_manager: 'bg-emerald-100 text-emerald-800',
       recruiter: 'bg-green-100 text-green-800',
-      viewer: 'bg-gray-100 text-gray-800',
     }
     return colors[role] || 'bg-gray-100 text-gray-700'
   }
@@ -763,9 +760,8 @@ export default function SettingsPage() {
               <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded">
                 <h3 className="text-sm font-semibold text-emerald-900 mb-2">Role Permissions:</h3>
                 <ul className="text-xs text-emerald-800 space-y-1">
-                  <li><strong>Admin:</strong> Full access to all features including user management and billing</li>
-                  <li><strong>Director:</strong> Access to analytics, reports, and can manage recruiters and managers</li>
-                  <li><strong>Manager:</strong> Can manage job postings, applications, and assigned recruiters</li>
+                  <li><strong>Director:</strong> Full access to all features including user management, billing, analytics and reports</li>
+                  <li><strong>Manager:</strong> Can manage job postings, applications, recruiters and team members</li>
                   <li><strong>Recruiter:</strong> Can manage assigned applications and candidates</li>
                 </ul>
               </div>
@@ -820,7 +816,7 @@ export default function SettingsPage() {
                               <Button size="sm" variant="outline" className="bg-transparent">
                                 <Edit className="h-3 w-3" />
                               </Button>
-                              {teamUser.role !== 'admin' && (
+                              {teamUser.role !== 'manager' && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -1175,7 +1171,7 @@ export default function SettingsPage() {
               <RadioGroup
                 value={newUser.role}
                 onValueChange={(value: UserRole) => setNewUser({ ...newUser, role: value })}
-                className="grid grid-cols-2 gap-4"
+                className="grid grid-cols-3 gap-4"
               >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="recruiter" id="recruiter" />
@@ -1188,10 +1184,6 @@ export default function SettingsPage() {
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="director" id="director" />
                   <Label htmlFor="director" className="font-normal">Director</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="admin" id="admin" />
-                  <Label htmlFor="admin" className="font-normal">Admin</Label>
                 </div>
               </RadioGroup>
             </div>

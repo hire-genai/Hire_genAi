@@ -17,7 +17,7 @@ import { Dialog } from "@/components/ui/dialog"
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Users, Filter, Calendar, UserCheck, FileText, CheckCircle, XCircle, Database, Download, FileTextIcon, Search } from 'lucide-react'
+import { Users, Filter, Calendar, UserCheck, FileText, CheckCircle, XCircle, Database, Download, FileTextIcon, Search, ChevronLeft, ArrowRight } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
 import { CandidateActionDialog } from '@/components/dashboard/candidate-action-dialogs'
 import { useMobileMenu } from '@/components/dashboard/mobile-menu-context'
@@ -56,7 +56,7 @@ const defaultBucketStats: Record<string, any> = {
   rejected: { totalRejected: 0, fromScreening: 0, fromInterview: 0, fromOther: 0 }
 }
 
-type UserRole = 'recruiter' | 'admin' | 'manager' | 'director'
+type UserRole = 'recruiter' | 'manager' | 'director'
 
 export default function CandidatesPage() {
   const { company, user } = useAuth()
@@ -72,6 +72,14 @@ export default function CandidatesPage() {
   const [sourceFilter, setSourceFilter] = useState('all')
   const [skillFilter, setSkillFilter] = useState('')
   const [dateFilter, setDateFilter] = useState('')
+  
+  // Date filter state
+  const [selectedDateFilter, setSelectedDateFilter] = useState('last90Days')
+  const [customStartDate, setCustomStartDate] = useState('')
+  const [customEndDate, setCustomEndDate] = useState('')
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [hoveredDate, setHoveredDate] = useState<Date | null>(null)
   const [viewAsRole, setViewAsRole] = useState<UserRole>('recruiter')
   const [viewAsRecruiter, setViewAsRecruiter] = useState('')
   const [recruiters, setRecruiters] = useState<{id: string, name: string}[]>([])
@@ -83,13 +91,84 @@ export default function CandidatesPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Calculate date range based on filter
+  const getDateRange = useCallback(() => {
+    const today = new Date()
+    let startDate: Date
+    let endDate: Date
+
+    switch (selectedDateFilter) {
+      case 'weekToDate':
+        const dayOfWeek = today.getDay()
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - dayOfWeek)
+        endDate = new Date(today)
+        break
+      case 'monthToDate':
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1)
+        endDate = new Date(today)
+        break
+      case 'last7Days':
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 7)
+        endDate = new Date(today)
+        break
+      case 'last14Days':
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 14)
+        endDate = new Date(today)
+        break
+      case 'last30Days':
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 30)
+        endDate = new Date(today)
+        break
+      case 'last90Days':
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 90)
+        endDate = new Date(today)
+        break
+      case 'custom':
+        if (customStartDate && customEndDate) {
+          startDate = new Date(customStartDate)
+          endDate = new Date(customEndDate)
+        } else {
+          startDate = new Date(today)
+          startDate.setDate(today.getDate() - 90)
+          endDate = new Date(today)
+        }
+        break
+      default:
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 90)
+        endDate = new Date(today)
+    }
+
+    // Use local date format
+    const startYear = startDate.getFullYear()
+    const startMonth = String(startDate.getMonth() + 1).padStart(2, '0')
+    const startDay = String(startDate.getDate()).padStart(2, '0')
+    const endYear = endDate.getFullYear()
+    const endMonth = String(endDate.getMonth() + 1).padStart(2, '0')
+    const endDay = String(endDate.getDate()).padStart(2, '0')
+
+    return {
+      startDate: `${startYear}-${startMonth}-${startDay}`,
+      endDate: `${endYear}-${endMonth}-${endDay}`
+    }
+  }, [selectedDateFilter])
+
   // Fetch data from API
   const fetchCandidates = useCallback(async () => {
     if (!company?.id) return
     try {
       setIsLoading(true)
       setError(null)
-      const res = await fetch(`/api/candidates?companyId=${company.id}${user?.id ? `&userId=${user.id}` : ''}`)
+      
+      // Get date range for API call
+      const dateRange = getDateRange()
+      
+      const res = await fetch(`/api/candidates?companyId=${company.id}${user?.id ? `&userId=${user.id}` : ''}&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`)
       const data = await res.json()
       if (data.ok) {
         // Update bucket counts while preserving icons/colors/labels
@@ -131,12 +210,184 @@ export default function CandidatesPage() {
       .catch(() => {})
   }, [company?.id, user?.id])
   
+  // Initial fetch only - no automatic refetching
   useEffect(() => {
     fetchCandidates()
-  }, [fetchCandidates])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   
   // Permission check - only recruiters can modify
   const canModify = viewAsRole === 'recruiter'
+
+  // Calendar functions
+  const handlePresetDateFilter = (preset: string) => {
+    const today = new Date()
+    let startDate: Date
+    let endDate = new Date(today)
+
+    switch (preset) {
+      case 'weekToDate':
+        const dayOfWeek = today.getDay()
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - dayOfWeek)
+        break
+      case 'monthToDate':
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1)
+        break
+      case 'last7Days':
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 7)
+        break
+      case 'last14Days':
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 14)
+        break
+      case 'last30Days':
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 30)
+        break
+      case 'last90Days':
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 90)
+        break
+      default:
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 90)
+    }
+
+    // Use local date format
+    const startYear = startDate.getFullYear()
+    const startMonth = String(startDate.getMonth() + 1).padStart(2, '0')
+    const startDay = String(startDate.getDate()).padStart(2, '0')
+    const endYear = endDate.getFullYear()
+    const endMonth = String(endDate.getMonth() + 1).padStart(2, '0')
+    const endDay = String(endDate.getDate()).padStart(2, '0')
+    
+    setCustomStartDate(`${startYear}-${startMonth}-${startDay}`)
+    setCustomEndDate(`${endYear}-${endMonth}-${endDay}`)
+    setSelectedDateFilter(preset)
+    setShowDatePicker(false)
+    
+    // Auto-fetch for preset filters
+    fetchCandidates()
+  }
+
+  const getCalendarDays = (month: Date) => {
+    const year = month.getFullYear()
+    const monthIndex = month.getMonth()
+    const firstDay = new Date(year, monthIndex, 1)
+    const lastDay = new Date(year, monthIndex + 1, 0)
+    const daysInMonth = lastDay.getDate()
+    const startingDayOfWeek = firstDay.getDay()
+    
+    const days: (Date | null)[] = []
+    
+    // Add empty cells for days before month starts
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      days.push(null)
+    }
+    
+    // Add all days of the month
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(new Date(year, monthIndex, i))
+    }
+    
+    return days
+  }
+
+  const isDateInFuture = (date: Date) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const compareDate = new Date(date)
+    compareDate.setHours(0, 0, 0, 0)
+    return compareDate > today
+  }
+
+  const handleDateClick = (date: Date) => {
+    // Prevent selection of future dates
+    if (isDateInFuture(date)) {
+      return
+    }
+    
+    // Use local date format to avoid timezone issues
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const dateStr = `${year}-${month}-${day}`
+    
+    if (!customStartDate || (customStartDate && customEndDate)) {
+      // Start new selection
+      setCustomStartDate(dateStr)
+      setCustomEndDate('')
+      setSelectedDateFilter('custom')
+    } else {
+      // Complete selection
+      if (date < new Date(customStartDate)) {
+        setCustomEndDate(customStartDate)
+        setCustomStartDate(dateStr)
+      } else {
+        setCustomEndDate(dateStr)
+      }
+      setSelectedDateFilter('custom')
+    }
+  }
+
+  const isDateInRange = (date: Date) => {
+    if (!customStartDate) return false
+    // Use local date format to match stored dates
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const dateStr = `${year}-${month}-${day}`
+    const start = customStartDate
+    const end = customEndDate || customStartDate
+    return dateStr >= start && dateStr <= end
+  }
+
+  const isRangeEdge = (date: Date) => {
+    // Use local date format to match stored dates
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const dateStr = `${year}-${month}-${day}`
+    return dateStr === customStartDate || dateStr === customEndDate
+  }
+
+  const getDateRangeDisplay = () => {
+    // Show custom date range when dates are selected
+    if (customStartDate && customEndDate) {
+      // Parse the local date strings and format them
+      const [startYear, startMonth, startDay] = customStartDate.split('-')
+      const [endYear, endMonth, endDay] = customEndDate.split('-')
+      const startStr = `${startDay}/${startMonth}/${startYear.slice(-2)}`
+      const endStr = `${endDay}/${endMonth}/${endYear.slice(-2)}`
+      return `${startStr} - ${endStr}`
+    }
+    
+    // Show single date when only start date is selected
+    if (customStartDate && !customEndDate) {
+      // Parse the local date string and format it
+      const [year, month, day] = customStartDate.split('-')
+      return `${day}/${month}/${year.slice(-2)}`
+    }
+    
+    // Show preset filter names
+    switch (selectedDateFilter) {
+      case 'weekToDate':
+        return 'Week to date'
+      case 'monthToDate':
+        return 'Month to date'
+      case 'last7Days':
+        return 'Last 7 days'
+      case 'last14Days':
+        return 'Last 14 days'
+      case 'last30Days':
+        return 'Last 30 days'
+      case 'last90Days':
+      default:
+        return 'Last 90 Days'
+    }
+  }
 
   // Function to apply filters to data
   const applyFilters = (data: any[]) => {
@@ -512,7 +763,6 @@ export default function CandidatesPage() {
                 className="text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-emerald-500"
               >
                 <option value="recruiter">Recruiter</option>
-                <option value="admin">Admin</option>
                 <option value="manager">Manager</option>
                 <option value="director">Director</option>
               </select>
@@ -581,12 +831,155 @@ export default function CandidatesPage() {
             onChange={(e) => setSkillFilter(e.target.value)}
             className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500 min-w-[100px]"
           />
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          />
+          <div className="relative">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowDatePicker(!showDatePicker)}
+              className="bg-transparent gap-1"
+            >
+              <Calendar className="h-3 w-3" />
+              {getDateRangeDisplay()}
+            </Button>
+            
+            {showDatePicker && (
+              <div className="absolute right-0 top-10 z-50 bg-white text-gray-900 rounded-lg shadow-2xl border border-gray-200 p-3 w-[400px]">
+                <div className="flex gap-3">
+                  {/* Preset Options Sidebar */}
+                  <div className="w-28 border-r border-gray-200 pr-2">
+                    <div className="space-y-1">
+                      <button
+                        onClick={() => handlePresetDateFilter('weekToDate')}
+                        className="w-full text-left px-1.5 py-1 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                      >
+                        Week to date
+                      </button>
+                      <button
+                        onClick={() => handlePresetDateFilter('monthToDate')}
+                        className="w-full text-left px-1.5 py-1 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                      >
+                        Month to date
+                      </button>
+                      <button
+                        onClick={() => handlePresetDateFilter('last7Days')}
+                        className="w-full text-left px-1.5 py-1 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                      >
+                        Last 7 days
+                      </button>
+                      <button
+                        onClick={() => handlePresetDateFilter('last14Days')}
+                        className="w-full text-left px-1.5 py-1 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                      >
+                        Last 14 days
+                      </button>
+                      <button
+                        onClick={() => handlePresetDateFilter('last30Days')}
+                        className="w-full text-left px-1.5 py-1 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                      >
+                        Last 30 days
+                      </button>
+                      <button
+                        onClick={() => handlePresetDateFilter('last90Days')}
+                        className="w-full text-left px-1.5 py-1 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                      >
+                        Last 90 days
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Calendar */}
+                  <div className="flex-1">
+                    {/* Month Navigation */}
+                    <div className="flex items-center justify-between mb-2">
+                      <button
+                        onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+                        className="p-1 hover:bg-gray-100 rounded transition-colors"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <h3 className="text-xs font-medium">
+                        {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                      </h3>
+                      <button
+                        onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+                        className="p-1 hover:bg-gray-100 rounded transition-colors"
+                      >
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Calendar Grid */}
+                    <div className="grid grid-cols-7 gap-0.5 text-xs">
+                      {/* Weekday headers */}
+                      {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => (
+                        <div key={idx} className="text-center text-gray-500 font-medium py-1">
+                          {day}
+                        </div>
+                      ))}
+                      
+                      {/* Calendar days */}
+                      {getCalendarDays(currentMonth).map((date, idx) => (
+                        <div key={idx}>
+                          {date ? (
+                            <button
+                              onClick={() => handleDateClick(date)}
+                              onMouseEnter={() => setHoveredDate(date)}
+                              onMouseLeave={() => setHoveredDate(null)}
+                              disabled={isDateInFuture(date)}
+                              style={!isDateInFuture(date) ? { border: '1px solid transparent' } : {}}
+                              className={`w-full aspect-square text-xs rounded flex items-center justify-center transition-all duration-200 ${
+                                isDateInFuture(date)
+                                  ? 'text-gray-300 cursor-not-allowed'
+                                  : isRangeEdge(date)
+                                  ? 'bg-emerald-600 text-white font-semibold'
+                                  : isDateInRange(date)
+                                  ? 'bg-emerald-100 text-emerald-600'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-300'
+                              }`}
+                            >
+                              {date.getDate()}
+                            </button>
+                          ) : (
+                            <div className="w-full aspect-square" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Apply/Cancel Buttons */}
+                    <div className="flex gap-2 mt-2 pt-2 border-t border-gray-200">
+                      <Button
+                        onClick={() => {
+                          if (customStartDate && customEndDate) {
+                            setShowDatePicker(false)
+                            fetchCandidates()
+                          }
+                        }}
+                        disabled={!customStartDate || !customEndDate}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs py-0.5"
+                        size="sm"
+                      >
+                        Apply
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setShowDatePicker(false)
+                          setCustomStartDate('')
+                          setCustomEndDate('')
+                          setSelectedDateFilter('last90Days')
+                        }}
+                        variant="outline"
+                        className="flex-1 text-xs py-0.5"
+                        size="sm"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
           <Button 
             variant="outline" 
             size="sm"
@@ -596,6 +989,9 @@ export default function CandidatesPage() {
               setSourceFilter('all')
               setSkillFilter('')
               setDateFilter('')
+              setCustomStartDate('')
+              setCustomEndDate('')
+              setSelectedDateFilter('last90Days')
               console.log('[v0] Filters reset')
             }}
             className="bg-transparent"

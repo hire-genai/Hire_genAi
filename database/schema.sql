@@ -225,14 +225,14 @@ CREATE INDEX idx_users_status ON users (status);
 -- ---------------------------------------------------------------------------
 -- 2e. user_roles
 -- WHY: RBAC — maps users to roles. Supports multiple roles per user.
---      Created during signup (admin role) and in settings (team management).
---      Roles: admin, recruiter, hiring_manager, viewer
+--      Created during signup (manager role) and in settings (team management).
+--      Roles: manager, recruiter, director
 -- USED BY: signup, settings (user management tab), delegation, middleware
 -- ---------------------------------------------------------------------------
 CREATE TABLE user_roles (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  role        TEXT NOT NULL,                         -- admin, recruiter, hiring_manager, viewer
+  role        TEXT NOT NULL,                         -- manager, recruiter, director
   granted_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   granted_by  UUID REFERENCES users(id) ON DELETE SET NULL,
 
@@ -1321,6 +1321,7 @@ CREATE TABLE IF NOT EXISTS performance_settings (
   interview_schedule_sla      INTEGER,                    -- Hours to schedule after approval
   cost_per_hire_budget        NUMERIC(12,2),              -- Director KPI: Target cost per hire
   job_board_costs             NUMERIC(12,2),              -- LinkedIn, Indeed, etc. posting costs
+  hiring_per_month            INTEGER DEFAULT 7,          -- Standard team capacity per month for hiring
   created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   

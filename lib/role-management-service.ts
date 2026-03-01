@@ -2,7 +2,7 @@ export interface UserRole {
   id: string
   name: string
   email: string
-  role: "admin" | "interviewer" | "ai_recruiter"
+  role: "manager" | "recruiter" | "director"
   permissions: Permission[]
   assignedCandidates?: string[]
   createdAt: string
@@ -20,28 +20,30 @@ export class RoleManagementService {
 
   // Default role configurations
   private static readonly DEFAULT_ROLES = {
-    admin: {
+    director: {
       permissions: [
         { resource: "candidates", actions: ["create", "read", "update", "delete", "assign"] },
         { resource: "jobs", actions: ["create", "read", "update", "delete", "publish"] },
         { resource: "interviews", actions: ["schedule", "conduct", "submit_feedback", "view_all"] },
         { resource: "analytics", actions: ["view", "export"] },
         { resource: "users", actions: ["create", "read", "update", "delete", "assign_roles"] },
-        { resource: "ai_recruiter", actions: ["configure", "monitor", "override"] },
+        { resource: "billing", actions: ["view", "manage"] },
       ],
     },
-    interviewer: {
+    manager: {
       permissions: [
-        { resource: "candidates", actions: ["read"] },
+        { resource: "candidates", actions: ["create", "read", "update", "delete", "assign"] },
+        { resource: "jobs", actions: ["create", "read", "update", "delete", "publish"] },
+        { resource: "interviews", actions: ["schedule", "conduct", "submit_feedback", "view_all"] },
+        { resource: "analytics", actions: ["view"] },
+        { resource: "users", actions: ["create", "read", "update", "assign_roles"] },
+      ],
+    },
+    recruiter: {
+      permissions: [
+        { resource: "candidates", actions: ["read", "update"] },
+        { resource: "jobs", actions: ["read"] },
         { resource: "interviews", actions: ["conduct", "submit_feedback"] },
-        { resource: "jobs", actions: ["read"] },
-      ],
-    },
-    ai_recruiter: {
-      permissions: [
-        { resource: "candidates", actions: ["read", "update", "screen"] },
-        { resource: "jobs", actions: ["read"] },
-        { resource: "interviews", actions: ["generate_feedback", "progress_candidates"] },
       ],
     },
   }
@@ -51,40 +53,40 @@ export class RoleManagementService {
     if (existingUsers.length === 0) {
       const defaultUsers: UserRole[] = [
         {
-          id: "admin_1",
-          name: "Admin User",
-          email: "admin@company.com",
-          role: "admin",
-          permissions: this.DEFAULT_ROLES.admin.permissions,
+          id: "manager_1",
+          name: "Manager User",
+          email: "manager@company.com",
+          role: "manager",
+          permissions: this.DEFAULT_ROLES.manager.permissions,
           createdAt: new Date().toISOString(),
           lastActive: new Date().toISOString(),
         },
         {
-          id: "interviewer_1",
-          name: "John Interviewer",
+          id: "recruiter_1",
+          name: "John Recruiter",
           email: "john@company.com",
-          role: "interviewer",
-          permissions: this.DEFAULT_ROLES.interviewer.permissions,
+          role: "recruiter",
+          permissions: this.DEFAULT_ROLES.recruiter.permissions,
           assignedCandidates: ["cand_1", "cand_2"],
           createdAt: new Date().toISOString(),
           lastActive: new Date().toISOString(),
         },
         {
-          id: "interviewer_2",
-          name: "Sarah Interviewer",
+          id: "recruiter_2",
+          name: "Sarah Recruiter",
           email: "sarah@company.com",
-          role: "interviewer",
-          permissions: this.DEFAULT_ROLES.interviewer.permissions,
+          role: "recruiter",
+          permissions: this.DEFAULT_ROLES.recruiter.permissions,
           assignedCandidates: ["cand_3", "cand_4"],
           createdAt: new Date().toISOString(),
           lastActive: new Date().toISOString(),
         },
         {
-          id: "ai_recruiter_system",
-          name: "AI Recruiter",
-          email: "ai@system.com",
-          role: "ai_recruiter",
-          permissions: this.DEFAULT_ROLES.ai_recruiter.permissions,
+          id: "director_1",
+          name: "Director User",
+          email: "director@company.com",
+          role: "director",
+          permissions: this.DEFAULT_ROLES.director.permissions,
           createdAt: new Date().toISOString(),
           lastActive: new Date().toISOString(),
         },
@@ -132,21 +134,21 @@ export class RoleManagementService {
     return users[userIndex]
   }
 
-  static assignCandidateToInterviewer(candidateId: string, interviewerId: string): boolean {
-    const interviewer = this.getUserById(interviewerId)
-    if (!interviewer || interviewer.role !== "interviewer") return false
+  static assignCandidateToRecruiter(candidateId: string, recruiterId: string): boolean {
+    const recruiter = this.getUserById(recruiterId)
+    if (!recruiter || recruiter.role !== "recruiter") return false
 
-    const updatedAssignments = [...(interviewer.assignedCandidates || []), candidateId]
-    this.updateUser(interviewerId, { assignedCandidates: updatedAssignments })
+    const updatedAssignments = [...(recruiter.assignedCandidates || []), candidateId]
+    this.updateUser(recruiterId, { assignedCandidates: updatedAssignments })
     return true
   }
 
   static getAccessibleCandidates(userRole: UserRole, allCandidates: any[]): any[] {
-    if (userRole.role === "admin" || userRole.role === "ai_recruiter") {
+    if (userRole.role === "manager" || userRole.role === "director") {
       return allCandidates
     }
 
-    if (userRole.role === "interviewer") {
+    if (userRole.role === "recruiter") {
       return allCandidates.filter((candidate) => userRole.assignedCandidates?.includes(candidate.id))
     }
 

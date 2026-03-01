@@ -341,10 +341,10 @@ export class DatabaseService {
       throw new Error('Failed to create user')
     }
 
-    // Assign default role (admin for first user in company)
+    // Assign default role (manager for first user in company)
     const insertRoleQuery = `
       INSERT INTO user_roles (user_id, role)
-      VALUES ($1::uuid, 'admin')
+      VALUES ($1::uuid, 'manager')
       ON CONFLICT DO NOTHING
     `
     await this.query(insertRoleQuery, [newUser[0].id])
@@ -3099,14 +3099,14 @@ export class DatabaseService {
     `
     await this.query(insertDomainQuery, [newCompany[0].id])
 
-    // Create admin user for demo company if doesn't exist
-    const findAdminQuery = `
+    // Create manager user for demo company if doesn't exist
+    const findManagerQuery = `
       SELECT * FROM users WHERE email = $1 AND company_id = $2::uuid
     `
-    const existingAdmin = await this.query(findAdminQuery, [demoEmail, newCompany[0].id]) as any[]
+    const existingManager = await this.query(findManagerQuery, [demoEmail, newCompany[0].id]) as any[]
 
-    if (existingAdmin.length === 0) {
-      const insertAdminQuery = `
+    if (existingManager.length === 0) {
+      const insertManagerQuery = `
         INSERT INTO users (
           company_id, 
           email, 
@@ -3116,18 +3116,18 @@ export class DatabaseService {
           email_verified_at,
           created_at
         )
-        VALUES ($1::uuid, $2, 'Demo Admin', 'active', 'System Administrator', NOW(), NOW())
+        VALUES ($1::uuid, $2, 'Demo Manager', 'active', 'System Manager', NOW(), NOW())
         RETURNING *
       `
-      const adminUser = await this.query(insertAdminQuery, [newCompany[0].id, demoEmail]) as any[]
+      const managerUser = await this.query(insertManagerQuery, [newCompany[0].id, demoEmail]) as any[]
 
-      // Assign admin role
+      // Assign manager role
       const insertRoleQuery = `
         INSERT INTO user_roles (user_id, role)
-        VALUES ($1::uuid, 'admin')
+        VALUES ($1::uuid, 'manager')
         ON CONFLICT DO NOTHING
       `
-      await this.query(insertRoleQuery, [adminUser[0].id])
+      await this.query(insertRoleQuery, [managerUser[0].id])
     }
 
     return newCompany[0]

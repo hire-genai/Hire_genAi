@@ -13,7 +13,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { StatCardGridLoader, TalentPoolTableLoader, ErrorState } from '@/components/ui/skeleton-loader'
 
-type UserRole = 'recruiter' | 'admin' | 'manager' | 'director'
+type UserRole = 'recruiter' | 'manager' | 'director'
 
 interface TalentPoolEntry {
   poolId: string
@@ -261,8 +261,7 @@ export default function TalentPoolPage() {
               className="text-xs border-0 bg-transparent focus:outline-none font-medium"
             >
               <option value="recruiter">Recruiter</option>
-              <option value="admin">Admin</option>
-              <option value="manager">TA Manager</option>
+              <option value="manager">Manager</option>
               <option value="director">Director</option>
             </select>
             {viewAsRole === 'recruiter' && (
