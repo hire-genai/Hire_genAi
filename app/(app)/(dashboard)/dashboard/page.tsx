@@ -160,6 +160,30 @@ interface DashboardData {
     previousRating: string
     change: string
   }
+  hiringVelocity: {
+    totalHires: number
+    totalApplications: number
+  }
+  hiringVelocityMonthly: Array<{
+    month: string
+    plan: number
+    hires: number
+    variance: number
+    trend: string
+    fillRate: string
+  }>
+  qualityOfHire: {
+    avgRating: string
+    retentionRate: number
+    totalCount: number
+  }
+  qualityOfHireDetailed: Array<{
+    cohort: string
+    avgRating: number
+    retention3mo: number
+    performanceIndex: string
+    count: number
+  }>
 }
 
 const getStatusBadge = (status: string) => {
@@ -534,8 +558,8 @@ const roleDescriptions = {
     ]
 
     const directorKPIs = [
-      { title: 'Hiring Velocity', value: '28', change: '234 total apps', trend: 'up' as const, icon: TrendingUp, color: 'orange' as const, subtitle: 'Total hires' },
-      { title: 'Quality of Hire', value: '4.5', change: '92% retention @ 3mo', trend: 'up' as const, icon: MessageSquare, color: 'green' as const, subtitle: 'Performance rating + retention' },
+      { title: 'Hiring Velocity', value: String(dashboardData?.hiringVelocity?.totalHires || 0), change: `${dashboardData?.hiringVelocity?.totalApplications || 0} total apps`, trend: 'up' as const, icon: TrendingUp, color: 'orange' as const, subtitle: 'Total hires' },
+      { title: 'Quality of Hire', value: dashboardData?.qualityOfHire?.avgRating || '0.0', change: `${dashboardData?.qualityOfHire?.retentionRate || 0}% retention @ 3mo`, trend: 'up' as const, icon: MessageSquare, color: 'green' as const, subtitle: 'Performance rating + retention' },
             { title: 'Cost Per Hire', value: '$4,200', change: '+$300 vs last quarter', trend: 'up' as const, icon: DollarSign, color: 'orange' as const, subtitle: 'Average recruitment cost' },
       { title: 'Recruitment ROI', value: '3.2x', change: 'Quality/retention rising', trend: 'up' as const, icon: PieChart, color: 'green' as const, subtitle: 'Return on investment' },
       { title: 'Total Candidates', value: '342', change: '156 active', trend: 'neutral' as const, icon: Users, color: 'emerald' as const, subtitle: 'In database' },
@@ -635,6 +659,10 @@ const roleDescriptions = {
       calculation: 'Total unique candidates in the database for this company.',
       dataContext: 'Candidate overview.',
     },
+    'Quality of Hire': {
+      calculation: 'Average performance rating of new hires combined with 3-month retention rate as quality indicator.',
+      dataContext: 'Cohort analysis showing performance ratings, retention metrics, and quality index by hiring period.',
+    },
   }
 
   // Build KPI drill-down data from real API data (Recruiter/Manager) or static data (Director)
@@ -693,19 +721,33 @@ const roleDescriptions = {
     }
 
     if (selectedRole === 'director') {
+      if (kpiTitle === 'Hiring Velocity' && dashboardData?.hiringVelocityMonthly && dashboardData.hiringVelocityMonthly.length > 0) {
+        return dashboardData.hiringVelocityMonthly.map(m => ({
+          month: m.month,
+          plan: m.plan,
+          hires: m.hires,
+          variance: m.variance,
+          trend: m.trend,
+          fillRate: m.fillRate
+        }))
+      }
+
+      if (kpiTitle === 'Quality of Hire') {
+        // Always show columns, even if no data
+        if (dashboardData?.qualityOfHireDetailed && dashboardData.qualityOfHireDetailed.length > 0) {
+          return dashboardData.qualityOfHireDetailed.map(q => ({
+            cohort: q.cohort,
+            avgRating: q.avgRating,
+            retention3mo: `${q.retention3mo}%`,
+            performanceIndex: q.performanceIndex,
+            count: q.count
+          }))
+        }
+        // Return empty array to show columns with no data
+        return []
+      }
+
       const directorDetails: Record<string, any[]> = {
-        'Hiring Velocity': [
-          { month: 'January', hires: 8, plan: 7, variance: '+1', trend: 'up', fillRate: '114%' },
-          { month: 'February', hires: 6, plan: 7, variance: '-1', trend: 'down', fillRate: '86%' },
-          { month: 'March', hires: 10, plan: 7, variance: '+3', trend: 'up', fillRate: '143%' },
-          { month: 'April (Projected)', hires: 5, plan: 7, variance: '-2', trend: 'down', fillRate: '71%' },
-        ],
-        'Quality of Hire': [
-          { cohort: 'Q1 2024 Hires', avgRating: '4.5', retention3mo: '92%', performanceIndex: 'High', count: 24 },
-          { cohort: 'Q4 2023 Hires', avgRating: '4.3', retention3mo: '88%', performanceIndex: 'Medium-High', count: 18 },
-          { cohort: 'Q3 2023 Hires', avgRating: '4.6', retention3mo: '94%', performanceIndex: 'High', count: 21 },
-          { cohort: 'Q2 2023 Hires', avgRating: '4.2', retention3mo: '85%', performanceIndex: 'Medium', count: 19 },
-        ],
                 'Cost Per Hire': [
           { 
             quarter: 'Q1 2024', 
@@ -1142,13 +1184,39 @@ const roleDescriptions = {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50 text-xs">
-                    {getKPIDetails(selectedKPI).length > 0 && 
-                      Object.keys(getKPIDetails(selectedKPI)[0]).map((key) => (
-                        <TableHead key={key} className="font-semibold capitalize">
-                          {key.replace(/([A-Z])/g, ' $1').trim()}
-                        </TableHead>
-                      ))
-                    }
+                    {(() => {
+                      const details = getKPIDetails(selectedKPI)
+                      if (details.length > 0) {
+                        return Object.keys(details[0]).map((key) => (
+                          <TableHead key={key} className="font-semibold capitalize">
+                            {key.replace(/([A-Z])/g, ' $1').trim()}
+                          </TableHead>
+                        ))
+                      }
+                      // Show default columns even with no data
+                      const defaultColumns: Record<string, string[]> = {
+                        'Quality of Hire': ['Cohort', 'Avg Rating', 'Retention3mo', 'Performance Index', 'Count'],
+                        'Team Pipeline Health': ['Recruiter', 'Email', 'Active Jobs', 'Active Candidates', 'Total Hired'],
+                        'Offer Acceptance Rate': ['Recruiter', 'Email', 'Offers Made', 'Offers Accepted', 'Acceptance Rate'],
+                        'Team Capacity Load': ['Name', 'Email', 'Active Reqs', 'Capacity', 'Load Percent', 'Status'],
+                        'Hiring Manager': ['Manager Name', 'Email', 'Approved', 'Pending', 'Rejected'],
+                        'Source Quality': ['Source', 'Candidates', 'Advanced', 'Hired', 'Conversion Rate'],
+                        // Recruiter tabs
+                        'My Open Reqs': ['Job Title', 'Department', 'Status', 'Days Open', 'Candidates'],
+                        'Candidates in Pipeline': ['Name', 'Job Title', 'Stage', 'Application Date', 'Score'],
+                        'Screening': ['Name', 'Job Title', 'Status', 'Screening Date', 'Score'],
+                        'Avg Interview Score': ['Name', 'Job Title', 'Interview Date', 'Score', 'Stage'],
+                        'Submittal Quality': ['Job Title', 'Submitted', 'Advanced', 'Interview', 'Conversion Rate'],
+                        'Sourcing Activity': ['Source', 'Contacted', 'Responses', 'Conversion Rate', 'Quality']
+                      }
+                      
+                      if (defaultColumns[selectedKPI]) {
+                        return defaultColumns[selectedKPI].map((col) => (
+                          <TableHead key={col} className="font-semibold capitalize">{col}</TableHead>
+                        ))
+                      }
+                      return null
+                    })()}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
