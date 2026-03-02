@@ -388,6 +388,189 @@ export async function GET(request: NextRequest) {
     // Debug logging
     console.log('Hiring Manager Query Result:', hiringManagerData)
 
+    // --- 12. Director Hiring Velocity Data ---
+    // Calculate real hiring velocity for director dashboard
+    const hiringVelocityQuery = `
+      SELECT 
+        -- Total applications count
+        (SELECT COUNT(*) FROM applications a 
+         WHERE EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a.job_id AND jp.company_id = $1::uuid)) AS total_applications,
+        -- Hiring Velocity = hired candidates in last 30 days
+        (SELECT COUNT(*) FROM applications a 
+         WHERE a.current_stage = 'hired' 
+         AND a.hire_date >= NOW() - INTERVAL '30 days'
+         AND EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a.job_id AND jp.company_id = $1::uuid)) AS hiring_velocity
+    `
+    const hiringVelocityData = await DatabaseService.query(hiringVelocityQuery, [companyId])
+
+    // --- 13. Director Hiring Velocity Monthly Data ---
+    // Get monthly hiring plans and actual hires
+    console.log('Fetching monthly hiring data for company:', companyId)
+    
+    // First check performance_settings data
+    const performanceCheckQuery = `
+      SELECT 
+        hiring_per_month,
+        created_at,
+        updated_at
+      FROM performance_settings 
+      WHERE company_id = $1::uuid
+    `
+    const performanceCheck = await DatabaseService.query(performanceCheckQuery, [companyId])
+    console.log('Performance Settings Data:', performanceCheck)
+    
+    const monthlyHiringQuery = `
+      WITH monthly_plan AS (
+        SELECT 
+          DATE_TRUNC('month', created_at) as month,
+          hiring_per_month as plan_value
+        FROM performance_settings 
+        WHERE company_id = $1::uuid 
+        AND hiring_per_month IS NOT NULL
+        ORDER BY created_at ASC
+      ),
+      monthly_hires AS (
+        SELECT 
+          DATE_TRUNC('month', hire_date) as month,
+          COUNT(*) as hires_count
+        FROM applications a
+        WHERE a.current_stage = 'hired' 
+        AND a.hire_date IS NOT NULL
+        AND EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a.job_id AND jp.company_id = $1::uuid)
+        GROUP BY DATE_TRUNC('month', hire_date)
+        ORDER BY month ASC
+      )
+      SELECT 
+        TO_CHAR(m.month, 'YYYY-MM') as month,
+        TO_CHAR(m.month, 'Month') as month_name,
+        COALESCE(mp.plan_value, 0) as plan,
+        COALESCE(mh.hires_count, 0) as hires
+      FROM (
+        SELECT generate_series(
+          DATE_TRUNC('year', NOW())::date,
+          DATE_TRUNC('month', NOW())::date,
+          '1 month'
+        ) as month
+      ) m
+      LEFT JOIN LATERAL (
+        SELECT plan_value 
+        FROM monthly_plan mp2 
+        WHERE mp2.month <= m.month 
+        ORDER BY mp2.month DESC 
+        LIMIT 1
+      ) mp ON true
+      LEFT JOIN monthly_hires mh ON mh.month = m.month
+      ORDER BY m.month ASC
+    `
+    const monthlyHiringData = await DatabaseService.query(monthlyHiringQuery, [companyId])
+    console.log('Monthly Hiring Data:', monthlyHiringData)
+
+    // --- 14. Director Quality of Hire Data ---
+    // Calculate real quality of hire metrics
+    const qualityOfHireQuery = `
+      SELECT 
+        -- Average quality_of_hire_rating
+        AVG((qoh.rating)::numeric) as avg_rating,
+        -- Total hired candidates with quality rating
+        COUNT(*) as total_count,
+        -- Retention calculation: hired at least 3 months ago and still active
+        (SELECT COUNT(*) 
+         FROM applications a2
+         WHERE a2.current_stage = 'hired' 
+         AND a2.hire_date IS NOT NULL
+         AND a2.hire_date <= NOW() - INTERVAL '3 months'
+         AND EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a2.job_id AND jp.company_id = $1::uuid)
+         AND (a2.quality_of_hire_rating->>'employmentStatus' = 'Still with the Firm' 
+              OR a2.quality_of_hire_rating->>'employmentStatus' IS NULL)) as retained_count,
+        -- Total eligible for retention (hired at least 3 months ago)
+        (SELECT COUNT(*) 
+         FROM applications a3
+         WHERE a3.current_stage = 'hired' 
+         AND a3.hire_date IS NOT NULL
+         AND a3.hire_date <= NOW() - INTERVAL '3 months'
+         AND EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a3.job_id AND jp.company_id = $1::uuid)) as retention_eligible
+      FROM applications a
+      JOIN job_postings jp ON a.job_id = jp.id
+      CROSS JOIN LATERAL jsonb_to_record(a.quality_of_hire_rating) AS qoh(rating int, "employmentStatus" text)
+      WHERE jp.company_id = $1::uuid
+        AND a.current_stage = 'hired'
+        AND a.quality_of_hire_rating IS NOT NULL
+        AND a.quality_of_hire_rating->>'rating' IS NOT NULL
+    `
+    const qualityOfHireData = await DatabaseService.query(qualityOfHireQuery, [companyId])
+
+    // --- 15. Director Quality of Hire Detailed Data ---
+    // Get cohort analysis based on actual hire dates
+    console.log('Fetching Quality of Hire detailed data for company:', companyId)
+    
+    // First check if there's any quality_of_hire_rating data
+    const qualityCheckQuery = `
+      SELECT COUNT(*) as count
+      FROM applications a
+      JOIN job_postings jp ON a.job_id = jp.id
+      WHERE jp.company_id = $1::uuid
+        AND a.current_stage = 'hired'
+        AND a.quality_of_hire_rating IS NOT NULL
+        AND a.quality_of_hire_rating->>'rating' IS NOT NULL
+    `
+    const qualityCheck = await DatabaseService.query(qualityCheckQuery, [companyId])
+    console.log('Quality Rating Data Count:', qualityCheck)
+    
+    const qualityOfHireDetailedQuery = `
+      WITH hired_cohorts AS (
+        SELECT 
+          CASE 
+            WHEN DATE_TRUNC('quarter', hire_date) = DATE_TRUNC('quarter', NOW()) THEN 'Current Quarter'
+            WHEN DATE_TRUNC('quarter', hire_date) = DATE_TRUNC('quarter', NOW() - INTERVAL '3 months') THEN 'Previous Quarter'
+            WHEN DATE_TRUNC('quarter', hire_date) = DATE_TRUNC('quarter', NOW() - INTERVAL '6 months') THEN 'Q-2'
+            WHEN DATE_TRUNC('quarter', hire_date) = DATE_TRUNC('quarter', NOW() - INTERVAL '9 months') THEN 'Q-3'
+            ELSE TO_CHAR(DATE_TRUNC('quarter', hire_date), 'YYYY "Q"Q')
+          END as cohort,
+          AVG((qoh.rating)::numeric) as avg_rating,
+          COUNT(*) as count,
+          -- Calculate retention for this cohort
+          COUNT(CASE 
+            WHEN a.hire_date <= NOW() - INTERVAL '3 months' 
+            AND (a.quality_of_hire_rating->>'employmentStatus' = 'Still with the Firm' 
+                 OR a.quality_of_hire_rating->>'employmentStatus' IS NULL)
+            THEN 1 
+          END) as retained_count,
+          COUNT(CASE 
+            WHEN a.hire_date <= NOW() - INTERVAL '3 months' 
+            THEN 1 
+          END) as retention_eligible
+        FROM applications a
+        JOIN job_postings jp ON a.job_id = jp.id
+        CROSS JOIN LATERAL jsonb_to_record(a.quality_of_hire_rating) AS qoh(rating int, "employmentStatus" text)
+        WHERE jp.company_id = $1::uuid
+          AND a.current_stage = 'hired'
+          AND a.quality_of_hire_rating IS NOT NULL
+          AND a.quality_of_hire_rating->>'rating' IS NOT NULL
+          AND a.hire_date IS NOT NULL
+        GROUP BY DATE_TRUNC('quarter', hire_date)
+        ORDER BY DATE_TRUNC('quarter', hire_date) DESC
+        LIMIT 4
+      )
+      SELECT 
+        cohort,
+        ROUND(avg_rating, 1) as avg_rating,
+        CASE 
+          WHEN retention_eligible > 0 THEN ROUND((retained_count::numeric / retention_eligible) * 100)
+          ELSE 0 
+        END as retention_3mo,
+        CASE 
+          WHEN avg_rating >= 4.5 THEN 'High'
+          WHEN avg_rating >= 4.0 THEN 'Medium-High'
+          WHEN avg_rating >= 3.5 THEN 'Medium'
+          ELSE 'Low'
+        END as performance_index,
+        count
+      FROM hired_cohorts
+      ORDER BY cohort DESC
+    `
+    const qualityOfHireDetailedData = await DatabaseService.query(qualityOfHireDetailedQuery, [companyId])
+    console.log('Quality of Hire Detailed Data:', qualityOfHireDetailedData)
+
     // Calculate satisfaction score from actual hiring managers data
     const currentRating = hiringManagerData && hiringManagerData.length > 0 
       ? hiringManagerData.reduce((sum: number, hm: any) => sum + (parseFloat(hm.avg_rating) || 0), 0) / hiringManagerData.length
@@ -532,6 +715,39 @@ export async function GET(request: NextRequest) {
           previousRating: previousRating.toFixed(1),
           change: ratingChange.toFixed(1)
         },
+        hiringVelocity: {
+          totalHires: parseInt(hiringVelocityData?.[0]?.hiring_velocity) || 0,
+          totalApplications: parseInt(hiringVelocityData?.[0]?.total_applications) || 0
+        },
+        hiringVelocityMonthly: (monthlyHiringData || []).map((m: any) => {
+          const plan = parseInt(m.plan) || 0
+          const hires = parseInt(m.hires) || 0
+          const variance = hires - plan
+          const fillRate = plan > 0 ? Math.round((hires / plan) * 100) : 0
+          
+          return {
+            month: m.month_name.trim(),
+            plan: plan,
+            hires: hires,
+            variance: variance,
+            trend: variance > 0 ? 'up' : variance < 0 ? 'down' : 'neutral',
+            fillRate: `${fillRate}%`
+          }
+        }),
+        qualityOfHire: {
+          avgRating: qualityOfHireData?.[0]?.avg_rating ? parseFloat(qualityOfHireData[0].avg_rating).toFixed(1) : '0.0',
+          retentionRate: qualityOfHireData?.[0]?.retention_eligible > 0 
+            ? Math.round((parseInt(qualityOfHireData[0].retained_count) / parseInt(qualityOfHireData[0].retention_eligible)) * 100)
+            : 0,
+          totalCount: parseInt(qualityOfHireData?.[0]?.total_count) || 0
+        },
+        qualityOfHireDetailed: (qualityOfHireDetailedData || []).map((q: any) => ({
+          cohort: q.cohort,
+          avgRating: q.avg_rating,
+          retention3mo: q.retention_3mo,
+          performanceIndex: q.performance_index,
+          count: q.count
+        })),
       }
     })
   } catch (error: any) {
