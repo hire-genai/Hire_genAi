@@ -418,9 +418,35 @@ export default function CandidatesPage() {
         return false
       }
       
-      // Source filter
-      if (sourceFilter !== 'all' && application.source !== sourceFilter) {
-        return false
+      // Source filter - handle source_type based filtering
+      if (sourceFilter !== 'all') {
+        // Debug logging to see actual source values
+        if (sourceFilter === 'Agency' || sourceFilter === 'Referrals') {
+          console.log('DEBUG - Source Filter:', {
+            sourceFilter,
+            applicationSource: application.source,
+            applicationName: application.name
+          })
+        }
+        
+        if (sourceFilter === 'Direct') {
+          // Include all Direct sources: Direct, LinkedIn, Indeed, Naukri, and other sub_sources
+          const isDirectSource = application.source === 'Direct' || 
+                                application.source === 'LinkedIn' || 
+                                application.source === 'Indeed' || 
+                                application.source === 'Naukri' ||
+                                application.source === 'direct_application' ||
+                                (application.source && application.source !== 'Referrals' && application.source !== 'Agency')
+          if (!isDirectSource) {
+            return false
+          }
+        }
+        if (sourceFilter === 'Referrals' && application.source !== 'Referrals') {
+          return false
+        }
+        if (sourceFilter === 'Agency' && application.source !== 'Agency') {
+          return false
+        }
       }
       
       // Skill filter
@@ -841,9 +867,9 @@ export default function CandidatesPage() {
             className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
           >
             <option value="all">All Sources</option>
-            {sources.map(src => (
-              <option key={src} value={src}>{src}</option>
-            ))}
+            <option value="Direct">Direct</option>
+            <option value="Referrals">Referrals</option>
+            <option value="Agency">Agency</option>
           </select>
           <input
             type="text"
