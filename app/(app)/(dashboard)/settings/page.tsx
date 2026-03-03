@@ -946,10 +946,34 @@ export default function SettingsPage() {
 
                     <h4 className="font-semibold text-lg border-b pb-2 mt-6">Cost Tracking</h4>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Cost Per Hire Budget ($)
+                          Currency
+                        </label>
+                        <Select
+                          value={performanceMetrics.costCurrency || 'USD'}
+                          onValueChange={(value) => updatePerformanceMetric('costCurrency', value)}
+                        >
+                          <SelectTrigger className="w-full h-9">
+                            <SelectValue placeholder="Select currency" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="USD">USD ($)</SelectItem>
+                            <SelectItem value="EUR">EUR (€)</SelectItem>
+                            <SelectItem value="GBP">GBP (£)</SelectItem>
+                            <SelectItem value="INR">INR (₹)</SelectItem>
+                            <SelectItem value="JPY">JPY (¥)</SelectItem>
+                            <SelectItem value="CAD">CAD ($)</SelectItem>
+                            <SelectItem value="AUD">AUD ($)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-gray-500 mt-1">Currency for cost tracking</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Cost Per Hire Budget
                         </label>
                         <input
                           type="number"
@@ -963,7 +987,7 @@ export default function SettingsPage() {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Job Board Costs ($)
+                          Job Board Costs
                         </label>
                         <input
                           type="number"
