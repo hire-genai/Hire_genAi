@@ -92,7 +92,15 @@ export default function CandidatesPage() {
   const [error, setError] = useState<string | null>(null)
 
   // Calculate date range based on filter
-  const getDateRange = useCallback(() => {
+  const getDateRange = useCallback((overrideStart?: string, overrideEnd?: string) => {
+    // If override dates are provided, use them directly
+    if (overrideStart && overrideEnd) {
+      return {
+        startDate: overrideStart,
+        endDate: overrideEnd
+      }
+    }
+
     const today = new Date()
     let startDate: Date
     let endDate: Date
@@ -156,19 +164,29 @@ export default function CandidatesPage() {
       startDate: `${startYear}-${startMonth}-${startDay}`,
       endDate: `${endYear}-${endMonth}-${endDay}`
     }
-  }, [selectedDateFilter])
+  }, [selectedDateFilter, customStartDate, customEndDate])
 
   // Fetch data from API
-  const fetchCandidates = useCallback(async () => {
+  const fetchCandidates = useCallback(async (overrideStart?: string, overrideEnd?: string) => {
     if (!company?.id) return
     try {
       setIsLoading(true)
       setError(null)
       
-      // Get date range for API call
-      const dateRange = getDateRange()
+      // Get date range for API call (with override support)
+      const dateRange = getDateRange(overrideStart, overrideEnd)
       
-      const res = await fetch(`/api/candidates?companyId=${company.id}${user?.id ? `&userId=${user.id}` : ''}&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`)
+      console.log('DEBUG - Candidate Date Filter:', {
+        overrideStart,
+        overrideEnd,
+        dateRange,
+        selectedDateFilter
+      })
+      
+      const apiUrl = `/api/candidates?companyId=${company.id}${user?.id ? `&userId=${user.id}` : ''}&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`
+      console.log('DEBUG - Candidates API URL:', apiUrl)
+      
+      const res = await fetch(apiUrl)
       const data = await res.json()
       if (data.ok) {
         // Update bucket counts while preserving icons/colors/labels
@@ -192,7 +210,7 @@ export default function CandidatesPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [company?.id])
+  }, [company?.id, getDateRange])
 
   // Fetch company users for the recruiter dropdown
   useEffect(() => {
@@ -263,13 +281,16 @@ export default function CandidatesPage() {
     const endMonth = String(endDate.getMonth() + 1).padStart(2, '0')
     const endDay = String(endDate.getDate()).padStart(2, '0')
     
-    setCustomStartDate(`${startYear}-${startMonth}-${startDay}`)
-    setCustomEndDate(`${endYear}-${endMonth}-${endDay}`)
+    const startDateStr = `${startYear}-${startMonth}-${startDay}`
+    const endDateStr = `${endYear}-${endMonth}-${endDay}`
+    
+    setCustomStartDate(startDateStr)
+    setCustomEndDate(endDateStr)
     setSelectedDateFilter(preset)
     setShowDatePicker(false)
     
     // Auto-fetch for preset filters
-    fetchCandidates()
+    fetchCandidates(startDateStr, endDateStr)
   }
 
   const getCalendarDays = (month: Date) => {
@@ -952,7 +973,7 @@ export default function CandidatesPage() {
                         onClick={() => {
                           if (customStartDate && customEndDate) {
                             setShowDatePicker(false)
-                            fetchCandidates()
+                            fetchCandidates(customStartDate, customEndDate)
                           }
                         }}
                         disabled={!customStartDate || !customEndDate}
@@ -1133,7 +1154,7 @@ export default function CandidatesPage() {
                   <Input 
                     id="edit-email"
                     type="email"
-                    value={editableCandidate.email || 'candidate@email.com'} 
+                    value={editableCandidate.email || ''} 
                     onChange={(e) => setEditableCandidate({...editableCandidate, email: e.target.value})}
                   />
                 </div>
@@ -1145,7 +1166,7 @@ export default function CandidatesPage() {
                   <Input 
                     id="edit-phone"
                     type="tel"
-                    value={editableCandidate.phone || '+1 (555) 123-4567'} 
+                    value={editableCandidate.phone || ''} 
                     onChange={(e) => setEditableCandidate({...editableCandidate, phone: e.target.value})}
                   />
                 </div>
@@ -1153,8 +1174,8 @@ export default function CandidatesPage() {
                   <Label htmlFor="edit-location">Location</Label>
                   <Input 
                     id="edit-location"
-                    value={editableCandidate.location || 'San Francisco, CA'} 
-                    onChange={(e) => setEditableCandidate({...editableCandidate, location: e.target.value})}
+                    value={editableCandidate.candidateLocation || ''} 
+                    onChange={(e) => setEditableCandidate({...editableCandidate, candidateLocation: e.target.value})}
                   />
                 </div>
               </div>
@@ -1172,8 +1193,7 @@ export default function CandidatesPage() {
                   <Label htmlFor="edit-experience">Years of Experience</Label>
                   <Input 
                     id="edit-experience"
-                    type="number"
-                    value={editableCandidate.experience || '5'} 
+                    value={editableCandidate.experience || ''} 
                     onChange={(e) => setEditableCandidate({...editableCandidate, experience: e.target.value})}
                   />
                 </div>
@@ -1184,7 +1204,7 @@ export default function CandidatesPage() {
                   <Label htmlFor="edit-current-company">Current Company</Label>
                   <Input 
                     id="edit-current-company"
-                    value={editableCandidate.currentCompany || 'Tech Corp'} 
+                    value={editableCandidate.currentCompany || ''} 
                     onChange={(e) => setEditableCandidate({...editableCandidate, currentCompany: e.target.value})}
                   />
                 </div>
@@ -1192,7 +1212,7 @@ export default function CandidatesPage() {
                   <Label htmlFor="edit-current-role">Current Role</Label>
                   <Input 
                     id="edit-current-role"
-                    value={editableCandidate.currentRole || 'Senior Developer'} 
+                    value={editableCandidate.currentRole || ''} 
                     onChange={(e) => setEditableCandidate({...editableCandidate, currentRole: e.target.value})}
                   />
                 </div>
@@ -1203,7 +1223,7 @@ export default function CandidatesPage() {
                   <Label htmlFor="edit-salary">Expected Salary</Label>
                   <Input 
                     id="edit-salary"
-                    value={editableCandidate.expectedSalary || '$120,000'} 
+                    value={editableCandidate.expectedSalary || ''} 
                     onChange={(e) => setEditableCandidate({...editableCandidate, expectedSalary: e.target.value})}
                   />
                 </div>
@@ -1222,7 +1242,7 @@ export default function CandidatesPage() {
                 <Label htmlFor="edit-skills">Skills (comma-separated)</Label>
                 <Input 
                   id="edit-skills"
-                  value={editableCandidate.skills || 'React, Node.js, TypeScript, Python'} 
+                  value={editableCandidate.skills || ''} 
                   onChange={(e) => setEditableCandidate({...editableCandidate, skills: e.target.value})}
                 />
               </div>
@@ -1231,7 +1251,7 @@ export default function CandidatesPage() {
                 <Label htmlFor="edit-education">Education</Label>
                 <Input 
                   id="edit-education"
-                  value={editableCandidate.education || 'BS in Computer Science - Stanford University'} 
+                  value={editableCandidate.education || ''} 
                   onChange={(e) => setEditableCandidate({...editableCandidate, education: e.target.value})}
                 />
               </div>
@@ -1240,8 +1260,8 @@ export default function CandidatesPage() {
                 <Label htmlFor="edit-linkedin">LinkedIn Profile</Label>
                 <Input 
                   id="edit-linkedin"
-                  value={editableCandidate.linkedin || 'https://linkedin.com/in/candidate'} 
-                  onChange={(e) => setEditableCandidate({...editableCandidate, linkedin: e.target.value})}
+                  value={editableCandidate.linkedinUrl || ''} 
+                  onChange={(e) => setEditableCandidate({...editableCandidate, linkedinUrl: e.target.value})}
                 />
               </div>
 
@@ -1249,7 +1269,7 @@ export default function CandidatesPage() {
                 <Label htmlFor="edit-notes">Additional Notes</Label>
                 <Textarea 
                   id="edit-notes"
-                  value={editableCandidate.notes || 'Strong technical background with excellent communication skills.'} 
+                  value={editableCandidate.comments || editableCandidate.notes || ''} 
                   onChange={(e) => setEditableCandidate({...editableCandidate, notes: e.target.value})}
                   rows={4}
                 />
