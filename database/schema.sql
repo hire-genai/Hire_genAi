@@ -1321,6 +1321,7 @@ CREATE TABLE IF NOT EXISTS performance_settings (
   interview_schedule_sla      INTEGER,                    -- Hours to schedule after approval
   cost_per_hire_budget        NUMERIC(12,2),              -- Director KPI: Target cost per hire
   job_board_costs             NUMERIC(12,2),              -- LinkedIn, Indeed, etc. posting costs
+  cost_currency               TEXT DEFAULT 'USD',         -- Currency for cost tracking (USD, EUR, GBP, INR, JPY, CAD, AUD)
   hiring_per_month            INTEGER DEFAULT 7,          -- Standard team capacity per month for hiring
   created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),

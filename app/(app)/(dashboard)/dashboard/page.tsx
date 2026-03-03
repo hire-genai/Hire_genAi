@@ -122,12 +122,11 @@ interface DashboardData {
     hiredCount?: number
   }>
   teamPipelineHealth: Array<{
-    id: string
-    name: string
-    email: string
-    activeJobs: number
-    activeCandidates: number
-    totalHired: number
+    recruiter: string
+    total_candidates: number
+    bottlenecks: number
+    avg_time_in_stage: string
+    efficiency: string
   }>
   teamOfferAcceptance: Array<{
     id: string
@@ -184,6 +183,38 @@ interface DashboardData {
     performanceIndex: string
     count: number
   }>
+  totalCandidatesDetailed: Array<{
+    cohort: string
+    totalCandidates: number
+    activeCandidates: number
+    activePercentage: number
+  }>
+  costAnalysis: {
+    costPerHire: number
+    currency: string
+    totalSpend: number
+    recruitmentCost: number
+    jobBoardCost: number
+    agencyCost: number
+    clientRevenue: number
+    hiredCount: number
+  }
+  quarterlyCostBreakdown: Array<{
+    quarter: string
+    hired: number
+    recruitmentCost: number
+    jobBoardCost: number
+    agencyCost: number
+    costToCompany: number
+    clientRevenue: number
+    totalSpend: number
+  }>
+  recruitmentROI: Array<{
+    metric: string
+    value: string
+    period: string
+    benchmark: string
+  }>
 }
 
 const getStatusBadge = (status: string) => {
@@ -216,7 +247,10 @@ const getStatusBadge = (status: string) => {
   const [error, setError] = useState<string | null>(null)
 
   // Calculate date range based on filter
-  const getDateRange = useCallback(() => {
+  const getDateRange = useCallback((overrideStart?: string, overrideEnd?: string) => {
+    if (overrideStart && overrideEnd) {
+      return { startDate: overrideStart, endDate: overrideEnd }
+    }
     const today = new Date()
     let startDate: Date
     let endDate: Date
@@ -280,23 +314,22 @@ const getStatusBadge = (status: string) => {
       startDate: `${startYear}-${startMonth}-${startDay}`,
       endDate: `${endYear}-${endMonth}-${endDay}`
     }
-  }, [selectedDateFilter])
+  }, [selectedDateFilter, customStartDate, customEndDate])
 
-  const fetchDashboard = useCallback(async () => {
-    // Fetch for recruiter and manager roles - Director uses static data
-    if (selectedRole === 'director') {
-      setLoading(false)
-      return
-    }
-
+  const fetchDashboard = useCallback(async (overrideStart?: string, overrideEnd?: string) => {
     try {
       setLoading(true)
       setError(null)
-      const dateRange = getDateRange()
+      const dateRange = getDateRange(overrideStart, overrideEnd)
       const params = new URLSearchParams()
       if (company?.id) params.append('companyId', company.id)
       params.append('startDate', dateRange.startDate)
       params.append('endDate', dateRange.endDate)
+      
+      // Add recruiter filter for manager/director roles
+      if (selectedRecruiter && selectedRecruiter !== 'all') {
+        params.append('recruiterId', selectedRecruiter)
+      }
       
       const res = await fetch(`/api/dashboard?${params.toString()}`)
       if (!res.ok) {
@@ -310,7 +343,7 @@ const getStatusBadge = (status: string) => {
     } finally {
       setLoading(false)
     }
-  }, [company?.id, selectedRole, getDateRange])
+  }, [company?.id, getDateRange, selectedRecruiter])
 
   // Set user role from auth context and restrict view
   useEffect(() => {
@@ -324,11 +357,18 @@ const getStatusBadge = (status: string) => {
     }
   }, [user])
 
-  // Initial fetch only - no automatic refetching
+  // Only fetch on initial mount; re-fetch is triggered by Apply button or preset selection
   useEffect(() => {
     fetchDashboard()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Fetch dashboard when recruiter selection changes (for manager/director)
+  useEffect(() => {
+    if (selectedRecruiter && userRole && (userRole === 'manager' || userRole === 'director')) {
+      fetchDashboard()
+    }
+  }, [selectedRecruiter, userRole, fetchDashboard])
 
   // Note: Data will only be fetched when Apply button is clicked
 
@@ -376,13 +416,15 @@ const getStatusBadge = (status: string) => {
     const endMonth = String(endDate.getMonth() + 1).padStart(2, '0')
     const endDay = String(endDate.getDate()).padStart(2, '0')
     
-    setCustomStartDate(`${startYear}-${startMonth}-${startDay}`)
-    setCustomEndDate(`${endYear}-${endMonth}-${endDay}`)
+    const startDateStr = `${startYear}-${startMonth}-${startDay}`
+    const endDateStr = `${endYear}-${endMonth}-${endDay}`
+    setCustomStartDate(startDateStr)
+    setCustomEndDate(endDateStr)
     setSelectedDateFilter(preset)
     setShowDatePicker(false)
     
-    // Auto-fetch for preset filters (not custom date selection)
-    fetchDashboard()
+    // Pass dates directly to avoid stale state in fetchDashboard
+    fetchDashboard(startDateStr, endDateStr)
   }
 
   // Generate calendar days for current month
@@ -523,14 +565,28 @@ const roleDescriptions = {
   director: 'Strategic Impact & ROI - Is our TA strategy supporting business growth with quality hires?',
 }
 
+  // Helper function to get currency symbol from currency code
+  const getCurrencySymbol = (currency: string): string => {
+    const symbols: Record<string, string> = {
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£',
+      'INR': '₹',
+      'JPY': '¥',
+      'CAD': '$',
+      'AUD': '$'
+    }
+    return symbols[currency] || '$'
+  }
+
   const kpis = dashboardData?.kpis
   const recruiters = dashboardData?.recruiters || []
 
   // Build KPIs from real data
   const buildRoleKPIs = () => {
     // Static mock data for Manager and Director (but update Team Pipeline Health, Offer Acceptance Rate, and Team Capacity Load with real data)
-    const totalTeamCandidates = dashboardData?.teamPipelineHealth?.reduce((sum, recruiter) => sum + recruiter.activeCandidates, 0) || 0
-    const totalScreening = dashboardData?.teamPipelineHealth?.reduce((sum, recruiter) => sum + recruiter.activeCandidates, 0) || 0
+    const totalTeamCandidates = dashboardData?.teamPipelineHealth?.reduce((sum, recruiter) => sum + recruiter.total_candidates, 0) || 0
+    const totalScreening = dashboardData?.teamPipelineHealth?.reduce((sum, recruiter) => sum + recruiter.bottlenecks, 0) || 0
     
     // Calculate real team offer acceptance rate
     const totalOffersGiven = dashboardData?.teamOfferAcceptance?.reduce((sum, recruiter) => sum + recruiter.offers, 0) || 0
@@ -549,27 +605,52 @@ const roleDescriptions = {
     const hmChangeNum = parseFloat(hmSatisfaction?.change || '0.0')
     const hmTrend = hmChangeNum > 0 ? 'up' as const : hmChangeNum < 0 ? 'down' as const : 'neutral' as const
     
+    // Get real source quality data for manager KPI
+    const sourceQualityData = dashboardData?.sourceEffectiveness || []
+    const bestSource = sourceQualityData.length > 0 
+      ? sourceQualityData.reduce((best, current) => 
+          current.conversionRate > best.conversionRate ? current : best
+        )
+      : null
+    
     const managerKPIs = [
-      { title: 'Team Pipeline Health', value: String(totalTeamCandidates), change: `${totalScreening} in screening`, trend: 'neutral' as const, icon: Users, color: 'orange' as const, subtitle: 'Total candidates across team' },
+      { title: 'Team Pipeline Health', value: String(totalTeamCandidates), change: `${totalScreening} in bottleneck`, trend: 'neutral' as const, icon: Users, color: 'orange' as const, subtitle: 'Total candidates across team' },
             { title: 'Offer Acceptance Rate', value: `${teamOfferRate}%`, change: 'Target: 80%', trend: teamOfferRate >= 80 ? 'up' as const : teamOfferRate >= 60 ? 'neutral' as const : 'down' as const, icon: MessageSquare, color: 'green' as const, subtitle: 'All time' },
       { title: 'Team Capacity Load', value: `${teamCapacityLoad}%`, change: `${overloadedRecruiter} overloaded`, trend: teamCapacityLoad > 100 ? 'down' as const : teamCapacityLoad >= 70 ? 'neutral' as const : 'up' as const, icon: Gauge, color: 'red' as const, subtitle: 'Team capacity utilization' },
       { title: 'Hiring Manager', value: hmRating, change: `${hmChangeNum > 0 ? '+' : ''}${hmChangeNum} vs last quarter`, trend: hmTrend, icon: MessageSquare, color: 'green' as const, subtitle: 'Hiring manager satisfaction score' },
-      { title: 'Source Quality', value: 'LinkedIn', change: '42% conversion', trend: 'up' as const, icon: BarChart3, color: 'emerald' as const, subtitle: 'Best performing channel' },
+      { title: 'Source Quality', value: bestSource?.source || 'N/A', change: `${bestSource?.conversionRate || 0}% conversion`, trend: 'up' as const, icon: BarChart3, color: 'emerald' as const, subtitle: 'Best performing channel' },
     ]
 
     const directorKPIs = [
       { title: 'Hiring Velocity', value: String(dashboardData?.hiringVelocity?.totalHires || 0), change: `${dashboardData?.hiringVelocity?.totalApplications || 0} total apps`, trend: 'up' as const, icon: TrendingUp, color: 'orange' as const, subtitle: 'Total hires' },
       { title: 'Quality of Hire', value: dashboardData?.qualityOfHire?.avgRating || '0.0', change: `${dashboardData?.qualityOfHire?.retentionRate || 0}% retention @ 3mo`, trend: 'up' as const, icon: MessageSquare, color: 'green' as const, subtitle: 'Performance rating + retention' },
-            { title: 'Cost Per Hire', value: '$4,200', change: '+$300 vs last quarter', trend: 'up' as const, icon: DollarSign, color: 'orange' as const, subtitle: 'Average recruitment cost' },
-      { title: 'Recruitment ROI', value: '3.2x', change: 'Quality/retention rising', trend: 'up' as const, icon: PieChart, color: 'green' as const, subtitle: 'Return on investment' },
-      { title: 'Total Candidates', value: '342', change: '156 active', trend: 'neutral' as const, icon: Users, color: 'emerald' as const, subtitle: 'In database' },
+            { title: 'Cost Per Hire', value: `${getCurrencySymbol(dashboardData?.costAnalysis?.currency || 'USD')}${dashboardData?.costAnalysis?.costPerHire?.toLocaleString() || '0'}`, change: `${dashboardData?.costAnalysis?.hiredCount || 0} hires this period`, trend: 'neutral' as const, icon: DollarSign, color: 'orange' as const, subtitle: 'Total cost per successful hire' },
+      { title: 'Recruitment ROI', value: (() => {
+        const roiData = dashboardData?.recruitmentROI || []
+        const valueCreated = roiData.find((m: { metric: string; value: string; period: string; benchmark: string }) => m.metric === 'Value Created')?.value || '0'
+        const investment = roiData.find((m: { metric: string; value: string; period: string; benchmark: string }) => m.metric === 'Investment')?.value || '0'
+        const roiValue = roiData.find((m: { metric: string; value: string; period: string; benchmark: string }) => m.metric === 'Value Created')?.benchmark || '0.0x'
+        return roiValue
+      })(), change: 'Quality/retention rising', trend: 'up' as const, icon: PieChart, color: 'green' as const, subtitle: 'Return on investment' },
+      { title: 'Total Candidates', value: String(dashboardData?.kpis?.totalCandidates || '0'), change: `${dashboardData?.kpis?.activeCandidates || '0'} active`, trend: 'neutral' as const, icon: Users, color: 'emerald' as const, subtitle: 'In database' },
     ]
 
     // Recruiter uses backend data
     if (selectedRole === 'recruiter') {
       if (!kpis) return []
+      // Calculate candidates who advanced to interview OR beyond (hired)
+      const advancedCandidates = (kpis.interviewCount || 0) + (kpis.hmCount || 0) + (kpis.offerCount || 0) + (kpis.hiredCount || 0)
       const submittedToInterview = kpis.totalApplications > 0
-        ? Math.round((kpis.interviewCount / kpis.totalApplications) * 100)
+        ? Math.round((advancedCandidates / kpis.totalApplications) * 100)
+        : 0
+
+      // Calculate real sourcing activity conversion rate
+      const sourcingActivityData = dashboardData?.sourcingActivity || []
+      const avgSourcingConversion = sourcingActivityData.length > 0
+        ? Math.round(sourcingActivityData.reduce((sum, s) => {
+            const rate = parseFloat(s.conversionRate) || 0
+            return sum + rate
+          }, 0) / sourcingActivityData.length)
         : 0
 
       return [
@@ -578,7 +659,7 @@ const roleDescriptions = {
         { title: 'Screening', value: String(kpis.screeningCount), change: `${kpis.interviewCount} in interview`, trend: 'neutral' as const, icon: Target, color: 'green' as const, subtitle: 'CV screening stage' },
         { title: 'Avg Interview Score', value: kpis.avgInterviewScore > 0 ? `${kpis.avgInterviewScore}` : 'N/A', change: `${kpis.interviewCount} interviewed`, trend: kpis.avgInterviewScore >= 70 ? 'up' as const : 'neutral' as const, icon: Clock, color: 'purple' as const, subtitle: 'Average AI interview score' },
         { title: 'Submittal Quality', value: `${submittedToInterview}%`, change: `${kpis.interviewCount} advanced`, trend: submittedToInterview >= 40 ? 'up' as const : 'down' as const, icon: CheckCircle, color: 'emerald' as const, subtitle: 'Screening to interview rate' },
-        { title: 'Sourcing Activity', value: '87%', change: 'Target: 80%', trend: 'up' as const, icon: Activity, color: 'emerald' as const, subtitle: 'Current bottleneck' },
+        { title: 'Sourcing Activity', value: `${avgSourcingConversion}%`, change: 'Target: 80%', trend: avgSourcingConversion >= 80 ? 'up' as const : avgSourcingConversion >= 60 ? 'neutral' as const : 'down' as const, icon: Activity, color: 'emerald' as const, subtitle: 'Current bottleneck' },
       ]
     }
 
@@ -612,7 +693,7 @@ const roleDescriptions = {
       dataContext: 'Pipeline breakdown by job showing conversion rates.',
     },
     'Sourcing Activity': {
-      calculation: 'Percentage of successful responses from outreach attempts across all sourcing channels this week.',
+      calculation: 'Average conversion rate across all sourcing channels (responses ÷ outreach × 100).',
       dataContext: 'Breakdown by channel showing outreach volume, responses received, conversion rates, and quality assessment.',
     },
     'Team Pipeline Health': {
@@ -663,6 +744,10 @@ const roleDescriptions = {
       calculation: 'Average performance rating of new hires combined with 3-month retention rate as quality indicator.',
       dataContext: 'Cohort analysis showing performance ratings, retention metrics, and quality index by hiring period.',
     },
+    'Recruitment ROI': {
+      calculation: 'Investment = Sum of Cost To Company across all quarters. Value Created = Sum of Total Spend across all quarters. ROI = Value Created ÷ Investment.',
+      dataContext: 'Annual financial metrics showing total investment costs, net spend after client revenue, quality ratings of hired candidates, and 3-month retention rates.',
+    },
   }
 
   // Build KPI drill-down data from real API data (Recruiter/Manager) or static data (Director)
@@ -672,11 +757,11 @@ const roleDescriptions = {
       // Use real data for Team Pipeline Health
       if (kpiTitle === 'Team Pipeline Health' && dashboardData?.teamPipelineHealth && dashboardData.teamPipelineHealth.length > 0) {
         return dashboardData.teamPipelineHealth.map(t => ({
-          recruiter: t.name,
-          email: t.email,
-          activeJobs: t.activeJobs,
-          activeCandidates: t.activeCandidates,
-          totalHired: t.totalHired,
+          recruiter: t.recruiter,
+          totalCandidates: t.total_candidates,
+          bottlenecks: t.bottlenecks,
+          avgTimeInStage: t.avg_time_in_stage,
+          efficiency: t.efficiency,
         }))
       }
 
@@ -703,24 +788,27 @@ const roleDescriptions = {
       if (kpiTitle === 'Hiring Manager' && dashboardData?.hiringManagerStats && dashboardData.hiringManagerStats.length > 0) {
         return dashboardData.hiringManagerStats.map(hm => ({
           managerName: hm.managerName,
+          email: hm.email,
           approved: hm.approved,
           pending: hm.pending,
           rejected: hm.rejected
         }))
       }
 
-      const managerDetails: Record<string, any[]> = {
-        'Source Quality': [
-          { source: 'LinkedIn', candidates: 85, advanced: 42, hired: 12, conversionRate: '42%' },
-          { source: 'Indeed', candidates: 62, advanced: 28, hired: 8, conversionRate: '38%' },
-          { source: 'Referrals', candidates: 24, advanced: 18, hired: 6, conversionRate: '75%' },
-          { source: 'GitHub', candidates: 31, advanced: 15, hired: 2, conversionRate: '48%' },
-        ],
+      // Use real source effectiveness data for Source Quality
+      if (kpiTitle === 'Source Quality' && dashboardData?.sourceEffectiveness && dashboardData.sourceEffectiveness.length > 0) {
+        return dashboardData.sourceEffectiveness.map((s: any) => ({
+          source: s.source,
+          candidates: s.total,
+          advanced: s.advanced,
+          hired: s.hired,
+          conversionRate: s.total > 0 ? `${Math.round((s.advanced / s.total) * 100)}%` : '0%'
+        }))
       }
-      return managerDetails[kpiTitle] || []
-    }
 
-    if (selectedRole === 'director') {
+      // Return empty array for any other manager KPI
+      return []
+    } else if (selectedRole === 'director') {
       if (kpiTitle === 'Hiring Velocity' && dashboardData?.hiringVelocityMonthly && dashboardData.hiringVelocityMonthly.length > 0) {
         return dashboardData.hiringVelocityMonthly.map(m => ({
           month: m.month,
@@ -747,25 +835,23 @@ const roleDescriptions = {
         return []
       }
 
+      if (kpiTitle === 'Total Candidates') {
+        // Always show columns, even if no data
+        if (dashboardData?.totalCandidatesDetailed && dashboardData.totalCandidatesDetailed.length > 0) {
+          return dashboardData.totalCandidatesDetailed.map(t => ({
+            cohort: t.cohort,
+            totalCandidates: t.totalCandidates,
+            activeCandidates: t.activeCandidates,
+            activePercentage: `${t.activePercentage}%`
+          }))
+        }
+        // Return empty array to show columns with no data
+        return []
+      }
+
       const directorDetails: Record<string, any[]> = {
-                'Cost Per Hire': [
-          { 
-            quarter: 'Q1 2024', 
-            hired: 30, 
-            recruitmentCost: 30000, 
-            jobBoardCost: 3000, 
-            agencyCost: 100000, 
-            costToCompany: 133000, 
-            clientRevenue: 200000, 
-            totalSpend: -67000 
-          },
-        ],
-        'Recruitment ROI': [
-          { metric: 'Investment', value: '$320K', period: 'Annual', benchmark: 'Industry Avg' },
-          { metric: 'Value Created', value: '$1.02M', period: 'Annual', benchmark: '3.2x ROI' },
-          { metric: 'Quality Score', value: '4.5/5', period: 'YTD', benchmark: 'Top Quartile' },
-          { metric: 'Retention Impact', value: '92%', period: '6 months', benchmark: 'Above Target' },
-        ],
+                'Cost Per Hire': dashboardData?.quarterlyCostBreakdown || [],
+        'Recruitment ROI': dashboardData?.recruitmentROI || [],
         'Total Candidates': [
           { total: 342, active: 156, hired: 28, rejected: 158 },
         ],
@@ -775,6 +861,11 @@ const roleDescriptions = {
 
     // Recruiter uses backend data
     if (!dashboardData) return []
+
+    console.log('Dashboard Data for Recruiter:', {
+      recentCandidates: dashboardData.recentCandidates?.length || 0,
+      recentCandidatesData: dashboardData.recentCandidates
+    })
 
     const detailData: Record<string, any[]> = {
       'My Open Reqs': (dashboardData.pipelineByJob || []).map(j => ({
@@ -788,7 +879,6 @@ const roleDescriptions = {
         name: c.name,
         position: c.position,
         stage: c.status,
-        experience: c.experience,
         applied: c.appliedDate,
       })),
       'Screening': (dashboardData.recentCandidates || []).filter(c => c.status === 'Screening').map(c => ({
@@ -801,7 +891,7 @@ const roleDescriptions = {
         name: c.name,
         position: c.position,
         interviewScore: `${c.interviewScore}/100`,
-        status: c.status,
+        stage: c.status,
       })),
       'Submittal Quality': (dashboardData.pipelineByJob || []).map(j => ({
         position: j.title,
@@ -816,11 +906,12 @@ const roleDescriptions = {
         conversionRate: s.conversionRate,
         quality: s.quality,
       })),
-      'Team Pipeline Health': (dashboardData.recruiters || []).map(r => ({
-        recruiter: r.name,
-        activeJobs: r.activeJobs,
-        activeCandidates: r.activeCandidates,
-        totalHired: r.hiredCount || 0,
+      'Team Pipeline Health': (dashboardData.teamPipelineHealth || []).map(t => ({
+        recruiter: t.recruiter,
+        totalCandidates: t.total_candidates,
+        bottlenecks: t.bottlenecks,
+        avgTimeInStage: t.avg_time_in_stage,
+        efficiency: t.efficiency,
       })),
       'Time to Fill (Avg)': (dashboardData.pipelineByJob || []).map(j => ({
         position: j.title,
@@ -911,7 +1002,7 @@ const roleDescriptions = {
               </Select>
             </>
           )}
-          {selectedRole === 'recruiter' && (
+          {userRole && (userRole === 'manager' || userRole === 'director') && (
             <>
               <span className="text-sm text-gray-400">|</span>
               <Select value={selectedRecruiter} onValueChange={setSelectedRecruiter}>
@@ -926,9 +1017,6 @@ const roleDescriptions = {
                 </SelectContent>
               </Select>
             </>
-          )}
-          {userRole && (userRole === 'manager' || userRole === 'director') && (
-            <span className="text-sm text-gray-400">|</span>
           )}
           <div className="relative">
             <Button
@@ -1060,7 +1148,7 @@ const roleDescriptions = {
                         onClick={() => {
                           if (customStartDate && customEndDate) {
                             setShowDatePicker(false)
-                            fetchDashboard()
+                            fetchDashboard(customStartDate, customEndDate)
                           }
                         }}
                         disabled={!customStartDate || !customEndDate}
@@ -1196,18 +1284,23 @@ const roleDescriptions = {
                       // Show default columns even with no data
                       const defaultColumns: Record<string, string[]> = {
                         'Quality of Hire': ['Cohort', 'Avg Rating', 'Retention3mo', 'Performance Index', 'Count'],
-                        'Team Pipeline Health': ['Recruiter', 'Email', 'Active Jobs', 'Active Candidates', 'Total Hired'],
-                        'Offer Acceptance Rate': ['Recruiter', 'Email', 'Offers Made', 'Offers Accepted', 'Acceptance Rate'],
-                        'Team Capacity Load': ['Name', 'Email', 'Active Reqs', 'Capacity', 'Load Percent', 'Status'],
+                        'Total Candidates': ['Cohort', 'Total Candidates', 'Active Candidates', 'Active Percentage'],
+                        'Team Pipeline Health': ['Recruiter', 'Total Candidates', 'Bottlenecks', 'Avg Time In Stage', 'Efficiency'],
+                        'Offer Acceptance Rate': ['Recruiter', 'Offers', 'Accepted', 'Rate'],
+                        'Team Capacity Load': ['Recruiter', 'Email', 'Active Reqs', 'Capacity', 'Load Percent', 'Status'],
                         'Hiring Manager': ['Manager Name', 'Email', 'Approved', 'Pending', 'Rejected'],
                         'Source Quality': ['Source', 'Candidates', 'Advanced', 'Hired', 'Conversion Rate'],
                         // Recruiter tabs
                         'My Open Reqs': ['Job Title', 'Department', 'Status', 'Days Open', 'Candidates'],
-                        'Candidates in Pipeline': ['Name', 'Job Title', 'Stage', 'Application Date', 'Score'],
+                        'Candidates in Pipeline': ['Name', 'Job Title', 'Stage', 'Application Date'],
                         'Screening': ['Name', 'Job Title', 'Status', 'Screening Date', 'Score'],
                         'Avg Interview Score': ['Name', 'Job Title', 'Interview Date', 'Score', 'Stage'],
                         'Submittal Quality': ['Job Title', 'Submitted', 'Advanced', 'Interview', 'Conversion Rate'],
-                        'Sourcing Activity': ['Source', 'Contacted', 'Responses', 'Conversion Rate', 'Quality']
+                        'Sourcing Activity': ['Source', 'Contacted', 'Responses', 'Conversion Rate', 'Quality'],
+                        // Director tabs
+                        'Hiring Velocity': ['Month', 'Plan', 'Hires', 'Variance', 'Trend', 'Fill Rate'],
+                        'Cost Per Hire': ['Quarter', 'Hired', 'Recruitment Cost', 'Job Board Cost', 'Agency Cost', 'Cost To Company', 'Client Revenue', 'Total Spend'],
+                        'Recruitment ROI': ['Metric', 'Value', 'Period', 'Benchmark']
                       }
                       
                       if (defaultColumns[selectedKPI]) {

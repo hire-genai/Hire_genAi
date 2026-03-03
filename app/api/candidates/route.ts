@@ -14,6 +14,12 @@ export async function GET(req: NextRequest) {
     // Get companyId and userId from query param or session cookie
     let companyId: string | null = req.nextUrl.searchParams.get('companyId')
     let userId: string | null = req.nextUrl.searchParams.get('userId')
+    
+    // Get date filtering parameters
+    const startDate: string | null = req.nextUrl.searchParams.get('startDate')
+    const endDate: string | null = req.nextUrl.searchParams.get('endDate')
+    
+    console.log('DEBUG - Candidates API Date Params:', { startDate, endDate })
 
     let sessionEmail: string | null = null
     try {
@@ -119,7 +125,17 @@ export async function GET(req: NextRequest) {
       queryParams = [companyId, resolvedUserId]
     }
 
-    // Get bucket counts filtered by ownership + delegation
+    // Build date filter clause
+    let dateFilterClause = ''
+    let dateQueryParams = [...queryParams]
+    
+    if (startDate && endDate) {
+      const paramIndex = queryParams.length + 1
+      dateFilterClause = ` AND a.applied_at >= $${paramIndex}::timestamp AND a.applied_at <= $${paramIndex + 1}::timestamp`
+      dateQueryParams.push(startDate + 'T00:00:00.000Z', endDate + 'T23:59:59.999Z')
+    }
+
+    // Get bucket counts filtered by ownership + delegation + date
     const bucketCountsQuery = `
       SELECT 
         COUNT(*) FILTER (WHERE a.ai_cv_score IS NOT NULL) AS screening,
@@ -131,9 +147,9 @@ export async function GET(req: NextRequest) {
         COUNT(*) AS total
       FROM applications a
       JOIN job_postings j ON a.job_id = j.id
-      WHERE ${accessibleJobsClause}
+      WHERE ${accessibleJobsClause}${dateFilterClause}
     `
-    const bucketCountsResult = await DatabaseService.query(bucketCountsQuery, queryParams)
+    const bucketCountsResult = await DatabaseService.query(bucketCountsQuery, dateQueryParams)
     const counts = bucketCountsResult?.[0] || {}
 
     const bucketData = {
@@ -181,6 +197,7 @@ export async function GET(req: NextRequest) {
         a.remarks,
         a.expected_salary,
         a.available_start_date,
+        a.qualification_explanations,
         c.id AS c_id,
         c.full_name,
         c.email,
@@ -208,10 +225,10 @@ export async function GET(req: NextRequest) {
       JOIN candidates c ON a.candidate_id = c.id
       JOIN job_postings j ON a.job_id = j.id
       LEFT JOIN interviews i ON i.application_id = a.id
-      WHERE ${accessibleJobsClause}
+      WHERE ${accessibleJobsClause}${dateFilterClause}
       ORDER BY a.applied_at DESC
     `
-    const applicationsResult = await DatabaseService.query(applicationsQuery, queryParams)
+    const applicationsResult = await DatabaseService.query(applicationsQuery, dateQueryParams)
 
     // Organize applications by bucket
     const applicationsData: Record<string, any[]> = {
@@ -268,7 +285,18 @@ export async function GET(req: NextRequest) {
         availableStartDate: app.available_start_date ? new Date(app.available_start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
         jobCurrency: app.job_currency || 'USD',
         salaryCurrency: app.salary_currency || app.job_currency || 'USD',
-        offerCurrency: app.offer_currency || app.job_currency || 'USD'
+        offerCurrency: app.offer_currency || app.job_currency || 'USD',
+        // Extract detailed info from qualification_explanations
+        qualificationDetails: app.qualification_explanations || {},
+        skills: (app.qualification_explanations?.extracted?.skills || []).join(', '),
+        experience: app.qualification_explanations?.extracted?.relevant_experience_years || app.qualification_explanations?.extracted?.total_experience_years_estimate || app.qualification_explanations?.extracted?.experience || app.qualification_explanations?.extracted?.experienceYears || '',
+        education: Array.isArray(app.qualification_explanations?.extracted?.education) 
+          ? app.qualification_explanations.extracted.education.map((edu: any) => typeof edu === 'object' ? `${edu.degree || ''} ${edu.field || ''} - ${edu.institution || ''}`.trim() : edu).join('; ')
+          : (app.qualification_explanations?.extracted?.education || ''),
+        currentCompany: app.qualification_explanations?.extracted?.currentCompany || '',
+        currentRole: app.qualification_explanations?.extracted?.currentRole || app.qualification_explanations?.extracted?.currentTitle || '',
+        noticePeriod: app.qualification_explanations?.extracted?.noticePeriod || '30',
+        candidateLocation: app.candidate_location || app.qualification_explanations?.extracted?.location || ''
       }
 
       applicationsData.all.push(formattedApp)

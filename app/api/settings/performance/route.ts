@@ -38,7 +38,8 @@ export async function GET(request: NextRequest) {
         target_offer_acceptance_rate,
         interview_schedule_sla,
         cost_per_hire_budget,
-        job_board_costs
+        job_board_costs,
+        cost_currency
       FROM performance_settings 
       WHERE company_id = $1::uuid`,
       [companyId]
@@ -52,6 +53,7 @@ export async function GET(request: NextRequest) {
           interviewScheduleSLA: '',
           costPerHireBudget: '',
           jobBoardCosts: '',
+          costCurrency: 'USD',
         }
       })
     }
@@ -63,6 +65,7 @@ export async function GET(request: NextRequest) {
         interviewScheduleSLA: settings.interview_schedule_sla?.toString() || '',
         costPerHireBudget: settings.cost_per_hire_budget?.toString() || '',
         jobBoardCosts: settings.job_board_costs?.toString() || '',
+        costCurrency: settings.cost_currency || 'USD',
       }
     })
   } catch (error: any) {
@@ -82,7 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    let { companyId, targetOfferAcceptanceRate, interviewScheduleSLA, costPerHireBudget, jobBoardCosts } = body
+    let { companyId, targetOfferAcceptanceRate, interviewScheduleSLA, costPerHireBudget, jobBoardCosts, costCurrency } = body
 
     // Fallback to session cookie
     if (!companyId) {
@@ -106,14 +109,15 @@ export async function POST(request: NextRequest) {
     await DatabaseService.query(
       `INSERT INTO performance_settings (
         company_id, target_offer_acceptance_rate, interview_schedule_sla, 
-        cost_per_hire_budget, job_board_costs, updated_at
-      ) VALUES ($1::uuid, $2, $3, $4, $5, NOW())
+        cost_per_hire_budget, job_board_costs, cost_currency, updated_at
+      ) VALUES ($1::uuid, $2, $3, $4, $5, $6, NOW())
       ON CONFLICT (company_id) 
       DO UPDATE SET 
         target_offer_acceptance_rate = EXCLUDED.target_offer_acceptance_rate,
         interview_schedule_sla = EXCLUDED.interview_schedule_sla,
         cost_per_hire_budget = EXCLUDED.cost_per_hire_budget,
         job_board_costs = EXCLUDED.job_board_costs,
+        cost_currency = EXCLUDED.cost_currency,
         updated_at = NOW()`,
       [
         companyId,
@@ -121,6 +125,7 @@ export async function POST(request: NextRequest) {
         interviewScheduleSLA ? parseInt(interviewScheduleSLA) : null,
         costPerHireBudget ? parseFloat(costPerHireBudget) : null,
         jobBoardCosts ? parseFloat(jobBoardCosts) : null,
+        costCurrency || 'USD',
       ]
     )
 

@@ -506,12 +506,50 @@ export default function ApplyPage() {
                     disabled={isSubmitting}
                   >
                     <option value="">Select...</option>
-                    <option value="LinkedIn">LinkedIn</option>
-                    <option value="Google">Google</option>
-                    <option value="Monster">Monster</option>
-                    <option value="Indeed">Indeed</option>
-                    <option value="Facebook">Facebook</option>
-                    <option value="Others">Others</option>
+                    <optgroup label="Job Boards">
+                      <option value="LinkedIn">LinkedIn (Job Posts)</option>
+                      <option value="Indeed">Indeed</option>
+                      <option value="Glassdoor">Glassdoor</option>
+                      <option value="Monster">Monster</option>
+                      <option value="CareerBuilder">CareerBuilder</option>
+                      <option value="Dice">Dice (Tech/IT)</option>
+                      <option value="GitHub">GitHub (Technical/Developers)</option>
+                      <option value="Behance">Behance (Creative/Design)</option>
+                      <option value="Wellfound">Wellfound (formerly AngelList - Startups)</option>
+                      <option value="FlexJobs">FlexJobs (Remote)</option>
+                      <option value="IndustrySpecific">Industry-specific job boards</option>
+                    </optgroup>
+                    <optgroup label="Social Media">
+                      <option value="FacebookJobTab">Facebook (Job Tab)</option>
+                      <option value="FacebookGroups">Facebook (Groups)</option>
+                      <option value="FacebookAds">Facebook (Ads)</option>
+                      <option value="Twitter">Twitter/X</option>
+                      <option value="Instagram">Instagram</option>
+                      <option value="TikTok">TikTok (for creative/younger talent)</option>
+                      <option value="Reddit">Reddit (Niche forums/specialized communities)</option>
+                      <option value="SlackChannels">Slack Channels/Communities</option>
+                      <option value="YouTube">YouTube (Company Culture/Video CVs)</option>
+                      <option value="Quora">Quora</option>
+                    </optgroup>
+                    <optgroup label="Company Sources">
+                      <option value="CompanyCareersWebsite">Company Careers Website</option>
+                      <option value="EmployeeReferralProgram">Employee Referral Program (Highest quality source)</option>
+                      <option value="InternalTransfer">Internal Transfer/Promotion</option>
+                      <option value="BoomerangEmployee">"Boomerang" Employee (Re-hiring past employees)</option>
+                      <option value="AlumniNetwork">Alumni Network</option>
+                    </optgroup>
+                    <optgroup label="Events & Recruiting">
+                      <option value="IndustryConferences">Industry Conferences/Trade Shows</option>
+                      <option value="JobFairs">Job Fairs/Career Expos (Virtual or In-person)</option>
+                      <option value="UniversityRecruiting">University/Campus Recruiting</option>
+                      <option value="RecruitmentAgencies">Recruitment Agencies/Headhunters</option>
+                      <option value="ProfessionalAssociations">Professional Associations</option>
+                    </optgroup>
+                    <optgroup label="Search & Discovery">
+                      <option value="GoogleForJobs">Google for Jobs</option>
+                      <option value="InternetSearch">General Internet Search/Direct Visit</option>
+                      <option value="PublicityMedia">Publicity/Media/Billboard</option>
+                    </optgroup>
                   </select>
                 </div>
               )}
