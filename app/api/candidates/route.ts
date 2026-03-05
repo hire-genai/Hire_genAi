@@ -208,8 +208,8 @@ export async function GET(req: NextRequest) {
         c.photo_url,
         CASE 
           WHEN c.source_type = 'Direct' THEN COALESCE(c.sub_source, 'Direct')
-          WHEN c.source_type = 'Agency' THEN COALESCE(c.agency_name, 'Agency')
-          WHEN c.source_type = 'Employee Referral' THEN COALESCE(c.referral_employee_name, 'Referral')
+          WHEN c.source_type = 'Agency' THEN 'Agency'
+          WHEN c.source_type = 'Employee Referral' THEN 'Referrals'
           ELSE 'Direct'
         END AS candidate_source,
         j.id AS j_id,
@@ -251,7 +251,7 @@ export async function GET(req: NextRequest) {
         phone: app.phone || '',
         position: app.position || 'Unknown Position',
         appliedDate: app.applied_at ? new Date(app.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
-        source: app.source || app.candidate_source || 'Direct',
+        source: app.candidate_source || app.source || 'Direct',
         status: formatStage(app.current_stage),
         cvScore: app.ai_cv_score != null ? `${Math.round(app.ai_cv_score)}/100` : '0/100',
         screeningScore: app.ai_cv_score != null ? `${Math.round(app.ai_cv_score)}/100` : '0/100',
