@@ -376,8 +376,8 @@ export default function BillingContent({ companyId }: BillingContentProps) {
         </TabsList>
 
         {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <TabsContent value="overview" className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Wallet Balance</CardTitle>
@@ -467,7 +467,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
               <CardDescription className="text-sm text-muted-foreground">Customize your view of usage analytics</CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="grid gap-2 md:grid-cols-3">
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                 <div>
                   <Label className="text-sm font-medium">Job Description</Label>
                   <Select value={usageJobFilter} onValueChange={setUsageJobFilter}>
@@ -496,7 +496,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex items-end">
+                <div className="col-span-2 md:col-span-1 flex items-end">
                   <Button
                     className="w-full h-10 px-4 py-2 text-sm font-medium"
                     onClick={() => {
@@ -518,7 +518,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
           {/* Usage Overview Cards */}
           {usageData?.totals && (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <Card className="border-l-4 border-l-blue-500">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium text-blue-700">CV Parsing</CardTitle>

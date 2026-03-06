@@ -162,7 +162,7 @@ export default function TalentPoolPage() {
   const [emailSubject, setEmailSubject] = useState('')
   const [emailBody, setEmailBody] = useState('')
   const [viewAsRole, setViewAsRole] = useState<UserRole>('recruiter')
-  const [viewAsRecruiter, setViewAsRecruiter] = useState('1')
+  const [viewAsRecruiter, setViewAsRecruiter] = useState('all')
   const [showAddCandidateDialog, setShowAddCandidateDialog] = useState(false)
   const [showCandidateDetailsDialog, setShowCandidateDetailsDialog] = useState(false)
   const [selectedCandidateDetails, setSelectedCandidateDetails] = useState<any>(null)
@@ -244,7 +244,7 @@ export default function TalentPoolPage() {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 p-3 md:p-4 w-full">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
@@ -253,31 +253,33 @@ export default function TalentPoolPage() {
         </div>
         <div className="flex gap-2 items-center flex-wrap">
           {/* View As Filter */}
-          <div className="flex items-center gap-2 border rounded-md px-2 py-1 bg-blue-50">
-            <span className="text-xs font-medium text-gray-700">View as:</span>
-            <select
-              value={viewAsRole}
-              onChange={(e) => setViewAsRole(e.target.value as UserRole)}
-              className="text-xs border-0 bg-transparent focus:outline-none font-medium"
-            >
-              <option value="recruiter">Recruiter</option>
-              <option value="manager">Manager</option>
-              <option value="director">Director</option>
-            </select>
-            {viewAsRole === 'recruiter' && (
-              <>
-                <span className="text-xs text-gray-400">|</span>
-                <select
-                  value={viewAsRecruiter}
-                  onChange={(e) => setViewAsRecruiter(e.target.value)}
-                  className="text-xs border-0 bg-transparent focus:outline-none font-medium"
-                >
-                  {recruiters.map(r => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
-                </select>
-              </>
-            )}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-700 whitespace-nowrap">View as:</span>
+            <Select value={viewAsRole} onValueChange={(v) => setViewAsRole(v as UserRole)}>
+              <SelectTrigger className="h-8 w-[110px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recruiter">Recruiter</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="director">Director</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="w-[130px]">
+              {viewAsRole === 'recruiter' && (
+                <Select value={viewAsRecruiter} onValueChange={setViewAsRecruiter}>
+                  <SelectTrigger className="h-8 w-[130px] text-xs">
+                    <SelectValue placeholder="All Recruiters" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Recruiters</SelectItem>
+                    {recruiters.map(r => (
+                      <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
           </div>
           {!canModify && (
             <Badge variant="secondary" className="text-xs">View Only</Badge>
@@ -374,51 +376,54 @@ export default function TalentPoolPage() {
       {/* Advanced Filters */}
       <Card className="p-2">
         <div className="space-y-2">
-          {/* Search and Filter Inputs */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Search and Filter Inputs - 3x2 grid on mobile, single row on desktop */}
+          <div className="grid grid-cols-3 gap-2 md:flex md:flex-wrap md:items-center">
             <input
               type="text"
               placeholder="Search by name or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="px-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 flex-1 min-w-[200px]"
+              className="col-span-1 px-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 md:flex-1 md:min-w-[200px]"
             />
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value as 'all' | 'Active Interest' | 'Passive')}
-              className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="all">All Types</option>
-              <option value="Active Interest">Active Interest</option>
-              <option value="Passive">Passive</option>
-            </select>
+            <Select value={selectedStatus} onValueChange={(v) => setSelectedStatus(v as 'all' | 'Active Interest' | 'Passive')}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="Active Interest">Active Interest</SelectItem>
+                <SelectItem value="Passive">Passive</SelectItem>
+              </SelectContent>
+            </Select>
             <input
               type="text"
               placeholder="Filter by skill..."
               value={skillFilter}
               onChange={(e) => setSkillFilter(e.target.value)}
-              className="px-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[140px]"
+              className="col-span-1 px-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
-            <select
-              value={positionFilter}
-              onChange={(e) => setPositionFilter(e.target.value)}
-              className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="all">All Positions</option>
-              {allPositions.map(pos => (
-                <option key={pos} value={pos}>{pos}</option>
-              ))}
-            </select>
-            <select
-              value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value)}
-              className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="all">All Sources</option>
-              {allSources.map(src => (
-                <option key={src} value={src}>{src}</option>
-              ))}
-            </select>
+            <Select value={positionFilter} onValueChange={setPositionFilter}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="All Positions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Positions</SelectItem>
+                {allPositions.map(pos => (
+                  <SelectItem key={pos} value={pos}>{pos}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="All Sources" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sources</SelectItem>
+                {allSources.map(src => (
+                  <SelectItem key={src} value={src}>{src}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button 
               size="sm" 
               variant="outline"
@@ -429,7 +434,7 @@ export default function TalentPoolPage() {
                 setSourceFilter('all')
                 setSelectedStatus('all')
               }}
-              className="bg-transparent"
+              className="bg-transparent h-8"
             >
               Clear All
             </Button>
@@ -477,11 +482,10 @@ export default function TalentPoolPage() {
       </Card>
 
       {/* Talent Pool Table */}
-      <Card className="overflow-hidden">
+      <Card>
         <div className="overflow-x-auto">
-          <div className="inline-block min-w-full align-middle">
-            <table className="w-full">
-              <thead className="bg-gray-50">
+          <table className="w-full">
+              <thead className="bg-gray-50 border-b">
                 <tr>
                   <th className="px-3 py-3 text-left">
                     <input 
@@ -497,20 +501,20 @@ export default function TalentPoolPage() {
                       className="w-4 h-4 rounded border-gray-300"
                     />
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Candidate</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Position</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Skills</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">CV Score</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Interview Score</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Source</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Last Contact</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Candidate</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Skills</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CV Score</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Interview Score</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Contact</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="bg-white divide-y divide-gray-200">
                 {filteredCandidates.map((candidate, index) => (
-                  <tr key={index} className="hover:bg-gray-50 transition-colors border-b">
+                  <tr key={index} className="hover:bg-gray-50">
                     <td className="px-3 py-4">
                       <input 
                         type="checkbox"
@@ -616,10 +620,10 @@ export default function TalentPoolPage() {
                 ))}
               </tbody>
             </table>
-          </div>
         </div>
       </Card>
-      </>)}
+      </>
+      )}
 
       {/* Send Email Dialog */}
       {showEmailDialog && (

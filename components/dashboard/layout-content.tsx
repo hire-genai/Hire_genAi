@@ -17,14 +17,14 @@ export function DashboardLayoutContent({ children }: { children: React.ReactNode
   }
   
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-50 w-full overflow-x-hidden">
       {sidebar}
       <main 
-        className={`flex-1 ml-0 transition-all duration-300 ${isCollapsed ? 'lg:ml-[56px]' : 'lg:ml-[192px]'}`}
+        className={`flex-1 min-w-0 ml-0 transition-all duration-300 ${isCollapsed ? 'lg:ml-[56px]' : 'lg:ml-[192px]'}`}
         onClick={handleMainContentClick}
       >
         {header}
-        <div className="p-2 md:p-4">
+        <div className="p-2 md:p-4 w-full overflow-x-hidden">
           {content}
         </div>
       </main>

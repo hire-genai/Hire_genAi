@@ -441,7 +441,7 @@ export default function SupportPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
@@ -513,9 +513,9 @@ export default function SupportPage() {
       </div>
 
       {/* Filters */}
-      <Card className="p-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center">
-          <div className="flex-1">
+      <Card className="p-3">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="w-full md:w-auto md:min-w-[300px] md:max-w-[400px]">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -526,9 +526,9 @@ export default function SupportPage() {
               />
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 md:flex md:gap-2">
             <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-full md:w-[120px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -540,7 +540,7 @@ export default function SupportPage() {
               </SelectContent>
             </Select>
             <Select value={typeFilter} onValueChange={(value: any) => setTypeFilter(value)}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-full md:w-[120px]">
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent>

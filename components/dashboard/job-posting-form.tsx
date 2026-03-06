@@ -730,10 +730,10 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
     <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-2 pt-2 overflow-y-auto">
       <Card className="w-full max-w-3xl flex flex-col gap-0 my-2">
         {/* Header */}
-        <div className="shrink-0 p-1 border-b flex items-center justify-between bg-white rounded-t-lg">
-          <div className="leading-tight">
-            <h3 className="text-lg font-semibold mb-0">{mode === 'view' ? 'View Job' : 'Post New Job'}</h3>
-            <p className="text-xs text-gray-600 mt-0">
+        <div className="shrink-0 p-2 border-b flex flex-wrap items-center justify-between gap-2 bg-white rounded-t-lg">
+          <div className="leading-tight min-w-0 flex-1">
+            <h3 className="text-base font-semibold mb-0">{mode === 'view' ? 'View Job' : 'Post New Job'}</h3>
+            <p className="text-xs text-gray-600 mt-0 hidden sm:block">
               {isViewMode ? 'Only status can be changed in this mode' : 'Capture all details for accurate tracking and reporting'}
             </p>
           </div>

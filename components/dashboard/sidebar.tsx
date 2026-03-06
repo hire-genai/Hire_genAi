@@ -72,14 +72,18 @@ export function DashboardSidebar() {
       <aside className={cn(
         "fixed left-0 top-0 h-screen bg-white border-r border-gray-200 text-gray-900 z-40 overflow-y-auto overflow-x-hidden shadow-sm transition-all duration-300 flex flex-col",
         "scrollbar-thin scrollbar-track-transparent scrollbar-thumb-transparent hover:scrollbar-thumb-gray-300",
-        isCollapsed ? "w-14" : "w-48",
+        // On mobile (when isMobileOpen), always show full width (w-64). On desktop, respect isCollapsed state
+        isMobileOpen ? "w-64" : (isCollapsed ? "w-14" : "w-48"),
         "lg:translate-x-0",
-        isMobileOpen ? "translate-x-0" : "-translate-x-full"
+        isMobileOpen ? "translate-x-0" : "-translate-x-full",
+        // On desktop, use the collapsed width
+        isCollapsed ? "lg:w-14" : "lg:w-48"
       )}>
         {/* Header */}
         <div className="p-3 border-b border-gray-200">
-          {isCollapsed ? (
-            // Collapsed state - center the menu icon
+          {/* On mobile when open, always show expanded. On desktop, respect isCollapsed */}
+          {!isMobileOpen && isCollapsed ? (
+            // Collapsed state (desktop only) - center the menu icon
             <div className="flex justify-center">
               <Button
                 variant="ghost"
@@ -107,7 +111,7 @@ export function DashboardSidebar() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="hidden lg:block text-gray-500 hover:text-gray-700 hover:bg-gray-100 h-7 w-7"
+                  className="hidden lg:flex text-gray-500 hover:text-gray-700 hover:bg-gray-100 h-7 w-7"
                   onClick={() => setIsCollapsed(!isCollapsed)}
                   title="Collapse Sidebar"
                 >
@@ -125,22 +129,8 @@ export function DashboardSidebar() {
             </div>
           )}
 
-          {/* Mobile close button for collapsed state - positioned below menu icon */}
-          {isCollapsed && (
-            <div className="flex justify-center mt-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="lg:hidden text-gray-500 hover:text-gray-700 hover:bg-gray-100 h-7 w-7"
-                onClick={() => setIsMobileOpen(false)}
-              >
-                <X className="w-3 h-3" />
-              </Button>
-            </div>
-          )}
-
-          {/* User Profile */}
-          {!isCollapsed ? (
+          {/* User Profile - always expanded on mobile when open */}
+          {(isMobileOpen || !isCollapsed) ? (
             <div className="flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded-lg mt-3">
               <div className="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-semibold text-[10px] flex-shrink-0">
                 {userInitials}
@@ -162,50 +152,53 @@ export function DashboardSidebar() {
           )}
         </div>
 
-        {/* Navigation */}
+        {/* Navigation - always expanded on mobile when open */}
         <nav className="flex-1 overflow-y-auto p-3">
-          {navigationItems.map((section) => (
-            <div key={section.title} className="mb-4">
-              {!isCollapsed && (
-                <h3 className="px-2 mb-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                  {section.title}
-                </h3>
-              )}
-              <div className="space-y-1">
-                {section.items.map((item) => {
-                  const Icon = item.icon
-                  const isActive = pathname === item.href
-                  return (
-                    <Link key={item.href} href={item.href}>
-                      <Button
-                        variant="ghost"
-                        className={`w-full ${
-                          isCollapsed ? 'justify-center' : 'justify-start'
-                        } text-gray-700 hover:bg-gray-50 hover:text-emerald-600 transition-colors bg-transparent ${
-                          isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-500' : 'border border-transparent'
-                        } ${isCollapsed ? 'h-9' : 'h-8'} text-xs`}
-                        size={isCollapsed ? "icon" : "sm"}
-                        title={isCollapsed ? item.name : undefined}
-                      >
-                        <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-600' : 'text-gray-400'}`} />
-                        {!isCollapsed && <span className="ml-2 text-xs">{item.name}</span>}
-                        {!isCollapsed && item.badge && (
-                          <Badge className="ml-auto bg-emerald-100 text-emerald-700 text-[10px] px-1 py-0.5">
-                            {item.badge}
-                          </Badge>
-                        )}
-                      </Button>
-                    </Link>
-                  )
-                })}
+          {navigationItems.map((section) => {
+            const showExpanded = isMobileOpen || !isCollapsed
+            return (
+              <div key={section.title} className="mb-4">
+                {showExpanded && (
+                  <h3 className="px-2 mb-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                    {section.title}
+                  </h3>
+                )}
+                <div className="space-y-1">
+                  {section.items.map((item) => {
+                    const Icon = item.icon
+                    const isActive = pathname === item.href
+                    return (
+                      <Link key={item.href} href={item.href} onClick={() => setIsMobileOpen(false)}>
+                        <Button
+                          variant="ghost"
+                          className={`w-full ${
+                            !showExpanded ? 'justify-center' : 'justify-start'
+                          } text-gray-700 hover:bg-gray-50 hover:text-emerald-600 transition-colors bg-transparent ${
+                            isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-500' : 'border border-transparent'
+                          } ${!showExpanded ? 'h-9' : 'h-8'} text-xs`}
+                          size={!showExpanded ? "icon" : "sm"}
+                          title={!showExpanded ? item.name : undefined}
+                        >
+                          <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-600' : 'text-gray-400'}`} />
+                          {showExpanded && <span className="ml-2 text-xs">{item.name}</span>}
+                          {showExpanded && item.badge && (
+                            <Badge className="ml-auto bg-emerald-100 text-emerald-700 text-[10px] px-1 py-0.5">
+                              {item.badge}
+                            </Badge>
+                          )}
+                        </Button>
+                      </Link>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </nav>
 
-        {/* Footer Actions */}
+        {/* Footer Actions - always expanded on mobile when open */}
         <div className="p-3 border-t border-gray-200">
-          {!isCollapsed ? (
+          {(isMobileOpen || !isCollapsed) ? (
             <Button
               variant="outline"
               className="w-full justify-start border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white text-xs h-8"
