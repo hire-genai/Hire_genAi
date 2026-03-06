@@ -17,6 +17,7 @@ import { Dialog } from "@/components/ui/dialog"
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Users, Filter, Calendar, UserCheck, FileText, CheckCircle, XCircle, Database, Download, FileTextIcon, Search, ChevronLeft, ArrowRight } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
 import { CandidateActionDialog } from '@/components/dashboard/candidate-action-dialogs'
@@ -792,7 +793,7 @@ export default function CandidatesPage() {
   }
 
   return (
-    <div className="space-y-3 p-4">
+    <div className="space-y-3 p-3 md:p-4 w-full">
       {/* Header with Filters */}
       <div className="space-y-2">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -802,30 +803,29 @@ export default function CandidatesPage() {
           </div>
           <div className="flex gap-2 items-center flex-wrap">
             {/* View As Filter */}
-            <div className="flex items-center gap-2 border rounded-md px-2 py-1 bg-emerald-50">
-              <span className="text-xs font-medium text-gray-700">View as:</span>
-              <select
-                value={viewAsRole}
-                onChange={(e) => setViewAsRole(e.target.value as UserRole)}
-                className="text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              >
-                <option value="recruiter">Recruiter</option>
-                <option value="manager">Manager</option>
-                <option value="director">Director</option>
-              </select>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-gray-700 whitespace-nowrap">View as:</span>
+              <Select value={viewAsRole} onValueChange={(v) => setViewAsRole(v as UserRole)}>
+                <SelectTrigger className="h-8 w-[110px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recruiter">Recruiter</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="director">Director</SelectItem>
+                </SelectContent>
+              </Select>
               {viewAsRole === 'recruiter' && (
-                <>
-                  <span className="text-xs text-gray-400">|</span>
-                  <select
-                    value={viewAsRecruiter}
-                    onChange={(e) => setViewAsRecruiter(e.target.value)}
-                    className="text-xs border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  >
+                <Select value={viewAsRecruiter} onValueChange={setViewAsRecruiter}>
+                  <SelectTrigger className="h-8 w-[130px] text-xs">
+                    <SelectValue placeholder="All Recruiters" />
+                  </SelectTrigger>
+                  <SelectContent>
                     {recruiters.map(r => (
-                      <option key={r.id} value={r.id}>{r.id === user?.id ? `${r.name} (You)` : r.name}</option>
+                      <SelectItem key={r.id} value={r.id}>{r.id === user?.id ? `${r.name} (You)` : r.name}</SelectItem>
                     ))}
-                  </select>
-                </>
+                  </SelectContent>
+                </Select>
               )}
             </div>
             {!canModify && (
@@ -890,7 +890,7 @@ export default function CandidatesPage() {
             </Button>
             
             {showDatePicker && (
-              <div className="absolute right-0 top-10 z-50 bg-white text-gray-900 rounded-lg shadow-2xl border border-gray-200 p-3 w-[400px]">
+              <div className="absolute right-0 top-10 z-50 bg-white text-gray-900 rounded-lg shadow-2xl border border-gray-200 p-3 w-[calc(100vw-2rem)] max-w-[400px] sm:w-[400px]">
                 <div className="flex gap-3">
                   {/* Preset Options Sidebar */}
                   <div className="w-28 border-r border-gray-200 pr-2">

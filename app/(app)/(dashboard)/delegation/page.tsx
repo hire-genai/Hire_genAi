@@ -294,44 +294,44 @@ export default function DelegationPage() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CheckCircle className="h-5 w-5 text-green-600" />
+      <div className="grid grid-cols-3 gap-2 md:gap-4">
+        <Card className="p-2 md:p-4">
+          <div className="flex flex-col md:flex-row items-center gap-1 md:gap-3">
+            <div className="p-1.5 md:p-2 bg-green-100 rounded-lg">
+              <CheckCircle className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Active Delegations</p>
-              <p className="text-2xl font-bold">{stats.active}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Briefcase className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Jobs Delegated</p>
-              <p className="text-2xl font-bold">{stats.jobsDelegated}</p>
+            <div className="text-center md:text-left">
+              <p className="text-xs md:text-sm text-gray-600">Active</p>
+              <p className="text-lg md:text-2xl font-bold">{stats.active}</p>
             </div>
           </div>
         </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <FileText className="h-5 w-5 text-purple-600" />
+        <Card className="p-2 md:p-4">
+          <div className="flex flex-col md:flex-row items-center gap-1 md:gap-3">
+            <div className="p-1.5 md:p-2 bg-blue-100 rounded-lg">
+              <Briefcase className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Applications Delegated</p>
-              <p className="text-2xl font-bold">{stats.applicationsDelegated}</p>
+            <div className="text-center md:text-left">
+              <p className="text-xs md:text-sm text-gray-600">Jobs</p>
+              <p className="text-lg md:text-2xl font-bold">{stats.jobsDelegated}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-2 md:p-4">
+          <div className="flex flex-col md:flex-row items-center gap-1 md:gap-3">
+            <div className="p-1.5 md:p-2 bg-purple-100 rounded-lg">
+              <FileText className="h-4 w-4 md:h-5 md:w-5 text-purple-600" />
+            </div>
+            <div className="text-center md:text-left">
+              <p className="text-xs md:text-sm text-gray-600">Applications</p>
+              <p className="text-lg md:text-2xl font-bold">{stats.applicationsDelegated}</p>
             </div>
           </div>
         </Card>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b">
+      <div className="flex gap-2 border-b whitespace-nowrap overflow-x-auto">
         <button
           onClick={() => setActiveTab('active')}
           className={`px-4 py-2 font-medium transition-colors ${
@@ -355,22 +355,22 @@ export default function DelegationPage() {
       </div>
 
       {/* Filters */}
-      <Card className="p-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search by name, delegatee..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          {activeTab === 'active' && (
-            <>
+      <Card className="p-3">
+        {activeTab === 'active' && (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search by name, delegatee..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <div className="w-[140px]">
               <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as DelegationStatus | 'all')}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filter by Status" />
+                <SelectTrigger className="h-10 w-[140px]">
+                  <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
@@ -379,9 +379,11 @@ export default function DelegationPage() {
                   <SelectItem value="revoked">Revoked</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="w-[140px]">
               <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as DelegationType | 'all')}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filter by Type" />
+                <SelectTrigger className="h-10 w-[140px]">
+                  <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
@@ -389,9 +391,20 @@ export default function DelegationPage() {
                   <SelectItem value="application">Application</SelectItem>
                 </SelectContent>
               </Select>
-            </>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
+        {activeTab !== 'active' && (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search by name, delegatee..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+        )}
       </Card>
 
       {/* Delegations Tab */}
@@ -401,17 +414,17 @@ export default function DelegationPage() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Item</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Delegated By</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Delegated To</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Duration</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Reason</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delegated By</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delegated To</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-200">
                 {filteredDelegations.map((delegation: any) => (
                   <tr key={delegation.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">

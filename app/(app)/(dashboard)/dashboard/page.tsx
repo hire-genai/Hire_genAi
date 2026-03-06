@@ -241,7 +241,7 @@ const getStatusBadge = (status: string) => {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [hoveredDate, setHoveredDate] = useState<Date | null>(null)
   const [selectedKPI, setSelectedKPI] = useState<string | null>(null)
-  const [userRole, setUserRole] = useState<UserRole | null>(null)
+  const [userRole, setUserRole] = useState<UserRole | null>((user?.role as UserRole) || null)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -344,6 +344,9 @@ const getStatusBadge = (status: string) => {
       setLoading(false)
     }
   }, [company?.id, getDateRange, selectedRecruiter])
+
+  // Derive effective role directly (avoids null→value layout shift)
+  const effectiveUserRole = userRole || (user?.role as UserRole | null)
 
   // Set user role from auth context and restrict view
   useEffect(() => {
@@ -978,20 +981,21 @@ const roleDescriptions = {
   return (
     <>
       <OnboardingTour />
-      <div className="space-y-4 p-4">
+      <div className="space-y-4 p-3 md:p-4 w-full overflow-x-hidden">
       {/* Header with Role Selector */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-600 mt-1">{roleDescriptions[selectedRole]}</p>
+          <p className="text-sm text-gray-600 mt-1 hidden sm:block">{roleDescriptions[selectedRole]}</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        {/* Filters Row - all in one row with proper responsive spacing */}
+        <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 pb-1">
           {/* Only show View As dropdown for manager/director */}
-          {userRole && (userRole === 'manager' || userRole === 'director') && (
+          {effectiveUserRole && (effectiveUserRole === 'manager' || effectiveUserRole === 'director') && (
             <>
-              <span className="text-sm font-medium text-gray-700">View as:</span>
+              <span className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">View as:</span>
               <Select value={selectedRole} onValueChange={handleRoleChange}>
-                <SelectTrigger className="w-[120px] h-8 text-sm">
+                <SelectTrigger className="w-[100px] sm:w-[120px] h-8 text-xs sm:text-sm flex-shrink-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1002,11 +1006,12 @@ const roleDescriptions = {
               </Select>
             </>
           )}
-          {userRole && (userRole === 'manager' || userRole === 'director') && (
+          {/* Show All Recruiters filter only when viewing as Recruiter */}
+          {effectiveUserRole && (effectiveUserRole === 'manager' || effectiveUserRole === 'director') && selectedRole === 'recruiter' && (
             <>
-              <span className="text-sm text-gray-400">|</span>
+              <span className="text-sm text-gray-400 hidden sm:inline">|</span>
               <Select value={selectedRecruiter} onValueChange={setSelectedRecruiter}>
-                <SelectTrigger className="w-auto min-w-[120px] h-8 text-sm whitespace-nowrap">
+                <SelectTrigger className="w-auto min-w-[100px] sm:min-w-[120px] h-8 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1030,7 +1035,7 @@ const roleDescriptions = {
             </Button>
             
             {showDatePicker && (
-              <div className="absolute right-0 top-10 z-50 bg-white text-gray-900 rounded-lg shadow-2xl border border-gray-200 p-3 w-[480px]">
+              <div className="absolute right-0 top-10 z-50 bg-white text-gray-900 rounded-lg shadow-2xl border border-gray-200 p-3 w-[calc(100vw-2rem)] max-w-[480px] sm:w-[480px]">
                 <div className="flex gap-3">
                   {/* Preset Options Sidebar */}
                   <div className="w-32 border-r border-gray-200 pr-3">
@@ -1174,10 +1179,10 @@ const roleDescriptions = {
       {/* Error State */}
       {!loading && error && <ErrorState message={error} onRetry={fetchDashboard} />}
 
-      {/* Role-Based KPI Cards - Compact */}
+      {/* Role-Based KPI Cards - Compact with proper mobile spacing */}
       {!loading && !error && (<>
-      <div className={`grid grid-cols-2 sm:grid-cols-3 gap-1.5 justify-items-stretch ${
-          currentKPIs.length === 6 ? 'lg:grid-cols-6 xl:grid-cols-6' : 'lg:grid-cols-5 xl:grid-cols-5'
+      <div className={`grid grid-cols-2 gap-2 sm:gap-1.5 justify-items-stretch ${
+          currentKPIs.length === 6 ? 'sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-6' : 'sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5'
         }`}>
         {currentKPIs.map((kpi) => {
           const Icon = kpi.icon
@@ -1268,8 +1273,9 @@ const roleDescriptions = {
                 </div>
               </div>
             )}
-            <div className="overflow-x-auto">
-              <Table>
+            {/* Table with horizontal scroll for mobile - smooth minimal scrollbar */}
+            <div className="overflow-x-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400">
+              <Table className="min-w-[600px]">
                 <TableHeader>
                   <TableRow className="bg-gray-50 text-xs">
                     {(() => {

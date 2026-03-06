@@ -120,6 +120,7 @@ export default function SettingsPage() {
     interviewScheduleSLA: '48',
     costPerHireBudget: '100',
     jobBoardCosts: '',
+    costCurrency: 'USD',
   })
 
   // Onboarding state
@@ -471,7 +472,7 @@ export default function SettingsPage() {
 
       {/* Horizontal Tabs Navigation */}
       <Card className="p-2">
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
           <Button
             variant="ghost"
             className={`${activeTab === 'company' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
@@ -848,8 +849,8 @@ export default function SettingsPage() {
           {activeTab === 'agency' && (
             <div className="space-y-4">
               {/* Sub-tabs for Agency */}
-              <Card className="p-2">
-                <div className="flex gap-2">
+              <Card className="p-2 overflow-x-auto">
+                <div className="flex gap-2 whitespace-nowrap">
                   <Button
                     variant="ghost"
                     className={`${agencySubTab === 'performance' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
@@ -1020,7 +1021,7 @@ export default function SettingsPage() {
                   {/* Add New Agency/Client Form */}
                   <Card className="p-4">
                     <h3 className="text-lg font-semibold">Add New Agency/Client</h3>
-                    <div className="grid grid-cols-3 gap-2 gap-y-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                       <div className="space-y-1">
                         <Label>Type</Label>
                         <Select value={newAgency.type} onValueChange={(value: 'Agency' | 'Client') => setNewAgency({ ...newAgency, type: value })}>
