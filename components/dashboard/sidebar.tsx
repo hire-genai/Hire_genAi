@@ -70,7 +70,7 @@ export function DashboardSidebar() {
       
       {/* Sidebar */}
       <aside className={cn(
-        "fixed left-0 top-0 h-screen bg-white border-r border-gray-200 text-gray-900 z-40 overflow-y-auto overflow-x-hidden shadow-sm transition-all duration-300 flex flex-col",
+        "fixed left-0 top-0 min-h-screen bg-white border-r border-gray-200 text-gray-900 z-40 overflow-x-hidden shadow-sm transition-all duration-300 flex flex-col",
         "scrollbar-thin scrollbar-track-transparent scrollbar-thumb-transparent hover:scrollbar-thumb-gray-300",
         // On mobile (when isMobileOpen), always show full width (w-64). On desktop, respect isCollapsed state
         isMobileOpen ? "w-64" : (isCollapsed ? "w-14" : "w-48"),
@@ -153,7 +153,7 @@ export function DashboardSidebar() {
         </div>
 
         {/* Navigation - always expanded on mobile when open */}
-        <nav className="flex-1 overflow-y-auto p-3">
+        <nav className="flex-1 p-3">
           {navigationItems.map((section) => {
             const showExpanded = isMobileOpen || !isCollapsed
             return (

@@ -627,13 +627,18 @@ const roleDescriptions = {
     const directorKPIs = [
       { title: 'Hiring Velocity', value: String(dashboardData?.hiringVelocity?.totalHires || 0), change: `${dashboardData?.hiringVelocity?.totalApplications || 0} total apps`, trend: 'up' as const, icon: TrendingUp, color: 'orange' as const, subtitle: 'Total hires' },
       { title: 'Quality of Hire', value: dashboardData?.qualityOfHire?.avgRating || '0.0', change: `${dashboardData?.qualityOfHire?.retentionRate || 0}% retention @ 3mo`, trend: 'up' as const, icon: MessageSquare, color: 'green' as const, subtitle: 'Performance rating + retention' },
-            { title: 'Cost Per Hire', value: `${getCurrencySymbol(dashboardData?.costAnalysis?.currency || 'USD')}${dashboardData?.costAnalysis?.costPerHire?.toLocaleString() || '0'}`, change: `${dashboardData?.costAnalysis?.hiredCount || 0} hires this period`, trend: 'neutral' as const, icon: DollarSign, color: 'orange' as const, subtitle: 'Total cost per successful hire' },
+            { title: 'Cost Per Hire', value: `${getCurrencySymbol(dashboardData?.costAnalysis?.currency || 'USD')}${(dashboardData?.costAnalysis?.costPerHire || 0).toLocaleString()}`, change: `${dashboardData?.costAnalysis?.hiredCount || 0} hires this period`, trend: 'neutral' as const, icon: DollarSign, color: 'orange' as const, subtitle: 'Total cost per successful hire' },
       { title: 'Recruitment ROI', value: (() => {
         const roiData = dashboardData?.recruitmentROI || []
-        const valueCreated = roiData.find((m: { metric: string; value: string; period: string; benchmark: string }) => m.metric === 'Value Created')?.value || '0'
-        const investment = roiData.find((m: { metric: string; value: string; period: string; benchmark: string }) => m.metric === 'Investment')?.value || '0'
-        const roiValue = roiData.find((m: { metric: string; value: string; period: string; benchmark: string }) => m.metric === 'Value Created')?.benchmark || '0.0x'
-        return roiValue
+        if (!roiData || roiData.length === 0) return '0.0x'
+        
+        const roiMetric = roiData.find((m: { metric: string; value: string; period: string; benchmark: string }) => m.metric === 'ROI')
+        if (roiMetric?.benchmark) return roiMetric.benchmark
+        
+        const valueCreated = roiData.find((m: { metric: string; value: string; period: string; benchmark: string }) => m.metric === 'Value Created')
+        if (valueCreated?.benchmark) return valueCreated.benchmark
+        
+        return '0.0x'
       })(), change: 'Quality/retention rising', trend: 'up' as const, icon: PieChart, color: 'green' as const, subtitle: 'Return on investment' },
       { title: 'Total Candidates', value: String(dashboardData?.kpis?.totalCandidates || '0'), change: `${dashboardData?.kpis?.activeCandidates || '0'} active`, trend: 'neutral' as const, icon: Users, color: 'emerald' as const, subtitle: 'In database' },
     ]
