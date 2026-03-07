@@ -424,20 +424,6 @@ export default function TalentPoolPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Button 
-              size="sm" 
-              variant="outline"
-              onClick={() => {
-                setSearchQuery('')
-                setSkillFilter('')
-                setPositionFilter('all')
-                setSourceFilter('all')
-                setSelectedStatus('all')
-              }}
-              className="bg-transparent h-8"
-            >
-              Clear All
-            </Button>
           </div>
 
           {/* Bulk Actions */}

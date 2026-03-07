@@ -440,6 +440,35 @@ export function CandidateActionDialog({
     onOpenChange(false)
   }
 
+  const handleViewFullReport = () => {
+    if (!candidate?.jobId || !candidate?.candidateId) return
+    window.open(`/report/${candidate.jobId}/${candidate.candidateId}`, '_blank')
+  }
+
+  const handleDownloadCV = () => {
+    if (!candidate?.resumeUrl) return
+    window.open(candidate.resumeUrl, '_blank')
+  }
+
+  const getOverviewStatusClassName = (status?: string) => {
+    switch (status) {
+      case 'CV Screening':
+        return 'bg-blue-100 text-blue-700'
+      case 'AI Interview':
+        return 'bg-orange-100 text-orange-700'
+      case 'Hiring Manager':
+        return 'bg-pink-100 text-pink-700'
+      case 'Offer Stage':
+        return 'bg-green-100 text-green-700'
+      case 'Hired':
+        return 'bg-emerald-100 text-emerald-700'
+      case 'Rejected':
+        return 'bg-red-100 text-red-700'
+      default:
+        return 'bg-gray-100 text-gray-700'
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -476,6 +505,60 @@ export function CandidateActionDialog({
               </div>
             </div>
           </Card>
+
+          {bucketType === 'all' && (
+            <div className="space-y-3">
+              <h4 className="font-semibold text-base text-gray-900">Candidate Overview</h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Card className="p-2 border border-gray-200 shadow-sm rounded-xl">
+                  <p className="text-xs text-gray-500 mb-1">Position Applied</p>
+                  <p className="text-sm font-semibold text-gray-900">{candidate?.position || 'N/A'}</p>
+                </Card>
+
+                <Card className="p-2 border border-gray-200 shadow-sm rounded-xl">
+                  <p className="text-xs text-gray-500 mb-1">Current Status</p>
+                  <Badge className={getOverviewStatusClassName(candidate?.status)}>
+                    {candidate?.status || 'Unknown'}
+                  </Badge>
+                </Card>
+
+                <Card className="p-2 border border-gray-200 shadow-sm rounded-xl">
+                  <p className="text-xs text-gray-500 mb-1">Applied Date</p>
+                  <p className="text-sm font-semibold text-gray-900">{candidate?.appliedDate || 'N/A'}</p>
+                </Card>
+
+                <Card className="p-2 border border-gray-200 shadow-sm rounded-xl">
+                  <p className="text-xs text-gray-500 mb-1">Source</p>
+                  <p className="text-sm font-semibold text-gray-900">{candidate?.source || 'N/A'}</p>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 gap-1 rounded-lg text-xs font-medium"
+                  onClick={handleViewFullReport}
+                  disabled={!candidate?.jobId || !candidate?.candidateId}
+                >
+                  <FileText className="h-3 w-3" />
+                  View Full Report
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 gap-1 rounded-lg text-xs font-medium"
+                  onClick={handleDownloadCV}
+                  disabled={!candidate?.resumeUrl}
+                >
+                  <Download className="h-3 w-3" />
+                  Download CV
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* CV Screening Actions */}
           {bucketType === 'screening' && (

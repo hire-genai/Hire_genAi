@@ -806,7 +806,7 @@ export default function CandidatesPage() {
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium text-gray-700 whitespace-nowrap">View as:</span>
               <Select value={viewAsRole} onValueChange={(v) => setViewAsRole(v as UserRole)}>
-                <SelectTrigger className="h-8 w-[110px] text-xs">
+                <SelectTrigger className="h-10 w-[140px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -817,7 +817,7 @@ export default function CandidatesPage() {
               </Select>
               {viewAsRole === 'recruiter' && (
                 <Select value={viewAsRecruiter} onValueChange={setViewAsRecruiter}>
-                  <SelectTrigger className="h-8 w-[130px] text-xs">
+                  <SelectTrigger className="h-10 w-[140px]">
                     <SelectValue placeholder="All Recruiters" />
                   </SelectTrigger>
                   <SelectContent>
@@ -851,26 +851,32 @@ export default function CandidatesPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <select
-            value={positionFilter}
-            onChange={(e) => setPositionFilter(e.target.value)}
-            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          >
-            <option value="all">All Positions</option>
-            {positions.map(pos => (
-              <option key={pos} value={pos}>{pos}</option>
-            ))}
-          </select>
-          <select
-            value={sourceFilter}
-            onChange={(e) => setSourceFilter(e.target.value)}
-            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          >
-            <option value="all">All Sources</option>
-            <option value="Direct">Direct</option>
-            <option value="Referrals">Referrals</option>
-            <option value="Agency">Agency</option>
-          </select>
+          <div className="w-[140px]">
+            <Select value={positionFilter} onValueChange={setPositionFilter}>
+              <SelectTrigger className="h-10 w-[140px]">
+                <SelectValue placeholder="All Positions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Positions</SelectItem>
+                {positions.map(pos => (
+                  <SelectItem key={pos} value={pos}>{pos}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-[140px]">
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="h-10 w-[140px]">
+                <SelectValue placeholder="All Sources" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sources</SelectItem>
+                <SelectItem value="Direct">Direct</SelectItem>
+                <SelectItem value="Referrals">Referrals</SelectItem>
+                <SelectItem value="Agency">Agency</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <input
             type="text"
             placeholder="Skills"
