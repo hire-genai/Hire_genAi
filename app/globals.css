@@ -136,21 +136,27 @@
   }
 
   html {
-    scrollbar-gutter: stable;
     overflow-x: hidden;
-    max-width: 100vw;
   }
   
   body {
     overflow-x: hidden;
-    overflow-y: scroll;
-    max-width: 100vw;
+    overflow-y: scroll !important;
     padding-right: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
   }
 
   body {
     @apply bg-background text-foreground outline-ring/50;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  
+  /* Prevent Radix UI from adding scroll lock styles */
+  body[data-scroll-locked] {
+    overflow-y: scroll !important;
+    padding-right: 0 !important;
+    margin-right: 0 !important;
   }
   
   * {

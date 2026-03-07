@@ -377,28 +377,28 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Wallet Balance</CardTitle>
-                <Wallet className="h-4 w-4 text-muted-foreground" />
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <Card className="py-2">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
+                <CardTitle className="text-xs font-medium">Wallet Balance</CardTitle>
+                <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">₹{billingData?.walletBalance?.toFixed(2) || '0.00'}</div>
-                <div className="text-xs text-muted-foreground mt-1">
+              <CardContent className="px-3 py-1">
+                <div className="text-lg font-bold">₹{billingData?.walletBalance?.toFixed(2) || '0.00'}</div>
+                <div className="text-[10px] text-muted-foreground">
                   {getStatusBadge(billingData?.status || 'trial')}
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Current Month</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <Card className="py-2">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
+                <CardTitle className="text-xs font-medium">Current Month</CardTitle>
+                <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">₹{billingData?.currentMonthSpent?.toFixed(2) || '0.00'}</div>
-                <p className="text-xs text-muted-foreground mt-1">
+              <CardContent className="px-3 py-1">
+                <div className="text-lg font-bold">₹{billingData?.currentMonthSpent?.toFixed(2) || '0.00'}</div>
+                <p className="text-[10px] text-muted-foreground">
                   {billingData?.monthlySpendCap 
                     ? `Cap: ₹${billingData.monthlySpendCap.toFixed(2)}`
                     : 'No cap set'}
@@ -406,25 +406,25 @@ export default function BillingContent({ companyId }: BillingContentProps) {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Spent</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <Card className="py-2">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
+                <CardTitle className="text-xs font-medium">Total Spent</CardTitle>
+                <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">₹{billingData?.totalSpent?.toFixed(2) || '0.00'}</div>
-                <p className="text-xs text-muted-foreground mt-1">All-time usage</p>
+              <CardContent className="px-3 py-1">
+                <div className="text-lg font-bold">₹{billingData?.totalSpent?.toFixed(2) || '0.00'}</div>
+                <p className="text-[10px] text-muted-foreground">All-time usage</p>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Auto-Recharge</CardTitle>
-                <Shield className="h-4 w-4 text-muted-foreground" />
+            <Card className="py-2">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
+                <CardTitle className="text-xs font-medium">Auto-Recharge</CardTitle>
+                <Shield className="h-3.5 w-3.5 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{billingData?.autoRechargeEnabled ? 'ON' : 'OFF'}</div>
-                <p className="text-xs text-muted-foreground mt-1">
+              <CardContent className="px-3 py-1">
+                <div className="text-lg font-bold">{billingData?.autoRechargeEnabled ? 'ON' : 'OFF'}</div>
+                <p className="text-[10px] text-muted-foreground">
                   {billingData?.autoRechargeEnabled ? 'Automatic ₹100' : 'Manual top-up'}
                 </p>
               </CardContent>
@@ -518,64 +518,64 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
           {/* Usage Overview Cards */}
           {usageData?.totals && (
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <Card className="border-l-4 border-l-blue-500">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-blue-700">CV Parsing</CardTitle>
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <FileText className="h-4 w-4 text-blue-600" />
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+              <Card className="border-l-4 border-l-blue-500 py-2">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
+                  <CardTitle className="text-xs font-medium text-blue-700">CV Parsing</CardTitle>
+                  <div className="p-1 bg-blue-100 rounded-lg">
+                    <FileText className="h-3.5 w-3.5 text-blue-600" />
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-blue-900">₹{usageData.totals.cvParsing.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                <CardContent className="px-3 py-1">
+                  <div className="text-lg font-bold text-blue-900">₹{usageData.totals.cvParsing.toFixed(2)}</div>
+                  <p className="text-[10px] text-muted-foreground">
                     {usageData.totals.cvCount || 0} CVs processed
                   </p>
                 </CardContent>
               </Card>
 
-              <Card className="border-l-4 border-l-green-500">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-green-700">JD Questions</CardTitle>
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <TrendingUp className="h-4 w-4 text-green-600" />
+              <Card className="border-l-4 border-l-green-500 py-2">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
+                  <CardTitle className="text-xs font-medium text-green-700">JD Questions</CardTitle>
+                  <div className="p-1 bg-green-100 rounded-lg">
+                    <TrendingUp className="h-3.5 w-3.5 text-green-600" />
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-green-900">₹{usageData.totals.jdQuestions.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                <CardContent className="px-3 py-1">
+                  <div className="text-lg font-bold text-green-900">₹{usageData.totals.jdQuestions.toFixed(2)}</div>
+                  <p className="text-[10px] text-muted-foreground">
                     {usageData.totals.questionCount || 0} questions generated
                   </p>
                 </CardContent>
               </Card>
 
-              <Card className="border-l-4 border-l-purple-500">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-purple-700">Video Interviews</CardTitle>
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <Calendar className="h-4 w-4 text-purple-600" />
+              <Card className="border-l-4 border-l-purple-500 py-2">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
+                  <CardTitle className="text-xs font-medium text-purple-700">Video Interviews</CardTitle>
+                  <div className="p-1 bg-purple-100 rounded-lg">
+                    <Calendar className="h-3.5 w-3.5 text-purple-600" />
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-purple-900">₹{usageData.totals.video.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                <CardContent className="px-3 py-1">
+                  <div className="text-lg font-bold text-purple-900">₹{usageData.totals.video.toFixed(2)}</div>
+                  <p className="text-[10px] text-muted-foreground">
                     {usageData.totals.interviewCount || 0} interviews ({(usageData.totals.videoMinutes || 0).toFixed(1)} mins)
                   </p>
                 </CardContent>
               </Card>
 
-              <Card className="border-l-4 border-l-orange-500">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-orange-700">Total Usage</CardTitle>
-                  <div className="p-2 bg-orange-100 rounded-lg">
-                    <DollarSign className="h-4 w-4 text-orange-600" />
+              <Card className="border-l-4 border-l-orange-500 py-2">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
+                  <CardTitle className="text-xs font-medium text-orange-700">Total Usage</CardTitle>
+                  <div className="p-1 bg-orange-100 rounded-lg">
+                    <DollarSign className="h-3.5 w-3.5 text-orange-600" />
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-orange-900">
+                <CardContent className="px-3 py-1">
+                  <div className="text-lg font-bold text-orange-900">
                     ₹{((usageData.totals.cvParsing || 0) + (usageData.totals.jdQuestions || 0) + (usageData.totals.video || 0)).toFixed(2)}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-[10px] text-muted-foreground">
                     All services combined
                   </p>
                 </CardContent>

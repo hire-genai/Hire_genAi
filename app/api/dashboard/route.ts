@@ -848,18 +848,16 @@ export async function GET(request: NextRequest) {
           COALESCE(
             (SELECT ps.cost_per_hire_budget 
              FROM performance_settings ps 
-             WHERE ps.company_id = $1::uuid 
-               AND ps.updated_at <= mh.hire_month_end
-             ORDER BY ps.updated_at DESC 
+             WHERE ps.company_id = $1::uuid
+             ORDER BY ps.updated_at DESC NULLS LAST
              LIMIT 1), 
             0
           )::numeric AS effective_cost_per_hire,
           COALESCE(
             (SELECT ps.job_board_costs 
              FROM performance_settings ps 
-             WHERE ps.company_id = $1::uuid 
-               AND ps.updated_at <= mh.hire_month_end
-             ORDER BY ps.updated_at DESC 
+             WHERE ps.company_id = $1::uuid
+             ORDER BY ps.updated_at DESC NULLS LAST
              LIMIT 1), 
             0
           )::numeric AS effective_job_board_cost
@@ -978,26 +976,26 @@ export async function GET(request: NextRequest) {
 
     // --- Calculate overall Cost Per Hire from quarterly totals ---
     let hiredCount = parseInt(kpi.hired_count) || 0
-    let recruitmentCost = hiredCount * (parseFloat(settings?.cost_per_hire_budget) || 0)
-    let jobBoardCost    = hiredCount * (parseFloat(settings?.job_board_costs)       || 0)
-    let agencyCost      = 0
-    let totalCostToCompany = recruitmentCost + jobBoardCost
-    let clientRevenue   = 0
-    let totalSpend      = totalCostToCompany
-    let costPerHire     = hiredCount > 0 ? Math.round(totalSpend / hiredCount) : 0
+    let recruitmentCost = 0
+    let jobBoardCost = 0
+    let agencyCost = 0
+    let totalCostToCompany = 0
+    let clientRevenue = 0
+    let totalSpend = 0
+    let costPerHire = 0
 
     // Update Cost Per Hire calculation using quarterly totals for consistency
     if (quarterlyCostData && quarterlyCostData.length > 0) {
       const quarterlyTotals = quarterlyCostData.reduce((acc: any, q: any) => ({
         hired: acc.hired + (parseInt(q.hired_count) || 0),
-        recruitmentCost: acc.recruitmentCost + (parseInt(q.recruitment_cost) || 0),
-        jobBoardCost: acc.jobBoardCost + (parseInt(q.job_board_cost) || 0),
-        agencyCost: acc.agencyCost + (parseInt(q.agency_cost) || 0),
-        clientRevenue: acc.clientRevenue + (parseInt(q.client_revenue) || 0),
-        totalSpend: acc.totalSpend + (parseInt(q.total_spend) || 0)
+        recruitmentCost: acc.recruitmentCost + (parseFloat(q.recruitment_cost) || 0),
+        jobBoardCost: acc.jobBoardCost + (parseFloat(q.job_board_cost) || 0),
+        agencyCost: acc.agencyCost + (parseFloat(q.agency_cost) || 0),
+        clientRevenue: acc.clientRevenue + (parseFloat(q.client_revenue) || 0),
+        totalSpend: acc.totalSpend + (parseFloat(q.total_spend) || 0)
       }), { hired: 0, recruitmentCost: 0, jobBoardCost: 0, agencyCost: 0, clientRevenue: 0, totalSpend: 0 })
 
-      // Use quarterly totals for consistent calculations
+      // Use quarterly totals if they exist
       hiredCount = quarterlyTotals.hired
       recruitmentCost = quarterlyTotals.recruitmentCost
       jobBoardCost = quarterlyTotals.jobBoardCost
@@ -1005,19 +1003,28 @@ export async function GET(request: NextRequest) {
       clientRevenue = quarterlyTotals.clientRevenue
       totalSpend = quarterlyTotals.totalSpend
       totalCostToCompany = recruitmentCost + jobBoardCost + agencyCost
-      costPerHire = hiredCount > 0 ? Math.round(totalSpend / hiredCount) : 0
-
-      console.log('Updated Cost Analysis:', {
-        hiredCount,
-        recruitmentCost,
-        jobBoardCost,
-        agencyCost,
-        totalCostToCompany,
-        clientRevenue,
-        totalSpend,
-        costPerHire
-      })
     }
+
+    // If quarterly costs are 0 but we have hires, use performance settings
+    if (hiredCount > 0 && totalSpend === 0) {
+      recruitmentCost = hiredCount * (parseFloat(settings?.cost_per_hire_budget) || 0)
+      jobBoardCost = hiredCount * (parseFloat(settings?.job_board_costs) || 0)
+      totalCostToCompany = recruitmentCost + jobBoardCost
+      totalSpend = totalCostToCompany
+    }
+
+    costPerHire = hiredCount > 0 ? Math.round(totalSpend / hiredCount) : 0
+
+    console.log('Updated Cost Analysis:', {
+      hiredCount,
+      recruitmentCost,
+      jobBoardCost,
+      agencyCost,
+      totalCostToCompany,
+      clientRevenue,
+      totalSpend,
+      costPerHire
+    })
 
     // Calculate satisfaction score from actual hiring managers data
     const currentRating = hiringManagerData && hiringManagerData.length > 0 
@@ -1327,6 +1334,12 @@ export async function GET(request: NextRequest) {
               value: valueCreated > 0 ? `${currencySymbol}${Math.abs(valueCreated).toLocaleString()}` : `${currencySymbol}0`,
               period: 'Annual',
               benchmark: `${roi}x ROI`
+            },
+            {
+              metric: 'ROI',
+              value: `${roi}x`,
+              period: 'Annual',
+              benchmark: roi >= 1.0 ? 'Positive' : roi > 0 ? 'Breaking Even' : 'Negative'
             },
             {
               metric: 'Quality Score',
