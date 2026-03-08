@@ -9,25 +9,21 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { applicationId, resumeText, jobDescription, passThreshold = 40, companyId } = body
+    const { resumeText, jobDescription, applicationId, companyId } = body
 
     console.log('[CV Evaluator] Starting evaluation for application:', applicationId)
     console.log('[CV Evaluator] ResumeText length:', resumeText?.length || 0)
     console.log('[CV Evaluator] JobDescription length:', jobDescription?.length || 0)
 
-    if (!resumeText || !jobDescription) {
+    if (!resumeText || !applicationId) {
       return NextResponse.json(
-        { error: 'resumeText and jobDescription are required' },
+        { error: 'Resume text and applicationId are required' },
         { status: 400 }
       )
     }
 
-    // Fetch company's OpenAI service account key from DB
-    let openaiApiKey: string | undefined
+    // Resolve companyId from application if not provided
     let resolvedCompanyId = companyId
-    let apiKeySource: 'database' | 'env' = 'env'
-
-    // If companyId not provided but applicationId is, fetch companyId from application
     if (!resolvedCompanyId && applicationId) {
       try {
         const appInfo = await DatabaseService.query(
@@ -36,16 +32,18 @@ export async function POST(request: NextRequest) {
            JOIN job_postings jp ON a.job_id = jp.id
            WHERE a.id = $1::uuid`,
           [applicationId]
-        ) as any[]
+        )
         if (appInfo?.[0]?.company_id) {
           resolvedCompanyId = appInfo[0].company_id
           console.log('[CV Evaluator] Resolved companyId from application:', resolvedCompanyId)
         }
       } catch (e) {
-        console.warn('[CV Evaluator] Failed to resolve companyId from application:', e)
+        console.warn('[CV Evaluator] Failed to resolve companyId:', e)
       }
     }
 
+    // Fetch company's OpenAI service key
+    let openaiApiKey: string | undefined
     if (resolvedCompanyId) {
       try {
         const companyData = await DatabaseService.query(
@@ -62,7 +60,6 @@ export async function POST(request: NextRequest) {
             } else {
               openaiApiKey = decryptedKey
             }
-            apiKeySource = 'database'
             console.log('[CV Evaluator] ✅ Using company service account key from DATABASE for companyId:', resolvedCompanyId)
           } catch (e) {
             console.warn('[CV Evaluator] Failed to decrypt company key:', e)
@@ -73,33 +70,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Fallback to environment variable
-    if (!openaiApiKey) {
-      openaiApiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_EVAL_KEY
-      if (openaiApiKey) {
-        console.log('[CV Evaluator] Using environment OPENAI_API_KEY for evaluation')
-      } else {
-        console.log('[CV Evaluator] No OpenAI API key configured')
-      }
+    // Check if already evaluated to prevent double evaluation and save costs
+    const existing = await DatabaseService.query(
+      `SELECT ai_cv_score FROM applications WHERE id = $1::uuid`,
+      [applicationId]
+    )
+    if (existing?.[0]?.ai_cv_score !== null && existing?.[0]?.ai_cv_score !== undefined) {
+      console.log('⚠️ [CV Evaluator] Already evaluated, skipping to save cost')
+      return NextResponse.json({ 
+        success: true, 
+        alreadyEvaluated: true,
+        existingScore: existing[0].ai_cv_score
+      })
     }
 
-    // Truncate resume text if too long (max 15000 chars to stay under token limits)
-    const truncatedResume = resumeText.length > 15000 
+    // Truncate resume if too long
+    const truncatedResume = resumeText.length > 15000
       ? resumeText.substring(0, 15000) + "\n\n[Resume truncated due to length...]"
       : resumeText
 
-    // Truncate JD if too long
-    const truncatedJD = jobDescription.length > 5000
-      ? jobDescription.substring(0, 5000) + "\n\n[JD truncated...]"
-      : jobDescription
+    console.log('[CV Evaluator] Resume length:', truncatedResume.length)
 
-    console.log('[CV Evaluator] Resume length:', truncatedResume.length, 'JD length:', truncatedJD.length)
-
-    // Evaluate using strict rubric with company-specific key
-    const evaluation = await CVEvaluator.evaluateCandidate(
+    // Evaluate using all improvements (deterministic skill matching, OR groups, etc.)
+    const evaluation = await CVEvaluator.evaluateApplication(
       truncatedResume,
-      truncatedJD,
-      passThreshold,
+      applicationId,
+      DatabaseService.query.bind(DatabaseService),
       resolvedCompanyId,
       openaiApiKey ? { apiKey: openaiApiKey } : undefined
     )
@@ -109,158 +105,87 @@ export async function POST(request: NextRequest) {
       qualified: evaluation.overall.qualified
     })
 
+    // Save evaluation to database
+    try {
+      const checkCols = await DatabaseService.query(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_schema = 'public' 
+           AND table_name = 'applications'
+           AND column_name IN ('ai_cv_score', 'is_qualified', 'qualification_explanations')`,
+        []
+      )
+      const cols = new Set((checkCols || []).map((r: any) => r.column_name))
 
-    // Save evaluation to database if applicationId provided
-    if (applicationId) {
-      try {
-        // Check if columns exist
-        const checkCols = await DatabaseService.query(
-          `SELECT column_name FROM information_schema.columns
-           WHERE table_schema = 'public' 
-             AND table_name = 'applications'
-             AND column_name IN ('ai_cv_score', 'is_qualified', 'qualification_explanations')`,
-          []
-        )
-        const cols = new Set((checkCols || []).map((r: any) => r.column_name))
+      if (cols.size > 0) {
+        const updates: string[] = []
+        const params: any[] = []
+        let p = 1
 
-        if (cols.size > 0) {
-          const updates: string[] = []
-          const params: any[] = []
-          let p = 1
-
-          if (cols.has('ai_cv_score')) {
-            updates.push(`ai_cv_score = $${p++}`)
-            params.push(Math.round(evaluation.overall.score_percent))
-          }
-          if (cols.has('is_qualified')) {
-            updates.push(`is_qualified = $${p++}`)
-            params.push(evaluation.overall.qualified)
-          }
-          if (cols.has('qualification_explanations')) {
-            updates.push(`qualification_explanations = $${p++}::jsonb`)
-            params.push(JSON.stringify({
-              overall: evaluation.overall,
-              extracted: evaluation.extracted,
-              scores: evaluation.scores,
-              reason_summary: evaluation.overall.reason_summary,
-              eligibility: evaluation.eligibility,
-              risk_adjustments: evaluation.risk_adjustments,
-              production_exposure: evaluation.production_exposure,
-              tenure_analysis: evaluation.tenure_analysis,
-              explainable_score: evaluation.explainable_score
-            }))
-          }
-
-          if (updates.length > 0) {
-            params.push(applicationId)
-            await DatabaseService.query(
-              `UPDATE applications SET ${updates.join(', ')} WHERE id = $${p}::uuid`,
-              params
-            )
-            console.log('[CV Evaluator] Saved evaluation to database')
-          }
+        if (cols.has('ai_cv_score')) {
+          updates.push(`ai_cv_score = $${p++}`)
+          params.push(Math.round(evaluation.overall.score_percent))
+        }
+        if (cols.has('is_qualified')) {
+          updates.push(`is_qualified = $${p++}`)
+          params.push(evaluation.overall.qualified)
+        }
+        if (cols.has('qualification_explanations')) {
+          updates.push(`qualification_explanations = $${p++}::jsonb`)
+          params.push(JSON.stringify({
+            overall: evaluation.overall,
+            extracted: evaluation.extracted,
+            scores: evaluation.scores,
+            reason_summary: evaluation.overall.reason_summary,
+            eligibility: evaluation.eligibility,
+            risk_adjustments: evaluation.risk_adjustments,
+            production_exposure: evaluation.production_exposure,
+            tenure_analysis: evaluation.tenure_analysis,
+            explainable_score: evaluation.explainable_score
+          }))
         }
 
-        // Try to set a qualified-like status and advance stage when candidate is qualified
-        try {
-          if (evaluation?.overall?.qualified) {
-            const enumRows = await DatabaseService.query(
-              `SELECT e.enumlabel as enum_value
-               FROM pg_type t 
-               JOIN pg_enum e ON t.oid = e.enumtypid  
-               WHERE t.typname = 'status_application'`,
-              []
-            ) as any[]
-            const statuses = new Set((enumRows || []).map((r: any) => String(r.enum_value)))
-
-            const preferred = ['cv_qualified', 'qualified', 'screening_passed']
-            const chosen = preferred.find(s => statuses.has(s))
-
-            if (chosen) {
-              await DatabaseService.query(
-                `UPDATE applications SET status = $1::status_application WHERE id = $2::uuid`,
-                [chosen, applicationId]
-              )
-              console.log(`[CV Evaluator] Application status set to ${chosen}`)
-            }
-
-            // Advance stage to AI Interview if still in screening
-            const prevStageRows = await DatabaseService.query(
-              `SELECT current_stage FROM applications WHERE id = $1::uuid`,
-              [applicationId]
-            )
-            const prevStage = prevStageRows?.[0]?.current_stage
-
-            const stageUpdate = await DatabaseService.query(
-              `UPDATE applications
-               SET current_stage = 'ai_interview'
-               WHERE id = $1::uuid AND current_stage = 'screening'
-               RETURNING current_stage`,
-              [applicationId]
-            )
-
-            if (stageUpdate && stageUpdate.length > 0) {
-              await DatabaseService.query(
-                `INSERT INTO application_stage_history (application_id, from_stage, to_stage, changed_by)
-                 VALUES ($1::uuid, $2::application_stage, 'ai_interview', NULL)`,
-                [applicationId, prevStage || null]
-              )
-              console.log('[CV Evaluator] Stage advanced to ai_interview')
-
-              // Auto-send interview link if job has auto_schedule_interview enabled
-              try {
-                const autoScheduleRows = await DatabaseService.query(
-                  `SELECT jp.auto_schedule_interview, jp.title as job_title,
-                          c.full_name as candidate_name, c.email as candidate_email
-                   FROM applications a
-                   JOIN job_postings jp ON a.job_id = jp.id
-                   JOIN candidates c ON a.candidate_id = c.id
-                   WHERE a.id = $1::uuid
-                   LIMIT 1`,
-                  [applicationId]
-                ) as any[]
-
-                if (autoScheduleRows?.[0]?.auto_schedule_interview === true) {
-                  const { candidate_name, candidate_email, job_title } = autoScheduleRows[0]
-                  console.log('[CV Evaluator] Auto-scheduling interview for:', candidate_email)
-
-                  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || process.env.APP_BASE_URL || 'http://localhost:3000'
-                  await fetch(`${baseUrl}/api/interview/send`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      to: candidate_email,
-                      candidateName: candidate_name,
-                      position: job_title,
-                      interviewId: applicationId,
-                    }),
-                  })
-                  console.log('[CV Evaluator] ✅ Auto interview link sent to:', candidate_email)
-                }
-              } catch (autoSendErr) {
-                console.warn('[CV Evaluator] Auto-send interview link failed (non-fatal):', autoSendErr)
-              }
-            }
-          }
-        } catch (setStatusErr) {
-          console.warn('[CV Evaluator] Could not set qualified status/stage:', setStatusErr)
+        if (updates.length > 0) {
+          params.push(applicationId)
+          await DatabaseService.query(
+            `UPDATE applications SET ${updates.join(', ')} WHERE id = $${p}::uuid`,
+            params
+          )
+          console.log('[CV Evaluator] Saved evaluation to database')
         }
-      } catch (dbError) {
-        console.warn('[CV Evaluator] Failed to save to database:', dbError)
       }
+
+      // Advance stage if qualified
+      if (evaluation.overall.qualified) {
+        try {
+          await DatabaseService.query(
+            `UPDATE applications SET stage = 'ai_interview' WHERE id = $1::uuid`,
+            [applicationId]
+          )
+          console.log('[CV Evaluator] Stage advanced to ai_interview')
+        } catch (stageErr) {
+          console.warn('[CV Evaluator] Failed to advance stage:', stageErr)
+        }
+      }
+    } catch (saveErr) {
+      console.warn('[CV Evaluator] Failed to save evaluation:', saveErr)
     }
 
     return NextResponse.json({
       success: true,
-      evaluation
+      evaluation: {
+        overall: evaluation.overall,
+        scores: evaluation.scores,
+        extracted: evaluation.extracted,
+        eligibility: evaluation.eligibility,
+        risk_adjustments: evaluation.risk_adjustments,
+        explainable_score: evaluation.explainable_score
+      }
     })
+
   } catch (error: any) {
-    console.error('[CV Evaluator] Error:', error)
+    console.error('[CV Evaluator] ERROR:', error)
     return NextResponse.json(
-      { 
-        error: error?.message || 'Failed to evaluate CV',
-        details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
-      },
+      { error: error?.message || 'CV evaluation failed' },
       { status: 500 }
     )
   }

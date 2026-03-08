@@ -311,16 +311,15 @@ export async function POST(request: NextRequest) {
                 const jdText: string | undefined = jdRow?.[0]?.jd || undefined
 
                 if (jdText) {
+                  console.log('🔥 [Resume Parse] About to call CVEvaluator.evaluateApplication (with all improvements)')
                   const resumeForEval = cleanedText.length > 15000
                     ? cleanedText.substring(0, 15000) + "\n\n[Resume truncated due to length...]"
                     : cleanedText
-                  const jdForEval = String(jdText)
-                  const passThreshold = 40
 
-                  const evaluation = await CVEvaluator.evaluateCandidate(
+                  const evaluation = await CVEvaluator.evaluateApplication(
                     resumeForEval,
-                    jdForEval,
-                    passThreshold,
+                    applicationId,
+                    DatabaseService.query.bind(DatabaseService),
                     companyIdForBilling || undefined,
                     companyOpenAIKey ? { apiKey: companyOpenAIKey } : undefined
                   )

@@ -23,7 +23,7 @@ CRITICAL RULES:
 5. Cite evidence by quoting short spans from resume (max 20 words each)
 6. Be conservative - do not hallucinate skills or experience not clearly stated
 7. Distinguish between issued certifications and those being pursued
-8. Match skills EXACTLY as specified in the JD - identify critical vs nice-to-have skills
+8. ALL skills listed in the [REQUIRED SKILLS CHECKLIST] are CRITICAL — do NOT reclassify them as nice-to-have based on your own judgment
 
 SCORING GUIDELINES:
 - skill_match: 90-100 = all critical skills present, 70-89 = most skills present, 50-69 = partial match, <50 = major gaps
@@ -234,6 +234,18 @@ interface LLMExtractionResponse {
   has_cloud_exposure: boolean
   average_tenure_months: number | null
   career_gaps_months: number[]
+}
+
+/**
+ * Problem 7: Normalized JD structure for deterministic scoring
+ */
+interface NormalizedJD {
+  title: string | null
+  required_skills: string[][]  // OR-groups: [["uipath","blue prism"],["python","csharp"]]
+  preferred_skills: string[]
+  experience_required: { min: number; max: number | null; raw: string } | null
+  responsibilities: string[]
+  location: string | null
 }
 
 // ============================================================================
@@ -489,6 +501,35 @@ export class CVEvaluator {
     // NoSQL Databases
     ['mongodb', 'dynamodb', 'couchdb', 'cassandra'],
   ]
+
+  /**
+   * Problem 2: SYNONYM MAP - normalize skill name variations to canonical forms
+   */
+  private static readonly SKILL_SYNONYM_MAP: Record<string, string> = {
+    // RPA
+    'aa': 'automation anywhere', 'a360': 'automation anywhere',
+    'a2019': 'automation anywhere', 'automation anywhere a360': 'automation anywhere',
+    'automation anywhere a2019': 'automation anywhere',
+    // .NET ecosystem
+    'c#': 'csharp', 'c sharp': 'csharp', '.net': 'dotnet',
+    'asp.net': 'dotnet', 'dot net': 'dotnet', '.net framework': 'dotnet', '.net core': 'dotnet',
+    // JS frameworks
+    'react.js': 'react', 'reactjs': 'react', 'react js': 'react',
+    'node.js': 'nodejs', 'node js': 'nodejs', 'vue.js': 'vue',
+    'angular.js': 'angular', 'angularjs': 'angular',
+    // Cloud
+    'gcp': 'google cloud', 'google cloud platform': 'google cloud',
+    'amazon web services': 'aws', 'microsoft azure': 'azure',
+    // Databases
+    'postgres': 'postgresql', 'microsoft sql server': 'sql server',
+    'ms sql': 'sql server', 'mssql': 'sql server',
+    // Version control
+    'github': 'git', 'gitlab': 'git', 'bitbucket': 'git', 'version control': 'git',
+    // REST / APIs
+    'rest api': 'rest', 'restful api': 'rest', 'rest services': 'rest', 'rest service': 'rest',
+    // Python
+    'python3': 'python', 'python 3': 'python',
+  }
 
   /**
    * Find equivalent tools for a given platform
@@ -1026,30 +1067,24 @@ export class CVEvaluator {
       riskFlags.push("High job hopping risk")
     }
     
-    // Apply score caps
+    // Apply score adjustments
     let finalScore = rawScore
-    
-    // Strict score caps based on missing critical skills (SOFT PENALTY ONLY)
-    // This does NOT block in eligibility - skill matching affects score only
-    // Low scores naturally lead to "Reject" verdict via thresholds (<55)
-    if (scores.skill_match.missing_critical.length >= 2) {
-      // 2+ critical missing → Force low score (max 54, triggers "Reject" verdict)
-      if (finalScore > 54) {
-        finalScore = 54
-        scoreCap = 54
-      }
-      riskFlags.push(`${scores.skill_match.missing_critical.length} critical skills missing: ${scores.skill_match.missing_critical.slice(0, 3).join(', ')}`)
-    } else if (scores.skill_match.missing_critical.length === 1) {
-      // 1 critical missing → Force borderline score (max 64, triggers "Borderline" verdict)
-      if (finalScore > 64) {
-        finalScore = 64
-        scoreCap = 64
-      }
+
+    // Problem 5: Soft skill score penalties — no hard clamping, multiplicative penalties only
+    const missingCount = scores.skill_match.missing_critical.length
+    if (missingCount === 1) {
+      finalScore = Math.round(finalScore * 0.85)
       riskFlags.push(`1 critical skill missing: ${scores.skill_match.missing_critical[0]}`)
+    } else if (missingCount === 2) {
+      finalScore = Math.round(finalScore * 0.7)
+      riskFlags.push(`${missingCount} critical skills missing: ${scores.skill_match.missing_critical.slice(0, 2).join(', ')}`)
+    } else if (missingCount >= 3) {
+      finalScore = Math.round(finalScore * 0.5)
+      riskFlags.push(`${missingCount} critical skills missing: ${scores.skill_match.missing_critical.slice(0, 3).join(', ')}`)
     }
-    
-    // Add to criticalGaps for transparency in results
-    if (scores.skill_match.missing_critical.length > 0) {
+
+    // Add to criticalGaps for transparency
+    if (missingCount > 0) {
       criticalGaps.push(`Missing critical skills: ${scores.skill_match.missing_critical.join(', ')}`)
     }
     
@@ -1279,7 +1314,8 @@ export class CVEvaluator {
     screeningQuestions?: { minExperience?: string; maxExperience?: string; experienceType?: string } | null
   ): Promise<CVEvaluationResult> {
     console.log('🎯 [CV EVALUATOR v2.0] Starting 3-phase evaluation (DOMAIN-AGNOSTIC)...')
-    
+    console.log('🔍 [DEBUG] JD length:', jobDescription.length, 'Resume length:', resumeText.length)
+
     // Quick pre-check for domain mismatch (DOMAIN-AGNOSTIC)
     const domainCheck = this.checkDomainFit(resumeText, jobDescription)
     
@@ -1318,7 +1354,7 @@ export class CVEvaluator {
         model: openaiProvider("gpt-4o"),
         system: SYSTEM_PROMPT,
         prompt: userPrompt,
-        temperature: 0.1,
+        temperature: 0,  // Problem 8: deterministic results
       })
       
       const cleaned = response.text.trim()
@@ -1328,6 +1364,23 @@ export class CVEvaluator {
       
       llmResponse = JSON.parse(cleaned)
       console.log('✅ [CV EVALUATOR] LLM extraction complete')
+
+      // Problem 3+4: Fully deterministic server-side skill matching (completely overrides LLM)
+      // LLM is used for extraction only; all skill scoring is done server-side
+      const skillGroups = this.parseRequiredSkillGroups(jobDescription)
+      console.log(`📝 [DEBUG] parseRequiredSkillGroups returned ${skillGroups.length} groups:`, skillGroups.slice(0, 5))
+      
+      if (skillGroups.length > 0) {
+        const skillMatch = this.deterministicSkillMatch(resumeText, skillGroups)
+        console.log(`🔢 [DETERMINISTIC] Skill match: ${skillMatch.matched_critical.length}/${skillGroups.length} = ${skillMatch.score}% (LLM gave: ${llmResponse.llm_scores.skill_match.score})`)
+        console.log(`✅ Matched:`, skillMatch.matched_critical)
+        console.log(`❌ Missing:`, skillMatch.missing_critical)
+        llmResponse.llm_scores.skill_match.score = skillMatch.score
+        llmResponse.llm_scores.skill_match.matched_critical = skillMatch.matched_critical
+        llmResponse.llm_scores.skill_match.missing_critical = skillMatch.missing_critical
+      } else {
+        console.log(`⚠️ [WARNING] No skill groups extracted from JD - using LLM scores as fallback`)
+      }
 
       // PHASE 0: Run eligibility gates
       const eligibility = this.runEligibilityGates(
@@ -1506,7 +1559,7 @@ export class CVEvaluator {
               jp.job_type,
               jp.screening_questions
        FROM applications a
-       JOIN job_posting jp ON a.job_id = jp.id
+       JOIN job_postings jp ON a.job_id = jp.id
        WHERE a.id = $1::uuid`,
       [applicationId]
     )
@@ -1517,6 +1570,15 @@ export class CVEvaluator {
     
     const job = rows[0]
     console.log(`📋 [CV EVALUATOR] Job posting found: ${job.title}`)
+    console.log(`🗃️ [DEBUG] Job posting fields:`, {
+      title: job.title,
+      description_length: job.description?.length || 0,
+      required_skills: job.required_skills,
+      preferred_skills: job.preferred_skills,
+      experience_years: job.experience_years,
+      location: job.location,
+      work_mode: job.work_mode
+    })
     
     // Parse screening questions for experience validation
     let screeningQuestions: { minExperience?: string; maxExperience?: string; experienceType?: string } | null = null
@@ -1536,6 +1598,8 @@ export class CVEvaluator {
     
     console.log('🔨 [CV EVALUATOR] JD assembled, starting evaluation...')
     console.log('📝 [CV EVALUATOR] Assembled JD preview:', jdString.substring(0, 200) + '...')
+    console.log(`📏 [DEBUG] Full JD length: ${jdString.length} characters`)
+    console.log(`📄 [DEBUG] Full JD text:`, jdString)
     
     // Run evaluation with assembled JD and screening questions
     return this.evaluateCandidate(
@@ -1559,6 +1623,7 @@ export class CVEvaluator {
     const skills: string[] = []
     const lines = jobDescription.split('\n')
     let inRequiredSection = false
+    let inResponsibilitiesSection = false
 
     for (const line of lines) {
       const trimmed = line.trim()
@@ -1567,15 +1632,26 @@ export class CVEvaluator {
       // Detect required skills section header
       if (/required\s+skills?|must\s+have|mandatory|essential\s+skills?|key\s+requirements?/i.test(trimmed)) {
         inRequiredSection = true
+        inResponsibilitiesSection = false
         continue
       }
-      // Stop at preferred/nice-to-have section
-      if (/preferred|nice\s+to\s+have|good\s+to\s+have|bonus|desired|optional/i.test(trimmed)) {
+      
+      // Detect responsibilities section header
+      if (/responsibilities|duties|what\s+you'll\s+do|key\s+responsibilities|role\s+overview/i.test(trimmed)) {
+        inResponsibilitiesSection = true
         inRequiredSection = false
         continue
       }
+      
+      // Stop at preferred/nice-to-have section
+      if (/preferred|nice\s+to\s+have|good\s+to\s+have|bonus|desired|optional|benefits|what\s+we\s+offer/i.test(trimmed)) {
+        inRequiredSection = false
+        inResponsibilitiesSection = false
+        continue
+      }
 
-      if (inRequiredSection) {
+      // Extract from both required skills AND responsibilities
+      if (inRequiredSection || inResponsibilitiesSection) {
         // Strip bullet/dash/number prefix
         const cleaned = trimmed.replace(/^[-•*\d.)\s]+/, '').trim()
         if (cleaned.length > 2) skills.push(cleaned)
@@ -1593,14 +1669,429 @@ export class CVEvaluator {
       }
     }
 
+    console.log('🔍 [DEBUG] Parsed required skills AND responsibilities from JD:', skills)
     return skills.slice(0, 20) // cap at 20 items
+  }
+
+  // =========================================================================
+  // DETERMINISTIC SKILL MATCHING ENGINE (Problems 1-4, 7)
+  // =========================================================================
+
+  /**
+   * Problem 1: Parse a skill line into OR-group of normalized alternatives
+   * "UiPath or Blue Prism or Automation Anywhere" → ["uipath", "blue prism", "automation anywhere"]
+   * "SQL and database knowledge" → ["sql and database knowledge"]
+   */
+  private static parseORGroup(skillLine: string): string[] {
+    const parts = skillLine.split(/\s+or\s+/i).map(p => p.trim().toLowerCase()).filter(Boolean)
+    return parts.length > 1 ? parts : [skillLine.toLowerCase().trim()]
+  }
+
+  /**
+   * Parse JD required skills into OR-groups for deterministic matching
+   * Returns string[][] where each inner array is a group of OR-alternatives
+   * IMPORTANT: Only extracts from "Required Skills" section, NOT responsibilities
+   * Responsibilities are job activities, not hard skill requirements
+   */
+  private static parseRequiredSkillGroups(jobDescription: string): string[][] {
+    console.log(`📝 [DEBUG] JD TEXT (first 500 chars):`, jobDescription.substring(0, 500))
+    const lines = jobDescription.split('\n')
+    const skillLines: string[] = []
+    let inRequiredSkills = false
+
+    // Patterns that indicate END of Required Skills section
+    const END_SECTION_PATTERNS = [
+      /^(experience\s+required|education\s+required|location|job\s+type|work\s+mode)/i,
+      /^(salary|compensation|benefits|about\s+us|about\s+the\s+company|who\s+we\s+are)/i,
+      /^(responsibilities|duties|what\s+you.ll\s+do|key\s+responsibilities)/i,  // Responsibilities = END of skills
+      /^(preferred|nice\s+to\s+have|good\s+to\s+have|bonus|desired|optional)/i,
+    ]
+
+    // Patterns to filter out non-skill lines
+    const NON_SKILL_PATTERNS = [
+      /^\d+[\-\u2013\u2014]?\d*\s*(years?|yrs?)/i,           // "2-5 years", "3 years"
+      /^(experience|education|location|job\s+type|work\s+mode)\s*[:]/i,  // "Experience:", "Location:"
+      /^(bachelor|master|phd|degree|diploma|b\.?tech|m\.?tech|b\.?e|m\.?e|bca|mca)/i,  // Education degrees
+      /^(full[\-\s]?time|part[\-\s]?time|contract|permanent|remote|hybrid|on[\-\s]?site)/i,  // Job types
+      /^(bangalore|bengaluru|mumbai|delhi|hyderabad|chennai|pune|noida|gurgaon|gurugram)/i,  // City names
+      /^(india|usa|uk|canada|australia|singapore|dubai)/i,  // Country names
+      /^\d+\s*(lpa|lakhs?|crore|k|\$)/i,  // Salary patterns
+    ]
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+
+      // Check if we hit END of Required Skills section
+      if (END_SECTION_PATTERNS.some(pattern => pattern.test(trimmed))) {
+        inRequiredSkills = false
+        continue
+      }
+
+      // Check if we're entering Required Skills section
+      if (/required\s+skills?|must\s+have|mandatory|essential\s+skills?|key\s+requirements?/i.test(trimmed)) {
+        inRequiredSkills = true
+        continue
+      }
+
+      // Only collect from Required Skills section (NOT responsibilities)
+      if (inRequiredSkills) {
+        const cleaned = trimmed.replace(/^[-•*\d.)\s]+/, '').trim()
+        if (cleaned.length > 2) {
+          // Filter out non-skill lines
+          const isNonSkill = NON_SKILL_PATTERNS.some(pattern => pattern.test(cleaned))
+          if (!isNonSkill) {
+            // Keep skill as-is (don't split compound phrases for required skills)
+            skillLines.push(cleaned)
+          }
+        }
+      }
+    }
+
+    // Fallback - extract from unstructured JD text if no Required Skills section found
+    if (skillLines.length === 0) {
+      // Try bullet points (but filter out responsibility-like lines)
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (/^[-•*]\s+.{5,}/.test(trimmed)) {
+          const cleaned = trimmed.replace(/^[-•*]\s+/, '').trim()
+          const isNonSkill = NON_SKILL_PATTERNS.some(pattern => pattern.test(cleaned))
+          // Also filter out responsibility-like lines (start with verbs)
+          const isResponsibility = /^(design|develop|build|create|implement|monitor|manage|lead|coordinate|analyze|troubleshoot|deploy|integrate|work\s+with)/i.test(cleaned)
+          if (!isNonSkill && !isResponsibility) {
+            skillLines.push(cleaned)
+          }
+        }
+      }
+    }
+
+    // Fix 3: If still empty, extract technology keywords from full text
+    if (skillLines.length === 0) {
+      const extracted = this.extractTechKeywordsFromText(jobDescription)
+      console.log(`🔍 [FALLBACK] extractTechKeywordsFromText found:`, extracted)
+      skillLines.push(...extracted)
+    }
+
+    console.log(`📝 [parseRequiredSkillGroups] Final skillLines (${skillLines.length}):`, skillLines.slice(0, 10))
+    return skillLines.slice(0, 20).map(line => this.parseORGroup(line))
+  }
+
+  /**
+   * Split compound skill phrases into individual skills
+   * "SQL and database knowledge" → ["sql", "database knowledge"]
+   * "Problem-solving and analytical thinking" → ["problem-solving", "analytical thinking"]
+   */
+  private static splitCompoundSkills(skillLine: string): string[] {
+    // Don't split if it's an OR group (handled separately)
+    if (/\s+or\s+/i.test(skillLine)) {
+      return [skillLine]
+    }
+
+    // Split on " and " but keep meaningful phrases
+    const parts = skillLine.split(/\s+and\s+/i).map(p => p.trim()).filter(p => p.length > 1)
+    
+    // If split produced meaningful parts, return them
+    if (parts.length > 1 && parts.every(p => p.length >= 2)) {
+      return parts
+    }
+    
+    // Otherwise return original
+    return [skillLine]
+  }
+
+  /**
+   * Fix 3: Extract technology keywords from unstructured JD text
+   * Handles comma-separated, and/or patterns, and known tech dictionary
+   */
+  private static extractTechKeywordsFromText(text: string): string[] {
+    const found: string[] = []
+    const textLower = text.toLowerCase()
+
+    // Known technology dictionary - expanded for RPA roles
+    const TECH_DICTIONARY = [
+      // Languages
+      'python', 'java', 'javascript', 'typescript', 'csharp', 'c#', 'c++', 'golang', 'ruby', 'php', 'scala', 'kotlin', 'swift', 'rust', 'vba', 'vb.net',
+      // RPA - expanded
+      'uipath', 'automation anywhere', 'blue prism', 'power automate', 'rpa', 'bot', 'bots',
+      'a360', 'a2019', 'control room', 'bot creator', 'bot runner',
+      // Frameworks
+      'react', 'angular', 'vue', 'django', 'flask', 'spring', 'express', 'nodejs', 'node.js', '.net', 'dotnet',
+      // Cloud
+      'aws', 'azure', 'gcp', 'google cloud',
+      // Databases
+      'sql', 'mysql', 'postgresql', 'mongodb', 'oracle', 'sql server', 'redis', 'elasticsearch', 'database',
+      // DevOps
+      'docker', 'kubernetes', 'jenkins', 'git', 'terraform', 'ansible',
+      // APIs
+      'rest api', 'rest apis', 'api', 'apis', 'graphql', 'soap', 'web services',
+      // Other
+      'machine learning', 'deep learning', 'data science', 'agile', 'scrum',
+      'excel', 'vba', 'sap', 'erp', 'crm', 'salesforce',
+    ]
+
+    // Check for known technologies
+    for (const tech of TECH_DICTIONARY) {
+      if (tech.includes(' ')) {
+        if (textLower.includes(tech)) found.push(tech)
+      } else {
+        // Use simple word boundary for single words
+        const regex = new RegExp(`\\b${tech.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+        if (regex.test(text)) found.push(tech)
+      }
+    }
+
+    // Extract comma-separated patterns: "experience in Python, SQL and REST APIs"
+    const commaPattern = /(?:experience|proficiency|knowledge|skills?|expertise|working)\s+(?:in|with|on)?\s*([^.;\n]+)/gi
+    const matches = text.matchAll(commaPattern)
+    for (const match of matches) {
+      const segment = match[1]
+      // Split by comma, "and", "or"
+      const parts = segment.split(/[,]|\s+and\s+|\s+or\s+/i).map(p => p.trim().toLowerCase()).filter(p => p.length > 1 && p.length < 30)
+      found.push(...parts)
+    }
+
+    console.log(`🔍 [extractTechKeywordsFromText] Found ${found.length} keywords:`, found.slice(0, 10))
+
+    // Deduplicate
+    return [...new Set(found)]
+  }
+
+  /**
+   * Problem 1: Normalize a skill string to canonical form via SKILL_SYNONYM_MAP
+   */
+  private static normalizeSkill(skill: string): string {
+    const lower = skill.toLowerCase().trim()
+    return this.SKILL_SYNONYM_MAP[lower] ?? lower
+  }
+
+  /**
+   * Problem 2: Extract multi-word skills (n-grams up to 4 words) from resume text
+   * Detects known tech phrases + individual skill tokens
+   * Fix 2: Enhanced with more multi-word phrases
+   */
+  private static extractNgramSkillsFromText(text: string): string[] {
+    const textLower = text.toLowerCase()
+    const found = new Set<string>()
+
+    // Known multi-word phrases to detect (2-4 word phrases) - Fix 2: expanded list
+    const KNOWN_PHRASES = [
+      // RPA
+      'automation anywhere', 'blue prism', 'power automate', 'uipath studio',
+      'control room', 'bot creator', 'bot runner', 'attended bot', 'unattended bot',
+      'robotic process automation', 'process automation', 'workflow automation',
+      'rpa developer', 'rpa support', 'bot support',
+      // APIs
+      'rest api', 'rest apis', 'rest services', 'restful api', 'restful apis',
+      'api integration', 'api integrations', 'web services', 'soap api',
+      'system integration', 'system integrations',
+      // ML/AI
+      'machine learning', 'deep learning', 'natural language processing',
+      'computer vision', 'neural network', 'neural networks',
+      // Cloud
+      'google cloud', 'google cloud platform', 'amazon web services',
+      'microsoft azure', 'azure devops', 'aws lambda', 'azure functions',
+      // Databases
+      'sql server', 'sql database', 'oracle database', 'mysql database',
+      'database knowledge', 'database management',
+      // DevOps/Tools
+      'version control', 'source control', 'github actions', 'gitlab ci',
+      'ci cd', 'ci/cd', 'continuous integration', 'continuous deployment',
+      'spring boot', 'spring framework',
+      // Process
+      'process mapping', 'business process', 'exception handling', 'error handling',
+      'technical documentation', 'code review', 'code reviews',
+      'problem solving', 'analytical thinking', 'critical thinking',
+      // Other
+      'data analysis', 'data analytics', 'data visualization',
+      'project management', 'agile methodology', 'scrum master',
+    ]
+
+    for (const phrase of KNOWN_PHRASES) {
+      if (textLower.includes(phrase)) {
+        found.add(this.normalizeSkill(phrase))
+      }
+    }
+
+    // Single-word skill tokens with word boundary check
+    const words = textLower.match(/\b[a-z][a-z0-9.#+\-]{1,20}\b/g) || []
+    for (const word of words) {
+      if (word.length > 2) found.add(this.normalizeSkill(word))
+    }
+    return Array.from(found)
+  }
+
+  /**
+   * Fix 1+5: Word-boundary safe regex match to prevent false positives
+   * "go" won't match "google", "sql" won't match "nosql"
+   */
+  private static wordBoundaryMatch(text: string, skill: string): boolean {
+    try {
+      // Escape special regex characters in skill
+      const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const regex = new RegExp(`\\b${escaped}\\b`, 'i')
+      return regex.test(text)
+    } catch {
+      // Fallback to includes if regex fails
+      return text.toLowerCase().includes(skill.toLowerCase())
+    }
+  }
+
+  /**
+   * Break JD skill phrases into normalized keywords for partial matching
+   * "SQL and database knowledge" → ["sql", "database"]
+   * "Problem-solving and analytical thinking" → ["problem solving", "analytical thinking"]
+   */
+  private static extractKeywordsFromSkillPhrase(skillPhrase: string): string[] {
+    const phrase = skillPhrase.toLowerCase().trim()
+    
+    // Handle OR groups separately (don't break these)
+    if (phrase.includes(' or ')) {
+      return [phrase]
+    }
+    
+    // Split on common separators and filter meaningful keywords
+    const parts = phrase
+      .split(/\s+and\s+|,\s*|\s*[&+]\s*/i)
+      .map(p => p.trim())
+      .filter(p => p.length > 2)
+      .filter(p => {
+        // Filter out common non-skill words
+        const stopWords = ['knowledge', 'skills', 'experience', 'understanding', 'strong', 'good', 'basic', 'advanced']
+        return !stopWords.includes(p)
+      })
+    
+    // If splitting produced meaningful parts, return them
+    if (parts.length > 1) {
+      return parts.map(p => this.normalizeSkill(p))
+    }
+    
+    // Otherwise return the original phrase
+    return [this.normalizeSkill(phrase)]
+  }
+
+  /**
+   * IMPROVED: Deterministic skill matching with partial keyword matching
+   * Now checks if ANY keyword from JD skill phrase appears in resume
+   * "SQL and database knowledge" matches if resume contains "SQL"
+   */
+  private static deterministicSkillMatch(
+    resumeText: string,
+    skillGroups: string[][]
+  ): { matched_critical: string[]; missing_critical: string[]; score: number } {
+    const resumeSkills = this.extractNgramSkillsFromText(resumeText)
+    const resumeLower = resumeText.toLowerCase()
+
+    const matched_critical: string[] = []
+    const missing_critical: string[] = []
+
+    for (const group of skillGroups) {
+      // Match if ANY alternative in the group is satisfied
+      const groupMatched = group.some(skill => {
+        // Extract keywords from the skill phrase
+        const keywords = this.extractKeywordsFromSkillPhrase(skill)
+        
+        // Check if ANY keyword from the phrase is found in resume
+        return keywords.some(keyword => {
+          const normalized = this.normalizeSkill(keyword)
+
+          // Step 1: Direct text match
+          if (keyword.includes(' ')) {
+            // Multi-word: use includes for phrases
+            if (resumeLower.includes(keyword)) return true
+            if (normalized !== keyword && resumeLower.includes(normalized)) return true
+          } else {
+            // Single word: use word-boundary regex
+            if (this.wordBoundaryMatch(resumeText, keyword)) return true
+            if (normalized !== keyword && this.wordBoundaryMatch(resumeText, normalized)) return true
+          }
+
+          // Step 2: N-gram extracted skills check
+          if (resumeSkills.includes(normalized)) return true
+
+          // Step 3: Synonym match
+          const variants = Object.entries(this.SKILL_SYNONYM_MAP)
+            .filter(([, canonical]) => canonical === normalized)
+            .map(([variant]) => variant)
+          for (const v of variants) {
+            if (v.includes(' ') ? resumeLower.includes(v) : this.wordBoundaryMatch(resumeText, v)) return true
+          }
+
+          // Step 4: Equivalent tool groups
+          const equivalents = this.getEquivalentTools(normalized)
+          for (const eq of equivalents) {
+            if (eq.includes(' ') ? resumeLower.includes(eq) : this.wordBoundaryMatch(resumeText, eq)) return true
+            if (resumeSkills.includes(this.normalizeSkill(eq))) return true
+          }
+
+          return false
+        })
+      })
+
+      // Use original group label joined with " or " for display
+      const groupLabel = group.join(' or ')
+      if (groupMatched) matched_critical.push(groupLabel)
+      else missing_critical.push(groupLabel)
+    }
+
+    const score = skillGroups.length > 0
+      ? Math.round((matched_critical.length / skillGroups.length) * 100)
+      : 0
+
+    return { matched_critical, missing_critical, score }
+  }
+
+  /**
+   * Problem 7: Normalize raw JD text into structured format for scoring
+   */
+  private static normalizeJD(jobDescription: string): NormalizedJD {
+    const lines = jobDescription.split('\n')
+    let section: 'none' | 'required' | 'preferred' | 'responsibilities' = 'none'
+    const required_skills_raw: string[] = []
+    const preferred_skills: string[] = []
+    const responsibilities: string[] = []
+    let title: string | null = null
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      if (/^job\s+title[:\s]+/i.test(trimmed)) {
+        title = trimmed.replace(/^job\s+title[:\s]+/i, '').trim(); continue
+      }
+      if (/required\s+skills?|must\s+have|mandatory|essential\s+skills?|key\s+requirements?/i.test(trimmed)) {
+        section = 'required'; continue
+      }
+      if (/responsibilities|duties|key\s+responsibilities/i.test(trimmed)) {
+        section = 'responsibilities'; continue
+      }
+      if (/preferred|nice\s+to\s+have|good\s+to\s+have|bonus|desired|optional/i.test(trimmed)) {
+        section = 'preferred'; continue
+      }
+      if (/benefits|what\s+we\s+offer/i.test(trimmed)) {
+        section = 'none'; continue
+      }
+      const cleaned = trimmed.replace(/^[-•*\d.)\s]+/, '').trim()
+      if (cleaned.length > 2) {
+        if (section === 'required') required_skills_raw.push(cleaned)
+        else if (section === 'responsibilities') responsibilities.push(cleaned)
+        else if (section === 'preferred') preferred_skills.push(cleaned)
+      }
+    }
+
+    return {
+      title,
+      required_skills: required_skills_raw.map(s => this.parseORGroup(s)),
+      preferred_skills: preferred_skills.slice(0, 10),
+      experience_required: this.extractExperienceRequirement(jobDescription),
+      responsibilities: responsibilities.slice(0, 15),
+      location: this.extractJobLocation(jobDescription)
+    }
   }
 
   private static buildLLMPrompt(resumeText: string, jobDescription: string): string {
     // Extract required skills for explicit checklist
     const requiredSkills = this.parseRequiredSkillsForPrompt(jobDescription)
     const skillChecklist = requiredSkills.length > 0
-      ? `\n[REQUIRED SKILLS CHECKLIST - YOU MUST EVALUATE EACH ONE]\nFor EVERY skill below, determine if the resume satisfies it (directly or via equivalent tool):\n${requiredSkills.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\nRules:\n- "or" separated skills (e.g. "UiPath or Blue Prism or Automation Anywhere"): matched if resume has ANY one of them\n- A skill is MATCHED if explicitly mentioned OR demonstrated through equivalent tools/projects\n- A skill is MISSING if there is NO evidence in the resume, not even indirect\n- Put matched skills in matched_critical or matched_important\n- Put missing skills in missing_critical\n- Your skill_match score MUST reflect how many of these ${requiredSkills.length} skills are covered\n`
+      ? `\n[REQUIRED SKILLS CHECKLIST - ALL ${requiredSkills.length} SKILLS ARE REQUIRED/CRITICAL]\nFor EVERY skill below, determine if the resume satisfies it (directly or via equivalent tool):\n${requiredSkills.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\nRules:\n- ALL ${requiredSkills.length} skills above are REQUIRED/CRITICAL — do NOT reclassify any as optional based on domain knowledge\n- "or" separated skills (e.g. "UiPath or Blue Prism or Automation Anywhere"): MATCHED if resume has ANY one of them\n- A skill is MATCHED only if EXPLICIT evidence exists in resume (exact skill name or clear equivalent)\n- A skill is MISSING if there is NO evidence in the resume, not even indirect\n- matched_critical = ONLY checklist skills that ARE found in resume (copy exact checklist text as label)\n- missing_critical = ONLY checklist skills that are NOT found in resume (copy exact checklist text as label)\n- matched_important = skills found in resume that are NOT from this checklist (bonus/extra skills only)\n- FORBIDDEN: Do NOT put checklist skills into matched_important — they go into matched_critical or missing_critical only\n- CRITICAL: For each matched_critical, you MUST provide exact evidence quote from resume\n- skill_match score formula: round((matched_critical.length / ${requiredSkills.length}) * 100) — compute this exactly\n- Example: if 3 of 8 checklist skills matched → score = 38; if 6 of 8 matched → score = 75\n`
       : ''
 
     return `Extract data from this resume and score ONLY skill_match, project_relevance, and resume_quality.

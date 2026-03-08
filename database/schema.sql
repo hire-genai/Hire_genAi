@@ -108,9 +108,6 @@ CREATE TYPE ticket_priority AS ENUM ('low', 'medium', 'high', 'urgent');
 -- Subscription status
 CREATE TYPE subscription_status AS ENUM ('active', 'trialing', 'past_due', 'cancelled', 'paused');
 
--- Contact message status
-CREATE TYPE contact_message_status AS ENUM ('new_lead', 'contacted', 'qualified', 'closed');
-
 -- Assessment submission status (for partial saves)
 CREATE TYPE assessment_status AS ENUM ('partial', 'completed');
 
@@ -339,27 +336,30 @@ CREATE INDEX idx_recruitment_assessments_created_at ON recruitment_assessments (
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
--- 4a. contact_messages
--- WHY: Stores contact form submissions from /contact page.
---      Explicitly used in /api/contact/route.ts INSERT statement.
--- USED BY: /contact → /api/contact
+-- 4a. contact_leads
+-- WHY: Stores contact form submissions from the new contact page.
+--      Captures detailed company information and hiring needs.
+-- USED BY: /contact → /api/contact-lead
 -- ---------------------------------------------------------------------------
-CREATE TABLE contact_messages (
-  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  full_name       TEXT NOT NULL,
-  work_email      TEXT NOT NULL,
-  company_name    TEXT,
-  phone_number    TEXT,
-  subject         TEXT NOT NULL,
-  message         TEXT NOT NULL,
-  agreed_to_terms BOOLEAN NOT NULL DEFAULT FALSE,
-  status          contact_message_status NOT NULL DEFAULT 'new_lead',
-  responded_at    TIMESTAMPTZ,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE contact_leads (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_name    VARCHAR(255) NOT NULL,
+  contact_person  VARCHAR(255) NOT NULL,
+  mobile          VARCHAR(50) NOT NULL,
+  email           VARCHAR(255) NOT NULL,
+  company_size    VARCHAR(50) NOT NULL,
+  industry        VARCHAR(100) NOT NULL,
+  tools           TEXT[],
+  pain_points     TEXT,
+  budget          VARCHAR(100),
+  timeline        VARCHAR(100),
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_contact_messages_status ON contact_messages (status);
-CREATE INDEX idx_contact_messages_work_email ON contact_messages (work_email);
+CREATE INDEX idx_contact_leads_email ON contact_leads(email);
+CREATE INDEX idx_contact_leads_company_name ON contact_leads(company_name);
+CREATE INDEX idx_contact_leads_created_at ON contact_leads(created_at);
 
 
 -- ============================================================================
