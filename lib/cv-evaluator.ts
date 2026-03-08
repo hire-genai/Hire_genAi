@@ -42,7 +42,7 @@ EXTRACTION REQUIREMENTS:
 // ============================================================================
 
 type EligibilityStatus = "PASS" | "FAIL"
-type Verdict = "Strong Match" | "Good Match" | "Borderline" | "Reject"
+type Verdict = "Strong Match" | "Good Match" | "Moderate Match" | "Weak Match" | "Reject"
 type MatchLevel = "Below" | "Within" | "Above"
 type CertStatus = "issued" | "pursuing" | "expired"
 type JobHoppingRisk = "Low" | "Medium" | "High"
@@ -1023,88 +1023,70 @@ export class CVEvaluator {
   }
 
   // =========================================================================
-  // PHASE 2: RISK ADJUSTMENT & SCORE CAPPING
+  // PHASE 2: PENALTY ENGINE (applied to parameter scores BEFORE weighting)
   // =========================================================================
 
   /**
-   * Identify risk flags and apply score caps
-   * FIX C: Added production exposure check with score cap at 65
+   * Apply penalty engine to individual parameter scores BEFORE weighted calculation.
+   * Penalties reduce specific parameter scores, not the final score directly.
+   * This prevents sudden score drops and gives transparent, explainable results.
    */
-  private static applyRiskAdjustments(
-    rawScore: number,
+  private static applyPenaltyEngine(
     scores: CVEvaluationResult['scores'],
     llmData: LLMExtractionResponse,
-    jd: string // Added to check if production role
-  ): { 
-    finalScore: number
-    criticalGaps: string[]
+    jd: string
+  ): {
+    penalizedScores: CVEvaluationResult['scores']
     riskFlags: string[]
-    scoreCap: number | null 
+    criticalGaps: string[]
   } {
-    const criticalGaps: string[] = []
     const riskFlags: string[] = []
-    let scoreCap: number | null = null
-    
-    // Risk flags from LLM extraction (DOMAIN-AGNOSTIC)
-    if (!llmData.has_debugging_experience) {
-      riskFlags.push("No debugging/maintenance experience mentioned")
-    }
-    if (!llmData.has_cloud_exposure) {
-      riskFlags.push("No cloud exposure mentioned")
-    }
-    if (llmData.career_gaps_months.some(g => g > 6)) {
-      riskFlags.push("Career gap > 6 months detected")
-    }
-    
-    // FIX C: Production exposure check - if JD is production role and no prod experience
-    const isProductionRole = this.isProductionRole(jd)
-    if (isProductionRole && !llmData.has_production_deployment) {
-      riskFlags.push("No production deployment experience")
-    }
-    
-    // FIX F: Tenure stability - check for job hopping risk
-    if (llmData.average_tenure_months !== null && llmData.average_tenure_months < 12) {
-      riskFlags.push("High job hopping risk")
-    }
-    
-    // Apply score adjustments
-    let finalScore = rawScore
+    const criticalGaps: string[] = []
 
-    // Problem 5: Soft skill score penalties — no hard clamping, multiplicative penalties only
+    // Deep copy scores to avoid mutating originals
+    const penalizedScores: CVEvaluationResult['scores'] = JSON.parse(JSON.stringify(scores))
+
+    // --- PENALTY 1: Missing critical skills → reduce skill_match ---
     const missingCount = scores.skill_match.missing_critical.length
-    if (missingCount === 1) {
-      finalScore = Math.round(finalScore * 0.85)
-      riskFlags.push(`1 critical skill missing: ${scores.skill_match.missing_critical[0]}`)
-    } else if (missingCount === 2) {
-      finalScore = Math.round(finalScore * 0.7)
-      riskFlags.push(`${missingCount} critical skills missing: ${scores.skill_match.missing_critical.slice(0, 2).join(', ')}`)
-    } else if (missingCount >= 3) {
-      finalScore = Math.round(finalScore * 0.5)
-      riskFlags.push(`${missingCount} critical skills missing: ${scores.skill_match.missing_critical.slice(0, 3).join(', ')}`)
-    }
-
-    // Add to criticalGaps for transparency
     if (missingCount > 0) {
+      const penalty = Math.min(missingCount * 5, 20)  // -5 per missing, max -20
+      penalizedScores.skill_match.score = Math.max(0, penalizedScores.skill_match.score - penalty)
+      riskFlags.push(`${missingCount} critical skill(s) missing: ${scores.skill_match.missing_critical.slice(0, 3).join(', ')}`)
       criticalGaps.push(`Missing critical skills: ${scores.skill_match.missing_critical.join(', ')}`)
     }
-    
-    // Cap at 65 if production role but no production experience
+
+    // --- PENALTY 2: Career gap > 6 months → reduce resume_quality ---
+    if (llmData.career_gaps_months.some(g => g > 6)) {
+      penalizedScores.resume_quality.score = Math.max(0, penalizedScores.resume_quality.score - 5)
+      riskFlags.push("Career gap > 6 months detected")
+    }
+
+    // --- PENALTY 3: No cloud exposure → reduce skill_match slightly ---
+    if (!llmData.has_cloud_exposure) {
+      penalizedScores.skill_match.score = Math.max(0, penalizedScores.skill_match.score - 3)
+      riskFlags.push("No cloud exposure mentioned")
+    }
+
+    // --- PENALTY 4: No debugging/maintenance → reduce project_relevance ---
+    if (!llmData.has_debugging_experience) {
+      penalizedScores.project_relevance.score = Math.max(0, penalizedScores.project_relevance.score - 3)
+      riskFlags.push("No debugging/maintenance experience mentioned")
+    }
+
+    // --- PENALTY 5: Production role but no prod experience → reduce project_relevance ---
+    const isProductionRole = this.isProductionRole(jd)
     if (isProductionRole && !llmData.has_production_deployment) {
-      if (finalScore > 65) {
-        finalScore = 65
-        scoreCap = 65
-      }
+      penalizedScores.project_relevance.score = Math.max(0, penalizedScores.project_relevance.score - 5)
+      riskFlags.push("No production deployment experience")
     }
-    
-    // Cap at 65 if multiple risk flags (3+)
-    if (riskFlags.length >= 3) {
-      if (finalScore > 65) {
-        finalScore = 65
-        scoreCap = 65
-      }
+
+    // --- PENALTY 6: Job hopping risk → reduce resume_quality ---
+    if (llmData.average_tenure_months !== null && llmData.average_tenure_months < 12) {
+      penalizedScores.resume_quality.score = Math.max(0, penalizedScores.resume_quality.score - 5)
+      riskFlags.push("High job hopping risk")
     }
-    
-    return { finalScore, criticalGaps, riskFlags, scoreCap }
+
+    return { penalizedScores, riskFlags, criticalGaps }
   }
 
   /**
@@ -1212,53 +1194,42 @@ export class CVEvaluator {
 
   /**
    * Determine final verdict based on score and eligibility
-   * 
-   * Verdict Logic:
-   * - 80+ with no missing critical = Strong Match
-   * - 80+ with missing critical = Good Match (protected by FIX E)
-   * - 65-79 = Good Match
-   * - 55-64 = Borderline (requires manual review)
-   * - <55 = Reject
-   * 
-   * Note: Score caps in applyRiskAdjustments() enforce these ranges:
-   * - 2+ critical skills missing → capped at 54 (Forces "Reject" verdict)
-   * - 1 critical skill missing → capped at 64 (Forces "Borderline" verdict)
-   * - Production role + no prod exp → capped at 65
-   * - 3+ risk flags → capped at 65
-   * 
-   * Skill matching affects SCORING only, not eligibility gates.
-   * Low scores naturally lead to rejection via verdict thresholds.
+   *
+   * ATS-style 5-level classification:
+   * ≥75 → Strong Match   (qualified, interview invite)
+   * ≥60 → Good Match     (qualified, interview invite)
+   * ≥40 → Moderate Match (NOT interview, needs review)
+   * ≥25 → Weak Match     (NOT interview)
+   * <25 → Reject
+   *
+   * Hard rule: skill_match < 30 → Reject regardless of total score
+   * Interview is only sent to candidates with score ≥ 60 (qualified=true)
    */
   private static determineVerdict(
-    score: number, 
+    score: number,
     eligibility: CVEvaluationResult['eligibility'],
     criticalGaps: string[],
-    missingCritical: string[] // FIX E: Added to check for missing critical skills
+    skillMatchScore: number
   ): { verdict: Verdict; qualified: boolean } {
     // Any eligibility gate failure = Reject
     if (eligibility.fail_reasons.length > 0) {
       return { verdict: "Reject", qualified: false }
     }
-    
-    // FIX D: Low score hard reject (< 55 even if gates pass)
-    if (score < 55) {
+
+    // Hard rule: skill_match < 30 → Reject
+    if (skillMatchScore < 30) {
       return { verdict: "Reject", qualified: false }
     }
-    
-    // FIX E: Strong Match Protection - missing_critical blocks Strong Match
-    const hasMissingCritical = missingCritical.length > 0 || criticalGaps.length > 0
-    
-    // Score-based verdict
-    if (score >= 80 && !hasMissingCritical) {
+
+    // Score-based classification
+    if (score >= 75) {
       return { verdict: "Strong Match", qualified: true }
-    } else if (score >= 80 && hasMissingCritical) {
-      // FIX E: Score >= 80 but missing critical = max Good Match
+    } else if (score >= 60) {
       return { verdict: "Good Match", qualified: true }
-    } else if (score >= 65) {
-      return { verdict: "Good Match", qualified: true }
-    } else if (score >= 55) {
-      // FIX D: Borderline is now 55-64 only
-      return { verdict: "Borderline", qualified: false }
+    } else if (score >= 40) {
+      return { verdict: "Moderate Match", qualified: false }
+    } else if (score >= 25) {
+      return { verdict: "Weak Match", qualified: false }
     } else {
       return { verdict: "Reject", qualified: false }
     }
@@ -1274,27 +1245,25 @@ export class CVEvaluator {
     riskAdjustments: CVEvaluationResult['risk_adjustments']
   ): string {
     const parts: string[] = []
-    
+
     if (eligibility.fail_reasons.length > 0) {
       parts.push(`Eligibility failed: ${eligibility.fail_reasons[0]}`)
     }
-    
+
     if (verdict === "Strong Match") {
-      parts.push("Excellent skill match with relevant project experience")
+      parts.push("Excellent fit — strong skill match with relevant experience")
     } else if (verdict === "Good Match") {
-      parts.push("Good overall fit with some areas for development")
-    } else if (verdict === "Borderline") {
-      parts.push("Partial match - requires careful consideration")
+      parts.push("Good overall fit — qualifies for interview")
+    } else if (verdict === "Moderate Match") {
+      parts.push("Partial match — consider for manual review")
+    } else if (verdict === "Weak Match") {
+      parts.push("Weak match — significant skill gaps present")
     }
-    
+
     if (scores.skill_match.missing_critical.length > 0) {
       parts.push(`Missing: ${scores.skill_match.missing_critical.slice(0, 3).join(', ')}`)
     }
-    
-    if (riskAdjustments.score_cap_applied) {
-      parts.push(`Score capped at ${riskAdjustments.score_cap_applied} due to risk factors`)
-    }
-    
+
     return parts.join('. ') || "Evaluation complete"
   }
 
@@ -1459,56 +1428,59 @@ export class CVEvaluator {
         }
       }
 
-      // Calculate raw weighted score
-      const rawScore = this.calculateWeightedScore(scores)
-      console.log(`📊 [CV EVALUATOR] Raw weighted score: ${rawScore}`)
+      // PHASE 2: Apply penalty engine to parameter scores BEFORE weighting
+      // Penalties reduce individual parameter scores (not the final score directly)
+      const penaltyResult = this.applyPenaltyEngine(scores, llmResponse, jobDescription)
+      const penalizedScores = penaltyResult.penalizedScores
+      console.log(`🔧 [CV EVALUATOR] Penalties applied — skill_match: ${scores.skill_match.score} → ${penalizedScores.skill_match.score}, project: ${scores.project_relevance.score} → ${penalizedScores.project_relevance.score}`)
 
-      // PHASE 2: Risk adjustments (FIX C: now includes JD for production role check)
-      const riskResult = this.applyRiskAdjustments(rawScore, scores, llmResponse, jobDescription)
-      console.log(`⚠️ [CV EVALUATOR] Risk-adjusted score: ${riskResult.finalScore} (cap: ${riskResult.scoreCap || 'none'})`)
+      // Calculate final weighted score from penalized parameter scores
+      const finalScore = this.calculateWeightedScore(penalizedScores)
+      console.log(`📊 [CV EVALUATOR] Final weighted score (after penalties): ${finalScore}`)
 
-      // FIX C: Compute production exposure
+      // Compute production exposure
       const productionExposure = this.detectProductionExposure(resumeText, llmResponse)
       console.log(`🏭 [CV EVALUATOR] Production exposure: ${productionExposure.has_prod_experience}`)
 
-      // FIX F: Compute tenure analysis
+      // Compute tenure analysis
       const tenureAnalysis = this.computeTenureAnalysis(llmResponse)
       console.log(`📅 [CV EVALUATOR] Tenure analysis: ${tenureAnalysis.average_tenure_months}mo, risk=${tenureAnalysis.job_hopping_risk}`)
 
-      // FIX G: Calculate explainable score
-      const explainableScore = this.calculateExplainableScore(scores)
+      // Calculate explainable score from penalized scores
+      const explainableScore = this.calculateExplainableScore(penalizedScores)
 
-      // PHASE 3: Final verdict (FIX D+E: updated logic)
+      // PHASE 3: Verdict using new 5-level ATS classification
+      // qualified=true only for score ≥ 60 (Good Match / Strong Match) — these get interview invite
       const { verdict, qualified } = this.determineVerdict(
-        riskResult.finalScore, 
-        eligibility, 
-        riskResult.criticalGaps,
-        scores.skill_match.missing_critical // FIX E: pass missing_critical for Strong Match protection
+        finalScore,
+        eligibility,
+        penaltyResult.criticalGaps,
+        penalizedScores.skill_match.score  // hard rule: skill_match < 30 → Reject
       )
-      console.log(`🏁 [CV EVALUATOR] Verdict: ${verdict} (qualified: ${qualified})`)
+      console.log(`🏁 [CV EVALUATOR] Verdict: ${verdict} (qualified: ${qualified}, score: ${finalScore})`)
 
-      // Build final result with all new fields
+      // Build final result
       const result: CVEvaluationResult = {
         overall: {
-          score_percent: riskResult.finalScore,
+          score_percent: finalScore,
           qualified,
           verdict,
-          reason_summary: this.generateReasonSummary(verdict, eligibility, scores, {
-            critical_gaps: riskResult.criticalGaps,
-            risk_flags: riskResult.riskFlags,
-            score_cap_applied: riskResult.scoreCap
+          reason_summary: this.generateReasonSummary(verdict, eligibility, penalizedScores, {
+            critical_gaps: penaltyResult.criticalGaps,
+            risk_flags: penaltyResult.riskFlags,
+            score_cap_applied: null
           })
         },
         eligibility,
-        scores,
+        scores: penalizedScores,
         risk_adjustments: {
-          critical_gaps: riskResult.criticalGaps,
-          risk_flags: riskResult.riskFlags,
-          score_cap_applied: riskResult.scoreCap
+          critical_gaps: penaltyResult.criticalGaps,
+          risk_flags: penaltyResult.riskFlags,
+          score_cap_applied: null
         },
-        production_exposure: productionExposure,  // FIX C: NEW
-        tenure_analysis: tenureAnalysis,          // FIX F: NEW
-        explainable_score: explainableScore,      // FIX G: NEW
+        production_exposure: productionExposure,
+        tenure_analysis: tenureAnalysis,
+        explainable_score: explainableScore,
         extracted: llmResponse.extracted
       }
 
