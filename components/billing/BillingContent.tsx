@@ -433,6 +433,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
           {/* PayPal Quick Subscribe */}
           <PayPalOverview 
+            companyId={companyId}
             onSubscriptionSuccess={(subscriptionId) => {
               console.log('Subscription successful:', subscriptionId)
               loadBillingData()

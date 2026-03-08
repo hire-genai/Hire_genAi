@@ -1,353 +1,365 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowRight, Mail, MessageSquare, Zap, Facebook, Instagram, Youtube, Linkedin, Lock, Star, Loader2 } from "lucide-react"
+import { Loader2, CheckCircle, ArrowRight } from "lucide-react"
 import Navbar from "@/components/layout/Navbar"
+import Footer from "@/components/layout/Footer"
+
+
+const TOOLS_OPTIONS = [
+  { value: 'ATS', label: 'ATS (Naukri, Monster)' },
+  { value: 'CRM', label: 'CRM (Salesforce, Zoho)' },
+  { value: 'Scheduling', label: 'Scheduling Tools' },
+  { value: 'AssessmentTools', label: 'Assessment Tools' },
+  { value: 'EmailMarketing', label: 'Email Marketing' },
+  { value: 'None', label: 'None - Manual Process' },
+]
 
 export default function ContactPage() {
-  const searchParams = useSearchParams()
+  const router = useRouter()
   const [formData, setFormData] = useState({
-    fullName: '',
-    workEmail: '',
     companyName: '',
-    phoneNumber: '',
-    subject: '',
-    message: ''
+    contactPerson: '',
+    mobile: '',
+    email: '',
+    companySize: '',
+    industry: '',
+    monthlyHires: '',
+    painPoints: '',
+    budget: '',
+    timeline: '',
   })
-  const [agreed, setAgreed] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
+  const [selectedTools, setSelectedTools] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const scrollTo = searchParams?.get('scroll')
-    if (scrollTo) {
-      const timer = setTimeout(() => {
-        const element = document.getElementById(scrollTo)
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth' })
-        }
-        window.history.replaceState({}, '', '/contact')
-      }, 300)
-      return () => clearTimeout(timer)
-    }
-  }, [searchParams])
+  // Check if all required fields are filled
+  const isFormValid = formData.companyName && 
+                     formData.contactPerson && 
+                     formData.email && 
+                     formData.mobile && 
+                     formData.companySize && 
+                     formData.industry &&
+                     formData.email.includes('@') // Basic email validation
+
+  const toggleTool = (value: string) => {
+    setSelectedTools(prev =>
+      prev.includes(value) ? prev.filter(t => t !== value) : [...prev, value]
+    )
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!agreed || isLoading) return
-    
+    setError(null)
     setIsLoading(true)
     try {
-      const response = await fetch('/api/contact', {
+      const response = await fetch('/api/contact-lead', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fullName: formData.fullName,
-          workEmail: formData.workEmail,
-          companyName: formData.companyName,
-          phoneNumber: formData.phoneNumber,
-          subject: formData.subject,
-          message: formData.message,
-          agreedToTerms: agreed
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formData, tools: selectedTools }),
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to submit form')
-      }
-
       const result = await response.json()
-      console.log('Form submitted successfully:', result)
-      setSubmitted(true)
-    } catch (error) {
-      console.error('Error submitting form:', error)
-      alert('Failed to send message. Please try again.')
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || 'Failed to submit. Please try again.')
+      }
+      router.push('/signup')
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong. Please try again.')
     } finally {
       setIsLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50">
+    <div className="min-h-screen bg-white">
       <Navbar />
-      
-      {/* Announcement Banner */}
-      <div className="bg-emerald-50 border-b border-emerald-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-          <div className="flex items-center justify-center">
-            <div className="flex items-center space-x-2 text-emerald-800">
-              <Zap className="w-4 h-4" />
-              <span className="text-sm font-medium">HireGenAI Launches All-New AI-Powered Recruitment Suite</span>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-16">
-        <div className="grid lg:grid-cols-2 gap-12 items-start">
-          {/* Left Side - Info */}
-          <div>
-            <h1 className="text-4xl lg:text-5xl font-bold text-slate-800 mb-6">
-              Get in <span className="text-emerald-600">Touch</span>
+      {/* Hero Section */}
+      <section className="py-20 bg-gradient-to-br from-emerald-50 to-teal-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-slate-900 mb-4">
+              Revolutionize Your Hiring with AI-Powered Recruitment
             </h1>
-            <p className="text-lg text-slate-600 mb-8">
-              Have questions about HireGenAI? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
+            <p className="text-xl text-slate-600 max-w-3xl mx-auto">
+              All-in-one recruitment platform that replaces 15+ tools.
             </p>
-
-            <div className="space-y-6">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Mail className="w-6 h-6 text-emerald-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-800 mb-1">Email Us</h3>
-                  <p className="text-slate-600">support@hire-genai.com</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <MessageSquare className="w-6 h-6 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-800 mb-1">Live Chat</h3>
-                  <p className="text-slate-600">Available Mon-Fri, 9am-6pm IST</p>
-                </div>
-              </div>
-            </div>
           </div>
 
-          {/* Right Side - Form */}
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            {!submitted ? (
-              <>
-                <h2 className="text-2xl font-bold text-slate-800 mb-6">Leave a Message</h2>
-                
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  <div>
-                    <Label htmlFor="fullName" className="text-slate-700">Full Name</Label>
-                    <Input
-                      id="fullName"
-                      value={formData.fullName}
-                      onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                      className="mt-1"
-                      placeholder="Your full name"
-                      required
-                    />
+          {/* Features Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 max-w-4xl mx-auto">
+            {['AI Resume Screening', 'Candidate CRM & Pipeline', 'Automated Interview Scheduling', 'AI Agent for Initial Screening', 'Video Interview Analysis', 'Automated Candidate Communication', 'ATS Integration', 'Analytics & Reporting'].map((feature, idx) => (
+              <div key={idx} className="flex items-center gap-3 text-slate-700">
+                <div className="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center flex-shrink-0">
+                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <span className="text-sm">{feature}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+              {/* Right - Benefits */}
+              <div className="lg:pl-4">
+                <div className="sticky top-8">
+                  <h3 className="text-2xl font-bold text-slate-900 mb-6">Why HireGenAI?</h3>
+                  
+                  <div className="space-y-6">
+                    <div className="flex gap-4">
+                      <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <CheckCircle className="w-6 h-6 text-emerald-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-slate-900 mb-1">All-in-One Platform</h4>
+                        <p className="text-sm text-slate-600">Replace 15+ tools with one unified solution for sourcing, screening, and hiring.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-4">
+                      <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <CheckCircle className="w-6 h-6 text-emerald-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-slate-900 mb-1">AI-Powered Screening</h4>
+                        <p className="text-sm text-slate-600">Our AI analyzes resumes and conducts initial interviews 24/7.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-4">
+                      <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <CheckCircle className="w-6 h-6 text-emerald-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-slate-900 mb-1">Save Time & Money</h4>
+                        <p className="text-sm text-slate-600">Reduce time-to-hire by 80% and cut recruitment costs significantly.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 p-6 bg-slate-50 rounded-xl">
+                    <div className="text-sm text-slate-600 mb-2">Individual tools cost per month</div>
+                    <div className="text-3xl font-bold text-slate-900 mb-1">₹1,61,200</div>
+                    <div className="flex items-center gap-2">
+                      <ArrowRight className="w-4 h-4 text-emerald-600" />
+                      <span className="text-xl font-bold text-emerald-600">HireGenAI: ₹9,700</span>
+                    </div>
+                    <div className="text-sm text-emerald-600 mt-2 font-medium">Save 94% annually</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Left - Form */}
+              <div className="lg:pr-4">
+                <h2 className="text-3xl font-bold text-slate-900 mb-2">Start Your Free Trial</h2>
+                <p className="text-slate-600 mb-8">7 days free • No setup fee • Cancel anytime</p>
+
+                {error && (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                    {error}
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Company Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.companyName}
+                        onChange={e => setFormData({ ...formData, companyName: e.target.value })}
+                        required
+                        placeholder="Your company"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Contact Person <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.contactPerson}
+                        onChange={e => setFormData({ ...formData, contactPerson: e.target.value })}
+                        required
+                        placeholder="Your name"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Email <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={formData.email}
+                        onChange={e => setFormData({ ...formData, email: e.target.value })}
+                        required
+                        placeholder="you@company.com"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Mobile <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        value={formData.mobile}
+                        onChange={e => setFormData({ ...formData, mobile: e.target.value })}
+                        required
+                        placeholder="10-digit number"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Company Size <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={formData.companySize}
+                        onChange={e => setFormData({ ...formData, companySize: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors bg-white appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTEgMUw2IDZMMTEgMSIgc3Ryb2tlPSIjNjQ3NDhiIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==')] bg-no-repeat bg-[right_0.5rem_center] pr-8 text-sm"
+                      >
+                        <option value="">Select size</option>
+                        <option value="1-10">1-10 employees</option>
+                        <option value="11-50">11-50 employees</option>
+                        <option value="51-200">51-200 employees</option>
+                        <option value="200+">200+ employees</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Industry <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={formData.industry}
+                        onChange={e => setFormData({ ...formData, industry: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors bg-white appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTEgMUw2IDZMMTEgMSIgc3Ryb2tlPSIjNjQ3NDhiIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==')] bg-no-repeat bg-[right_0.5rem_center] pr-8 text-sm"
+                      >
+                        <option value="">Select industry</option>
+                        <option value="IT">IT & Software</option>
+                        <option value="Manufacturing">Manufacturing</option>
+                        <option value="Healthcare">Healthcare</option>
+                        <option value="Education">Education</option>
+                        <option value="Retail">Retail</option>
+                        <option value="Finance">Finance & Banking</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div>
-                    <Label htmlFor="workEmail" className="text-slate-700">Work Email</Label>
-                    <Input
-                      id="workEmail"
-                      type="email"
-                      value={formData.workEmail}
-                      onChange={(e) => setFormData({...formData, workEmail: e.target.value})}
-                      className="mt-1"
-                      placeholder="you@company.com"
-                      required
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Biggest Recruitment Challenges
+                    </label>
+                    <textarea
+                      value={formData.painPoints}
+                      onChange={e => setFormData({ ...formData, painPoints: e.target.value })}
+                      rows={3}
+                      placeholder="E.g., Too many unqualified applications, scheduling conflicts, high time-to-hire..."
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors resize-none text-sm"
                     />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Monthly Budget for Recruitment Tools
+                      </label>
+                      <select
+                        value={formData.budget}
+                        onChange={e => setFormData({ ...formData, budget: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors bg-white appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTEgMUw2IDZMMTEgMSIgc3Ryb2tlPSIjNjQ3NDhiIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==')] bg-no-repeat bg-[right_0.5rem_center] pr-8 text-sm"
+                      >
+                        <option value="">Select Budget Range</option>
+                        <option value="&lt;5000">Less than ₹5,000</option>
+                        <option value="5000-20000">₹5,000 – ₹20,000</option>
+                        <option value="20000-50000">₹20,000 – ₹50,000</option>
+                        <option value="50000+">₹50,000+</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Implementation Timeline
+                      </label>
+                      <select
+                        value={formData.timeline}
+                        onChange={e => setFormData({ ...formData, timeline: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors bg-white appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTEgMUw2IDZMMTEgMSIgc3Ryb2tlPSIjNjQ3NDhiIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==')] bg-no-repeat bg-[right_0.5rem_center] pr-8 text-sm"
+                      >
+                        <option value="">Select Timeline</option>
+                        <option value="immediate">Immediate (Within 2 weeks)</option>
+                        <option value="1month">1 Month</option>
+                        <option value="3months">1–3 Months</option>
+                        <option value="6months">3–6 Months</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div>
-                    <Label htmlFor="companyName" className="text-slate-700">Company Name</Label>
-                    <Input
-                      id="companyName"
-                      value={formData.companyName}
-                      onChange={(e) => setFormData({...formData, companyName: e.target.value})}
-                      className="mt-1"
-                      placeholder="Your company name"
-                      required
-                    />
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Current Tools (optional)
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {TOOLS_OPTIONS.map(tool => (
+                        <label key={tool.value} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectedTools.includes(tool.value)}
+                            onChange={() => toggleTool(tool.value)}
+                            className="rounded text-emerald-600 focus:ring-emerald-500"
+                          />
+                          <span className="text-sm text-slate-700">{tool.label}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
 
-                  <div>
-                    <Label htmlFor="phoneNumber" className="text-slate-700">Phone Number (Optional)</Label>
-                    <Input
-                      id="phoneNumber"
-                      type="tel"
-                      value={formData.phoneNumber}
-                      onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})}
-                      className="mt-1"
-                      placeholder="+1 (555) 123-4567"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="subject" className="text-slate-700">Subject</Label>
-                    <Input
-                      id="subject"
-                      value={formData.subject}
-                      onChange={(e) => setFormData({...formData, subject: e.target.value})}
-                      className="mt-1"
-                      placeholder="How can we help?"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="message" className="text-slate-700">Your Message</Label>
-                    <Textarea
-                      id="message"
-                      value={formData.message}
-                      onChange={(e) => setFormData({...formData, message: e.target.value})}
-                      className="mt-1 min-h-[120px]"
-                      placeholder="Tell us more about your needs..."
-                      required
-                    />
-                  </div>
-
-                  <div className="flex items-start space-x-3">
-                    <Checkbox 
-                      id="terms" 
-                      checked={agreed}
-                      onCheckedChange={(checked) => setAgreed(checked as boolean)}
-                    />
-                    <Label htmlFor="terms" className="text-sm text-slate-600 leading-relaxed cursor-pointer">
-                      I agree to the{' '}
-                      <Link href="/terms" className="text-emerald-600 hover:underline">Terms & Conditions</Link>
-                      {' '}and{' '}
-                      <Link href="/privacy" className="text-emerald-600 hover:underline">Privacy Policy</Link>
-                    </Label>
-                  </div>
-
-                  <Button 
+                  <button
                     type="submit"
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-6 text-lg"
-                    disabled={!agreed || isLoading}
+                    disabled={isLoading || !isFormValid}
+                    className={`w-full font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                      isFormValid && !isLoading 
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
                   >
                     {isLoading ? (
                       <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Sending...
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Processing...
                       </>
                     ) : (
                       <>
-                        Send Message
-                        <ArrowRight className="w-5 h-5 ml-2" />
+                        Start 7-Day Free Trial
+                        <ArrowRight className="w-5 h-5" />
                       </>
                     )}
-                  </Button>
+                  </button>
+
+                  <p className="text-xs text-slate-500 text-center">
+                    No credit card required. By signing up, you agree to our{' '}
+                    <Link href="/terms" className="text-emerald-600 hover:underline">Terms</Link>
+                    {' '}and{' '}
+                    <Link href="/privacy" className="text-emerald-600 hover:underline">Privacy Policy</Link>
+                  </p>
                 </form>
-              </>
-            ) : (
-              <div className="text-center py-8">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-2">Message Sent!</h2>
-                <p className="text-slate-600 mb-6">
-                  Thank you for reaching out. We'll get back to you within 24 hours.
-                </p>
-                <Link href="/">
-                  <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                    Return to Home
-                  </Button>
-                </Link>
               </div>
-            )}
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Footer */}
-      <footer className="bg-slate-900 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-12 mb-12">
-            <div className="md:col-span-3">
-              <h3 className="text-2xl font-bold mb-2">
-                <span className="text-white">Hire</span>
-                <span className="text-emerald-400">GenAI</span>
-              </h3>
-              <p className="text-sm text-slate-400 mb-4">By SKYGENAI</p>
-              <p className="text-slate-400 mb-6 text-sm leading-relaxed">
-                HireGenAI pre-screens and interviews candidates, helping you shortlist talent 20x faster and more efficiently.
-              </p>
-              <p className="text-slate-400 mb-6 text-sm font-medium">
-                Email: <a href="mailto:support@hire-genai.com" className="text-emerald-400 hover:text-emerald-300 transition-colors">support@hire-genai.com</a>
-              </p>
-              <div className="flex space-x-4">
-                <a href="#" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  <Facebook className="w-5 h-5" />
-                </a>
-                <a href="#" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  <Instagram className="w-5 h-5" />
-                </a>
-                <a href="#" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  <Youtube className="w-5 h-5" />
-                </a>
-                <a href="https://www.linkedin.com/company/hire-genai" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  <Linkedin className="w-5 h-5" />
-                </a>
-              </div>
-            </div>
-
-            <div className="md:col-span-2">
-              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Product</h4>
-              <ul className="space-y-3 text-slate-400 text-sm">
-                <li><Link href="/demo-en" className="hover:text-emerald-400 transition-colors">Try the Demo</Link></li>
-                <li><Link href="/pricing" className="hover:text-emerald-400 transition-colors">Pricing</Link></li>
-                <li><Link href="/?scroll=assessment" className="hover:text-emerald-400 transition-colors cursor-pointer">Assessment</Link></li>
-                <li><Link href="/?scroll=faq" className="hover:text-emerald-400 transition-colors cursor-pointer">FAQs</Link></li>
-              </ul>
-            </div>
-
-            <div className="md:col-span-2">
-              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Company</h4>
-              <ul className="space-y-3 text-slate-400 text-sm">
-                <li><Link href="/about" className="hover:text-emerald-400 transition-colors">About us</Link></li>
-                <li><Link href="/contact" className="text-emerald-400 font-medium">Contact</Link></li>
-                <li><Link href="/book-meeting" className="hover:text-emerald-400 transition-colors">Book a Meeting</Link></li>
-                <li><Link href="/owner-login" className="hover:text-emerald-400 transition-colors">Admin</Link></li>
-              </ul>
-            </div>
-
-            <div className="md:col-span-2">
-              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Legal</h4>
-              <ul className="space-y-3 text-slate-400 text-sm">
-                <li><Link href="/privacy" className="hover:text-emerald-400 transition-colors">Privacy Policy</Link></li>
-                <li><Link href="/terms" className="hover:text-emerald-400 transition-colors">Terms and Conditions</Link></li>
-              </ul>
-            </div>
-
-            <div className="md:col-span-3">
-              <div className="space-y-4">
-                <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                  <p className="text-xs text-slate-400 mb-2 font-semibold">Trustpilot</p>
-                  <div className="flex items-center gap-2 mb-2">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                    ))}
-                  </div>
-                  <p className="text-sm font-semibold text-white">TrustScore 4.5</p>
-                </div>
-                <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Lock className="w-4 h-4 text-emerald-400" />
-                    <p className="text-sm font-semibold text-white">GDPR COMPLIANT</p>
-                  </div>
-                  <p className="text-xs text-slate-400">Your data is secure and compliant</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-slate-800 pt-8 text-center text-slate-400 text-sm">
-            <p>&copy; 2025 HireGenAI. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }

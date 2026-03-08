@@ -9,9 +9,10 @@ import { useToast } from '@/hooks/use-toast'
 interface PayPalOverviewProps {
   onSubscriptionSuccess?: (subscriptionId: string) => void
   planId?: string
+  companyId?: string
 }
 
-export default function PayPalOverview({ onSubscriptionSuccess, planId = "P-4N498891U73853430ND4MFXY" }: PayPalOverviewProps) {
+export default function PayPalOverview({ onSubscriptionSuccess, planId = "P-4N498891U73853430ND4MFXY", companyId }: PayPalOverviewProps) {
   const [paypalLoaded, setPaypalLoaded] = useState(false)
   const [paypalError, setPaypalError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -54,12 +55,58 @@ export default function PayPalOverview({ onSubscriptionSuccess, planId = "P-4N49
             plan_id: planId
           })
         },
-        onApprove: function (data: any) {
+        onApprove: async function (data: any) {
           console.log('Subscription approved:', data)
-          toast({
-            title: 'Success!',
-            description: `Subscription successful! ID: ${data.subscriptionID}`,
-          })
+          
+          // Verify subscription on backend
+          if (companyId) {
+            try {
+              console.log('Verifying subscription with backend...')
+              const response = await fetch('/api/paypal/verify-subscription', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  subscriptionId: data.subscriptionID,
+                  companyId: companyId,
+                }),
+              })
+
+              const result = await response.json()
+
+              if (!response.ok || !result.ok) {
+                console.error('Backend verification failed:', result)
+                toast({
+                  title: 'Verification Failed',
+                  description: result.error || 'Failed to verify subscription. Please contact support.',
+                  variant: 'destructive'
+                })
+                setLoading(false)
+                return
+              }
+
+              console.log('Subscription verified successfully:', result.subscription)
+              toast({
+                title: 'Success!',
+                description: `Subscription activated! ID: ${data.subscriptionID}`,
+              })
+            } catch (error) {
+              console.error('Error verifying subscription:', error)
+              toast({
+                title: 'Verification Error',
+                description: 'Failed to verify subscription. Please contact support.',
+                variant: 'destructive'
+              })
+              setLoading(false)
+              return
+            }
+          } else {
+            console.warn('No companyId provided, skipping backend verification')
+            toast({
+              title: 'Success!',
+              description: `Subscription successful! ID: ${data.subscriptionID}`,
+            })
+          }
+
           onSubscriptionSuccess?.(data.subscriptionID)
           setLoading(false)
         },
@@ -142,7 +189,7 @@ export default function PayPalOverview({ onSubscriptionSuccess, planId = "P-4N49
 
       {/* PayPal SDK Script */}
       <Script
-        src="https://www.paypal.com/sdk/js?client-id=AQbce0p4a4o3MirF8A9e3B8QjmxcyvdM7sElrPr9yj985xukZ7w0sCQaeY95UO0SLgv91tOREpx94rkQ&vault=true&intent=subscription"
+        src="https://www.paypal.com/sdk/js?client-id=Afdjg1JmD56IYz9oChbbD8NMkEfgpuZAwF-RAynpIr92FfgX5QpUWgdacrW29GYIK0erewTkdJ7WtsOq&vault=true&intent=subscription"
         onLoad={() => setPaypalLoaded(true)}
         strategy="lazyOnload"
       />

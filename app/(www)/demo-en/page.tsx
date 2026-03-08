@@ -5,15 +5,8 @@ import { useState as useStateNav } from "react";
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/layout/Navbar";
 import Link from "next/link";
-import {
-  Facebook,
-  Instagram,
-  Youtube,
-  Linkedin,
-  Lock,
-  Star,
-  Zap,
-} from "lucide-react";
+import { Zap } from "lucide-react";
+import Footer from "@/components/layout/Footer";
 
 // Screen identifiers
 const SCREENS = ["job", "candidate", "interview", "assessment"] as const;
@@ -778,7 +771,7 @@ export default function DemoEnPage() {
 
               {/* Tabs */}
               <div className="job-tabs-container">
-                {["Basic Info", "Requirements", "Responsibilities", "Compensation", "Visa & Others", "Resume Screening", "Interview Process"].map((tab, idx) => (
+                {["Basic Info", "Job Description", "Interview Questions", "Team & Planning"].map((tab, idx) => (
                   <div 
                     key={tab}
                     onClick={() => scrollToSection(idx)}
@@ -790,321 +783,247 @@ export default function DemoEnPage() {
               </div>
 
               {/* Basic Information Section */}
-              <div ref={basicInfoRef} className="form-section">
-                <div className="section-header">
-                  <span className="section-header-icon">💼</span>
+              <div ref={basicInfoRef} style={{ marginBottom: 32 }}>
+                <h4 style={{ fontWeight: 600, fontSize: 18, borderBottom: "1px solid #e2e8f0", paddingBottom: 8, marginBottom: 16 }}>Basic Information</h4>
+                
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                   <div>
-                    <div className="section-header-title">Basic Information</div>
-                    <div className="section-header-subtitle">Enter the fundamental details about the job position</div>
-                  </div>
-                </div>
-
-                <div className="form-grid">
-                  <div>
-                    <label className="input-label">Job Title *</label>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Job Title <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
                     <input
-                      className="form-input"
+                      type="text"
                       value="RPA Developer"
-                      readOnly
-                      style={{ background: "#f8fafc", cursor: "default" }}
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
                     />
                   </div>
-                  <div>
-                    <label className="input-label">Company *</label>
-                    <input
-                      className="form-input"
-                      value="HireGenAI Demo"
-                      readOnly
-                      style={{ background: "#f8fafc", cursor: "default" }}
-                    />
-                  </div>
-                </div>
 
-                <div className="form-grid">
                   <div>
-                    <label className="input-label">Location *</label>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Department <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
+                    <select
+                      value="Engineering"
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
+                    >
+                      <option value="Engineering">Engineering</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Location <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
                     <input
-                      className="form-input"
-                      value="Remote / San Francisco, CA"
-                      readOnly
-                      style={{ background: "#f8fafc", cursor: "default" }}
+                      type="text"
+                      value="San Francisco, CA"
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
                     />
                   </div>
+
                   <div>
-                    <label className="input-label">Work Arrangement *</label>
-                    <input
-                      className="form-input"
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Job Type <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
+                    <select
                       value="Full-time"
-                      readOnly
-                      style={{ background: "#f8fafc", cursor: "default" }}
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
+                    >
+                      <option value="Full-time">Full-time</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Work Mode <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
+                    <select
+                      value="Hybrid"
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
+                    >
+                      <option value="Hybrid">Hybrid</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Currency
+                    </label>
+                    <select
+                      value="USD"
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
+                    >
+                      <option value="USD">USD ($)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Salary Range - Min
+                    </label>
+                    <input
+                      type="text"
+                      value="85000"
+                      disabled
+                      placeholder="e.g. 120000"
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label className="input-label">Job Level / Seniority</label>
-                  <input
-                    className="form-input"
-                    value="Mid-level"
-                    readOnly
-                    style={{ background: "#f8fafc", cursor: "default" }}
-                  />
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Salary Range - Max
+                    </label>
+                    <input
+                      type="text"
+                      value="120000"
+                      disabled
+                      placeholder="e.g. 180000"
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Application Deadline
+                    </label>
+                    <input
+                      type="date"
+                      value="2025-04-30"
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Expected Start Date
+                    </label>
+                    <input
+                      type="date"
+                      value="2025-05-15"
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Requirements Section */}
-              <div ref={requirementsRef} style={{ marginBottom: 24, scrollMarginTop: 100 }}>
-                <div style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: 8, 
-                  marginBottom: 16,
-                  paddingBottom: 12,
-                  borderBottom: "1px solid #e2e8f0"
-                }}>
-                  <span style={{ fontSize: 18 }}>🎯</span>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 16, color: "#1e293b" }}>Requirements</div>
-                    <div style={{ fontSize: 12, color: "#64748b" }}>Describe the background and skills expected</div>
-                  </div>
+              {/* Job Description Section */}
+              <div ref={requirementsRef} style={{ marginBottom: 32, scrollMarginTop: 100 }}>
+                <h4 style={{ fontWeight: 600, fontSize: 18, borderBottom: "1px solid #e2e8f0", paddingBottom: 8, marginBottom: 16 }}>Job Description</h4>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                    Job Description <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
+                  <textarea
+                    rows={4}
+                    value="We are looking for an experienced RPA Developer to join our automation team. You will be responsible for designing, developing, and maintaining robotic process automation solutions using UiPath and other RPA tools. The ideal candidate will have strong technical skills and experience in process analysis and automation."
+                    disabled
+                    style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed", resize: "none", overflow: "hidden" }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                    Key Responsibilities
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={"Design and develop RPA bots using UiPath/Automation Anywhere\nAnalyze business processes for automation opportunities\nDeploy, monitor and maintain production bots\nCollaborate with business teams to gather requirements"}
+                    disabled
+                    style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed", resize: "none" }}
+                    placeholder="Enter each responsibility on a new line"
+                  />
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                   <div>
-                    <label className="input-label">Educational Background</label>
-                    <input
-                      className="form-input"
-                      value="Bachelor's in Computer Science, IT, or related field"
-                      readOnly
-                      style={{ background: "#f8fafc", cursor: "default" }}
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Required Skills <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={"UiPath Studio development\nProcess analysis and documentation\nBot deployment and monitoring\nException handling and logging"}
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed", resize: "none" }}
+                      placeholder="Enter each skill on a new line"
                     />
                   </div>
+
                   <div>
-                    <label className="input-label">Years of Experience</label>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Preferred Skills
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={"Blue Prism or Automation Anywhere\nMachine Learning integration\nOCR and Document Understanding\nOrchestrator administration"}
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed", resize: "none" }}
+                      placeholder="Enter each skill on a new line"
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Years of Experience Required <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
                     <input
-                      className="form-input"
+                      type="text"
                       value="3-5 years"
-                      readOnly
-                      style={{ background: "#f8fafc", cursor: "default" }}
+                      disabled
+                      placeholder="e.g. 0-2 years, 3-5 years, 2+ years"
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
                     />
                   </div>
-                </div>
 
-                <div style={{ marginBottom: 16 }}>
-                  <label className="input-label">Technical Skills</label>
-                  <textarea
-                    className="form-input"
-                    rows={3}
-                    value="UiPath, Automation Anywhere, Blue Prism, Python, .NET, SQL, REST APIs, Process Mining Tools"
-                    readOnly
-                    style={{ background: "#f8fafc", cursor: "default", resize: "none" }}
-                  />
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                   <div>
-                    <label className="input-label">Must-Have Skills</label>
-                    <textarea
-                      className="form-input"
-                      rows={3}
-                      value="UiPath Studio development&#10;Process analysis and documentation&#10;Bot deployment and monitoring&#10;Exception handling and logging"
-                      readOnly
-                      style={{ background: "#f8fafc", cursor: "default", resize: "none" }}
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Required Education
+                    </label>
+                    <input
+                      type="text"
+                      value="Bachelor's in Computer Science, IT, or related field"
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
                     />
                   </div>
+
                   <div>
-                    <label className="input-label">Nice-to-Have Skills</label>
-                    <textarea
-                      className="form-input"
-                      rows={3}
-                      value="Blue Prism or Automation Anywhere&#10;Machine Learning integration&#10;OCR and Document Understanding&#10;Orchestrator administration"
-                      readOnly
-                      style={{ background: "#f8fafc", cursor: "default", resize: "none" }}
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Certifications Required
+                    </label>
+                    <input
+                      type="text"
+                      value="UiPath Advanced Developer Certification"
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Languages Required
+                    </label>
+                    <input
+                      type="text"
+                      value="English (Fluent)"
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Responsibilities Section */}
+              {/* Interview Questions Section */}
               <div ref={responsibilitiesRef} style={{ marginBottom: 24, scrollMarginTop: 100 }}>
-                <div style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: 8, 
-                  marginBottom: 16,
-                  paddingBottom: 12,
-                  borderBottom: "1px solid #e2e8f0"
-                }}>
-                  <span style={{ fontSize: 18 }}>👥</span>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 16, color: "#1e293b" }}>Responsibilities</div>
-                    <div style={{ fontSize: 12, color: "#64748b" }}>Outline what the role will do</div>
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 16 }}>
-                  <label className="input-label">Day-to-Day Duties</label>
-                  <textarea
-                    className="form-input"
-                    rows={4}
-                    value="Design and develop RPA bots using UiPath/Automation Anywhere&#10;Analyze business processes for automation opportunities&#10;Deploy, monitor and maintain production bots&#10;Collaborate with business teams to gather requirements"
-                    readOnly
-                    style={{ background: "#f8fafc", cursor: "default", resize: "none" }}
-                  />
-                </div>
-
-                <div>
-                  <label className="input-label">Team Collaboration / Stakeholders</label>
-                  <textarea
-                    className="form-input"
-                    rows={2}
-                    value="Business Analysts, IT Infrastructure team, Process Owners, QA team"
-                    readOnly
-                    style={{ background: "#f8fafc", cursor: "default", resize: "none" }}
-                  />
-                </div>
-              </div>
-
-              {/* Compensation Section */}
-              <div ref={compensationRef} style={{ marginBottom: 24, scrollMarginTop: 100 }}>
-                <div style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: 8, 
-                  marginBottom: 16,
-                  paddingBottom: 12,
-                  borderBottom: "1px solid #e2e8f0"
-                }}>
-                  <span style={{ fontSize: 18 }}>🏢</span>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 16, color: "#1e293b" }}>Compensation & Benefits</div>
-                    <div style={{ fontSize: 12, color: "#64748b" }}>Share ranges only if you intend to publish them</div>
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
-                  <div>
-                    <label className="input-label">Salary Min</label>
-                    <input
-                      className="form-input"
-                      value="$85,000"
-                      readOnly
-                      style={{ background: "#f8fafc", cursor: "default" }}
-                    />
-                  </div>
-                  <div>
-                    <label className="input-label">Salary Max</label>
-                    <input
-                      className="form-input"
-                      value="$120,000"
-                      readOnly
-                      style={{ background: "#f8fafc", cursor: "default" }}
-                    />
-                  </div>
-                  <div>
-                    <label className="input-label">Period</label>
-                    <input
-                      className="form-input"
-                      value="Yearly"
-                      readOnly
-                      style={{ background: "#f8fafc", cursor: "default" }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="input-label">Perks & Benefits</label>
-                  <textarea
-                    className="form-input"
-                    rows={2}
-                    value="Health insurance, 401(k) matching, Remote work flexibility, Professional development budget, Wellness programs"
-                    readOnly
-                    style={{ background: "#f8fafc", cursor: "default", resize: "none" }}
-                  />
-                </div>
-              </div>
-
-              {/* Visa & Others Section */}
-              <div ref={visaRef} style={{ marginBottom: 24, scrollMarginTop: 100 }}>
-                <div style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: 8, 
-                  marginBottom: 16,
-                  paddingBottom: 12,
-                  borderBottom: "1px solid #e2e8f0"
-                }}>
-                  <span style={{ fontSize: 18 }}>🌍</span>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 16, color: "#1e293b" }}>Visa & Others</div>
-                    <div style={{ fontSize: 12, color: "#64748b" }}>Specify visa sponsorship and other requirements</div>
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <div>
-                    <label className="input-label">Visa Sponsorship</label>
-                    <input
-                      className="form-input"
-                      value="Available for qualified candidates"
-                      readOnly
-                      style={{ background: "#f8fafc", cursor: "default" }}
-                    />
-                  </div>
-                  <div>
-                    <label className="input-label">Work Authorization</label>
-                    <input
-                      className="form-input"
-                      value="US work authorization required"
-                      readOnly
-                      style={{ background: "#f8fafc", cursor: "default" }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Resume Screening Section */}
-              <div ref={resumeScreeningRef} style={{ marginBottom: 24, scrollMarginTop: 100 }}>
-                <div style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: 8, 
-                  marginBottom: 16,
-                  paddingBottom: 12,
-                  borderBottom: "1px solid #e2e8f0"
-                }}>
-                  <span style={{ fontSize: 18 }}>📋</span>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 16, color: "#1e293b" }}>Resume Screening</div>
-                    <div style={{ fontSize: 12, color: "#64748b" }}>AI-powered resume screening criteria</div>
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 16 }}>
-                  <label className="input-label">Screening Criteria</label>
-                  <textarea
-                    className="form-input"
-                    rows={3}
-                    value="Minimum 3 years RPA development experience&#10;UiPath Advanced Developer Certification&#10;Strong problem-solving skills&#10;Experience with enterprise automation projects"
-                    readOnly
-                    style={{ background: "#f8fafc", cursor: "default", resize: "none" }}
-                  />
-                </div>
-
-                <div>
-                  <label className="input-label">Auto-Reject Criteria</label>
-                  <textarea
-                    className="form-input"
-                    rows={2}
-                    value="No RPA tool experience&#10;Unable to work in specified timezone"
-                    readOnly
-                    style={{ background: "#f8fafc", cursor: "default", resize: "none" }}
-                  />
-                </div>
-              </div>
-
-              {/* Interview Process Section */}
-              <div ref={interviewProcessRef} style={{ marginBottom: 24, scrollMarginTop: 100 }}>
                 <div style={{ 
                   display: "flex", 
                   alignItems: "center", 
@@ -1115,76 +1034,244 @@ export default function DemoEnPage() {
                 }}>
                   <span style={{ fontSize: 18 }}>🤖</span>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 16, color: "#1e293b" }}>Interview Process</div>
-                    <div style={{ fontSize: 12, color: "#64748b" }}>Configure the interview rounds and process for this position</div>
+                    <div style={{ fontWeight: 600, fontSize: 16, color: "#1e293b" }}>Interview Questions</div>
+                    <div style={{ fontSize: 12, color: "#64748b" }}>AI-generated questions for candidate screening</div>
                   </div>
                 </div>
 
-                <div style={{ 
-                  border: "2px solid #3b82f6", 
-                  borderRadius: 12, 
-                  padding: 16, 
-                  background: "#eff6ff"
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                    <input type="checkbox" checked readOnly style={{ width: 16, height: 16 }} />
-                    <span style={{ fontSize: 18 }}>🤖</span>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: "#1e293b" }}>Screening Agent</div>
-                      <div style={{ fontSize: 11, color: "#64748b" }}>Initial candidate screening and basic qualification assessment</div>
-                    </div>
-                    <div style={{ marginLeft: "auto", fontSize: 11, color: "#64748b" }}>Phone/Video • 30 min • Pass/Fail + notes</div>
+                <div style={{ marginBottom: 16 }}>
+                  <label className="input-label">Evaluation Criteria</label>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+                    {[
+                      { name: "Technical Skills", selected: true },
+                      { name: "Problem Solving", selected: true },
+                      { name: "Communication", selected: true },
+                      { name: "Experience", selected: true },
+                      { name: "Culture Fit", selected: true },
+                      { name: "Teamwork / Collaboration", selected: false },
+                      { name: "Leadership", selected: false },
+                      { name: "Adaptability / Learning", selected: false },
+                      { name: "Work Ethic / Reliability", selected: false },
+                      { name: "Analytical Thinking", selected: false }
+                    ].map((c) => (
+                      <span 
+                        key={c.name}
+                        style={{
+                          padding: "6px 14px",
+                          background: c.selected ? "#dcfce7" : "#f1f5f9",
+                          borderRadius: 999,
+                          fontSize: 12,
+                          color: c.selected ? "#166534" : "#64748b",
+                          fontWeight: 500,
+                          border: c.selected ? "1px solid #bbf7d0" : "1px solid #e2e8f0",
+                          opacity: c.selected ? 1 : 0.7
+                        }}
+                      >
+                        {c.selected ? "✓ " : ""}{c.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label className="input-label">Generated Questions (5)</label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {[
+                      { q: "Can you walk me through your experience with UiPath and Automation Anywhere?", difficulty: "Medium", marks: 20 },
+                      { q: "How do you approach analyzing a business process for automation feasibility?", difficulty: "High", marks: 25 },
+                      { q: "Describe a complex RPA bot you've developed and the challenges you faced.", difficulty: "High", marks: 25 },
+                      { q: "How do you handle exceptions and error logging in your automation workflows?", difficulty: "Medium", marks: 15 },
+                      { q: "What is your experience with Orchestrator and bot deployment in production?", difficulty: "Low", marks: 15 }
+                    ].map((item, i) => (
+                      <div key={i} style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        gap: 12,
+                        padding: 12,
+                        background: "#f8fafc",
+                        borderRadius: 8,
+                        border: "1px solid #e2e8f0"
+                      }}>
+                        <span style={{ fontSize: 12, color: "#64748b", minWidth: 24 }}>Q{i + 1}</span>
+                        <input
+                          className="form-input"
+                          value={item.q}
+                          readOnly
+                          disabled
+                          style={{ background: "#fff", cursor: "not-allowed", flex: 1, fontSize: 13 }}
+                        />
+                        <span style={{
+                          padding: "4px 10px",
+                          borderRadius: 4,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          background: item.difficulty === "High" ? "#fef2f2" : item.difficulty === "Medium" ? "#fffbeb" : "#f0fdf4",
+                          color: item.difficulty === "High" ? "#dc2626" : item.difficulty === "Medium" ? "#d97706" : "#16a34a"
+                        }}>
+                          {item.difficulty}
+                        </span>
+                        <span style={{ fontSize: 12, color: "#64748b", minWidth: 50 }}>{item.marks} marks</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, background: "#eff6ff", borderRadius: 8, border: "1px solid #bfdbfe" }}>
+                  <input type="checkbox" checked readOnly disabled style={{ width: 16, height: 16 }} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: "#1e293b" }}>Auto Schedule Interview</div>
+                    <div style={{ fontSize: 11, color: "#64748b" }}>Automatically send interview links to qualified candidates</div>
+                  </div>
+                  <div style={{ marginLeft: "auto", fontSize: 12, color: "#3b82f6", fontWeight: 500 }}>Link expires in 48 hours</div>
+                </div>
+              </div>
+
+              {/* Team & Planning Section */}
+              <div ref={visaRef} style={{ marginBottom: 32, scrollMarginTop: 100 }}>
+                <h4 style={{ fontWeight: 600, fontSize: 18, borderBottom: "1px solid #e2e8f0", paddingBottom: 8, marginBottom: 16 }}>Hiring Team & Planning</h4>
+                
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Client Company Name <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value="TechCorp Inc."
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
+                      placeholder="e.g. TCS, Infosys"
+                    />
                   </div>
 
-                  <div style={{ 
-                    background: "#fff", 
-                    borderRadius: 8, 
-                    padding: 16,
-                    borderTop: "1px solid #e2e8f0"
-                  }}>
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, color: "#1e293b" }}>Interview Questions (5)</div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        {[
-                          "Can you walk me through your experience with UiPath and Automation Anywhere?",
-                          "How do you approach analyzing a business process for automation feasibility?",
-                          "Describe a complex RPA bot you've developed and the challenges you faced.",
-                          "How do you handle exceptions and error logging in your automation workflows?",
-                          "What is your experience with Orchestrator and bot deployment in production?"
-                        ].map((q, i) => (
-                          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontSize: 12, color: "#64748b", minWidth: 20 }}>{i + 1}.</span>
-                            <input
-                              className="form-input"
-                              value={q}
-                              readOnly
-                              style={{ background: "#f8fafc", cursor: "default", fontSize: 13, padding: "8px 12px" }}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Recruiter Assigned <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value="John Smith"
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
+                      placeholder="e.g. Sarah Johnson"
+                    />
+                  </div>
 
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, color: "#1e293b" }}>Evaluation Criteria</div>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        {["Technical Skills", "Problem Solving", "Communication", "Process Analysis", "Team Collaboration"].map((c) => (
-                          <span 
-                            key={c}
-                            style={{
-                              padding: "4px 12px",
-                              background: "#f1f5f9",
-                              borderRadius: 999,
-                              fontSize: 12,
-                              color: "#475569",
-                              fontWeight: 500
-                            }}
-                          >
-                            {c}
-                          </span>
-                        ))}
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Hiring Manager
+                    </label>
+                    <input
+                      type="text"
+                      value="Sarah Johnson"
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
+                      placeholder="e.g. David Lee"
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Hiring Manager Email
+                    </label>
+                    <input
+                      type="email"
+                      value="sarah.johnson@company.com"
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
+                      placeholder="e.g. david.lee@company.com"
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Number of Openings
+                    </label>
+                    <input
+                      type="number"
+                      value="2"
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
+                      min="1"
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Hiring Priority
+                    </label>
+                    <select
+                      value="High"
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
+                    >
+                      <option value="High">High</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Low">Low</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Target Time to Fill (days)
+                    </label>
+                    <input
+                      type="number"
+                      value="30"
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
+                      placeholder="e.g. 30"
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
+                      Budget Allocated (Recruitment Costs)
+                    </label>
+                    <input
+                      type="number"
+                      value="5000"
+                      disabled
+                      style={{ width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed" }}
+                      placeholder="e.g. 5000"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 8 }}>
+                    Target Sourcing Channels
+                  </label>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+                    {[
+                      { name: "LinkedIn", selected: true },
+                      { name: "GitHub", selected: false },
+                      { name: "Indeed", selected: true },
+                      { name: "Referral", selected: true },
+                      { name: "Company Career Page", selected: false },
+                      { name: "Job Boards", selected: false },
+                      { name: "Recruiting Events", selected: false },
+                      { name: "Social Media", selected: false }
+                    ].map((source) => (
+                      <div
+                        key={source.name}
+                        style={{
+                          padding: "8px 4px",
+                          border: `1px solid ${source.selected ? "#3b82f6" : "#d1d5db"}`,
+                          borderRadius: 4,
+                          fontSize: 12,
+                          textAlign: "center",
+                          cursor: "not-allowed",
+                          background: source.selected ? "#dbeafe" : "#ffffff",
+                          color: source.selected ? "#1d4ed8" : "#374151",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis"
+                        }}
+                      >
+                        {source.name}
                       </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -1282,13 +1369,13 @@ export default function DemoEnPage() {
                   <div className="salary-grid">
                     <input
                       className="form-input"
-                      value="USD"
+                      value="INR"
                       readOnly
                       style={{ background: "#f8fafc", cursor: "default" }}
                     />
                     <input
                       className="form-input"
-                      value="8500"
+                      value="85000"
                       readOnly
                       style={{ background: "#f8fafc", cursor: "default" }}
                     />
@@ -1307,43 +1394,109 @@ export default function DemoEnPage() {
                 </div>
               </div>
 
+              {/* Source Information Section */}
+              <div className="form-section">
+                <div className="section-header">
+                  <span className="section-header-icon">📢</span>
+                  <div>
+                    <div className="section-header-title">How did you hear about us?</div>
+                    <div className="section-header-subtitle">Help us understand your source</div>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label className="input-label">Source Type</label>
+                  <input
+                    className="form-input"
+                    value="Direct"
+                    readOnly
+                    style={{ background: "#f8fafc", cursor: "default" }}
+                  />
+                </div>
+
+                <div>
+                  <label className="input-label">Where did you find us?</label>
+                  <input
+                    className="form-input"
+                    value="LinkedIn (Job Posts)"
+                    readOnly
+                    style={{ background: "#f8fafc", cursor: "default" }}
+                  />
+                </div>
+              </div>
+
               {/* Resume & Documents Section */}
               <div className="form-section">
                 <div className="section-header">
                   <span className="section-header-icon">📄</span>
                   <div>
-                    <div className="section-header-title">Resume & Documents (required)</div>
-                    <div className="section-header-subtitle">Upload your resume for AI evaluation</div>
+                    <div className="section-header-title">Resume & Photo</div>
+                    <div className="section-header-subtitle">Upload your resume and capture photo</div>
                   </div>
                 </div>
 
-                <div style={{
-                  border: "2px dashed #3b82f6",
-                  borderRadius: 8,
-                  padding: 24,
-                  textAlign: "center",
-                  background: "#eff6ff",
-                  cursor: "default"
-                }}>
-                  <div style={{ marginBottom: 12, fontSize: 24, color: "#3b82f6" }}>📄</div>
-                  <div style={{ marginBottom: 8, color: "#64748b", fontSize: 14 }}>Drag & drop file here</div>
-                  <div style={{ 
-                    display: "inline-block", 
-                    background: "#059669", 
-                    color: "white", 
-                    padding: "6px 16px", 
-                    borderRadius: 6, 
-                    fontSize: 14, 
-                    fontWeight: 600 
-                  }}>
-                    Resume uploaded successfully
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  {/* Resume Upload */}
+                  <div>
+                    <label className="input-label">Upload Resume *</label>
+                    <div style={{
+                      border: "2px dashed #3b82f6",
+                      borderRadius: 8,
+                      padding: 16,
+                      textAlign: "center",
+                      background: "#eff6ff",
+                      cursor: "default"
+                    }}>
+                      <div style={{ marginBottom: 8, fontSize: 20, color: "#3b82f6" }}>📄</div>
+                      <div style={{ marginBottom: 8, color: "#64748b", fontSize: 12 }}>Drop file or browse</div>
+                      <div style={{ 
+                        display: "inline-block", 
+                        background: "#059669", 
+                        color: "white", 
+                        padding: "4px 12px", 
+                        borderRadius: 4, 
+                        fontSize: 12, 
+                        fontWeight: 600 
+                      }}>
+                        ✓ Uploaded
+                      </div>
+                      <div style={{ marginTop: 8, fontSize: 11, color: "#64748b" }}>
+                        <span style={{ background: "#dcfce7", color: "#166534", padding: "2px 6px", borderRadius: 3 }}>
+                          john_anderson_rpa_resume.pdf
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>245 KB</div>
+                    </div>
                   </div>
-                  <div style={{ marginTop: 12, fontSize: 12, color: "#64748b" }}>
-                    <span style={{ background: "#dcfce7", color: "#166534", padding: "4px 8px", borderRadius: 4 }}>
-                      john_anderson_rpa_resume.pdf
-                    </span>
-                    <span style={{ margin: "0 8px", color: "#94a3b8" }}>•</span>
-                    <span>245 KB</span>
+
+                  {/* Photo Capture */}
+                  <div>
+                    <label className="input-label">Capture Photo *</label>
+                    <div style={{
+                      border: "2px solid #10b981",
+                      borderRadius: 8,
+                      padding: 16,
+                      textAlign: "center",
+                      background: "#f0fdf4",
+                      cursor: "default"
+                    }}>
+                      <div style={{ marginBottom: 8, fontSize: 20, color: "#10b981" }}>📸</div>
+                      <div style={{ marginBottom: 8, color: "#64748b", fontSize: 12 }}>Photo captured</div>
+                      <div style={{
+                        width: 80,
+                        height: 80,
+                        margin: "0 auto",
+                        borderRadius: 8,
+                        background: "#d1d5db",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 32
+                      }}>
+                        👤
+                      </div>
+                      <div style={{ fontSize: 10, color: "#64748b", marginTop: 8 }}>Photo verified</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1432,7 +1585,7 @@ export default function DemoEnPage() {
                   </div>
                 </div>
 
-                <div className="form-grid">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
                   <div>
                     <label className="input-label">LinkedIn URL</label>
                     <input
@@ -1451,9 +1604,6 @@ export default function DemoEnPage() {
                       style={{ background: "#f8fafc", cursor: "default" }}
                     />
                   </div>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                   <div>
                     <label className="input-label">Available Start Date *</label>
                     <input
@@ -1464,14 +1614,9 @@ export default function DemoEnPage() {
                       style={{ background: "#f8fafc", cursor: "default" }}
                     />
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 24 }}>
-                    <input type="checkbox" checked readOnly style={{ width: 16, height: 16 }} />
-                    <label style={{ fontSize: 14, color: "#475569", cursor: "default" }}>
-                      I am willing to relocate for this position
-                    </label>
-                  </div>
                 </div>
               </div>
+
             </div>
           </section>
         )}
@@ -1720,277 +1865,6 @@ export default function DemoEnPage() {
                     fontSize: "clamp(14px, 4vw, 16px)", 
                     fontWeight: 600 
                   }}>Hire</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Criteria Breakdown */}
-            <div style={{ 
-              background: "white", 
-              borderRadius: 12, 
-              border: "2px solid #e5e7eb", 
-              marginBottom: 20,
-              boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
-              width: "100%",
-              boxSizing: "border-box"
-            }}>
-              <div style={{ 
-                padding: "clamp(12px, 3vw, 16px) clamp(16px, 4vw, 20px)", 
-                borderBottom: "1px solid #e5e7eb",
-                background: "linear-gradient(to right, #f9fafb, #f3f4f6)"
-              }}>
-                <h3 style={{ 
-                  fontSize: "clamp(14px, 4vw, 16px)", 
-                  fontWeight: 700, 
-                  color: "#1e293b", 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: 8,
-                  lineHeight: 1.3
-                }}>
-                  📊 Criteria-Based Score Breakdown
-                </h3>
-                <p style={{ 
-                  fontSize: "clamp(10px, 3vw, 12px)", 
-                  color: "#64748b", 
-                  marginTop: 4,
-                  lineHeight: 1.4
-                }}>All configured criteria with their evaluation scores</p>
-              </div>
-              <div style={{ padding: "clamp(12px, 3vw, 16px)" }}>
-                <div style={{ 
-                  display: "grid", 
-                  gridTemplateColumns: "1fr", 
-                  gap: "clamp(12px, 3vw, 16px)",
-                  width: "100%"
-                }}>
-                  {/* Technical */}
-                  <div style={{ 
-                    padding: "clamp(12px, 3vw, 16px)", 
-                    borderRadius: 12, 
-                    border: "2px solid #93c5fd",
-                    background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
-                    width: "100%",
-                    boxSizing: "border-box"
-                  }}>
-                    <div style={{ 
-                      display: "flex", 
-                      justifyContent: "space-between", 
-                      alignItems: "flex-start", 
-                      marginBottom: "clamp(8px, 2vw, 12px)" 
-                    }}>
-                      <div style={{ 
-                        display: "flex", 
-                        alignItems: "center", 
-                        gap: "clamp(8px, 2vw, 10px)", 
-                        flex: 1, 
-                        minWidth: 0 
-                      }}>
-                        <div style={{ 
-                          padding: "clamp(6px, 1.5vw, 8px)", 
-                          background: "white", 
-                          borderRadius: 8, 
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.08)", 
-                          flexShrink: 0 
-                        }}>
-                          <span style={{ fontSize: "clamp(14px, 3.5vw, 16px)" }}>💻</span>
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ 
-                            fontWeight: 700, 
-                            color: "#1e40af", 
-                            fontSize: "clamp(12px, 3vw, 14px)" 
-                          }}>Technical</div>
-                          <div style={{ 
-                            fontSize: "clamp(9px, 2.5vw, 11px)", 
-                            color: "#64748b" 
-                          }}>4 questions</div>
-                        </div>
-                      </div>
-                      <div style={{ 
-                        textAlign: "right", 
-                        flexShrink: 0 
-                      }}>
-                        <div style={{ 
-                          fontSize: "clamp(16px, 4vw, 20px)", 
-                          fontWeight: 700, 
-                          color: "#1e40af" 
-                        }}>70</div>
-                        <div style={{ 
-                          fontSize: "clamp(8px, 2vw, 10px)", 
-                          color: "#94a3b8" 
-                        }}>score</div>
-                      </div>
-                    </div>
-                    <div style={{ 
-                      height: "clamp(6px, 1.5vw, 8px)", 
-                      background: "white", 
-                      borderRadius: 4, 
-                      marginBottom: "clamp(6px, 1.5vw, 10px)" 
-                    }}>
-                      <div style={{ 
-                        height: "100%", 
-                        width: "70%", 
-                        background: "linear-gradient(to right, #3b82f6, #6366f1)", 
-                        borderRadius: 4 
-                      }}></div>
-                    </div>
-                    <div style={{ 
-                      display: "flex", 
-                      justifyContent: "space-between", 
-                      fontSize: "clamp(9px, 2.5vw, 11px)", 
-                      paddingTop: "clamp(4px, 1vw, 6px)", 
-                      borderTop: "1px solid rgba(255,255,255,0.5)" 
-                    }}>
-                      <span style={{ color: "#475569" }}>Weight: 50%</span>
-                      <span style={{ fontWeight: 700, color: "#1e40af" }}>+35 pts</span>
-                    </div>
-                  </div>
-
-                  {/* Communication */}
-                  <div style={{ 
-                    padding: "clamp(12px, 3vw, 16px)", 
-                    borderRadius: 12, 
-                    border: "2px solid #86efac",
-                    background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
-                    width: "100%",
-                    boxSizing: "border-box"
-                  }}>
-                    <div style={{ 
-                      display: "flex", 
-                      justifyContent: "space-between", 
-                      alignItems: "flex-start", 
-                      marginBottom: "clamp(8px, 2vw, 12px)" 
-                    }}>
-                      <div style={{ 
-                        display: "flex", 
-                        alignItems: "center", 
-                        gap: "clamp(8px, 2vw, 10px)", 
-                        flex: 1, 
-                        minWidth: 0 
-                      }}>
-                        <div style={{ 
-                          padding: "clamp(6px, 1.5vw, 8px)", 
-                          background: "white", 
-                          borderRadius: 8, 
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.08)", 
-                          flexShrink: 0 
-                        }}>
-                          <span style={{ fontSize: "clamp(14px, 3.5vw, 16px)" }}>💬</span>
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ 
-                            fontWeight: 700, 
-                            color: "#166534", 
-                            fontSize: "clamp(12px, 3vw, 14px)" 
-                          }}>Communication</div>
-                          <div style={{ 
-                            fontSize: "clamp(9px, 2.5vw, 11px)", 
-                            color: "#64748b" 
-                          }}>2 questions</div>
-                        </div>
-                      </div>
-                      <div style={{ 
-                        textAlign: "right", 
-                        flexShrink: 0 
-                      }}>
-                        <div style={{ 
-                          fontSize: "clamp(16px, 4vw, 20px)", 
-                          fontWeight: 700, 
-                          color: "#166534" 
-                        }}>75</div>
-                        <div style={{ 
-                          fontSize: "clamp(8px, 2vw, 10px)", 
-                          color: "#94a3b8" 
-                        }}>score</div>
-                      </div>
-                    </div>
-                    <div style={{ 
-                      height: "clamp(6px, 1.5vw, 8px)", 
-                      background: "white", 
-                      borderRadius: 4, 
-                      marginBottom: "clamp(6px, 1.5vw, 10px)" 
-                    }}>
-                      <div style={{ 
-                        height: "100%", 
-                        width: "75%", 
-                        background: "linear-gradient(to right, #22c55e, #10b981)", 
-                        borderRadius: 4 
-                      }}></div>
-                    </div>
-                    <div style={{ 
-                      display: "flex", 
-                      justifyContent: "space-between", 
-                      fontSize: "clamp(9px, 2.5vw, 11px)", 
-                      paddingTop: "clamp(4px, 1vw, 6px)", 
-                      borderTop: "1px solid rgba(255,255,255,0.5)" 
-                    }}>
-                      <span style={{ color: "#475569" }}>Weight: 20%</span>
-                      <span style={{ fontWeight: 700, color: "#166534" }}>+15 pts</span>
-                    </div>
-                  </div>
-
-                  {/* Team Player */}
-                  <div style={{ 
-                    padding: 16, 
-                    borderRadius: 16, 
-                    border: "2px solid #5eead4",
-                    background: "linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%)"
-                  }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
-                        <div style={{ padding: 8, background: "white", borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.08)", flexShrink: 0 }}>
-                          <span style={{ fontSize: 16 }}>👥</span>
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, color: "#0f766e", fontSize: 14 }}>Team Player</div>
-                          <div style={{ fontSize: 11, color: "#64748b" }}>2 questions</div>
-                        </div>
-                      </div>
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div style={{ fontSize: 20, fontWeight: 700, color: "#0f766e" }}>68</div>
-                        <div style={{ fontSize: 10, color: "#94a3b8" }}>score</div>
-                      </div>
-                    </div>
-                    <div style={{ height: 8, background: "white", borderRadius: 4, marginBottom: 10 }}>
-                      <div style={{ height: "100%", width: "68%", background: "linear-gradient(to right, #14b8a6, #06b6d4)", borderRadius: 4 }}></div>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, paddingTop: 6, borderTop: "1px solid rgba(255,255,255,0.5)" }}>
-                      <span style={{ color: "#475569" }}>Weight: 15%</span>
-                      <span style={{ fontWeight: 700, color: "#0f766e" }}>+10 pts</span>
-                    </div>
-                  </div>
-
-                  {/* Culture Fit */}
-                  <div style={{ 
-                    padding: 16, 
-                    borderRadius: 16, 
-                    border: "2px solid #fdba74",
-                    background: "linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)"
-                  }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
-                        <div style={{ padding: 8, background: "white", borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.08)", flexShrink: 0 }}>
-                          <span style={{ fontSize: 16 }}>🤝</span>
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, color: "#c2410c", fontSize: 14 }}>Culture Fit</div>
-                          <div style={{ fontSize: 11, color: "#64748b" }}>2 questions</div>
-                        </div>
-                      </div>
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div style={{ fontSize: 20, fontWeight: 700, color: "#c2410c" }}>65</div>
-                        <div style={{ fontSize: 10, color: "#94a3b8" }}>score</div>
-                      </div>
-                    </div>
-                    <div style={{ height: 8, background: "white", borderRadius: 4, marginBottom: 10 }}>
-                      <div style={{ height: "100%", width: "65%", background: "linear-gradient(to right, #f97316, #fb923c)", borderRadius: 4 }}></div>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, paddingTop: 6, borderTop: "1px solid rgba(255,255,255,0.5)" }}>
-                      <span style={{ color: "#475569" }}>Weight: 15%</span>
-                      <span style={{ fontWeight: 700, color: "#c2410c" }}>+10 pts</span>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -2391,144 +2265,7 @@ export default function DemoEnPage() {
         )}
       </div>
 
-      {/* Footer */}
-      <footer className="bg-slate-900 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Main Footer Content */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-12 mb-12">
-            {/* Left Section - Brand Block */}
-            <div className="md:col-span-3">
-              <h3 className="text-2xl font-bold mb-2">
-                <span className="text-white">Hire</span>
-                <span className="text-emerald-400">GenAI</span>
-              </h3>
-              <p className="text-sm text-slate-400 mb-4">By SKYGENAI</p>
-              <p className="text-slate-400 mb-6 text-sm leading-relaxed">
-                HireGenAI pre-screens and interviews candidates, helping you shortlist talent 20x faster and more efficiently.
-              </p>
-              <p className="text-slate-400 mb-6 text-sm font-medium">
-                Email: <a href="mailto:support@hire-genai.com" className="text-emerald-400 hover:text-emerald-300 transition-colors">support@hire-genai.com</a>
-              </p>
-              {/* Social Icons */}
-              <div className="flex space-x-4">
-                <a href="#" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  <Facebook className="w-5 h-5" />
-                </a>
-                <a href="#" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  <Instagram className="w-5 h-5" />
-                </a>
-                <a href="#" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  <Youtube className="w-5 h-5" />
-                </a>
-                <a href="https://www.linkedin.com/company/hire-genai" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  <Linkedin className="w-5 h-5" />
-                </a>
-              </div>
-            </div>
-
-            {/* Product Section */}
-            <div className="md:col-span-2">
-              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Product</h4>
-              <ul className="space-y-3 text-slate-400 text-sm">
-                <li>
-                  <Link href="/demo-en" className="hover:text-emerald-400 transition-colors">
-                    Try the Demo
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/pricing" className="hover:text-emerald-400 transition-colors">
-                    Pricing
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/?scroll=assessment" className="hover:text-emerald-400 transition-colors cursor-pointer">
-                    Assessment
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/?scroll=faq" className="hover:text-emerald-400 transition-colors cursor-pointer">
-                    FAQs
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            {/* Company Section */}
-            <div className="md:col-span-2">
-              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Company</h4>
-              <ul className="space-y-3 text-slate-400 text-sm">
-                <li>
-                  <Link href="/about" className="hover:text-emerald-400 transition-colors">
-                    About us
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/contact" className="hover:text-emerald-400 transition-colors">
-                    Contact
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/book-meeting" className="hover:text-emerald-400 transition-colors">
-                    Book a Meeting
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/owner-login" className="hover:text-emerald-400 transition-colors">
-                    Admin
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            {/* Legal Section */}
-            <div className="md:col-span-2">
-              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Legal</h4>
-              <ul className="space-y-3 text-slate-400 text-sm">
-                <li>
-                  <Link href="/privacy" className="hover:text-emerald-400 transition-colors">
-                    Privacy Policy
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/terms" className="hover:text-emerald-400 transition-colors">
-                    Terms and Conditions
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            {/* Right Section - Badges Block */}
-            <div className="md:col-span-3">
-              <div className="space-y-4">
-                {/* Trustpilot Badge */}
-                <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                  <p className="text-xs text-slate-400 mb-2 font-semibold">Trustpilot</p>
-                  <div className="flex items-center gap-2 mb-2">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                    ))}
-                  </div>
-                  <p className="text-sm font-semibold text-white">TrustScore 4.5</p>
-                </div>
-
-                {/* GDPR Compliant Badge */}
-                <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Lock className="w-4 h-4 text-emerald-400" />
-                    <p className="text-sm font-semibold text-white">GDPR COMPLIANT</p>
-                  </div>
-                  <p className="text-xs text-slate-400">Your data is secure and compliant</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer Bottom */}
-          <div className="border-t border-slate-800 pt-8 text-center text-slate-400 text-sm">
-            <p>&copy; 2025 HireGenAI. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
 
       <style jsx>{`
         :global(body) {
@@ -3223,7 +2960,7 @@ export default function DemoEnPage() {
         /* Job Tabs */
         .job-tabs-container {
           display: flex;
-          gap: 8px;
+          gap: 12px;
           margin-bottom: 24px;
           overflow-x: auto;
           padding: 4px;
@@ -3235,9 +2972,9 @@ export default function DemoEnPage() {
           display: none;
         }
         .job-tab {
-          padding: 8px 14px;
+          padding: 8px 16px;
           border-radius: 6px;
-          font-size: 12px;
+          font-size: 13px;
           font-weight: 500;
           white-space: nowrap;
           background: transparent;
