@@ -270,3 +270,13 @@
 .hover\:scrollbar-thumb-gray-300:hover::-webkit-scrollbar-thumb {
   background: #d1d5db;
 }
+
+/* Hide scrollbar completely while keeping scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari, and Opera */
+}

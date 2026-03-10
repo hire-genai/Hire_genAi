@@ -366,8 +366,13 @@ export default function SupportPage() {
     const matchesSearch =
       ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ticket.description.toLowerCase().includes(searchQuery.toLowerCase())
+    
+    // Support Tickets tab: show all tickets EXCEPT feedback type
+    // Product Feedback tab: show ONLY feedback type
     const matchesTab =
-      activeTab === 'tickets' || (activeTab === 'feedback' && ticket.type === 'feedback')
+      activeTab === 'tickets' 
+        ? ticket.type !== 'feedback'  // Support tickets = everything except feedback
+        : ticket.type === 'feedback'  // Feedback tab = only feedback
     
     return matchesSearch && matchesTab
   })
