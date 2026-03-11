@@ -9,13 +9,13 @@ export async function GET(req: NextRequest) {
   if (!user) return unauthorizedResponse()
 
   try {
-    // Support ticket stats
+    // Support ticket stats (excluding feedback)
     const statsRows = await DatabaseService.query(
       `SELECT
-        COUNT(*) FILTER (WHERE status = 'open') as open_count,
-        COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress_count,
-        COUNT(*) FILTER (WHERE status IN ('resolved', 'closed') AND resolved_at >= CURRENT_DATE) as resolved_today,
-        COUNT(*) as total
+        COUNT(*) FILTER (WHERE status = 'open' AND ticket_type != 'feedback') as open_count,
+        COUNT(*) FILTER (WHERE status = 'in_progress' AND ticket_type != 'feedback') as in_progress_count,
+        COUNT(*) FILTER (WHERE status IN ('resolved', 'closed') AND resolved_at >= CURRENT_DATE AND ticket_type != 'feedback') as resolved_today,
+        COUNT(*) FILTER (WHERE ticket_type != 'feedback') as total
        FROM support_tickets`
     )
     const stats = statsRows[0] as any

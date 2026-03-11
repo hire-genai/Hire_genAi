@@ -103,7 +103,7 @@ CREATE TYPE ticket_priority AS ENUM ('low', 'medium', 'high', 'urgent');
 CREATE TYPE subscription_status AS ENUM ('active', 'trialing', 'past_due', 'cancelled', 'paused');
 
 -- Contact message status
-CREATE TYPE contact_message_status AS ENUM ('new_lead', 'contacted', 'qualified', 'closed');
+CREATE TYPE contact_message_status AS ENUM ('new_lead', 'active_prospect', 'inactive_prospect', 'converted_to_customer', 'archived', 'scheduled', 'confirmed', 'completed', 'cancelled', 'no_show', 'rescheduled');
 
 -- Assessment submission status (for partial saves)
 CREATE TYPE assessment_status AS ENUM ('partial', 'completed');
@@ -352,21 +352,80 @@ CREATE INDEX idx_assessments_status ON assessments (status);
 -- USED BY: /contact → /api/contact
 -- ---------------------------------------------------------------------------
 CREATE TABLE contact_messages (
-  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  full_name       TEXT NOT NULL,
-  work_email      TEXT NOT NULL,
-  company_name    TEXT,
-  phone_number    TEXT,
-  subject         TEXT NOT NULL,
-  message         TEXT NOT NULL,
-  agreed_to_terms BOOLEAN NOT NULL DEFAULT FALSE,
-  status          contact_message_status NOT NULL DEFAULT 'new_lead',
-  responded_at    TIMESTAMPTZ,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  full_name           TEXT NOT NULL,
+  work_email          TEXT NOT NULL,
+  company_name        TEXT,
+  phone_number        TEXT,
+  subject             TEXT NOT NULL,
+  message             TEXT NOT NULL,
+  agreed_to_terms     BOOLEAN NOT NULL DEFAULT FALSE,
+  status              contact_message_status NOT NULL DEFAULT 'new_lead',
+  admin_notes         TEXT,
+  interaction_summary TEXT,
+  replied             BOOLEAN DEFAULT FALSE,
+  responded_at        TIMESTAMPTZ,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ
 );
 
 CREATE INDEX idx_contact_messages_status ON contact_messages (status);
 CREATE INDEX idx_contact_messages_work_email ON contact_messages (work_email);
+
+
+-- ---------------------------------------------------------------------------
+-- 4b. meeting_bookings
+-- WHY: Stores meeting/demo booking requests from website.
+-- USED BY: /demo, /api/meeting-bookings, /admin-hiregenai/customer-interaction
+-- ---------------------------------------------------------------------------
+CREATE TABLE meeting_bookings (
+  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  full_name           TEXT NOT NULL,
+  work_email          TEXT NOT NULL,
+  company_name        TEXT NOT NULL,
+  phone_number        TEXT,
+  meeting_date        DATE,
+  meeting_time        TEXT,
+  meeting_end_time    TEXT,
+  duration_minutes    INT DEFAULT 30,
+  timezone            TEXT DEFAULT 'India Standard Time',
+  meeting_location    TEXT DEFAULT 'google-meet',
+  meeting_link        TEXT,
+  notes               TEXT,
+  ip_address          TEXT,
+  user_agent          TEXT,
+  source              TEXT DEFAULT 'website',
+  status              contact_message_status NOT NULL DEFAULT 'new_lead',
+  admin_notes         TEXT,
+  interaction_summary TEXT,
+  confirmed_at        TIMESTAMPTZ,
+  cancelled_at        TIMESTAMPTZ,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ
+);
+
+CREATE INDEX idx_meeting_bookings_status ON meeting_bookings (status);
+CREATE INDEX idx_meeting_bookings_meeting_date ON meeting_bookings (meeting_date);
+CREATE INDEX idx_meeting_bookings_work_email ON meeting_bookings (work_email);
+
+
+-- ---------------------------------------------------------------------------
+-- 4c. email_templates
+-- WHY: Stores reusable email templates for customer communication.
+-- USED BY: /api/email-templates, /admin-hiregenai/customer-interaction
+-- ---------------------------------------------------------------------------
+CREATE TABLE email_templates (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name        TEXT NOT NULL,
+  subject     TEXT NOT NULL,
+  body        TEXT NOT NULL,
+  category    TEXT DEFAULT 'general',
+  is_default  BOOLEAN DEFAULT FALSE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ
+);
+
+CREATE INDEX idx_email_templates_category ON email_templates (category);
 
 
 -- ============================================================================
@@ -920,7 +979,10 @@ BEGIN
       'candidates',
       'talent_pool_entries',
       'support_tickets',
-      'subscriptions'
+      'subscriptions',
+      'contact_messages',
+      'meeting_bookings',
+      'email_templates'
     ])
   LOOP
     EXECUTE format(

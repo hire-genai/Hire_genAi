@@ -11,6 +11,110 @@ export interface EmailTemplate {
 
 export class EmailService {
   /**
+   * Send admin reply email to contact/customer
+   */
+  static async sendAdminReply({
+    recipientName,
+    recipientEmail,
+    subject,
+    message,
+  }: {
+    recipientName: string;
+    recipientEmail: string;
+    subject: string;
+    message: string;
+  }) {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      </head>
+      <body style="margin: 0; padding: 0; background-color: #f4f7fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f7fa; padding: 40px 20px;">
+          <tr>
+            <td align="center">
+              <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%;">
+                <!-- Header -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+                    <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">Hire<span style="color: #a7f3d0;">GenAI</span></h1>
+                    <p style="color: #d1fae5; margin: 8px 0 0 0; font-size: 14px;">Response from HireGenAI Team</p>
+                  </td>
+                </tr>
+                
+                <!-- Main Content -->
+                <tr>
+                  <td style="background: white; padding: 40px 30px; border-left: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb;">
+                    <!-- Greeting -->
+                    <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 24px; font-weight: 600;">Hello ${recipientName}! 👋</h2>
+                    
+                    <!-- Subject -->
+                    <p style="color: #6b7280; font-size: 13px; margin: 0 0 15px 0; font-weight: 600; text-transform: uppercase;">Re: ${subject}</p>
+                    
+                    <!-- Message -->
+                    <div style="background: #f9fafb; border-left: 4px solid #10b981; padding: 20px; margin: 25px 0; border-radius: 4px;">
+                      <p style="color: #4b5563; font-size: 15px; line-height: 1.8; margin: 0; white-space: pre-wrap;">
+                        ${message.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}
+                      </p>
+                    </div>
+                    
+                    <!-- Closing -->
+                    <p style="color: #4b5563; font-size: 15px; line-height: 1.7; margin: 25px 0 0 0;">
+                      If you have any further questions or need additional assistance, please don't hesitate to reach out.
+                    </p>
+                  </td>
+                </tr>
+                
+                <!-- Footer -->
+                <tr>
+                  <td style="background: #f9fafb; padding: 30px; border-radius: 0 0 16px 16px; border: 1px solid #e5e7eb; border-top: none; text-align: center;">
+                    <p style="color: #6b7280; font-size: 14px; margin: 0 0 15px 0;">
+                      Questions? Contact us at:
+                    </p>
+                    <p style="margin: 0 0 20px 0;">
+                      <a href="mailto:support@hire-genai.com" style="color: #10b981; text-decoration: none; font-weight: 500;">support@hire-genai.com</a>
+                    </p>
+                    
+                    <p style="color: #9ca3af; font-size: 12px; margin: 20px 0 0 0;">
+                      © ${new Date().getFullYear()} HireGenAI by SKYGENAI. All rights reserved.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>`;
+
+    const text = `
+Hello ${recipientName}!
+
+Re: ${subject}
+
+${message}
+
+---
+
+If you have any further questions or need additional assistance, please don't hesitate to reach out.
+
+Questions? Contact us at: support@hire-genai.com
+
+© ${new Date().getFullYear()} HireGenAI by SKYGENAI. All rights reserved.
+    `;
+
+    return await sendContactMail({
+      to: recipientEmail,
+      subject: `Re: ${subject}`,
+      html,
+      text,
+      from: process.env.EMAIL_FROM_CONTACT || 'HireGenAI Support <support@hire-genai.com>',
+    });
+  }
+
+  /**
    * Send talent pool emails (JD, newsletter, greeting) to candidates
    */
   static async sendTalentPoolEmail({

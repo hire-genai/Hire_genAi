@@ -48,6 +48,7 @@ export default function SupportCentreContent({
   const [supportStats, setSupportStats] = useState<SupportStats>({ open: 0, inProgress: 0, resolvedToday: 0, total: 0 })
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [priorityFilter, setPriorityFilter] = useState<string>("all")
+  const [updating, setUpdating] = useState<string | null>(null)
 
   const fetchSupportData = useCallback(async () => {
     setLoadingSupport(true)
@@ -70,10 +71,39 @@ export default function SupportCentreContent({
     fetchSupportData()
   }, [fetchSupportData])
 
-  // Filter tickets by priority
+  const updateTicketStatus = async (ticketId: string, newStatus: string) => {
+    setUpdating(ticketId)
+    try {
+      const res = await fetch("/api/admin/tickets", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ticketId, status: newStatus })
+      })
+      
+      if (res.ok) {
+        // Remove from UI if marked as resolved
+        if (newStatus === "resolved" || newStatus === "closed") {
+          setTickets(prev => prev.filter(t => t.id !== ticketId))
+        } else {
+          // Update the ticket in the list
+          setTickets(prev => 
+            prev.map(t => t.id === ticketId ? { ...t, status: newStatus } : t)
+          )
+        }
+        fetchSupportData() // Refresh stats
+      }
+    } catch (err) {
+      console.error("Update ticket error:", err)
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  // Filter tickets by priority and status (show only active tickets)
   const filteredTickets = tickets.filter((t) => {
-    if (priorityFilter === "all") return true
-    return t.priority === priorityFilter
+    const isActive = t.status === "open" || t.status === "in_progress" || t.status === "waiting"
+    const matchesPriority = priorityFilter === "all" || t.priority === priorityFilter
+    return isActive && matchesPriority
   })
 
   const getPriorityColor = (priority: string) => {
@@ -265,12 +295,27 @@ export default function SupportCentreContent({
                             {formatDate(ticket.createdAt)}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
-                            <Link href="/support-hiregenai/admin">
-                              <Button size="sm" variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700">
-                                <Eye className="h-3 w-3 mr-1" />
-                                View
+                            <div className="flex items-center gap-2">
+                              <Link href="/support-hiregenai/admin">
+                                <Button size="sm" variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700">
+                                  <Eye className="h-3 w-3 mr-1" />
+                                  View
+                                </Button>
+                              </Link>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateTicketStatus(ticket.id, "resolved")}
+                                disabled={updating === ticket.id}
+                                className="border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white"
+                              >
+                                {updating === ticket.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="h-3 w-3" />
+                                )}
                               </Button>
-                            </Link>
+                            </div>
                           </td>
                         </tr>
                       ))

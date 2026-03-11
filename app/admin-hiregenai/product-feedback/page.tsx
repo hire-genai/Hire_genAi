@@ -22,6 +22,7 @@ interface Ticket {
 export default function ProductFeedbackPage() {
   const [loadingSupport, setLoadingSupport] = useState(false)
   const [feedbackTickets, setFeedbackTickets] = useState<Ticket[]>([])
+  const [updating, setUpdating] = useState<string | null>(null)
 
   const fetchSupportData = useCallback(async () => {
     setLoadingSupport(true)
@@ -42,6 +43,34 @@ export default function ProductFeedbackPage() {
   useEffect(() => {
     fetchSupportData()
   }, [fetchSupportData])
+
+  const updateTicketStatus = async (ticketId: string, newStatus: string) => {
+    setUpdating(ticketId)
+    try {
+      const res = await fetch("/api/admin/tickets", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ticketId, status: newStatus })
+      })
+      
+      if (res.ok) {
+        // Remove from UI if marked as reviewed
+        if (newStatus === "reviewed") {
+          setFeedbackTickets(prev => prev.filter(t => t.id !== ticketId))
+        } else {
+          // Update the ticket in the list
+          setFeedbackTickets(prev => 
+            prev.map(t => t.id === ticketId ? { ...t, status: newStatus } : t)
+          )
+        }
+        fetchSupportData() // Refresh stats
+      }
+    } catch (err) {
+      console.error("Update ticket error:", err)
+    } finally {
+      setUpdating(null)
+    }
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -106,16 +135,16 @@ export default function ProductFeedbackPage() {
                 </div>
               </div>
               <div className="mt-6">
-                <h3 className="text-sm font-medium text-slate-300 mb-3">Recent Feedback</h3>
-                {feedbackTickets.length === 0 ? (
+                <h3 className="text-sm font-medium text-slate-300 mb-3">New Feedback</h3>
+                {feedbackTickets.filter(t => t.status === "open").length === 0 ? (
                   <div className="text-center py-8 bg-slate-800/30 rounded-lg border border-slate-700">
                     <Lightbulb className="h-10 w-10 text-slate-600 mx-auto mb-3" />
-                    <p className="text-slate-400">No feedback received yet</p>
-                    <p className="text-xs text-slate-500 mt-1">Customer feedback will appear here</p>
+                    <p className="text-slate-400">No new feedback</p>
+                    <p className="text-xs text-slate-500 mt-1">All feedback has been reviewed</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {feedbackTickets.slice(0, 10).map((t) => (
+                    {feedbackTickets.filter(t => t.status === "open").slice(0, 10).map((t) => (
                       <div key={t.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-lg border border-slate-700">
                         <div className="flex-1 min-w-0">
                           <p className="text-white font-medium text-sm truncate">{t.title}</p>
@@ -123,7 +152,19 @@ export default function ProductFeedbackPage() {
                         </div>
                         <div className="flex items-center gap-2 ml-2">
                           <Badge className="text-xs bg-amber-900 text-amber-200">{t.ticketType}</Badge>
-                          <Badge className={`text-xs ${getStatusColor(t.status)}`}>{t.status}</Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => updateTicketStatus(t.id, "resolved")}
+                            disabled={updating === t.id}
+                            className="border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white text-xs px-2 py-1 h-auto"
+                          >
+                            {updating === t.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              "Mark as Reviewed"
+                            )}
+                          </Button>
                         </div>
                       </div>
                     ))}

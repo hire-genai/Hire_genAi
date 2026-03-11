@@ -105,3 +105,38 @@ export async function GET(req: NextRequest) {
     )
   }
 }
+
+// PATCH - Update ticket status
+export async function PATCH(req: NextRequest) {
+  const user = await verifyAdminSession(req)
+  if (!user) return unauthorizedResponse()
+
+  try {
+    const { id, status } = await req.json()
+    
+    if (!id || !status) {
+      return NextResponse.json({ success: false, error: "Missing id or status" }, { status: 400 })
+    }
+
+    // Update ticket status
+    const updateFields = ["status = $2"]
+    const params = [id, status]
+    
+    // If resolving, set resolved_at timestamp
+    if (status === 'resolved' || status === 'closed') {
+      updateFields.push("resolved_at = NOW()")
+    }
+
+    await DatabaseService.query(
+      `UPDATE support_tickets 
+       SET ${updateFields.join(', ')}, updated_at = NOW()
+       WHERE id = $1`,
+      params
+    )
+
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error("Update ticket error:", error)
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+  }
+}
