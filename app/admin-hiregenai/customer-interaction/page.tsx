@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useSearchParams, useRouter } from "next/navigation"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -10,26 +11,28 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { 
   Mail, 
-  Calendar, 
   Building2, 
-  Phone, 
   Clock, 
-  User, 
-  MessageSquare,
+  User,
   Search,
-  RefreshCw,
-  ChevronDown,
-  ChevronUp,
-  Inbox,
-  CalendarClock,
   Plus,
   FileText,
   Send,
-  ClipboardList,
   Eye,
-  X
+  X,
+  Video,
+  Link2,
+  Unplug,
+  Paperclip,
+  AlertTriangle,
+  ClipboardList,
+  Phone,
+  MessageSquare,
+  RefreshCw,
+  CalendarClock,
+  Inbox,
+  ExternalLink
 } from "lucide-react"
-import { Checkbox } from "@/components/ui/checkbox"
 
 interface ContactMessage {
   id: string
@@ -47,27 +50,10 @@ interface ContactMessage {
   replied?: boolean
 }
 
-interface MeetingBooking {
-  id: string
-  full_name: string
-  work_email: string
-  company_name: string
-  phone_number: string | null
-  meeting_date: string | null
-  meeting_time: string | null
-  meeting_end_time: string | null
-  duration_minutes: number
-  timezone: string
-  meeting_location: string
-  meeting_link: string | null
-  notes: string | null
-  status: string
-  created_at: string
-  updated_at: string
-  confirmed_at: string | null
-  cancelled_at: string | null
-  admin_notes?: string
-  interaction_summary?: string
+interface AssessmentAnswer {
+  questionText: string
+  answerValue: string
+  answerIndex: number
 }
 
 interface Assessment {
@@ -76,7 +62,7 @@ interface Assessment {
   contactEmail: string | null
   contactCompany: string | null
   contactPhone: string | null
-  answers: any // Parent project stores answers as direct object from frontend
+  answers: Record<string, AssessmentAnswer>
   status: string
   score: number | null
   createdAt: string
@@ -100,36 +86,74 @@ const STATUS_TABS = [
 ]
 
 export default function CustomerInteractionPage() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState("contacts")
   const [contacts, setContacts] = useState<ContactMessage[]>([])
-  const [meetings, setMeetings] = useState<MeetingBooking[]>([])
-  const [assessments, setAssessments] = useState<Assessment[]>([])
+  const [meetings, setMeetings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedContact, setExpandedContact] = useState<string | null>(null)
-  const [expandedMeeting, setExpandedMeeting] = useState<string | null>(null)
-  const [expandedAssessment, setExpandedAssessment] = useState<string | null>(null)
   const [contactFilter, setContactFilter] = useState("all")
-  const [meetingFilter, setMeetingFilter] = useState("all")
-  const [assessmentFilter, setAssessmentFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [contactStats, setContactStats] = useState({ total: 0, new: 0, responded: 0 })
-  const [meetingStats, setMeetingStats] = useState({ total: 0, scheduled: 0, completed: 0, confirmed: 0, cancelled: 0, no_show: 0, rescheduled: 0 })
-  const [assessmentStats, setAssessmentStats] = useState({ total: 0, completed: 0, partial: 0, completedToday: 0 })
   const [replyMessages, setReplyMessages] = useState<Record<string, string>>({})
   const [sendingReply, setSendingReply] = useState<string | null>(null)
-  const [viewAnswersModal, setViewAnswersModal] = useState<Assessment | null>(null)
   const [repliedContacts, setRepliedContacts] = useState<Set<string>>(new Set())
   const [interactionSummaries, setInteractionSummaries] = useState<Record<string, string[]>>({})
   const [newSummaryInput, setNewSummaryInput] = useState<Record<string, string>>({})
   const [savingSummary, setSavingSummary] = useState<string | null>(null)
 
+  // Google Calendar state
+  const [gcalConnected, setGcalConnected] = useState(false)
+  const [gcalLoading, setGcalLoading] = useState(true)
+  const [gcalDisconnecting, setGcalDisconnecting] = useState(false)
+
+  
+  // View Meeting Modal state
+  const [viewMeetingModal, setViewMeetingModal] = useState<any | null>(null)
+
+  // Email Reply Modal state
+  const [emailReplyModal, setEmailReplyModal] = useState<any | null>(null)
+  const [emailSubject, setEmailSubject] = useState("")
+  const [emailMessage, setEmailMessage] = useState("")
+  const [emailSending, setEmailSending] = useState(false)
+
+  // Assessment state
+  const [assessments, setAssessments] = useState<Assessment[]>([])
+  const [assessmentFilter, setAssessmentFilter] = useState("all")
+  const [expandedAssessment, setExpandedAssessment] = useState<string | null>(null)
+  const [viewAnswersModal, setViewAnswersModal] = useState<Assessment | null>(null)
+
   useEffect(() => {
     loadData()
+    // Handle OAuth callback params
+    const googleConnected = searchParams?.get('google_connected')
+    const googleError = searchParams?.get('google_error')
+    if (googleConnected === 'true') {
+      setActiveTab('google-calendar')
+      setGcalConnected(true)
+      router.replace('/admin-hiregenai/customer-interaction')
+    } else if (googleError) {
+      setActiveTab('google-calendar')
+      router.replace('/admin-hiregenai/customer-interaction')
+    }
   }, [])
+
+  const loadMeetings = async () => {
+    try {
+      const res = await fetch("/api/meeting-bookings?limit=100")
+      const data = await res.json()
+      if (data.success) {
+        setMeetings(data.bookings || [])
+      }
+    } catch (error) {
+      console.error("Failed to load meetings:", error)
+    }
+  }
 
   const loadData = async () => {
     setLoading(true)
-    await Promise.all([loadContacts(), loadMeetings(), loadAssessments()])
+    await Promise.all([loadContacts(), loadMeetings(), loadGoogleCalendarStatus(), loadAssessments()])
     setLoading(false)
   }
 
@@ -166,37 +190,91 @@ export default function CustomerInteractionPage() {
     }
   }
 
-  const loadMeetings = async () => {
+  
+  const loadGoogleCalendarStatus = async () => {
+    setGcalLoading(true)
     try {
-      const res = await fetch("/api/meeting-bookings?limit=100")
+      const res = await fetch("/api/google/status")
       const data = await res.json()
-      if (data.success) {
-        setMeetings(data.bookings || [])
-        const stats = data.stats || {}
-        setMeetingStats({ 
-          total: stats.total || 0, 
-          scheduled: stats.scheduled || 0, 
-          completed: stats.completed || 0,
-          confirmed: stats.confirmed || 0,
-          cancelled: stats.cancelled || 0,
-          no_show: stats.no_show || 0,
-          rescheduled: stats.rescheduled || 0
-        })
-        
-        const meetingSummaries: Record<string, string[]> = {}
-        data.bookings?.forEach((meeting: MeetingBooking) => {
-          if (meeting.interaction_summary) {
-            try {
-              meetingSummaries[`meeting_${meeting.id}`] = JSON.parse(meeting.interaction_summary)
-            } catch {
-              meetingSummaries[`meeting_${meeting.id}`] = []
-            }
-          }
-        })
-        setInteractionSummaries(prev => ({ ...prev, ...meetingSummaries }))
+      setGcalConnected(data.connected || false)
+    } catch (error) {
+      console.error("Failed to load Google Calendar status:", error)
+      setGcalConnected(false)
+    } finally {
+      setGcalLoading(false)
+    }
+  }
+
+  const handleGcalConnect = () => {
+    window.location.href = "/api/google/auth"
+  }
+
+  const handleGcalDisconnect = async () => {
+    setGcalDisconnecting(true)
+    try {
+      const res = await fetch("/api/google/disconnect", { method: "POST" })
+      if (res.ok) {
+        setGcalConnected(false)
       }
     } catch (error) {
-      console.error("Failed to load meetings:", error)
+      console.error("Failed to disconnect Google Calendar:", error)
+    } finally {
+      setGcalDisconnecting(false)
+    }
+  }
+
+  
+  const openEmailReplyModal = (meeting: any) => {
+    setEmailReplyModal(meeting)
+    setEmailSubject(`Re: Meeting Schedule - ${meeting.full_name}`)
+    setEmailMessage("")
+  }
+
+  
+  const updateMeetingStatus = async (id: string, status: string) => {
+    try {
+      const res = await fetch("/api/meeting-bookings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status })
+      })
+      if (res.ok) {
+        await loadMeetings()
+      }
+    } catch (error) {
+      console.error("Failed to update meeting:", error)
+    }
+  }
+
+  const handleSendEmail = async () => {
+    if (!emailReplyModal || !emailMessage.trim()) return
+    setEmailSending(true)
+    try {
+      const res = await fetch("/api/admin/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipientEmail: emailReplyModal.work_email,
+          recipientName: emailReplyModal.full_name,
+          subject: emailSubject,
+          message: emailMessage,
+          meetingId: emailReplyModal.id,
+        })
+      })
+      if (res.ok) {
+        setEmailReplyModal(null)
+        setEmailSubject("")
+        setEmailMessage("")
+        alert("Email sent successfully!")
+      } else {
+        const data = await res.json()
+        alert(data.error || "Failed to send email")
+      }
+    } catch (error) {
+      console.error("Failed to send email:", error)
+      alert("Failed to send email. Please try again.")
+    } finally {
+      setEmailSending(false)
     }
   }
 
@@ -206,7 +284,6 @@ export default function CustomerInteractionPage() {
       const data = await res.json()
       if (data.success) {
         setAssessments(data.assessments || [])
-        setAssessmentStats(data.stats || { total: 0, completed: 0, partial: 0, completedToday: 0 })
       }
     } catch (error) {
       console.error("Failed to load assessments:", error)
@@ -256,21 +333,7 @@ export default function CustomerInteractionPage() {
     }
   }
 
-  const updateMeetingStatus = async (id: string, status: string) => {
-    try {
-      const res = await fetch("/api/meeting-bookings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status })
-      })
-      if (res.ok) {
-        await loadMeetings()
-      }
-    } catch (error) {
-      console.error("Failed to update meeting:", error)
-    }
-  }
-
+  
   const sendReplyEmail = async (contact: ContactMessage) => {
     const replyMessage = replyMessages[contact.id]
     if (!replyMessage?.trim()) {
@@ -386,16 +449,7 @@ export default function CustomerInteractionPage() {
     })
   }
 
-  const formatMeetingDate = (dateStr: string | null) => {
-    if (!dateStr) return "Not scheduled"
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      weekday: 'short',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
-  }
-
+  
   const filteredContacts = contacts.filter(contact => {
     const matchesFilter = contactFilter === "all" || contact.status === contactFilter
     const matchesSearch = searchQuery === "" || 
@@ -406,15 +460,7 @@ export default function CustomerInteractionPage() {
     return matchesFilter && matchesSearch
   })
 
-  const filteredMeetings = meetings.filter(meeting => {
-    const matchesFilter = meetingFilter === "all" || meeting.status === meetingFilter
-    const matchesSearch = searchQuery === "" || 
-      meeting.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      meeting.work_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      meeting.company_name.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesFilter && matchesSearch
-  })
-
+  
   const filteredAssessments = assessments.filter(assessment => {
     const matchesFilter = assessmentFilter === "all" || assessment.status === assessmentFilter
     const matchesSearch = searchQuery === "" || 
@@ -423,6 +469,19 @@ export default function CustomerInteractionPage() {
       (assessment.contactCompany?.toLowerCase().includes(searchQuery.toLowerCase()) || false)
     return matchesFilter && matchesSearch
   })
+
+  // Close modals on ESC key
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setViewMeetingModal(null)
+        setEmailReplyModal(null)
+        setViewAnswersModal(null)
+      }
+    }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [])
 
   if (loading) {
     return (
@@ -456,32 +515,24 @@ export default function CustomerInteractionPage() {
                     </Badge>
                   )}
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="meetings"
+                                <TabsTrigger 
+                  value="google-calendar"
                   className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
                 >
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Meeting Bookings
-                  {(() => {
-                    const pendingCount = meetingStats.scheduled + meetingStats.confirmed + meetingStats.rescheduled
-                    return pendingCount > 0 && (
-                      <Badge className="ml-2 bg-blue-500 text-white text-xs px-1.5 py-0">
-                        {pendingCount}
-                      </Badge>
-                    )
-                  })()}
+                  <Video className="h-4 w-4 mr-2" />
+                  Google Calendar
+                  {!gcalConnected && !gcalLoading && (
+                    <Badge className="ml-2 bg-amber-500 text-white text-xs px-1.5 py-0">
+                      !
+                    </Badge>
+                  )}
                 </TabsTrigger>
                 <TabsTrigger 
                   value="assessments"
                   className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
                 >
                   <ClipboardList className="h-4 w-4 mr-2" />
-                  Assessment
-                  {assessmentStats.completedToday > 0 && (
-                    <Badge className="ml-2 bg-purple-500 text-white text-xs px-1.5 py-0">
-                      {assessmentStats.completedToday}
-                    </Badge>
-                  )}
+                  Assessments
                 </TabsTrigger>
               </TabsList>
 
@@ -491,7 +542,7 @@ export default function CustomerInteractionPage() {
                   placeholder="Search..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 bg-slate-800 border-slate-700 text-white w-48"
+                  className="pl-9 bg-slate-800 border-slate-700 text-white w-64"
                 />
               </div>
             </div>
@@ -591,12 +642,7 @@ export default function CustomerInteractionPage() {
                                 </SelectContent>
                               </Select>
                             </div>
-                            {expandedContact === contact.id ? (
-                              <ChevronUp className="h-5 w-5 text-slate-400" />
-                            ) : (
-                              <ChevronDown className="h-5 w-5 text-slate-400" />
-                            )}
-                          </div>
+                                                      </div>
                         </div>
                       </div>
 
@@ -706,211 +752,194 @@ export default function CustomerInteractionPage() {
               </div>
             </TabsContent>
 
-            {/* Meeting Bookings Tab */}
-            <TabsContent value="meetings" className="mt-0">
-              <div className="flex flex-wrap items-center gap-2 mb-6 pb-4 border-b border-slate-700">
-                {STATUS_TABS.map(tab => {
-                  const count = tab.value === 'all' 
-                    ? meetings.length 
-                    : meetings.filter(m => m.status === tab.value).length
-                  return (
-                    <button
-                      key={tab.value}
-                      onClick={() => setMeetingFilter(tab.value)}
-                      className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                        meetingFilter === tab.value
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
-                      }`}
-                    >
-                      {tab.label}
-                      {count > 0 && (
-                        <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
-                          meetingFilter === tab.value ? 'bg-white/20' : 'bg-slate-700'
-                        }`}>
-                          {count}
-                        </span>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
+            
+            {/* Google Calendar Tab */}
+            <TabsContent value="google-calendar" className="mt-0">
+              <div className="space-y-6">
 
-              <div className="space-y-3">
-                {filteredMeetings.length === 0 ? (
-                  <div className="text-center py-12 text-slate-400">
-                    <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No meeting bookings found</p>
+                {/* Connection status warning if disconnected */}
+                {!gcalConnected && !gcalLoading && (
+                  <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+                    <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0" />
+                    <p className="text-amber-300 text-sm">
+                      Google Calendar disconnected. Reconnect to generate meeting links automatically when bookings are made.
+                    </p>
                   </div>
-                ) : (
-                  filteredMeetings.map((meeting) => (
-                    <div 
-                      key={meeting.id}
-                      className="bg-slate-800/50 rounded-lg border border-slate-700 overflow-hidden transition-all hover:border-slate-600"
-                    >
-                      <div 
-                        className="p-4 cursor-pointer"
-                        onClick={() => setExpandedMeeting(expandedMeeting === meeting.id ? null : meeting.id)}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-3 mb-2">
-                              <div className="p-2 bg-slate-700 rounded-full">
-                                <User className="h-4 w-4 text-slate-300" />
-                              </div>
-                              <div>
-                                <h4 className="font-semibold text-white">{meeting.full_name}</h4>
-                                <p className="text-sm text-slate-400">{meeting.work_email}</p>
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-4 text-sm text-slate-400">
-                              <span className="flex items-center gap-1">
-                                <Building2 className="h-3.5 w-3.5" />
-                                {meeting.company_name}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Calendar className="h-3.5 w-3.5" />
-                                {formatMeetingDate(meeting.meeting_date)}
-                              </span>
-                              {meeting.phone_number && (
-                                <span className="flex items-center gap-1">
-                                  <Phone className="h-3.5 w-3.5 text-emerald-400" />
-                                  <span className="text-emerald-300">{meeting.phone_number}</span>
-                                </span>
-                              )}
-                              <span className="flex items-center gap-1">
-                                <Clock className="h-3.5 w-3.5" />
-                                {meeting.meeting_time}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="relative" onClick={(e) => e.stopPropagation()}>
-                              <Select 
-                                value={meeting.status} 
-                                onValueChange={(value) => updateMeetingStatus(meeting.id, value)}
-                              >
-                                <SelectTrigger className="p-0 border-0 bg-transparent h-auto min-h-0 w-auto">
-                                  <Badge className={`${contactStatusColors[meeting.status]} border cursor-pointer hover:bg-slate-700/30`}>
-                                    {formatStatusLabel(meeting.status)}
-                                  </Badge>
-                                </SelectTrigger>
-                                <SelectContent className="bg-slate-800 border-emerald-600">
-                                  <SelectItem value="new_lead">New Lead</SelectItem>
-                                  <SelectItem value="active_prospect">Active Prospect</SelectItem>
-                                  <SelectItem value="inactive_prospect">Inactive Prospect</SelectItem>
-                                  <SelectItem value="converted_to_customer">Converted to Customer</SelectItem>
-                                  <SelectItem value="archived">Archived</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            {expandedMeeting === meeting.id ? (
-                              <ChevronUp className="h-5 w-5 text-slate-400" />
-                            ) : (
-                              <ChevronDown className="h-5 w-5 text-slate-400" />
-                            )}
-                          </div>
+                )}
+
+                {/* Google Calendar Integration Card */}
+                <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-14 h-14 rounded-full flex items-center justify-center ${gcalConnected ? 'bg-emerald-500/20' : 'bg-slate-700'}`}>
+                        <Video className={`h-7 w-7 ${gcalConnected ? 'text-emerald-400' : 'text-slate-400'}`} />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">Google Calendar Integration</h3>
+                        <p className="text-sm text-slate-400 mt-0.5">
+                          Automatically create calendar events and generate Google Meet links when meetings are booked.
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className={`w-2 h-2 rounded-full ${gcalConnected ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+                          {gcalLoading ? (
+                            <span className="text-sm text-slate-400">Checking status...</span>
+                          ) : gcalConnected ? (
+                            <span className="text-sm text-emerald-400 font-medium">Connected</span>
+                          ) : (
+                            <span className="text-sm text-slate-400">Not Connected</span>
+                          )}
                         </div>
                       </div>
-
-                      {expandedMeeting === meeting.id && (
-                        <div className="px-4 pb-4 border-t border-slate-700 pt-4">
-                          <div className="grid md:grid-cols-2 gap-4">
-                            <div className="space-y-3">
-                              <div>
-                                <h5 className="text-xs font-semibold text-slate-400 uppercase mb-2 flex items-center gap-2">
-                                  <CalendarClock className="h-3.5 w-3.5" />
-                                  Meeting Details
-                                </h5>
-                                <div className="bg-slate-900 rounded-lg p-3 space-y-2 text-sm border border-slate-700/50">
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-400">Duration:</span>
-                                    <span className="text-white">{meeting.duration_minutes} minutes</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-400">Timezone:</span>
-                                    <span className="text-white">{meeting.timezone}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-400">Location:</span>
-                                    <span className="text-white capitalize">{meeting.meeting_location?.replace('-', ' ')}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-400">Submitted:</span>
-                                    <span className="text-white">{formatDate(meeting.created_at)}</span>
-                                  </div>
-                                </div>
-                              </div>
-                              {meeting.notes && (
-                                <div>
-                                  <h5 className="text-xs font-semibold text-slate-400 uppercase mb-2 flex items-center gap-2">
-                                    <MessageSquare className="h-3.5 w-3.5" />
-                                    Notes from Customer
-                                  </h5>
-                                  <div className="bg-slate-900 rounded-lg p-3 text-slate-400 text-sm whitespace-pre-wrap max-h-16 overflow-hidden border border-slate-700/50">
-                                    {meeting.notes}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            <div>
-                              <h5 className="text-xs font-semibold text-slate-400 uppercase mb-2 flex items-center gap-2">
-                                <FileText className="h-3.5 w-3.5" />
-                                Interaction Summary
-                              </h5>
-                              <div className="space-y-3">
-                                {interactionSummaries[`meeting_${meeting.id}`]?.length > 0 && (
-                                  <div className="bg-slate-900/80 rounded-lg border border-slate-700/50 max-h-32 overflow-y-auto">
-                                    {interactionSummaries[`meeting_${meeting.id}`].map((summary, idx) => (
-                                      <div 
-                                        key={idx} 
-                                        className={`p-2.5 text-sm ${idx !== 0 ? 'border-t border-slate-700/30' : ''}`}
-                                      >
-                                        <span className="text-slate-300">{summary}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-
-                                <div className="space-y-2">
-                                  <Textarea
-                                    placeholder="Add notes about this interaction..."
-                                    value={newSummaryInput[`meeting_${meeting.id}`] || ""}
-                                    onChange={(e) => setNewSummaryInput(prev => ({ ...prev, [`meeting_${meeting.id}`]: e.target.value }))}
-                                    className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-500 min-h-[60px] resize-none text-sm"
-                                  />
-                                  <Button 
-                                    size="sm" 
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                                    onClick={() => addInteractionSummary(`meeting_${meeting.id}`)}
-                                    disabled={savingSummary === `meeting_${meeting.id}` || !newSummaryInput[`meeting_${meeting.id}`]?.trim()}
-                                  >
-                                    {savingSummary === `meeting_${meeting.id}` ? (
-                                      <>
-                                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                        Saving...
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Add Interaction Note
-                                      </>
-                                    )}
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                    </div>
+                    <div className="flex-shrink-0">
+                      {gcalLoading ? (
+                        <Button disabled className="bg-slate-700 text-slate-400">
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Loading...
+                        </Button>
+                      ) : gcalConnected ? (
+                        <Button
+                          onClick={handleGcalDisconnect}
+                          disabled={gcalDisconnecting}
+                          className="bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-600/40"
+                        >
+                          {gcalDisconnecting ? (
+                            <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Disconnecting...</>
+                          ) : (
+                            <><Unplug className="h-4 w-4 mr-2" />Disconnect</>
+                          )}
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={handleGcalConnect}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                          <Link2 className="h-4 w-4 mr-2" />
+                          Connect Google Calendar
+                        </Button>
                       )}
                     </div>
-                  ))
-                )}
+                  </div>
+
+                  {gcalConnected && (
+                    <div className="mt-6 pt-5 border-t border-slate-700 grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-slate-900 rounded-lg p-4 border border-slate-700/50 text-center">
+                        <CalendarClock className="h-6 w-6 text-emerald-400 mx-auto mb-2" />
+                        <p className="text-xs text-slate-400 mb-1">Auto Event Creation</p>
+                        <p className="text-sm text-white font-medium">Active</p>
+                      </div>
+                      <div className="bg-slate-900 rounded-lg p-4 border border-slate-700/50 text-center">
+                        <Video className="h-6 w-6 text-blue-400 mx-auto mb-2" />
+                        <p className="text-xs text-slate-400 mb-1">Meet Link Generation</p>
+                        <p className="text-sm text-white font-medium">Active</p>
+                      </div>
+                      <div className="bg-slate-900 rounded-lg p-4 border border-slate-700/50 text-center">
+                        <Mail className="h-6 w-6 text-purple-400 mx-auto mb-2" />
+                        <p className="text-xs text-slate-400 mb-1">Attendee Invites</p>
+                        <p className="text-sm text-white font-medium">Auto-send</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Meetings Table */}
+                <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+                    <h3 className="text-base font-semibold text-white">All Meetings</h3>
+                  </div>
+
+                  {meetings.length === 0 ? (
+                    <div className="text-center py-16 text-slate-400">
+                      <CalendarClock className="h-12 w-12 mx-auto mb-4 opacity-40" />
+                      <p>No meetings booked yet</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-700 bg-slate-900/50">
+                            <th className="text-left text-slate-400 font-medium px-4 py-3">Name</th>
+                            <th className="text-left text-slate-400 font-medium px-4 py-3">Email</th>
+                            <th className="text-left text-slate-400 font-medium px-4 py-3">Meeting Date</th>
+                            <th className="text-left text-slate-400 font-medium px-4 py-3">Meeting Time</th>
+                            <th className="text-left text-slate-400 font-medium px-4 py-3">Meet Link</th>
+                            <th className="text-left text-slate-400 font-medium px-4 py-3">Status</th>
+                            <th className="text-left text-slate-400 font-medium px-4 py-3">View</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {meetings.map((meeting) => (
+                            <tr key={meeting.id} className="border-b border-slate-700/50 hover:bg-slate-800/40 transition-colors">
+                              <td className="px-4 py-3 text-white font-medium">{meeting.full_name}</td>
+                              <td className="px-4 py-3 text-slate-300">{meeting.work_email}</td>
+                              <td className="px-4 py-3 text-slate-300">
+                                {meeting.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : <span className="text-slate-500 italic">Not set</span>}
+                              </td>
+                              <td className="px-4 py-3 text-slate-300">
+                                {meeting.meeting_time ? (
+                                  <span>{meeting.meeting_time}</span>
+                                ) : (
+                                  <span className="text-slate-500 italic">Not set</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                {meeting.meeting_link ? (
+                                  <a
+                                    href={meeting.meeting_link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 transition-colors"
+                                  >
+                                    <Video className="h-3.5 w-3.5" />
+                                    <span>Join</span>
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-500 text-xs italic">No link</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="relative" onClick={(e) => e.stopPropagation()}>
+                                  <Select 
+                                    value={meeting.status} 
+                                    onValueChange={(value) => updateMeetingStatus(meeting.id, value)}
+                                  >
+                                    <SelectTrigger className="p-0 border-0 bg-transparent h-auto min-h-0 w-auto">
+                                      <Badge className={`${contactStatusColors[meeting.status] || 'bg-slate-700 text-slate-300'} border cursor-pointer hover:bg-slate-700/30`}>
+                                        {formatStatusLabel(meeting.status)}
+                                      </Badge>
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-slate-800 border-slate-700">
+                                      <SelectItem value="new_lead">New Lead</SelectItem>
+                                      <SelectItem value="active_prospect">Active Prospect</SelectItem>
+                                      <SelectItem value="inactive_prospect">Inactive Prospect</SelectItem>
+                                      <SelectItem value="converted_to_customer">Converted to Customer</SelectItem>
+                                      <SelectItem value="archived">Archived</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-emerald-600 text-emerald-400 hover:bg-emerald-600 hover:text-white h-7 px-2"
+                                  onClick={() => setViewMeetingModal(meeting)}
+                                >
+                                  <Eye className="h-3.5 w-3.5 mr-1" />
+                                  View
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
             </TabsContent>
 
-            {/* Assessment Tab */}
+            {/* Assessments Tab */}
             <TabsContent value="assessments" className="mt-0">
               <div className="flex flex-wrap items-center gap-2 mb-6 pb-4 border-b border-slate-700">
                 {[
@@ -943,9 +972,8 @@ export default function CustomerInteractionPage() {
                   )
                 })}
                 <div className="ml-auto flex items-center gap-4 text-sm text-slate-400">
-                  <span>Total: <strong className="text-white">{assessmentStats.total}</strong></span>
-                  <span>Completed: <strong className="text-emerald-400">{assessmentStats.completed}</strong></span>
-                  <span>Today: <strong className="text-purple-400">{assessmentStats.completedToday}</strong></span>
+                  <span>Total: <strong className="text-white">{assessments.length}</strong></span>
+                  <span>Completed: <strong className="text-emerald-400">{assessments.filter(a => a.status === 'completed').length}</strong></span>
                 </div>
               </div>
 
@@ -1020,12 +1048,7 @@ export default function CustomerInteractionPage() {
                               <Eye className="h-4 w-4 mr-1" />
                               View Answers
                             </Button>
-                            {expandedAssessment === assessment.id ? (
-                              <ChevronUp className="h-5 w-5 text-slate-400" />
-                            ) : (
-                              <ChevronDown className="h-5 w-5 text-slate-400" />
-                            )}
-                          </div>
+                                                      </div>
                         </div>
                       </div>
 
@@ -1072,12 +1095,12 @@ export default function CustomerInteractionPage() {
                                   {assessment.answers && typeof assessment.answers === 'object' ? (
                                     <>
                                       {Object.entries(assessment.answers).slice(0, 3).map(([key, value], index) => {
-                                        const answer = typeof value === 'object' && value !== null ? value : { questionText: key, answerValue: value, answerIndex: 0 }
+                                        const answer = typeof value === 'object' && value !== null ? value as AssessmentAnswer : { questionText: key, answerValue: String(value), answerIndex: 0 }
                                         return (
                                           <div key={key || index} className="mb-3 last:mb-0 p-2 bg-slate-800/50 rounded border border-slate-700/30">
                                             <p className="text-xs text-slate-400 mb-1 truncate">{answer.questionText || key}</p>
                                             <div className="flex items-center justify-between">
-                                              <p className="text-sm text-white truncate mr-2">{answer.answerValue || value}</p>
+                                              <p className="text-sm text-white truncate mr-2">{answer.answerValue || String(value)}</p>
                                               {answer.answerIndex !== undefined && (
                                                 <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded-full">
                                                   Index: {answer.answerIndex}
@@ -1151,31 +1174,217 @@ export default function CustomerInteractionPage() {
         </CardContent>
       </Card>
 
+      {/* View Meeting Modal */}
+      {viewMeetingModal && (
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={() => setViewMeetingModal(null)}
+        >
+          <div
+            className="bg-slate-900 rounded-xl border border-slate-700 max-w-lg w-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-700">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Meeting Details</h3>
+                <p className="text-sm text-slate-400">{viewMeetingModal.full_name} — {formatDate(viewMeetingModal.created_at)}</p>
+              </div>
+              <button onClick={() => setViewMeetingModal(null)} className="text-slate-400 hover:text-white p-1 rounded transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Name', value: viewMeetingModal.full_name },
+                  { label: 'Email', value: viewMeetingModal.work_email },
+                  { label: 'Company', value: viewMeetingModal.company_name },
+                  { label: 'Phone', value: viewMeetingModal.phone_number || '—' },
+                  { label: 'Meeting Date', value: viewMeetingModal.meeting_date ? new Date(viewMeetingModal.meeting_date).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : '—' },
+                  { label: 'Meeting Time', value: viewMeetingModal.meeting_time || '—' },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-slate-800 rounded-lg p-3 border border-slate-700/50">
+                    <p className="text-xs text-slate-400 mb-1">{label}</p>
+                    <p className="text-sm text-white font-medium break-all">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {viewMeetingModal.meeting_link && (
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Video className="h-4 w-4 text-blue-400" />
+                    <span className="text-sm text-blue-300 font-medium">Google Meet Link</span>
+                  </div>
+                  <a
+                    href={viewMeetingModal.meeting_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    Open Meet <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              )}
+
+              {viewMeetingModal.notes && (
+                <div className="bg-slate-800 rounded-lg p-3 border border-slate-700/50">
+                  <p className="text-xs text-slate-400 mb-1">Message / Notes</p>
+                  <p className="text-sm text-slate-300 whitespace-pre-wrap">{viewMeetingModal.notes}</p>
+                </div>
+              )}
+
+              <div className="bg-slate-800 rounded-lg p-3 border border-slate-700/50 flex items-center justify-between">
+                <p className="text-xs text-slate-400">Status</p>
+                <Badge className={`${contactStatusColors[viewMeetingModal.status] || 'bg-slate-700 text-slate-300'} border`}>
+                  {formatStatusLabel(viewMeetingModal.status)}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-5 border-t border-slate-700 flex justify-between gap-3">
+              <Button
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => {
+                  setViewMeetingModal(null)
+                  openEmailReplyModal(viewMeetingModal)
+                }}
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                Reply via Email
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setViewMeetingModal(null)}
+                className="border-slate-600 text-slate-300 hover:bg-slate-800"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email Reply Modal */}
+      {emailReplyModal && (
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={() => setEmailReplyModal(null)}
+        >
+          <div
+            className="bg-slate-900 rounded-xl border border-slate-700 max-w-lg w-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-700">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Reply via Email</h3>
+                <p className="text-sm text-slate-400">To: {emailReplyModal.work_email}</p>
+              </div>
+              <button onClick={() => setEmailReplyModal(null)} className="text-slate-400 hover:text-white p-1 rounded transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4">
+              {/* To field (read-only) */}
+              <div>
+                <label className="text-xs font-medium text-slate-400 uppercase mb-1 block">To</label>
+                <Input
+                  value={emailReplyModal.work_email}
+                  readOnly
+                  className="bg-slate-800 border-slate-700 text-slate-300 cursor-default"
+                />
+              </div>
+
+              {/* Subject */}
+              <div>
+                <label className="text-xs font-medium text-slate-400 uppercase mb-1 block">Subject</label>
+                <Input
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  className="bg-slate-800 border-slate-700 text-white"
+                  placeholder="Email subject..."
+                />
+              </div>
+
+              {/* Message */}
+              <div>
+                <label className="text-xs font-medium text-slate-400 uppercase mb-1 block">Message</label>
+                <Textarea
+                  value={emailMessage}
+                  onChange={(e) => setEmailMessage(e.target.value)}
+                  className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 min-h-[130px] resize-none"
+                  placeholder="Type your message here..."
+                />
+              </div>
+
+              {/* Attachments note */}
+              <div className="flex items-center gap-2 text-slate-500 text-xs">
+                <Paperclip className="h-3.5 w-3.5" />
+                <span>Attachments can be added by replying to the sent email directly.</span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-5 border-t border-slate-700 flex gap-3">
+              <Button
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                disabled={!emailMessage.trim() || emailSending}
+                onClick={handleSendEmail}
+              >
+                {emailSending ? (
+                  <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Sending...</>
+                ) : (
+                  <><Send className="h-4 w-4 mr-2" />Send</>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setEmailReplyModal(null)}
+                className="border-slate-600 text-slate-300 hover:bg-slate-800"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* View Answers Modal */}
       {viewAnswersModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 rounded-xl border border-slate-700 max-w-2xl w-full max-h-[80vh] overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-slate-700">
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={() => setViewAnswersModal(null)}
+        >
+          <div
+            className="bg-slate-900 rounded-xl border border-slate-700 max-w-2xl w-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-700">
               <div>
                 <h3 className="text-lg font-semibold text-white">Assessment Answers</h3>
                 <p className="text-sm text-slate-400">
-                  {viewAnswersModal.contactName || "Anonymous"} - {formatDate(viewAnswersModal.createdAt)}
+                  {viewAnswersModal.contactName || "Anonymous"} — {formatDate(viewAnswersModal.createdAt)}
                 </p>
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setViewAnswersModal(null)}
-                className="text-slate-400 hover:text-white"
-              >
+              <button onClick={() => setViewAnswersModal(null)} className="text-slate-400 hover:text-white p-1 rounded transition-colors">
                 <X className="h-5 w-5" />
-              </Button>
+              </button>
             </div>
-            <div className="p-4 overflow-y-auto max-h-[60vh]">
+
+            {/* Body */}
+            <div className="p-5 overflow-y-auto max-h-[60vh]">
               {viewAnswersModal.answers && typeof viewAnswersModal.answers === 'object' && Object.entries(viewAnswersModal.answers).length > 0 ? (
                 <div className="space-y-4">
                   {Object.entries(viewAnswersModal.answers).map(([key, value], index) => {
-                    const answer = typeof value === 'object' && value !== null ? value : { questionText: key, answerValue: value, answerIndex: 0 }
+                    const answer = typeof value === 'object' && value !== null ? value as AssessmentAnswer : { questionText: key, answerValue: String(value), answerIndex: 0 }
                     return (
                       <div key={key || index} className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
                         <div className="flex items-start gap-3">
@@ -1185,7 +1394,7 @@ export default function CustomerInteractionPage() {
                           <div className="flex-1">
                             <p className="text-slate-400 text-sm mb-2">{answer.questionText || key}</p>
                             <div className="flex items-center justify-between">
-                              <p className="text-white font-medium mr-4">{answer.answerValue || value}</p>
+                              <p className="text-white font-medium mr-4">{answer.answerValue || String(value)}</p>
                               {answer.answerIndex !== undefined && (
                                 <span className="text-xs bg-purple-500/20 text-purple-400 px-3 py-1 rounded-full font-medium">
                                   Index: {answer.answerIndex}
@@ -1205,7 +1414,9 @@ export default function CustomerInteractionPage() {
                 </div>
               )}
             </div>
-            <div className="p-4 border-t border-slate-700 flex justify-between items-center">
+
+            {/* Footer */}
+            <div className="p-5 border-t border-slate-700 flex justify-between items-center">
               <div className="text-sm text-slate-400">
                 {viewAnswersModal.score !== null && (
                   <span>Score: <strong className="text-emerald-400">{Math.round(viewAnswersModal.score)} pts</strong></span>
