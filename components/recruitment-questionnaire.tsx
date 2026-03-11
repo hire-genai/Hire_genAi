@@ -216,17 +216,16 @@ export function RecruitmentQuestionnaire() {
       localStorage.setItem('sessionId', sessionId)
     }
 
-    // Format answers for API
-    const formattedAnswers = Object.entries(answers).map(([questionId, answerValue]) => {
+    // Format answers for API (store as direct object matching parent project format)
+    const formattedAnswers: Record<string, any> = {}
+    Object.entries(answers).forEach(([questionId, answerValue]) => {
       const question = questions.find(q => q.id === questionId)
       const answerOption = question?.options.find(opt => opt.value === answerValue)
-      const answerIndex = question?.options.findIndex(opt => opt.value === answerValue) || 0
       
-      return {
-        questionKey: questionId,
+      formattedAnswers[questionId] = {
         questionText: question?.title || '',
         answerValue: answerOption?.label || answerValue,
-        answerIndex: answerIndex
+        answerIndex: question?.options.findIndex(opt => opt.value === answerValue) || 0
       }
     })
 
@@ -238,13 +237,12 @@ export function RecruitmentQuestionnaire() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          sessionId: sessionId,
-          contactName: contactInfo.name,
-          contactEmail: contactInfo.email,
-          contactCompany: contactInfo.company,
-          contactPhone: contactInfo.phone || null,
+          name: contactInfo.name,
+          email: contactInfo.email,
+          company: contactInfo.company,
+          phone: contactInfo.phone || null,
           answers: formattedAnswers,
-          status: 'completed'
+          efficiencyScore: efficiencyScore
         }),
       })
 

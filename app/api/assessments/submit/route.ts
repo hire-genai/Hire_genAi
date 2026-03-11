@@ -1,117 +1,88 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { neon } from '@neondatabase/serverless'
+import { DatabaseService } from '@/lib/database'
 
-export async function POST(request: NextRequest) {
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json()
-    const { 
-      sessionId, 
-      contactEmail, 
-      contactName, 
-      contactCompany, 
-      contactPhone,
-      answers, 
-      status = 'partial' 
-    } = body
-
-    if (!sessionId || !answers || !Array.isArray(answers)) {
-      return NextResponse.json(
-        { error: 'Missing required fields: sessionId, answers' },
-        { status: 400 }
-      )
+    if (!DatabaseService.isDatabaseConfigured()) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 })
     }
 
-    const sql = neon(process.env.DATABASE_URL!)
+    const body = await req.json()
+    const {
+      name,
+      email,
+      company,
+      phone,
+      answers,
+      efficiencyScore,
+    } = body || {}
 
-    // Convert answers array to JSON object format
-    const answersJson: { [key: string]: any } = {}
-    for (const answer of answers) {
-      answersJson[answer.questionKey] = {
-        questionText: answer.questionText,
-        answerValue: answer.answerValue,
-        answerIndex: answer.answerIndex
-      }
+    // Validate required fields (matching parent project validation)
+    if (!name || !email || !company) {
+      return NextResponse.json({ 
+        error: 'Missing required fields: name, email, and company are required' 
+      }, { status: 400 })
     }
 
-    // Calculate score if completed
-    let score = null
-    let scoreBreakdown = null
-    
-    if (status === 'completed') {
-      // Simple scoring logic - you can customize this
-      const scoreMap: { [key: string]: number } = {
-        'question-1': 10, // Applications received
-        'question-2': 15, // Time spent screening
-        'question-3': 15, // Time-to-hire
-        'question-4': 10, // Screening method
-        'question-5': 15, // Quality standards
-        'question-6': 10, // Cost per hire
-        'question-7': 10, // Candidate experience
-        'question-8': 15, // People involved
-        'question-9': 10, // Technology usage
-        'question-10': 10  // Priority areas
-      }
-      
-      let totalScore = 0
-      const breakdown: { [key: string]: number } = {}
-      
-      for (const answer of answers) {
-        const points = scoreMap[answer.questionKey] || 0
-        // Higher index = better answer (assuming options are ordered from worst to best)
-        const answerScore = points * ((answer.answerIndex || 0) + 1) / 4 // Assuming 4 options max
-        totalScore += answerScore
-        breakdown[answer.questionKey] = answerScore
-      }
-      
-      score = totalScore
-      scoreBreakdown = breakdown
-    }
+    // Capture request metadata (matching parent project)
+    const clientIp = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || null
+    const userAgent = req.headers.get('user-agent') || null
 
-    // No duplicate check here - already validated at start
-
-    // Create new assessment
-    const newAssessment = await sql`
+    // Insert assessment data into database (matching recruitment_assessments schema)
+    const insertQuery = `
       INSERT INTO assessments (
-        session_id,
-        contact_email,
-        contact_name,
-        contact_company,
-        contact_phone,
+        name,
+        email,
+        company,
+        phone,
         answers,
-        status,
-        score,
-        score_breakdown,
-        completed_at
-      ) VALUES (
-        ${sessionId},
-        ${contactEmail || null},
-        ${contactName || null},
-        ${contactCompany || null},
-        ${contactPhone || null},
-        ${JSON.stringify(answersJson)},
-        ${status},
-        ${score},
-        ${scoreBreakdown ? JSON.stringify(scoreBreakdown) : null},
-        ${status === 'completed' ? new Date().toISOString() : null}
+        efficiency_score,
+        ip_address,
+        user_agent,
+        created_at
       )
-      RETURNING id
+      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7::inet, $8, NOW())
+      RETURNING id, created_at
     `
-    
-    const assessmentId = newAssessment[0].id
 
-    return NextResponse.json({
-      success: true,
+    const values = [
+      String(name).trim(),
+      String(email).toLowerCase().trim(),
+      String(company).trim(),
+      phone ? String(phone).trim() : null,
+      JSON.stringify(answers || {}), // Store answers exactly as received from frontend
+      efficiencyScore ? Number(efficiencyScore) : null,
+      clientIp,
+      userAgent,
+    ]
+
+    const result = await DatabaseService.query(insertQuery, values) as any[]
+
+    const assessmentId = result?.[0]?.id
+    const createdAt = result?.[0]?.created_at
+
+    if (!assessmentId) {
+      return NextResponse.json({ 
+        error: 'Failed to store assessment data' 
+      }, { status: 500 })
+    }
+
+    console.log(`✅ Assessment submitted: id=${assessmentId}, email=${email}, company=${company}`)
+
+    // Return response matching parent project format
+    return NextResponse.json({ 
+      ok: true, 
       assessmentId,
-      score,
-      scoreBreakdown,
-      status
+      createdAt,
+      message: 'Assessment submitted successfully'
     })
-
-  } catch (error) {
-    console.error('Assessment submission error:', error)
-    return NextResponse.json(
-      { error: 'Failed to submit assessment' },
-      { status: 500 }
-    )
+  } catch (err: any) {
+    console.error('❌ Assessment submit error:', err)
+    return NextResponse.json({ 
+      error: err?.message || 'Failed to submit assessment' 
+    }, { status: 500 })
   }
 }
