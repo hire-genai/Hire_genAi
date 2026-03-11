@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Clock, Globe, MapPin, Zap, Facebook, Instagram, Youtube, Linkedin, Lock, Star, Loader2, ArrowRight, Calendar, CheckCircle2 } from "lucide-react"
+import { Clock, Globe, MapPin, Zap, Facebook, Instagram, Youtube, Linkedin, Lock, Star, Loader2, ArrowRight, Calendar, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -11,14 +11,54 @@ import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
 import Navbar from "@/components/layout/Navbar"
 
-// Google Calendar Appointment Scheduler URL from environment variable
-const GOOGLE_CALENDAR_URL = process.env.NEXT_PUBLIC_CALENDAR_SCHEDULING_URL || ""
+// Generate time slots from 9:00am to 6:00pm with 30-minute intervals
+const generateTimeSlots = () => {
+  const slots: string[] = []
+  const startHour = 9
+  const endHour = 18
+  
+  for (let hour = startHour; hour < endHour; hour++) {
+    slots.push(`${hour > 12 ? hour - 12 : hour}:00${hour >= 12 ? 'pm' : 'am'}`)
+    slots.push(`${hour > 12 ? hour - 12 : hour}:30${hour >= 12 ? 'pm' : 'am'}`)
+  }
+  
+  return slots
+}
+
+const TIME_SLOTS = generateTimeSlots()
+
+// Days of week starting from Monday
+const DAYS_OF_WEEK = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 
 export default function BookMeetingPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
-  const [step, setStep] = useState(1) // 1: Form, 2: Google Calendar, 3: Confirmation
+  const [step, setStep] = useState(1) // 1: Calendar, 2: Details Form, 3: Confirmation
+
+  // Calendar state
+  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [selectedTime, setSelectedTime] = useState<string | null>(null)
+
+  // Get current time for timezone display
+  const [currentTime, setCurrentTime] = useState("")
+  
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date()
+      const timeStr = now.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'Asia/Kolkata'
+      }).toLowerCase()
+      setCurrentTime(timeStr)
+    }
+    updateTime()
+    const interval = setInterval(updateTime, 60000)
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     const scrollTo = searchParams?.get('scroll')
@@ -33,8 +73,8 @@ export default function BookMeetingPage() {
       return () => clearTimeout(timer)
     }
   }, [searchParams])
+
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [bookingId, setBookingId] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     fullName: '',
     workEmail: '',
@@ -43,7 +83,128 @@ export default function BookMeetingPage() {
     notes: ''
   })
 
-  const handleSaveAndNext = async () => {
+  // Calendar helper functions
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear()
+    const month = date.getMonth()
+    const firstDay = new Date(year, month, 1)
+    const lastDay = new Date(year, month + 1, 0)
+    const daysInMonth = lastDay.getDate()
+    
+    // Get day of week (0 = Sunday, adjust for Monday start)
+    let startDay = firstDay.getDay() - 1
+    if (startDay < 0) startDay = 6
+    
+    return { daysInMonth, startDay }
+  }
+
+  const calendarDays = useMemo(() => {
+    const { daysInMonth, startDay } = getDaysInMonth(currentMonth)
+    const days: (number | null)[] = []
+    
+    // Add empty cells for days before the first day of month
+    for (let i = 0; i < startDay; i++) {
+      days.push(null)
+    }
+    
+    // Add days of the month
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(i)
+    }
+    
+    return days
+  }, [currentMonth])
+
+  const isDateSelectable = (day: number) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const checkDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
+    return checkDate >= today
+  }
+
+  const isDateSelected = (day: number) => {
+    if (!selectedDate) return false
+    return (
+      selectedDate.getDate() === day &&
+      selectedDate.getMonth() === currentMonth.getMonth() &&
+      selectedDate.getFullYear() === currentMonth.getFullYear()
+    )
+  }
+
+  const handleDateSelect = (day: number) => {
+    if (!isDateSelectable(day)) return
+    const newDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
+    setSelectedDate(newDate)
+    setSelectedTime(null) // Reset time when date changes
+  }
+
+  const handlePrevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
+  }
+
+  const handleNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
+  }
+
+  const formatSelectedDate = () => {
+    if (!selectedDate) return ""
+    return selectedDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric'
+    })
+  }
+
+  const formatMonthYear = () => {
+    return currentMonth.toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric'
+    })
+  }
+
+  // Format date for API (YYYY-MM-DD)
+  const formatDateForAPI = (date: Date) => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  // Calculate end time (30 minutes after start time)
+  const calculateEndTime = (startTime: string) => {
+    // Parse time string like "9:00am" or "2:30pm"
+    const match = startTime.match(/(\d+):(\d+)(am|pm)/)
+    if (!match) return startTime
+    
+    let hours = parseInt(match[1])
+    let minutes = parseInt(match[2])
+    const period = match[3]
+    
+    // Convert to 24-hour format
+    if (period === 'pm' && hours !== 12) hours += 12
+    if (period === 'am' && hours === 12) hours = 0
+    
+    // Add 30 minutes
+    minutes += 30
+    if (minutes >= 60) {
+      minutes -= 60
+      hours += 1
+    }
+    
+    // Convert back to 12-hour format
+    const endPeriod = hours >= 12 ? 'pm' : 'am'
+    const displayHours = hours > 12 ? hours - 12 : (hours === 0 ? 12 : hours)
+    
+    return `${displayHours}:${String(minutes).padStart(2, '0')}${endPeriod}`
+  }
+
+  const handleNextFromCalendar = () => {
+    if (selectedDate && selectedTime) {
+      setStep(2)
+    }
+  }
+
+  const handleSubmitBooking = async () => {
     setIsSubmitting(true)
     
     try {
@@ -57,31 +218,33 @@ export default function BookMeetingPage() {
           workEmail: formData.workEmail,
           companyName: formData.companyName,
           phoneNumber: formData.phoneNumber || null,
-          notes: formData.notes || null
+          notes: formData.notes || null,
+          meetingDate: selectedDate ? formatDateForAPI(selectedDate) : null,
+          meetingTime: selectedTime || null,
+          meetingEndTime: selectedTime ? calculateEndTime(selectedTime) : null
         })
       })
       
       const data = await response.json()
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to save details')
+        throw new Error(data.error || 'Failed to book meeting')
       }
       
-      console.log('✅ Details saved successfully:', data.booking)
-      setBookingId(data.booking.id)
+      console.log('✅ Meeting booked successfully:', data.booking)
       
       toast({
-        title: "Details Saved!",
-        description: "Now select your preferred time slot from the calendar.",
+        title: "Meeting Booked!",
+        description: "Your meeting has been scheduled successfully.",
       })
       
-      setStep(2) // Go to Calendar Selection
+      setStep(3) // Go to Confirmation
       
     } catch (error: any) {
-      console.error('❌ Failed to save details:', error)
+      console.error('❌ Failed to book meeting:', error)
       toast({
-        title: "Failed to Save",
-        description: error.message || "Failed to save details. Please try again.",
+        title: "Booking Failed",
+        description: error.message || "Failed to book meeting. Please try again.",
         variant: "destructive"
       })
     } finally {
@@ -113,7 +276,7 @@ export default function BookMeetingPage() {
               
               {/* Logo */}
               <div className="flex items-center gap-2 mb-8">
-                <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
+                <div className="w-8 h-8 bg-emerald-600 rounded flex items-center justify-center">
                   <span className="text-white font-bold text-lg">H</span>
                 </div>
                 <span className="text-xl font-bold">
@@ -124,7 +287,7 @@ export default function BookMeetingPage() {
 
               {/* Profile */}
               <div className="mb-6">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 mb-4 flex items-center justify-center text-white text-2xl font-semibold">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 mb-4 flex items-center justify-center text-white text-2xl font-semibold">
                   T
                 </div>
                 <p className="text-slate-600 text-sm mb-1">HireGenAI Team</p>
@@ -149,21 +312,21 @@ export default function BookMeetingPage() {
               {/* Step Indicator */}
               <div className="mt-8 pt-6 border-t border-slate-200">
                 <div className="flex items-center gap-2">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step >= 1 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step >= 1 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
                     {step > 1 ? <CheckCircle2 className="w-4 h-4" /> : '1'}
                   </div>
-                  <div className={`flex-1 h-1 ${step >= 2 ? 'bg-blue-600' : 'bg-slate-200'}`}></div>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step >= 2 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                  <div className={`flex-1 h-1 ${step >= 2 ? 'bg-emerald-600' : 'bg-slate-200'}`}></div>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step >= 2 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
                     {step > 2 ? <CheckCircle2 className="w-4 h-4" /> : '2'}
                   </div>
-                  <div className={`flex-1 h-1 ${step >= 3 ? 'bg-blue-600' : 'bg-slate-200'}`}></div>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step >= 3 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                  <div className={`flex-1 h-1 ${step >= 3 ? 'bg-emerald-600' : 'bg-slate-200'}`}></div>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step >= 3 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
                     {step >= 3 ? <CheckCircle2 className="w-4 h-4" /> : '3'}
                   </div>
                 </div>
                 <div className="flex justify-between mt-2 text-xs text-slate-500">
-                  <span>Details</span>
                   <span>Time</span>
+                  <span>Details</span>
                   <span>Done</span>
                 </div>
               </div>
@@ -171,10 +334,139 @@ export default function BookMeetingPage() {
 
             {/* Right Column - Step Content */}
             <div className="flex-1 p-8">
-              {/* Step 1: Enter Details Form */}
+              {/* Step 1: Calendar & Time Selection */}
               {step === 1 && (
+                <div className="flex flex-col lg:flex-row gap-8">
+                  {/* Calendar Section */}
+                  <div className="flex-1">
+                    {/* Month Navigation */}
+                    <div className="flex items-center justify-between mb-6">
+                      <button 
+                        onClick={handlePrevMonth}
+                        className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-600"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <h3 className="text-lg font-semibold text-slate-800">{formatMonthYear()}</h3>
+                      <button 
+                        onClick={handleNextMonth}
+                        className="p-2 hover:bg-emerald-100 rounded-full transition-colors text-emerald-600"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    {/* Days of Week Header */}
+                    <div className="grid grid-cols-7 gap-1 mb-2">
+                      {DAYS_OF_WEEK.map(day => (
+                        <div key={day} className="text-center text-xs font-medium text-slate-500 py-2">
+                          {day}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Calendar Grid */}
+                    <div className="grid grid-cols-7 gap-1">
+                      {calendarDays.map((day, index) => (
+                        <div key={index} className="aspect-square flex items-center justify-center">
+                          {day !== null && (
+                            <button
+                              onClick={() => handleDateSelect(day)}
+                              disabled={!isDateSelectable(day)}
+                              className={`w-10 h-10 rounded-full text-sm font-medium transition-all
+                                ${isDateSelected(day) 
+                                  ? 'bg-emerald-600 text-white' 
+                                  : isDateSelectable(day)
+                                    ? 'text-emerald-600 hover:bg-emerald-100'
+                                    : 'text-slate-300 cursor-not-allowed'
+                                }
+                              `}
+                            >
+                              {day}
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Timezone */}
+                    <div className="mt-6 pt-4 border-t border-slate-200">
+                      <p className="text-sm text-slate-500 mb-1">Time zone</p>
+                      <div className="flex items-center gap-2 text-slate-700">
+                        <Globe className="w-4 h-4" />
+                        <span className="text-sm">India Standard Time ({currentTime})</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Time Slots Section */}
+                  <div className="lg:flex-1 lg:max-w-xs">
+                    {selectedDate ? (
+                      <>
+                        <h4 className="text-lg font-semibold text-slate-800 mb-4">
+                          {formatSelectedDate()}
+                        </h4>
+                        <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2">
+                          {TIME_SLOTS.map(time => (
+                            <div key={time}>
+                              {selectedTime === time ? (
+                                <div className="flex gap-2 items-center">
+                                  <div className="flex-1 py-3 px-4 rounded-lg bg-slate-600 text-white text-sm font-medium text-center">
+                                    {time}
+                                  </div>
+                                  <button
+                                    onClick={handleNextFromCalendar}
+                                    className="flex-1 py-3 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors whitespace-nowrap"
+                                  >
+                                    Next
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setSelectedTime(time)}
+                                  className="w-full py-3 px-4 rounded-lg border border-emerald-300 text-emerald-600 text-sm font-medium hover:border-emerald-500 hover:bg-emerald-50 transition-all"
+                                >
+                                  {time}
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-8 text-slate-400">
+                        <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p className="text-sm">Select a date to see available times</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Enter Details Form */}
+              {step === 2 && (
                 <>
-                  <h2 className="text-xl font-bold text-slate-800 mb-6">Enter Your Details</h2>
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold text-slate-800">Enter Your Details</h2>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setStep(1)}
+                      className="border-slate-300"
+                    >
+                      ← Back
+                    </Button>
+                  </div>
+
+                  {/* Selected Date/Time Summary */}
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-6">
+                    <div className="flex items-center gap-2 text-emerald-800">
+                      <Calendar className="w-5 h-5" />
+                      <p className="text-sm font-medium">
+                        {formatSelectedDate()} at {selectedTime}
+                      </p>
+                    </div>
+                  </div>
                   
                   <div className="space-y-5">
                     <div>
@@ -241,70 +533,23 @@ export default function BookMeetingPage() {
 
                     <div className="pt-4">
                       <Button 
-                        onClick={handleSaveAndNext}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white py-6 text-lg"
+                        onClick={handleSubmitBooking}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-6 text-lg"
                         disabled={!formData.fullName || !formData.workEmail || !formData.companyName || isSubmitting}
                       >
                         {isSubmitting ? (
                           <>
                             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            Saving...
+                            Booking...
                           </>
                         ) : (
                           <>
-                            Save and Next
+                            Schedule Meeting
                             <ArrowRight className="w-5 h-5 ml-2" />
                           </>
                         )}
                       </Button>
                     </div>
-                  </div>
-                </>
-              )}
-
-              {/* Step 2: Google Calendar Embed */}
-              {step === 2 && (
-                <>
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-xl font-bold text-slate-800">Select a Date & Time</h2>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setStep(1)}
-                    >
-                      ← Back
-                    </Button>
-                  </div>
-                  
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                    <div className="flex items-center gap-2 text-blue-800">
-                      <Calendar className="w-5 h-5" />
-                      <p className="text-sm font-medium">Your details have been saved! Select your preferred time slot and complete booking below.</p>
-                    </div>
-                  </div>
-
-                  {/* Google Calendar Embed */}
-                  <div className="rounded-lg overflow-hidden border border-slate-200" style={{ minHeight: '450px' }}>
-                    <iframe 
-                      src={GOOGLE_CALENDAR_URL}
-                      style={{ border: 0, width: '100%', height: '450px' }}
-                      frameBorder="0"
-                      title="Schedule a Meeting"
-                      allow="camera; microphone"
-                    />
-                  </div>
-
-                  <div className="mt-6 pt-4 border-t border-slate-200">
-                    <p className="text-sm text-slate-600 mb-4 text-center">
-                      After completing your booking in the calendar above, click the button below:
-                    </p>
-                    <Button
-                      onClick={() => setStep(3)}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-6 text-lg"
-                    >
-                      <CheckCircle2 className="w-5 h-5 mr-2" />
-                      I've Booked My Slot
-                    </Button>
                   </div>
                 </>
               )}
@@ -317,33 +562,37 @@ export default function BookMeetingPage() {
                   </div>
                   
                   <h2 className="text-2xl font-bold text-slate-800 mb-2">Your Meeting is Booked!</h2>
-                  <p className="text-slate-600 mb-6">A confirmation email with Google Meet link has been sent to <span className="font-medium">{formData.workEmail}</span></p>
+                  <p className="text-slate-600 mb-6">A confirmation email has been sent to <span className="font-medium">{formData.workEmail}</span></p>
                   
                   <div className="bg-slate-50 rounded-lg p-6 max-w-md mx-auto mb-8">
                     <div className="space-y-3 text-left">
                       <div className="flex items-center gap-3">
-                        <Clock className="w-5 h-5 text-blue-600" />
-                        <span className="text-slate-700">30 Minute Meeting</span>
+                        <Calendar className="w-5 h-5 text-emerald-600" />
+                        <span className="text-slate-700">{formatSelectedDate()}</span>
                       </div>
                       <div className="flex items-center gap-3">
-                        <MapPin className="w-5 h-5 text-blue-600" />
-                        <span className="text-slate-700">Google Meet (link in your email)</span>
+                        <Clock className="w-5 h-5 text-emerald-600" />
+                        <span className="text-slate-700">{selectedTime} - 30 Minutes</span>
                       </div>
                       <div className="flex items-center gap-3">
-                        <Globe className="w-5 h-5 text-blue-600" />
+                        <MapPin className="w-5 h-5 text-emerald-600" />
+                        <span className="text-slate-700">Google Meet</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Globe className="w-5 h-5 text-emerald-600" />
                         <span className="text-slate-700">India Standard Time</span>
                       </div>
                     </div>
                   </div>
 
                   <p className="text-sm text-slate-500 mb-6">
-                    Please check your inbox for the calendar invite with the Google Meet link.
+                    You will receive a calendar invite with the Google Meet link shortly.
                   </p>
 
                   <Button
                     onClick={() => router.push('/')}
                     variant="outline"
-                    className="px-8"
+                    className="px-8 border-emerald-300 text-emerald-600 hover:bg-emerald-50"
                   >
                     Back to Home
                   </Button>

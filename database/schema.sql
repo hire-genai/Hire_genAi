@@ -407,6 +407,32 @@ CREATE TABLE meeting_bookings (
 CREATE INDEX idx_meeting_bookings_status ON meeting_bookings (status);
 CREATE INDEX idx_meeting_bookings_meeting_date ON meeting_bookings (meeting_date);
 CREATE INDEX idx_meeting_bookings_work_email ON meeting_bookings (work_email);
+CREATE UNIQUE INDEX idx_meeting_bookings_unique_slot
+  ON meeting_bookings (meeting_date, meeting_time)
+  WHERE meeting_date IS NOT NULL
+    AND meeting_time IS NOT NULL
+    AND status NOT IN ('cancelled');
+
+
+-- ---------------------------------------------------------------------------
+-- 4b2. integration_settings
+-- WHY: Stores OAuth tokens and integration configuration (e.g. Google Calendar).
+-- USED BY: /api/google/*, /admin-hiregenai/customer-interaction
+-- ---------------------------------------------------------------------------
+CREATE TABLE integration_settings (
+  id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  integration_name      TEXT NOT NULL UNIQUE,
+  access_token          TEXT,
+  refresh_token         TEXT,
+  token_expiry          TIMESTAMPTZ,
+  calendar_connected    BOOLEAN NOT NULL DEFAULT false,
+  calendar_id           TEXT,
+  extra_data            JSONB,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ
+);
+
+CREATE INDEX idx_integration_settings_name ON integration_settings (integration_name);
 
 
 -- ---------------------------------------------------------------------------

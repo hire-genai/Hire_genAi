@@ -4575,4 +4575,120 @@ export class DatabaseService {
     const rows = await this.query(q, [applicationId]) as any[]
     return rows.length > 0 ? rows[0] : null
   }
+
+  // =========================================================================
+  // INTEGRATION SETTINGS (Google Calendar OAuth)
+  // =========================================================================
+
+  static async getIntegrationSettings(integrationName: string) {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    // Auto-create table if it doesn't exist (safe for all environments)
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS integration_settings (
+        id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        integration_name      TEXT NOT NULL UNIQUE,
+        access_token          TEXT,
+        refresh_token         TEXT,
+        token_expiry          TIMESTAMPTZ,
+        calendar_connected    BOOLEAN NOT NULL DEFAULT false,
+        calendar_id           TEXT,
+        extra_data            JSONB,
+        created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at            TIMESTAMPTZ
+      )
+    `, [])
+
+    const q = `SELECT * FROM integration_settings WHERE integration_name = $1 LIMIT 1`
+    const rows = await this.query(q, [integrationName]) as any[]
+    return rows[0] || null
+  }
+
+  static async upsertIntegrationSettings(data: {
+    integrationName: string
+    accessToken: string
+    refreshToken: string
+    tokenExpiry: string | null
+    calendarConnected: boolean
+    calendarId?: string
+    extraData?: any
+  }) {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      INSERT INTO integration_settings (
+        integration_name, access_token, refresh_token, token_expiry,
+        calendar_connected, calendar_id, extra_data, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      ON CONFLICT (integration_name) DO UPDATE SET
+        access_token = EXCLUDED.access_token,
+        refresh_token = COALESCE(EXCLUDED.refresh_token, integration_settings.refresh_token),
+        token_expiry = EXCLUDED.token_expiry,
+        calendar_connected = EXCLUDED.calendar_connected,
+        calendar_id = COALESCE(EXCLUDED.calendar_id, integration_settings.calendar_id),
+        extra_data = COALESCE(EXCLUDED.extra_data, integration_settings.extra_data),
+        updated_at = NOW()
+      RETURNING *
+    `
+    const rows = await this.query(q, [
+      data.integrationName,
+      data.accessToken,
+      data.refreshToken,
+      data.tokenExpiry,
+      data.calendarConnected,
+      data.calendarId || null,
+      data.extraData ? JSON.stringify(data.extraData) : null
+    ]) as any[]
+    return rows[0]
+  }
+
+  static async updateIntegrationTokens(integrationName: string, accessToken: string, tokenExpiry: string | null) {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      UPDATE integration_settings
+      SET access_token = $2, token_expiry = $3, updated_at = NOW()
+      WHERE integration_name = $1
+      RETURNING *
+    `
+    const rows = await this.query(q, [integrationName, accessToken, tokenExpiry]) as any[]
+    return rows[0]
+  }
+
+  static async disconnectIntegration(integrationName: string) {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      UPDATE integration_settings
+      SET access_token = NULL, refresh_token = NULL, token_expiry = NULL,
+          calendar_connected = false, updated_at = NOW()
+      WHERE integration_name = $1
+      RETURNING *
+    `
+    const rows = await this.query(q, [integrationName]) as any[]
+    return rows[0]
+  }
+
+  static async updateMeetingLink(meetingId: string, meetingLink: string) {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      UPDATE meeting_bookings
+      SET meeting_link = $2, updated_at = NOW()
+      WHERE id = $1::uuid
+      RETURNING *
+    `
+    const rows = await this.query(q, [meetingId, meetingLink]) as any[]
+    return rows[0]
+  }
 }
