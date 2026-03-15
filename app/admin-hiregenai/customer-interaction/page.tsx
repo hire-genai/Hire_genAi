@@ -505,7 +505,7 @@ export default function CustomerInteractionPage() {
               <TabsList className="bg-slate-800 border border-slate-700">
                 <TabsTrigger 
                   value="contacts" 
-                  className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
+                  className="text-slate-400 hover:text-white data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
                 >
                   <Mail className="h-4 w-4 mr-2" />
                   Contact Requests
@@ -517,7 +517,7 @@ export default function CustomerInteractionPage() {
                 </TabsTrigger>
                                 <TabsTrigger 
                   value="google-calendar"
-                  className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
+                  className="text-slate-400 hover:text-white data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
                 >
                   <Video className="h-4 w-4 mr-2" />
                   Google Calendar
@@ -529,7 +529,7 @@ export default function CustomerInteractionPage() {
                 </TabsTrigger>
                 <TabsTrigger 
                   value="assessments"
-                  className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
+                  className="text-slate-400 hover:text-white data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
                 >
                   <ClipboardList className="h-4 w-4 mr-2" />
                   Assessments
@@ -776,7 +776,7 @@ export default function CustomerInteractionPage() {
                       </div>
                       <div>
                         <h3 className="text-lg font-semibold text-white">Google Calendar Integration</h3>
-                        <p className="text-sm text-slate-400 mt-0.5">
+                        <p className="text-sm text-white mt-0.5">
                           Automatically create calendar events and generate Google Meet links when meetings are booked.
                         </p>
                         <div className="flex items-center gap-2 mt-2">
@@ -784,7 +784,7 @@ export default function CustomerInteractionPage() {
                           {gcalLoading ? (
                             <span className="text-sm text-slate-400">Checking status...</span>
                           ) : gcalConnected ? (
-                            <span className="text-sm text-emerald-400 font-medium">Connected</span>
+                            <span className="text-sm text-emerald-400">Connected</span>
                           ) : (
                             <span className="text-sm text-slate-400">Not Connected</span>
                           )}
@@ -821,26 +821,7 @@ export default function CustomerInteractionPage() {
                     </div>
                   </div>
 
-                  {gcalConnected && (
-                    <div className="mt-6 pt-5 border-t border-slate-700 grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-slate-900 rounded-lg p-4 border border-slate-700/50 text-center">
-                        <CalendarClock className="h-6 w-6 text-emerald-400 mx-auto mb-2" />
-                        <p className="text-xs text-slate-400 mb-1">Auto Event Creation</p>
-                        <p className="text-sm text-white font-medium">Active</p>
-                      </div>
-                      <div className="bg-slate-900 rounded-lg p-4 border border-slate-700/50 text-center">
-                        <Video className="h-6 w-6 text-blue-400 mx-auto mb-2" />
-                        <p className="text-xs text-slate-400 mb-1">Meet Link Generation</p>
-                        <p className="text-sm text-white font-medium">Active</p>
-                      </div>
-                      <div className="bg-slate-900 rounded-lg p-4 border border-slate-700/50 text-center">
-                        <Mail className="h-6 w-6 text-purple-400 mx-auto mb-2" />
-                        <p className="text-xs text-slate-400 mb-1">Attendee Invites</p>
-                        <p className="text-sm text-white font-medium">Auto-send</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                                  </div>
 
                 {/* Meetings Table */}
                 <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
@@ -1085,43 +1066,7 @@ export default function CustomerInteractionPage() {
                                 </div>
                               </div>
 
-                              {/* Quick Answers Preview */}
-                              <div>
-                                <h5 className="text-xs font-semibold text-slate-400 uppercase mb-2 flex items-center gap-2">
-                                  <ClipboardList className="h-3.5 w-3.5" />
-                                  Answers Preview
-                                </h5>
-                                <div className="bg-slate-900 rounded-lg p-3 border border-slate-700/50 max-h-40 overflow-y-auto">
-                                  {assessment.answers && typeof assessment.answers === 'object' ? (
-                                    <>
-                                      {Object.entries(assessment.answers).slice(0, 3).map(([key, value], index) => {
-                                        const answer = typeof value === 'object' && value !== null ? value as AssessmentAnswer : { questionText: key, answerValue: String(value), answerIndex: 0 }
-                                        return (
-                                          <div key={key || index} className="mb-3 last:mb-0 p-2 bg-slate-800/50 rounded border border-slate-700/30">
-                                            <p className="text-xs text-slate-400 mb-1 truncate">{answer.questionText || key}</p>
-                                            <div className="flex items-center justify-between">
-                                              <p className="text-sm text-white truncate mr-2">{answer.answerValue || String(value)}</p>
-                                              {answer.answerIndex !== undefined && (
-                                                <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded-full">
-                                                  Index: {answer.answerIndex}
-                                                </span>
-                                              )}
-                                            </div>
-                                          </div>
-                                        )
-                                      })}
-                                      {Object.keys(assessment.answers).length > 3 && (
-                                        <p className="text-xs text-purple-400 mt-2 text-center">
-                                          +{Object.keys(assessment.answers).length - 3} more answers
-                                        </p>
-                                      )}
-                                    </>
-                                  ) : (
-                                    <p className="text-xs text-slate-400 text-center py-4">No answers available</p>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
+                                                          </div>
 
                             {/* Reply via Email */}
                             <div>
@@ -1260,7 +1205,7 @@ export default function CustomerInteractionPage() {
               <Button
                 variant="outline"
                 onClick={() => setViewMeetingModal(null)}
-                className="border-slate-600 text-slate-300 hover:bg-slate-800"
+                className="border-slate-600 text-slate-300 hover:bg-emerald-600 hover:text-white hover:border-emerald-600"
               >
                 Close
               </Button>
@@ -1347,7 +1292,7 @@ export default function CustomerInteractionPage() {
               <Button
                 variant="outline"
                 onClick={() => setEmailReplyModal(null)}
-                className="border-slate-600 text-slate-300 hover:bg-slate-800"
+                className="border-slate-600 text-slate-300 hover:bg-emerald-600 hover:text-white hover:border-emerald-600"
               >
                 Cancel
               </Button>
@@ -1425,7 +1370,7 @@ export default function CustomerInteractionPage() {
               <Button
                 variant="outline"
                 onClick={() => setViewAnswersModal(null)}
-                className="border-slate-600 text-slate-300 hover:bg-slate-800"
+                className="border-slate-600 text-slate-300 hover:bg-emerald-600 hover:text-white hover:border-emerald-600"
               >
                 Close
               </Button>

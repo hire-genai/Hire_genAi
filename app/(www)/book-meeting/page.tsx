@@ -40,9 +40,107 @@ export default function BookMeetingPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
+  const [bookedSlots, setBookedSlots] = useState<Set<string>>(new Set())
+  const [loadingBookedSlots, setLoadingBookedSlots] = useState(false)
 
   // Get current time for timezone display
   const [currentTime, setCurrentTime] = useState("")
+  
+  // Helper function to convert time string to minutes
+  const convertToMinutes = (timeStr: string): number => {
+    const time = timeStr.toLowerCase().trim()
+    const isPM = time.includes('pm')
+    const isAM = time.includes('am')
+    
+    // Remove "am" or "pm" and split
+    const timeOnly = time.replace('am', '').replace('pm', '').trim()
+    const [hours, minutes] = timeOnly.split(':').map(Number)
+    
+    let totalMinutes = hours * 60 + (minutes || 0)
+    
+    // Convert to 24-hour format
+    if (isPM && hours !== 12) {
+      totalMinutes += 12 * 60
+    } else if (isAM && hours === 12) {
+      totalMinutes = 0 // 12:00am is 0 minutes
+    }
+    
+    return totalMinutes
+  }
+
+  // Helper function to check if today is selected
+  const isTodaySelected = (): boolean => {
+    if (!selectedDate) return false
+    
+    const today = new Date()
+    const selected = new Date(selectedDate)
+    
+    return (
+      today.getDate() === selected.getDate() &&
+      today.getMonth() === selected.getMonth() &&
+      today.getFullYear() === selected.getFullYear()
+    )
+  }
+
+  // Fetch booked slots for selected date
+  const fetchBookedSlots = async (date: Date) => {
+    if (!date) return
+    
+    setLoadingBookedSlots(true)
+    try {
+      // Format date as YYYY-MM-DD using local timezone (not UTC)
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      const dateStr = `${year}-${month}-${day}`
+      
+      const response = await fetch(`/api/meeting-bookings?startDate=${dateStr}&endDate=${dateStr}`)
+      const data = await response.json()
+      
+      if (data.success && data.bookings) {
+        const bookedTimes = new Set<string>()
+        
+        data.bookings.forEach((booking: any) => {
+          if (booking.meeting_time) {
+            // Handle database timestamp format - convert to YYYY-MM-DD with timezone consideration
+            let bookingDate = booking.meeting_date
+            if (booking.meeting_date.includes('T')) {
+              // It's a timestamp, convert to local timezone date
+              const dbDate = new Date(booking.meeting_date)
+              // Use local timezone instead of UTC
+              const year = dbDate.getFullYear()
+              const month = String(dbDate.getMonth() + 1).padStart(2, '0')
+              const day = String(dbDate.getDate()).padStart(2, '0')
+              bookingDate = `${year}-${month}-${day}`
+            }
+            
+            if (bookingDate === dateStr) {
+              // Handle different time formats from database
+              let dbTimeStr = booking.meeting_time.toLowerCase().trim()
+              
+              // Remove spaces and normalize format
+              dbTimeStr = dbTimeStr.replace(' ', '').replace(/\./g, '')
+              
+              // Try to match with TIME_SLOTS format
+              const matchingTimeSlot = TIME_SLOTS.find(slot => {
+                const slotStr = slot.toLowerCase().replace(' ', '').replace(/\./g, '')
+                return slotStr === dbTimeStr
+              })
+              
+              if (matchingTimeSlot) {
+                bookedTimes.add(matchingTimeSlot.toLowerCase().replace(' ', ''))
+              }
+            }
+          }
+        })
+        setBookedSlots(bookedTimes)
+      }
+    } catch (error) {
+      console.error('Failed to fetch booked slots:', error)
+    } finally {
+      setLoadingBookedSlots(false)
+    }
+  }
   
   useEffect(() => {
     const updateTime = () => {
@@ -59,6 +157,15 @@ export default function BookMeetingPage() {
     const interval = setInterval(updateTime, 60000)
     return () => clearInterval(interval)
   }, [])
+
+  // Fetch booked slots when selected date changes
+  useEffect(() => {
+    if (selectedDate) {
+      fetchBookedSlots(selectedDate)
+    } else {
+      setBookedSlots(new Set())
+    }
+  }, [selectedDate])
 
   useEffect(() => {
     const scrollTo = searchParams?.get('scroll')
@@ -407,30 +514,54 @@ export default function BookMeetingPage() {
                           {formatSelectedDate()}
                         </h4>
                         <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2">
-                          {TIME_SLOTS.map(time => (
-                            <div key={time}>
-                              {selectedTime === time ? (
-                                <div className="flex gap-2 items-center">
-                                  <div className="flex-1 py-3 px-4 rounded-lg bg-slate-600 text-white text-sm font-medium text-center">
-                                    {time}
+                          {TIME_SLOTS.map(time => {
+                            // Filter out past time slots for today
+                            if (isTodaySelected()) {
+                              const nowMinutes = convertToMinutes(currentTime)
+                              const slotMinutes = convertToMinutes(time)
+                              
+                              // Don't render slots that are in the past or equal to current time
+                              if (slotMinutes <= nowMinutes) {
+                                return null
+                              }
+                            }
+                            
+                            const timeKey = time.toLowerCase().replace(' ', '')
+                            const isBooked = bookedSlots.has(timeKey)
+                            
+                            return (
+                              <div key={time}>
+                                {selectedTime === time ? (
+                                  <div className="flex gap-2 items-center">
+                                    <div className="flex-1 py-3 px-4 rounded-lg bg-slate-600 text-white text-sm font-medium text-center">
+                                      {time}
+                                    </div>
+                                    <button
+                                      onClick={handleNextFromCalendar}
+                                      className="flex-1 py-3 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors whitespace-nowrap"
+                                    >
+                                      Next
+                                    </button>
                                   </div>
+                                ) : isBooked ? (
                                   <button
-                                    onClick={handleNextFromCalendar}
-                                    className="flex-1 py-3 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors whitespace-nowrap"
+                                    disabled
+                                    className="w-full py-3 px-4 rounded-lg border border-slate-300 bg-slate-100 text-slate-400 text-sm font-medium cursor-not-allowed opacity-60"
+                                    title="Already booked"
                                   >
-                                    Next
+                                    {time} (Booked)
                                   </button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => setSelectedTime(time)}
-                                  className="w-full py-3 px-4 rounded-lg border border-emerald-300 text-emerald-600 text-sm font-medium hover:border-emerald-500 hover:bg-emerald-50 transition-all"
-                                >
-                                  {time}
-                                </button>
-                              )}
-                            </div>
-                          ))}
+                                ) : (
+                                  <button
+                                    onClick={() => setSelectedTime(time)}
+                                    className="w-full py-3 px-4 rounded-lg border border-emerald-300 text-emerald-600 text-sm font-medium hover:border-emerald-500 hover:bg-emerald-50 transition-all"
+                                  >
+                                    {time}
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       </>
                     ) : (

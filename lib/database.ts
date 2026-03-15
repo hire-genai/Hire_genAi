@@ -4468,6 +4468,30 @@ export class DatabaseService {
       throw new Error('Database not configured')
     }
 
+    // Convert local date/time to UTC for proper comparison
+    // meetingDate format: "2026-03-13"
+    // meetingTime format: "9:00am"
+    
+    // Create a proper date-time object in UTC for comparison
+    const [year, month, day] = meetingDate.split('-').map(Number)
+    const time = meetingTime.toLowerCase()
+    const isPM = time.includes('pm')
+    const timeOnly = time.replace('am', '').replace('pm', '').trim()
+    const [hours, minutes] = timeOnly.split(':').map(Number)
+    
+    let meetingHours = hours
+    if (isPM && hours !== 12) {
+      meetingHours += 12
+    } else if (!isPM && hours === 12) {
+      meetingHours = 0
+    }
+    
+    // Create UTC date-time for the requested slot
+    const requestedDateTime = new Date(Date.UTC(year, month - 1, day, meetingHours, minutes || 0))
+    
+    // Convert to UTC date string for database comparison
+    const utcDate = requestedDateTime.toISOString().split('T')[0]
+    
     // Check for overlapping bookings - slot is unavailable if:
     // 1. Same date AND
     // 2. Status is not cancelled AND
@@ -4493,7 +4517,7 @@ export class DatabaseService {
     `
 
     const endTime = meetingEndTime || meetingTime
-    const result = await this.query(query, [meetingDate, meetingTime, endTime]) as any[]
+    const result = await this.query(query, [utcDate, meetingTime, endTime]) as any[]
     return parseInt(result[0]?.count || '0') === 0
   }
 
