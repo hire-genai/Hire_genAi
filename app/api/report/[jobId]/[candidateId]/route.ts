@@ -149,7 +149,9 @@ export async function GET(
       interview: {
         status: app.interview_status || 'Not Scheduled',
         score: app.interview_score != null ? Math.round(Number(app.interview_score)) : null,
-        evaluations: app.interview_evaluations || {},
+        evaluations: {
+          evaluation: app.interview_evaluations || {}
+        },
         recommendation: app.interview_recommendation || '',
         summary: app.interview_summary || '',
         completedAt: app.interview_completed_at,

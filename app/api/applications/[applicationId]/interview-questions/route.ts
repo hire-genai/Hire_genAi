@@ -73,12 +73,30 @@ export async function GET(
     }
 
     // Build rounds-compatible response for the interview page
+    // Send complete question objects with text, criterion, difficulty, marks
     const rounds = [
       {
         id: "default-round",
         name: "AI Interview",
         duration_minutes: 30,
-        questions: questions.map((q: any) => (typeof q === "string" ? q : q.question || q.text || "")),
+        questions: questions.map((q: any, idx: number) => {
+          if (typeof q === "string") {
+            return {
+              text: q,
+              criterion: criteria[0] || "General",
+              difficulty: "Medium",
+              marks: 10,
+              sequence: idx + 1,
+            }
+          }
+          return {
+            text: q.question || q.text || "",
+            criterion: q.criterion || criteria[0] || "General",
+            difficulty: q.difficulty || "Medium",
+            marks: q.marks !== undefined ? q.marks : 10,
+            sequence: idx + 1,
+          }
+        }),
         criteria,
       },
     ]

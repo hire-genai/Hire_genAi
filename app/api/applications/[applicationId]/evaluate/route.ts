@@ -35,46 +35,60 @@ function parseTranscriptTurns(transcript: string): TranscriptTurn[] {
   return turns
 }
 
-function matchQuestionToTranscript(
-  dbQuestionText: string,
-  turns: TranscriptTurn[]
-): string | null {
-  const dbWords = dbQuestionText.toLowerCase().split(/\s+/).filter((w) => w.length > 3)
-  if (dbWords.length === 0) return null
-
-  // Find the interviewer turn that best matches this DB question
-  let bestMatchIdx = -1
-  let bestMatchRatio = 0
-
+// Position-based answer extraction
+// Logic: First interviewer turn is setup (skip), then Q1 answer = candidate responses until next interviewer turn
+// Q2 answer = candidate responses between Q2 and Q3, and so on
+function extractAnswersByPosition(
+  turns: TranscriptTurn[],
+  totalDbQuestions: number
+): Map<number, string> {
+  const answers = new Map<number, string>()
+  
+  // Find all interviewer question positions (turns with ?)
+  const interviewerQuestionIndices: number[] = []
   for (let i = 0; i < turns.length; i++) {
-    if (turns[i].role !== "interviewer") continue
-    const turnLower = turns[i].text.toLowerCase()
-    const matchCount = dbWords.filter((w) => turnLower.includes(w)).length
-    const ratio = matchCount / dbWords.length
-    if (ratio > bestMatchRatio) {
-      bestMatchRatio = ratio
-      bestMatchIdx = i
+    if (turns[i].role === "interviewer" && turns[i].text.includes("?")) {
+      interviewerQuestionIndices.push(i)
     }
   }
-
-  // Require at least 40% word match
-  if (bestMatchRatio < 0.4 || bestMatchIdx === -1) return null
-
-  // Collect all consecutive candidate responses after the matched interviewer turn
-  const responseParts: string[] = []
-  for (let j = bestMatchIdx + 1; j < turns.length; j++) {
-    if (turns[j].role === "candidate") {
-      const text = turns[j].text
-      if (text && text !== "[inaudible]") {
-        responseParts.push(text)
+  
+  console.log(`📊 [POSITION] Found ${interviewerQuestionIndices.length} interviewer questions in transcript`)
+  
+  // Skip first question (it's the setup/greeting question)
+  // Map remaining questions to DB questions by position
+  for (let qNum = 1; qNum <= totalDbQuestions; qNum++) {
+    // qNum=1 maps to interviewerQuestionIndices[1] (skip index 0 which is setup)
+    const questionIdx = interviewerQuestionIndices[qNum]
+    
+    if (questionIdx === undefined) {
+      console.log(`⚠️ [POSITION] Q${qNum}: No interviewer question found at position ${qNum}`)
+      continue
+    }
+    
+    // Find the end boundary (next interviewer question or end of transcript)
+    const nextQuestionIdx = interviewerQuestionIndices[qNum + 1]
+    const endIdx = nextQuestionIdx !== undefined ? nextQuestionIdx : turns.length
+    
+    // Collect all candidate responses between this question and the next
+    const responseParts: string[] = []
+    for (let j = questionIdx + 1; j < endIdx; j++) {
+      if (turns[j].role === "candidate") {
+        const text = turns[j].text
+        if (text && text !== "[inaudible]" && text.trim().length > 0) {
+          responseParts.push(text)
+        }
       }
+    }
+    
+    if (responseParts.length > 0) {
+      answers.set(qNum, responseParts.join(" "))
+      console.log(`✅ [POSITION] Q${qNum}: Found answer (${responseParts.join(" ").length} chars)`)
     } else {
-      // Next interviewer turn means end of this answer
-      break
+      console.log(`⚠️ [POSITION] Q${qNum}: No candidate response found`)
     }
   }
-
-  return responseParts.length > 0 ? responseParts.join(" ") : null
+  
+  return answers
 }
 
 async function evaluateSingleQuestion(
@@ -173,7 +187,135 @@ export async function POST(
     }
 
     const body = await req.json()
-    const { transcript: bodyTranscript, companyId: bodyCompanyId } = body
+    const { transcript: bodyTranscript, companyId: bodyCompanyId, singleAnswer } = body
+
+    // ========== SINGLE ANSWER REAL-TIME EVALUATION ==========
+    if (singleAnswer === true) {
+      const { questionIndex, questionText, criterion, difficulty, marks, answerText, jobTitle, companyName } = body
+      
+      console.log("\n" + "=".repeat(80))
+      console.log("🎯 SINGLE ANSWER EVALUATION")
+      console.log("📝 Application ID:", applicationId)
+      console.log("📝 Question:", questionText?.substring(0, 50))
+      console.log("📝 Answer:", answerText?.substring(0, 50))
+
+      if (!questionText || !answerText) {
+        return NextResponse.json({ ok: false, error: "Missing questionText or answerText" }, { status: 400 })
+      }
+
+      // Get company ID from application if not provided
+      let companyId = bodyCompanyId
+      if (!companyId) {
+        const appRows = (await DatabaseService.query(
+          `SELECT c.id as company_id FROM applications a JOIN job_postings j ON a.job_id = j.id JOIN companies c ON j.company_id = c.id WHERE a.id = $1::uuid LIMIT 1`,
+          [applicationId]
+        )) as any[]
+        companyId = appRows?.[0]?.company_id
+      }
+
+      // Fetch company's OpenAI service account key (same pattern as full evaluation)
+      let openaiApiKey: string | undefined
+      let openaiProjectId: string | undefined
+
+      if (companyId) {
+        try {
+          const companyData = (await DatabaseService.query(
+            `SELECT openai_service_account_key, openai_project_id FROM companies WHERE id = $1::uuid LIMIT 1`,
+            [companyId]
+          )) as any[]
+
+          if (companyData?.[0]?.openai_service_account_key) {
+            try {
+              const decryptedKey = decrypt(companyData[0].openai_service_account_key).trim()
+              if (decryptedKey.startsWith("{")) {
+                const keyObj = JSON.parse(decryptedKey)
+                openaiApiKey = keyObj.value || keyObj.apiKey || keyObj.api_key || keyObj.key || undefined
+              } else {
+                openaiApiKey = decryptedKey
+              }
+
+              if (companyData[0].openai_project_id) {
+                try {
+                  openaiProjectId = decrypt(companyData[0].openai_project_id)
+                } catch {
+                  openaiProjectId = companyData[0].openai_project_id
+                }
+              }
+              console.log("✅ [SINGLE] Using company service account key")
+            } catch (e) {
+              console.warn("⚠️ [SINGLE] Failed to decrypt company key:", e)
+            }
+          }
+        } catch (e) {
+          console.warn("⚠️ [SINGLE] Failed to fetch company key:", e)
+        }
+      }
+
+      if (!openaiApiKey) {
+        openaiApiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_EVAL_KEY
+        if (openaiApiKey) {
+          console.log("🔑 [SINGLE] Using environment OPENAI_API_KEY")
+        }
+      }
+
+      if (!openaiApiKey) {
+        console.warn("⚠️ [SINGLE] No OpenAI API key available")
+        return NextResponse.json({ ok: false, error: "No API key available" }, { status: 500 })
+      }
+
+      // Evaluate single question using existing function
+      const questionObj = {
+        text: questionText,
+        criterion: criterion || "General",
+        difficulty: difficulty || "Medium",
+        marks: marks || 10,
+        questionNumber: (questionIndex || 0) + 1,
+      }
+
+      const evalResult = await evaluateSingleQuestion(
+        questionObj,
+        answerText,
+        jobTitle || "Position",
+        companyName || "Company",
+        openaiApiKey,
+        openaiProjectId
+      )
+
+      const singleEvaluation = {
+        question_number: questionObj.questionNumber,
+        question_text: questionText,
+        criterion: questionObj.criterion,
+        difficulty: questionObj.difficulty,
+        marks: questionObj.marks,
+        score: evalResult.score,
+        candidate_response: answerText,
+        strengths: evalResult.strengths,
+        gaps: evalResult.gaps,
+        evaluation_reasoning: evalResult.evaluation_reasoning,
+        evaluated_at: new Date().toISOString(),
+      }
+
+      // Append to interviews.interview_evaluations using CASE WHEN for null handling
+      await DatabaseService.ensureInterviewRecord(applicationId)
+      const appendQuery = `
+        UPDATE interviews
+        SET interview_evaluations = CASE 
+          WHEN interview_evaluations IS NULL THEN jsonb_build_object('realtime_questions', jsonb_build_array($2::jsonb))
+          WHEN interview_evaluations->'realtime_questions' IS NULL THEN interview_evaluations || jsonb_build_object('realtime_questions', jsonb_build_array($2::jsonb))
+          ELSE jsonb_set(interview_evaluations, '{realtime_questions}', COALESCE(interview_evaluations->'realtime_questions', '[]'::jsonb) || $2::jsonb)
+        END
+        WHERE application_id = $1::uuid
+      `
+      await DatabaseService.query(appendQuery, [applicationId, JSON.stringify(singleEvaluation)])
+
+      console.log("✅ [SINGLE] Evaluation stored:", evalResult.score, "/100")
+      console.log("=".repeat(80) + "\n")
+
+      return NextResponse.json({
+        ok: true,
+        evaluation: singleEvaluation,
+      })
+    }
 
     console.log("\n" + "=".repeat(80))
     console.log("🔍 EVALUATION API CALLED")
@@ -283,6 +425,172 @@ export async function POST(
     console.log("📊 Total marks:", totalMarks)
     console.log("📊 Questions with marks:", dbQuestions.map(q => `Q${q.questionNumber}: ${q.difficulty}(${q.marks})`))
 
+    // ========== CHECK FOR REAL-TIME EVALUATIONS ==========
+    const { realTimeEvaluations } = body
+    if (Array.isArray(realTimeEvaluations) && realTimeEvaluations.length > 0) {
+      console.log("🚀 [EVAL] Using real-time evaluations:", realTimeEvaluations.length, "evaluations found")
+
+      // Build question results from real-time evaluations
+      let weightedScore = 0
+      const questionResults: any[] = []
+
+      dbQuestions.forEach((dbQ) => {
+        // Find matching real-time evaluation by question_number
+        const rtEval = realTimeEvaluations.find((e: any) => e.question_number === dbQ.questionNumber)
+
+        if (rtEval) {
+          // Use real-time evaluation data
+          const score = rtEval.score ?? 0
+          const weightedContribution = (score / 100) * dbQ.marks
+          weightedScore += weightedContribution
+
+          questionResults.push({
+            question_number: dbQ.questionNumber,
+            question_text: rtEval.question_text || dbQ.text,
+            criterion: rtEval.criterion || dbQ.criterion,
+            difficulty: rtEval.difficulty || dbQ.difficulty,
+            marks: dbQ.marks,
+            score,
+            weighted_contribution: Math.round(weightedContribution * 100) / 100,
+            candidate_response: rtEval.candidate_response || "No answer provided",
+            strengths: rtEval.strengths || [],
+            gaps: rtEval.gaps || [],
+            evaluation_reasoning: rtEval.evaluation_reasoning || "",
+            wasAnswered: true,
+          })
+          console.log(`  Q${dbQ.questionNumber}: MATCHED (score: ${score})`)
+        } else {
+          // No match found - create entry with score 0
+          questionResults.push({
+            question_number: dbQ.questionNumber,
+            question_text: dbQ.text,
+            criterion: dbQ.criterion,
+            difficulty: dbQ.difficulty,
+            marks: dbQ.marks,
+            score: 0,
+            weighted_contribution: 0,
+            candidate_response: "No answer provided",
+            strengths: [],
+            gaps: [],
+            evaluation_reasoning: "Not answered",
+            wasAnswered: false,
+          })
+          console.log(`  Q${dbQ.questionNumber}: NOT MATCHED (score: 0)`)
+        }
+      })
+
+      const answeredCount = questionResults.filter((q) => q.wasAnswered).length
+
+      // Final score = (weightedScore / totalMarks) * 100
+      const overallScore = totalMarks > 0 ? Math.round((weightedScore / totalMarks) * 100) : 0
+
+      // Per-criterion averages
+      const criterionMap: Record<string, { total: number; count: number; scores: number[] }> = {}
+      questionResults.forEach((q) => {
+        if (!criterionMap[q.criterion]) {
+          criterionMap[q.criterion] = { total: 0, count: 0, scores: [] }
+        }
+        criterionMap[q.criterion].total += q.score
+        criterionMap[q.criterion].count += 1
+        criterionMap[q.criterion].scores.push(q.score)
+      })
+
+      const criterionAverages: Record<string, number> = {}
+      Object.keys(criterionMap).forEach((c) => {
+        criterionAverages[c] = Math.round(criterionMap[c].total / criterionMap[c].count)
+      })
+
+      // Technical cutoff rule
+      const technicalAvg = criterionAverages["Technical Skills"] ?? null
+      const failedTechnicalCutoff = technicalAvg !== null && technicalAvg < TECHNICAL_CUTOFF
+
+      // Recommendation logic
+      let recommendation: string
+      if (failedTechnicalCutoff) {
+        recommendation = "No Hire"
+      } else if (overallScore >= 70) {
+        recommendation = "Hire"
+      } else if (overallScore >= 50) {
+        recommendation = "Maybe"
+      } else {
+        recommendation = "No Hire"
+      }
+
+      console.log("✅ [EVAL-RT] Weighted Score:", weightedScore.toFixed(2), "/", totalMarks)
+      console.log("✅ [EVAL-RT] Final Score:", overallScore, "%")
+      console.log("✅ [EVAL-RT] Criterion Averages:", criterionAverages)
+      console.log("✅ [EVAL-RT] Technical Cutoff Failed:", failedTechnicalCutoff)
+      console.log("✅ [EVAL-RT] Recommendation:", recommendation)
+
+      // Build complete evaluation
+      const allStrengths = questionResults.flatMap((q) => q.strengths).filter(Boolean)
+      const allGaps = questionResults.flatMap((q) => q.gaps).filter(Boolean)
+
+      const completeEvaluation = {
+        questions: questionResults,
+        scoring: {
+          total_marks: totalMarks,
+          weighted_score: Math.round(weightedScore * 100) / 100,
+          final_score: overallScore,
+          method: "realtime_weighted",
+          questions_evaluated: answeredCount,
+          questions_total: totalQuestions,
+        },
+        criterion_averages: criterionAverages,
+        technical_cutoff: {
+          threshold: TECHNICAL_CUTOFF,
+          technical_avg: technicalAvg,
+          failed: failedTechnicalCutoff,
+        },
+        recommendation,
+        summary: `Candidate scored ${overallScore}% overall. ${answeredCount}/${totalQuestions} questions answered. Recommendation: ${recommendation}.`,
+        key_strengths: Array.from(new Set(allStrengths)).slice(0, 5),
+        areas_for_improvement: Array.from(new Set(allGaps)).slice(0, 5),
+      }
+
+      // Store evaluation results in interviews table
+      await DatabaseService.ensureInterviewRecord(applicationId)
+      const storeQuery = `
+        UPDATE interviews
+        SET 
+          interview_score = $2,
+          interview_recommendation = $3,
+          interview_evaluations = $4::jsonb,
+          interview_summary = $5
+        WHERE application_id = $1::uuid
+      `
+      await DatabaseService.query(storeQuery, [
+        applicationId,
+        overallScore,
+        recommendation,
+        JSON.stringify(completeEvaluation),
+        completeEvaluation.summary,
+      ])
+
+      // Keep application in ai_interview stage - will move to hiring_manager only when user performs "Move to Application"
+      await DatabaseService.query(
+        "UPDATE applications SET current_stage = 'ai_interview' WHERE id = $1::uuid",
+        [applicationId]
+      )
+
+      console.log("✅ [EVAL-RT] Evaluation stored using real-time data")
+      console.log("✅ [EVAL-RT] Application kept in ai_interview stage")
+      console.log("=".repeat(80) + "\n")
+
+      return NextResponse.json({
+        ok: true,
+        evaluation: completeEvaluation,
+        overallScore,
+        recommendation,
+        criterionAverages,
+        scoring: completeEvaluation.scoring,
+        source: "realtime",
+      })
+    }
+
+    // ========== FALLBACK: TRANSCRIPT-BASED EVALUATION ==========
+    console.log("📝 [EVAL] No real-time evaluations found, using transcript-based evaluation")
+
     // Fetch company's OpenAI service account key
     let openaiApiKey: string | undefined
     let openaiProjectId: string | undefined
@@ -364,9 +672,12 @@ export async function POST(
       }
     }
 
-    // ========== MATCH EACH DB QUESTION TO REAL CANDIDATE ANSWER ==========
+    // ========== POSITION-BASED ANSWER EXTRACTION ==========
+    // Extract answers by position: skip setup question, Q1 answer = responses between Q1 and Q2, etc.
+    const answersMap = extractAnswersByPosition(turns, dbQuestions.length)
+    
     const questionsWithAnswers = dbQuestions.map((dbQ) => {
-      const realAnswer = matchQuestionToTranscript(dbQ.text, turns)
+      const realAnswer = answersMap.get(dbQ.questionNumber) || null
       return {
         ...dbQ,
         candidateResponse: realAnswer || "No answer provided",
@@ -519,14 +830,14 @@ export async function POST(
       completeEvaluation.summary,
     ])
 
-    // Update application stage to hiring_manager after evaluation is complete
+    // Keep application in ai_interview stage - will move to hiring_manager only when user performs "Move to Application"
     await DatabaseService.query(
-      "UPDATE applications SET current_stage = 'hiring_manager' WHERE id = $1::uuid",
+      "UPDATE applications SET current_stage = 'ai_interview' WHERE id = $1::uuid",
       [applicationId]
     )
 
     console.log("✅ [EVAL] Evaluation stored in interviews table")
-    console.log("✅ [EVAL] Application stage updated to hiring_manager")
+    console.log("✅ [EVAL] Application kept in ai_interview stage")
     console.log("=".repeat(80) + "\n")
 
     return NextResponse.json({

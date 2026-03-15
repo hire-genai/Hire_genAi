@@ -235,9 +235,9 @@ export async function POST(
       transcript || null,
     ])
 
-    // Update application stage separately
+    // Keep application in ai_interview stage - will move to hiring_manager only when user performs "Move to Application"
     const updateAppQuery2 = `
-      UPDATE applications SET current_stage = 'hiring_manager' WHERE id = $1::uuid RETURNING id
+      UPDATE applications SET current_stage = 'ai_interview' WHERE id = $1::uuid RETURNING id
     `
     const result = (await DatabaseService.query(updateAppQuery2, [applicationId])) as any[]
 

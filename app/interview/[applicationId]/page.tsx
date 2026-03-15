@@ -39,6 +39,8 @@ export default function InterviewPage() {
   const screenshotCapturedRef = useRef<boolean>(false)
   const screenshotDataRef = useRef<string | null>(null)
   const lastQuestionAskedRef = useRef<string>("")
+  const questionSnapshotRef = useRef<string>("") // The question user is CURRENTLY answering - only advances AFTER answer stored
+  const questionQueueRef = useRef<string[]>([]) // Queue of questions agent asked, waiting for user to answer current one first
   const currentCriterionRef = useRef<string>("")
   const questionElaborationRef = useRef<{ question: string; combinedText: string; prompts: number } | null>(null)
   const currentQuestionNumberRef = useRef<number>(1)
@@ -46,6 +48,7 @@ export default function InterviewPage() {
   const waitingForResponseRef = useRef<boolean>(false)
   const questionsAnsweredRef = useRef<Map<number, string>>(new Map())
   const interviewQuestionsRef = useRef<any[]>([])
+  const realTimeEvaluationsRef = useRef<any[]>([])
 
   const [conversation, setConversation] = useState<{ role: "agent" | "user"; text: string; t: number }[]>([])
   const [interviewCompleted, setInterviewCompleted] = useState(false)
@@ -92,6 +95,20 @@ export default function InterviewPage() {
   // Check if user response is a real answer (not just acknowledgment/filler)
   const isRealAnswer = (text: string): boolean => {
     const lower = text.toLowerCase().trim()
+    
+    // Check for repeat requests FIRST (before word count check)
+    const repeatPhrases = [
+      "can you please repeat", "please repeat", "repeat the question", "can you repeat",
+      "say again", "could you repeat", "say that again", "what was the question"
+    ]
+    
+    for (const phrase of repeatPhrases) {
+      if (lower.includes(phrase)) {
+        console.log("🚫 [ANSWER] Detected repeat request:", text)
+        return false
+      }
+    }
+    
     const words = countWords(text)
     
     // Too short to be a real answer (less than 5 words)
@@ -171,36 +188,41 @@ export default function InterviewPage() {
     }
   }
 
-  // Force the AI agent to ask the next question in sequence
-  const sendNextQuestion = () => {
-    const questions = interviewQuestionsRef.current
-    const nextIdx = currentQuestionIndexRef.current
-    
-    if (nextIdx >= questions.length) {
-      console.log("🏁 [FLOW] All questions asked, sending closing instruction")
-      sendAgentInstruction(
-        `All ${questions.length} interview questions have been asked and answered. Say EXACTLY: "Thank you for interviewing today. Our recruitment team will respond soon." Do NOT ask any more questions. Do NOT say anything else after this.`,
-        true
-      )
-      return
+  // Real-time single answer evaluation (non-blocking)
+  const evaluateSingleAnswerRealTime = async (questionIndex: number, questionText: string, answerText: string) => {
+    try {
+      const question = interviewQuestionsRef.current[questionIndex]
+      console.log(`🎯 [REALTIME] Evaluating Q${questionIndex + 1}...`)
+
+      const response = await fetch(`/api/applications/${encodeURIComponent(applicationId)}/evaluate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          singleAnswer: true,
+          questionIndex,
+          questionText,
+          criterion: question?.criterion || currentCriterionRef.current || "General",
+          difficulty: question?.difficulty || "Medium",
+          marks: question?.marks || 10,
+          answerText,
+          jobTitle: jobDetails?.jobTitle,
+          companyName: jobDetails?.company,
+          companyId: companyIdRef.current,
+        }),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.ok && result.evaluation) {
+          realTimeEvaluationsRef.current.push(result.evaluation)
+          console.log(`✅ [REALTIME] Q${questionIndex + 1} evaluated: ${result.evaluation.score}/100`)
+        }
+      } else {
+        console.error(`❌ [REALTIME] Failed to evaluate Q${questionIndex + 1}`)
+      }
+    } catch (err) {
+      console.error(`❌ [REALTIME] Error evaluating Q${questionIndex + 1}:`, err)
     }
-    
-    const nextQ = questions[nextIdx]
-    const qNumber = nextIdx + 1
-    const totalQ = questions.length
-    
-    console.log(`📤 [FLOW] Sending question ${qNumber}/${totalQ}: ${nextQ.text.substring(0, 60)}...`)
-    
-    lastQuestionAskedRef.current = nextQ.text
-    currentCriterionRef.current = nextQ.criterion || nextQ.criteria?.[0] || "General"
-    currentQuestionNumberRef.current = qNumber
-    waitingForResponseRef.current = true
-    ensureElaborationState(nextQ.text)
-    
-    sendAgentInstruction(
-      `Now ask question ${qNumber} of ${totalQ}. Ask EXACTLY this question (you may rephrase slightly for natural flow): "${nextQ.text}" Then WAIT for the candidate to respond. Do NOT ask any other question.`,
-      true
-    )
   }
 
   // Send instruction to AI agent via session update (invisible to transcript)
@@ -214,14 +236,23 @@ export default function InterviewPage() {
     console.log("📤 [INSTRUCT] Updating session with instruction:", instruction.substring(0, 100))
 
     if (forceSpeak) {
-      const responseMsg = {
-        type: "response.create",
-        response: {
-          modalities: ["audio", "text"],
-          instructions: instruction,
-        },
-      }
-      dc.send(JSON.stringify(responseMsg))
+      // First cancel any ongoing response to prevent agent from generating its own response
+      const cancelMsg = { type: "response.cancel" }
+      dc.send(JSON.stringify(cancelMsg))
+      console.log("🛑 [INSTRUCT] Sent response.cancel")
+      
+      // Wait 200ms for cancel to take effect, then send the instruction
+      setTimeout(() => {
+        const responseMsg = {
+          type: "response.create",
+          response: {
+            modalities: ["audio", "text"],
+            instructions: instruction,
+          },
+        }
+        dc.send(JSON.stringify(responseMsg))
+        console.log("📤 [INSTRUCT] Sent response.create after cancel")
+      }, 200)
     } else {
       console.log("📝 [INSTRUCT] Analysis logged (not forcing AI response):", instruction)
     }
@@ -427,6 +458,52 @@ export default function InterviewPage() {
           return
         }
 
+        // SKIP PHRASE DETECTION: Handle when candidate wants to skip a question
+        const skipPhrases = [
+          "don't have answer",
+          "i don't have an answer",
+          "no answer",
+          "skip this",
+          "next question please",
+          "please ask next",
+          "i cannot answer",
+          "i do not know",
+          "pass"
+        ]
+        const lowerTranscript = finalTranscript.toLowerCase()
+        const isSkipPhrase = skipPhrases.some(phrase => lowerTranscript.includes(phrase))
+        
+        if (isSkipPhrase && lastQuestionAskedRef.current) {
+          const skippedQuestion = questionSnapshotRef.current || lastQuestionAskedRef.current
+          const qIdx = interviewQuestionsRef.current
+            .findIndex(q => q.text === skippedQuestion)
+          console.log(`⏭️ [SKIP] Candidate wants to skip Q${qIdx + 1}: "${finalTranscript.substring(0, 50)}"`)
+          
+          if (qIdx === -1) return
+          
+          // Store empty answer for current question
+          await storeAnswerToDb(qIdx, skippedQuestion, "")
+          
+          // Trigger real-time evaluation with empty answer (will get 0 score)
+          evaluateSingleAnswerRealTime(qIdx, skippedQuestion, "")
+          
+          // Advance snapshot to next question
+          if (questionQueueRef.current.length > 0) {
+            questionSnapshotRef.current = questionQueueRef.current.shift()!
+            console.log("📸 [SNAPSHOT] Advanced after skip (queue size:", questionQueueRef.current.length, "):", questionSnapshotRef.current.substring(0, 50))
+            ensureElaborationState(questionSnapshotRef.current)
+          } else if (lastQuestionAskedRef.current && lastQuestionAskedRef.current !== skippedQuestion) {
+            questionSnapshotRef.current = lastQuestionAskedRef.current
+            console.log("📸 [SNAPSHOT] Queue empty after skip, jumped to lastQuestionAsked:", questionSnapshotRef.current.substring(0, 50))
+            ensureElaborationState(questionSnapshotRef.current)
+          }
+          
+          waitingForResponseRef.current = false
+          
+          console.log(`⏭️ [SKIP] Q${qIdx + 1} marked as skipped. Agent will naturally move to next question.`)
+          return
+        }
+
         // Real-time answer analysis - check if this is a setup question
         const isSetupQuestion =
           lastQuestionAskedRef.current.toLowerCase().includes("audio") ||
@@ -442,62 +519,75 @@ export default function InterviewPage() {
             console.log("⏸️ [SETUP] Waiting for proper confirmation, got:", finalTranscript.substring(0, 30))
             return
           }
-          console.log("⏭️ [ANALYZE] Setup confirmed with valid response, sending first interview question")
-          // Setup confirmed - send the first actual interview question
-          if (currentQuestionIndexRef.current === 0 && interviewQuestionsRef.current.length > 0) {
-            setTimeout(() => sendNextQuestion(), 1500)
-          }
+          console.log("⏭️ [ANALYZE] Setup confirmed - agent will proceed with first question naturally")
+          // Agent controls the flow - it will ask the first question after setup confirmation
         } else if (isInterviewClosing) {
           console.log("⏭️ [ANALYZE] Skipping analysis - interview is in closing phase")
-        } else if (waitingForResponseRef.current && lastQuestionAskedRef.current && finalTranscript.length > 5) {
-          // We are waiting for a response to the current question
+        } else if (lastQuestionAskedRef.current && finalTranscript !== '[inaudible]' && finalTranscript.length > 5) {
+          // We have a question and got a response
           if (isRealAnswer(finalTranscript)) {
-            const qIdx = currentQuestionIndexRef.current
+            // Use snapshot - this is the question user is CURRENTLY answering
+            // Snapshot does NOT change when agent asks next question
+            const answeredQuestion = questionSnapshotRef.current || lastQuestionAskedRef.current
+            const qIdx = interviewQuestionsRef.current
+              .findIndex(q => q.text === answeredQuestion)
             const questions = interviewQuestionsRef.current
+            
+            if (qIdx === -1) {
+              console.log("⚠️ [ANALYZE] Could not match snapshot to question list, skipping")
+              return
+            }
+            
             console.log("✅ [ANALYZE] Got answer for question", qIdx + 1, "of", questions.length)
+            console.log("✅ [ANALYZE] Answered question:", answeredQuestion.substring(0, 50))
             
             const combinedAnswer = appendToCombinedAnswer(finalTranscript)
             
-            // Check if answer needs elaboration first
+            // Answer received - store it and let agent continue naturally
             const state = questionElaborationRef.current
-            const totalWords = state ? countWords(state.combinedText) : countWords(finalTranscript)
-            
-            if (totalWords < 30 && state && state.prompts < 1) {
-              // Answer is too short, prompt for elaboration before moving on
-              console.log(`📢 [ELABORATE] Answer too short (${totalWords} words), asking for more`)
-              maybePromptForElaboration()
-              return // Don't advance yet, wait for elaboration
-            }
-            
-            // Answer is sufficient - store it and advance
-            waitingForResponseRef.current = false
             const answerToStore = state?.combinedText || finalTranscript
             
-            // Store answer to DB immediately
-            await storeAnswerToDb(qIdx, lastQuestionAskedRef.current, answerToStore)
+            const alreadyAnswered = questionsAnsweredRef.current.has(qIdx)
+            if (alreadyAnswered) {
+              console.log(`⏭️ [ANALYZE] Q${qIdx + 1} already answered, updating with combined answer`)
+            }
             
-            // Advance to next question
-            currentQuestionIndexRef.current = qIdx + 1
-            currentQuestionNumberRef.current = qIdx + 2
+            // Store answer to DB immediately
+            await storeAnswerToDb(qIdx, answeredQuestion, answerToStore)
+            
+            // Only trigger evaluation if first answer for this question
+            if (!alreadyAnswered) {
+              evaluateSingleAnswerRealTime(qIdx, answeredQuestion, answerToStore)
+            } else {
+              console.log(`⏭️ [ANALYZE] Skipping re-evaluation for Q${qIdx + 1} (elaboration stored)`)
+            }
+            
+            // NOW advance snapshot to next question
+            if (questionQueueRef.current.length > 0) {
+              // Pop next from queue
+              questionSnapshotRef.current = questionQueueRef.current.shift()!
+              console.log("📸 [SNAPSHOT] Advanced from queue (queue size:", questionQueueRef.current.length, "):", questionSnapshotRef.current.substring(0, 50))
+              ensureElaborationState(questionSnapshotRef.current)
+            } else if (lastQuestionAskedRef.current && lastQuestionAskedRef.current !== answeredQuestion) {
+              // Queue empty but agent already asked a different question - jump to it
+              questionSnapshotRef.current = lastQuestionAskedRef.current
+              console.log("📸 [SNAPSHOT] Queue empty, jumped to lastQuestionAsked:", questionSnapshotRef.current.substring(0, 50))
+              ensureElaborationState(questionSnapshotRef.current)
+            }
             
             // Check if all questions are done
-            if (currentQuestionIndexRef.current >= questions.length) {
-              console.log("🏁 [FLOW] All questions answered! Sending closing message.")
+            if (qIdx + 1 >= questions.length) {
+              console.log("🏁 [FLOW] All questions answered! Agent will deliver closing message.")
               captureScreenshotSilently()
-              // Small delay to let the AI acknowledge the last answer before closing
-              setTimeout(() => sendNextQuestion(), 2000)
             } else {
-              // Send next question after a brief acknowledgment delay
-              console.log(`⏭️ [FLOW] Moving to question ${currentQuestionIndexRef.current + 1}/${questions.length}`)
-              setTimeout(() => sendNextQuestion(), 2000)
+              console.log(`⏭️ [FLOW] Answer stored for Q${qIdx + 1}. Agent will ask next question naturally.`)
             }
           } else {
             console.log("⏭️ [ANALYZE] Skipping - not a real answer (acknowledgment/filler)")
-            // If it's a filler but we're waiting, gently remind to answer
             // Don't do anything - the AI is already waiting for the real answer
           }
-        } else if (!waitingForResponseRef.current) {
-          console.log("⏭️ [ANALYZE] Not waiting for response, ignoring user input")
+        } else {
+          console.log("⏭️ [ANALYZE] No question tracked yet, ignoring user input")
         }
       }
     } else if (event.type === "response.audio_transcript.done") {
@@ -533,36 +623,87 @@ export default function InterviewPage() {
         })
 
         // Track the question asked by the agent for real-time analysis
-        if (text.includes("?")) {
-          // Find if this matches one of our interview questions
+        // FIX 2 & 3: Always update lastQuestionAskedRef when agent text contains question mark and matches interview questions
+        const hasQuestionMark = text.includes("?")
+        
+        // If agent text is substantial, check if it matches any interview question
+        if (text.length > 20) {
           const questions = interviewQuestionsRef.current
-          const matchedQuestion = questions.find((q: any) => {
+          const agentText = text.toLowerCase()
+          let bestMatch: any = null
+          let bestScore = 0
+          for (const q of questions) {
             const qText = q.text?.toLowerCase() || ""
-            const agentText = text.toLowerCase()
-            const keyWords = qText.split(" ").filter((w: string) => w.length > 4).slice(0, 5)
+            // Use ALL keywords (not just first 5) for better discrimination
+            const keyWords = qText.split(" ").filter((w: string) => w.length > 4)
             const matchCount = keyWords.filter((kw: string) => agentText.includes(kw)).length
-            return matchCount >= 2 || agentText.includes(qText.substring(0, 30))
-          })
+            const matchRatio = keyWords.length > 0 ? matchCount / keyWords.length : 0
+            // Check first 30 chars substring match as strong signal
+            const substringMatch = agentText.includes(qText.substring(0, 30)) ? 1 : 0
+            const score = matchRatio + substringMatch
+            if ((matchCount >= 2 || substringMatch) && score > bestScore) {
+              bestScore = score
+              bestMatch = q
+            }
+          }
+          const matchedQuestion = bestMatch
+          if (matchedQuestion) {
+            console.log("🔍 [MATCH] Best match score:", bestScore.toFixed(2), "for:", matchedQuestion.text?.substring(0, 50))
+          }
 
           if (matchedQuestion) {
             lastQuestionAskedRef.current = matchedQuestion.text
             currentCriterionRef.current = matchedQuestion.criterion || matchedQuestion.criteria?.[0] || "General"
             waitingForResponseRef.current = true
+            
+            // Check if current snapshot question was already answered
+            const snapshotIdx = questionSnapshotRef.current 
+              ? interviewQuestionsRef.current.findIndex((q: any) => q.text === questionSnapshotRef.current)
+              : -1
+            const snapshotAlreadyAnswered = snapshotIdx !== -1 && questionsAnsweredRef.current.has(snapshotIdx)
+            
+            if (!questionSnapshotRef.current || snapshotAlreadyAnswered) {
+              // No snapshot yet OR current snapshot already answered - set directly
+              // First drain any queued questions that were already answered
+              while (questionQueueRef.current.length > 0) {
+                const nextInQueue = questionQueueRef.current[0]
+                const nextIdx = interviewQuestionsRef.current.findIndex((q: any) => q.text === nextInQueue)
+                if (nextIdx !== -1 && questionsAnsweredRef.current.has(nextIdx)) {
+                  questionQueueRef.current.shift()
+                  console.log("📸 [QUEUE] Drained already-answered question from queue:", nextInQueue.substring(0, 50))
+                } else {
+                  break
+                }
+              }
+              // Set snapshot to this new question
+              questionSnapshotRef.current = matchedQuestion.text
+              console.log("📸 [SNAPSHOT] Set snapshot directly:", questionSnapshotRef.current.substring(0, 50))
+              ensureElaborationState(matchedQuestion.text)
+            } else if (matchedQuestion.text === questionSnapshotRef.current) {
+              // Agent repeated the SAME question user is answering - no change
+              console.log("📸 [SNAPSHOT] Same as current, no change:", questionSnapshotRef.current.substring(0, 50))
+            } else {
+              // Agent asked a DIFFERENT question while user hasn't answered current - add to queue
+              const alreadyQueued = questionQueueRef.current.includes(matchedQuestion.text)
+              if (!alreadyQueued) {
+                questionQueueRef.current.push(matchedQuestion.text)
+                console.log("📸 [SNAPSHOT] Keeping current:", questionSnapshotRef.current.substring(0, 50))
+                console.log("⏳ [QUEUE] Question added to queue (size:", questionQueueRef.current.length, "):", matchedQuestion.text.substring(0, 50))
+              } else {
+                console.log("⏳ [QUEUE] Already in queue, skipping:", matchedQuestion.text.substring(0, 50))
+              }
+            }
+            
             console.log("📝 [TRACK] Current question:", lastQuestionAskedRef.current.substring(0, 50))
             console.log("🎯 [TRACK] Criterion:", currentCriterionRef.current)
-            ensureElaborationState(matchedQuestion.text)
           } else {
-            // Extract the last sentence that ends with ?
-            const sentences = text.split(/[.!]/).filter((s: string) => s.includes("?"))
-            if (sentences.length > 0) {
-              lastQuestionAskedRef.current = sentences[sentences.length - 1].trim()
-              if (!currentCriterionRef.current) currentCriterionRef.current = "General"
-              waitingForResponseRef.current = true
-              console.log("📝 [TRACK] Detected question:", lastQuestionAskedRef.current.substring(0, 50))
-              ensureElaborationState(lastQuestionAskedRef.current)
-            }
+            // Text substantial but doesn't match our list - keep current question unchanged
+            console.log("📝 [TRACK] Agent text not in list, keeping previous:", lastQuestionAskedRef.current?.substring(0, 50))
           }
         } else {
+          // Text too short - keep current question unchanged
+          console.log("📝 [TRACK] Agent text too short, keeping previous:", lastQuestionAskedRef.current?.substring(0, 50))
+          
           // Check if this is the closing thank-you message (no question mark)
           const isClosingMessage =
             lowerText.includes("thank you for interviewing") ||
@@ -663,8 +804,11 @@ export default function InterviewPage() {
 
           const allQuestions =
             json.rounds?.flatMap((round: any) =>
-              round.questions?.map((q: string, index: number) => ({
-                text: q,
+              round.questions?.map((q: any, index: number) => ({
+                text: typeof q === "string" ? q : q.text || q.question || "",
+                criterion: typeof q === "object" ? q.criterion : round.criteria?.[0] || "General",
+                difficulty: typeof q === "object" ? q.difficulty : "Medium",
+                marks: typeof q === "object" && q.marks !== undefined ? q.marks : 10,
                 roundName: round.name,
                 criteria: round.criteria || [],
                 sequence: index + 1,
@@ -785,61 +929,164 @@ export default function InterviewPage() {
       logTs("DC open")
       try { avatarVideoRef.current?.play().catch(() => {}) } catch {}
       try {
-        // Build structured interview instructions
-        let instructions = `You are Olivia, a professional AI recruiter conducting a structured video interview.
+        // Build structured 6-step interview instructions (agent controls the flow)
+        let instructions = `You are Olivia, a professional AI recruiter conducting a structured video interview. Follow this EXACT 6-step process:
 
 **IMPORTANT LANGUAGE POLICY:**
 - You MUST speak ONLY in English throughout the entire interview.
-- If the candidate speaks in ANY language other than English, IMMEDIATELY and POLITELY respond:
-  "I apologize, but I can only conduct this interview in English. Please respond in English so I can properly evaluate your answers."
+- If the candidate speaks in ANY language other than English (Hindi, Spanish, French, Chinese, etc.), IMMEDIATELY and POLITELY respond:
+  "I apologize, but I can only conduct this interview in English. Please respond in English so I can properly evaluate your answers. Let me repeat the question in English..."
 - Then repeat the last question in English.
+- DO NOT answer or respond to questions asked in any language other than English.
+- This policy applies at ALL times during the interview.
 
 **STEP 1: GREETING & SETUP CHECK**
 - Greet warmly: "Hello ${details?.candidateName || "there"}, welcome and thank you for joining today's interview."
 - Confirm setup: "Before we begin, can you please confirm that your audio and video are working fine, and you can hear/see me clearly?"
 - Mention language policy: "Please note that this interview will be conducted entirely in English. If you're comfortable with that, let's proceed."
 - Wait for confirmation before proceeding.
-- After confirmation, say: "Great, let's get started. This interview will last about ${duration} minutes. I'll be asking you questions based on the ${details?.jobTitle || "position"} role you applied for at ${details?.company || "our company"}."
-- Then WAIT - the system will send you the first question to ask.
 
-**CRITICAL BEHAVIOR RULES:**
-1. Do NOT generate questions on your own - the system will tell you which question to ask next
-2. After asking a question, WAIT silently for the candidate to respond
-3. Do NOT say "Ok", "Bye", "Thank you" or any filler responses on your own
-4. Do NOT generate closing messages unless the system instructs you to
-5. When you receive a system instruction to ask a question, ask ONLY that question
-6. When you receive a system instruction to close, say ONLY the closing message
-7. Between questions, you may briefly acknowledge ("Thank you for that response") ONLY when the system sends the next question
-8. NEVER ask "Do you have any questions for me?" or "Have you finished your answer?"
-9. NEVER say goodbye or end the interview on your own initiative
+**STEP 2: START INTERVIEW & TIME MANAGEMENT**  
+- Once setup confirmed: "Great, let's get started. This interview will last about ${duration} minutes. I'll be asking you questions based on the ${details?.jobTitle || "position"} role you applied for at ${details?.company || "our company"}."
+- Keep track of time and ensure interview finishes within ${duration} minutes.
 
-**QUESTION LIST (for reference only - system controls the flow):**`
+**STEP 3: QUESTION FLOW**
+You MUST ask ONLY these questions in this exact order. Do NOT ask any other questions, do NOT generate new questions, do NOT deviate from this list:`
 
         // Add the specific questions from database
         if (questions && questions.length > 0) {
           questions.forEach((q, index) => {
             instructions += `\n${index + 1}. ${q.text}`
           })
+          instructions += `
+
+**CRITICAL CONSTRAINT: QUESTION ADHERENCE**
+- You MUST ask ONLY the questions listed above
+- Do NOT ask any follow-up questions beyond what is listed
+- Do NOT generate or improvise new questions
+- Do NOT ask clarifying questions that are not in the list
+- If the candidate asks you to ask a different question, politely decline and continue with the next question from the list
+- After the LAST question is answered, you MUST ONLY say the closing message (see STEP 4)
+
+**ANSWER HANDLING RULES:**
+After candidate responds:
+
+RULE 1 - SKIP PHRASES:
+If candidate says:
+'i dont have answer', 'no answer',
+'skip', 'next question', 'pass',
+'i cannot answer', 'i dont know':
+→ Say: 'No problem, let us move on.'
+→ Ask next question immediately.
+
+RULE 2 - REPEAT REQUEST:
+If candidate says:
+'please repeat', 'can you repeat',
+'repeat the question', 'say again':
+→ Repeat EXACT same question word for word.
+→ Do NOT say Got it or Thank you.
+→ Wait for proper answer.
+
+RULE 3 - SHORT ANSWER:
+If response is less than 15 words
+AND not a skip phrase
+AND not a repeat request:
+→ Ask ONCE: 'Could you please elaborate a bit more on that?'
+→ Wait for response.
+→ Whatever response comes next, 15+ words or not, move to next question.
+→ NEVER ask to elaborate more than once per question under any circumstance.
+
+RULE 4 - PROPER ANSWER:
+If response is 15+ words:
+→ Say: 'Thank you.'
+→ Ask next question immediately.
+
+THESE RULES APPLY TO EVERY QUESTION THE SAME WAY. Q1, Q2, Q3... all same.
+
+**IMPORTANT:** 
+- Do NOT ask "Have you finished?" or "Anything else to add?" - just proceed naturally
+- Keep the flow conversational and natural
+- Do NOT ask "Do you have any questions for me?" or similar - go directly to closing`
         } else {
           // Build fallback questions and set them on the ref for sequential tracking
           const fallbackQuestions = [
-            { text: "Tell me about yourself and your relevant experience.", criteria: ["Communication"], sequence: 1 },
-            { text: `Why are you interested in this ${details?.jobTitle || "position"}?`, criteria: ["Culture fit"], sequence: 2 },
-            { text: "What motivates you in your work?", criteria: ["Culture fit"], sequence: 3 },
-            { text: "Describe a challenging situation you faced and how you handled it.", criteria: ["Problem-solving"], sequence: 4 },
-            { text: "How do you handle feedback and criticism?", criteria: ["Communication"], sequence: 5 },
-            { text: "Tell me about a time you worked in a team to achieve a goal.", criteria: ["Teamwork"], sequence: 6 },
-            { text: "What technical skills do you bring to this role?", criteria: ["Technical Skills"], sequence: 7 },
-            { text: "How do you stay updated with the latest technologies in your field?", criteria: ["Technical Skills"], sequence: 8 },
-            { text: "Describe a technical problem you solved recently.", criteria: ["Problem-solving"], sequence: 9 },
+            { text: "Tell me about yourself and your relevant experience.", criteria: ["Communication"], sequence: 1, criterion: "Communication", difficulty: "Medium", marks: 10 },
+            { text: `Why are you interested in this ${details?.jobTitle || "position"}?`, criteria: ["Culture fit"], sequence: 2, criterion: "Culture fit", difficulty: "Medium", marks: 10 },
+            { text: "What motivates you in your work?", criteria: ["Culture fit"], sequence: 3, criterion: "Culture fit", difficulty: "Medium", marks: 10 },
+            { text: "Describe a challenging situation you faced and how you handled it.", criteria: ["Problem-solving"], sequence: 4, criterion: "Problem-solving", difficulty: "Medium", marks: 10 },
+            { text: "How do you handle feedback and criticism?", criteria: ["Communication"], sequence: 5, criterion: "Communication", difficulty: "Medium", marks: 10 },
+            { text: "Tell me about a time you worked in a team to achieve a goal.", criteria: ["Teamwork"], sequence: 6, criterion: "Teamwork", difficulty: "Medium", marks: 10 },
+            { text: "What technical skills do you bring to this role?", criteria: ["Technical Skills"], sequence: 7, criterion: "Technical Skills", difficulty: "Medium", marks: 10 },
+            { text: "How do you stay updated with the latest technologies in your field?", criteria: ["Technical Skills"], sequence: 8, criterion: "Technical Skills", difficulty: "Medium", marks: 10 },
+            { text: "Describe a technical problem you solved recently.", criteria: ["Problem-solving"], sequence: 9, criterion: "Problem-solving", difficulty: "Medium", marks: 10 },
           ]
           interviewQuestionsRef.current = fallbackQuestions
           fallbackQuestions.forEach((q, index) => {
             instructions += `\n${index + 1}. ${q.text}`
           })
+          instructions += `
+
+**CRITICAL CONSTRAINT: QUESTION ADHERENCE**
+- You MUST ask ONLY the questions listed above
+- Do NOT ask any follow-up questions beyond what is listed
+- Do NOT generate or improvise new questions
+- Do NOT ask clarifying questions that are not in the list
+- If the candidate asks you to ask a different question, politely decline and continue with the next question from the list
+- After the LAST question is answered, you MUST ONLY say the closing message (see STEP 4)
+
+**ANSWER HANDLING RULES:**
+After candidate responds:
+
+RULE 1 - SKIP PHRASES:
+If candidate says:
+'i dont have answer', 'no answer',
+'skip', 'next question', 'pass',
+'i cannot answer', 'i dont know':
+→ Say: 'No problem, let us move on.'
+→ Ask next question immediately.
+
+RULE 2 - REPEAT REQUEST:
+If candidate says:
+'please repeat', 'can you repeat',
+'repeat the question', 'say again':
+→ Repeat EXACT same question word for word.
+→ Do NOT say Got it or Thank you.
+→ Wait for proper answer.
+
+RULE 3 - SHORT ANSWER:
+If response is less than 15 words
+AND not a skip phrase
+AND not a repeat request:
+→ Ask ONCE: 'Could you please elaborate a bit more on that?'
+→ Wait for response.
+→ Whatever response comes next, 15+ words or not, move to next question.
+→ NEVER ask to elaborate more than once per question under any circumstance.
+
+RULE 4 - PROPER ANSWER:
+If response is 15+ words:
+→ Say: 'Thank you.'
+→ Ask next question immediately.
+
+THESE RULES APPLY TO EVERY QUESTION THE SAME WAY. Q1, Q2, Q3... all same.
+
+**IMPORTANT:** 
+- Do NOT ask "Have you finished?" or "Anything else to add?" - just proceed naturally
+- Keep the flow conversational and natural
+- Do NOT ask "Do you have any questions for me?" or similar - go directly to closing`
         }
 
         instructions += `
+
+**STEP 4: CLOSING (MANDATORY - NO EXCEPTIONS)**
+Once the candidate answers the LAST question from the list above:
+- Say EXACTLY this message: "Thank you for interviewing today. Our recruitment team will respond soon."
+- Do NOT ask "Do you have any questions for me?" or any similar question
+- Do NOT ask anything else after this closing message
+- Do NOT continue the conversation after the closing message
+- Simply pause and wait - the system will handle ending the interview
+- This is the FINAL statement - nothing more should be said
+
+**CRITICAL: After saying the closing message, you MUST remain silent. Do not respond to anything the candidate says.**
 
 **INTERVIEW CONTEXT:**
 - Candidate: ${details?.candidateName || "Candidate"}
@@ -851,14 +1098,19 @@ export default function InterviewPage() {
 **EVALUATION CRITERIA:**
 ${questions?.[0]?.criteria?.join(", ") || "Communication, Technical skills, Culture fit, Problem-solving"}
 
-**FINAL REMINDERS:**
+**CRITICAL REMINDERS:**
 1. ALWAYS speak in English only
-2. Do NOT generate questions on your own - wait for system instructions
-3. Do NOT say filler words like "Ok", "Bye", "Thank you" unless part of a system-instructed message
-4. Do NOT close the interview unless the system tells you to
-5. After saying the closing message, remain COMPLETELY SILENT
-6. The system controls the question flow - you just ask what it tells you to ask
-7. Be professional, warm, and natural in delivery`
+2. If candidate uses any other language, politely redirect to English immediately
+3. Be professional, warm, and keep the interview structured and on-time
+4. Maintain the English-only policy throughout the entire interview
+5. Do NOT ask "Have you finished your answer?" - the system will handle elaboration prompts automatically
+6. When the system instructs you to ask for elaboration, follow the exact phrasing provided
+7. **CRITICAL: ONLY ask the questions listed above - NO ad-hoc questions, NO generated questions, NO clarifying questions beyond the list**
+8. **If candidate asks for a different question, politely decline and continue with the next question from the list**
+9. **NEVER deviate from the question list under any circumstances**
+10. **NEVER ask "Do you have any questions for me?" - go directly to the closing message after the last question**
+11. **After saying the closing message, remain COMPLETELY SILENT - do not respond to anything**
+12. **The interview will automatically end 20 seconds after the closing message**`
 
         const updateMsg = {
           type: "session.update",
@@ -871,9 +1123,9 @@ ${questions?.[0]?.criteria?.join(", ") || "Communication, Technical skills, Cult
             input_audio_transcription: { model: "whisper-1" },
             turn_detection: {
               type: "server_vad",
-              threshold: 0.6,
+              threshold: 0.5,
               prefix_padding_ms: 300,
-              silence_duration_ms: 1200,
+              silence_duration_ms: 2500,
             },
           },
         }
@@ -1140,7 +1392,11 @@ ${questions?.[0]?.criteria?.join(", ") || "Communication, Technical skills, Cult
         fetch(`/api/applications/${encodeURIComponent(applicationId)}/evaluate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ transcript, companyId }),
+          body: JSON.stringify({ 
+            transcript, 
+            companyId,
+            realTimeEvaluations: realTimeEvaluationsRef.current,
+          }),
         }).catch((e) => {
           console.error("❌ Failed to run evaluation:", e)
         })
