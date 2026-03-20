@@ -31,7 +31,7 @@ import {
   Loader2,
   Filter
 } from "lucide-react"
-import PayPalOverview from "./PayPalOverview"
+import PaymentCheckout from "./PaymentCheckout"
 
 interface BillingContentProps {
   companyId: string
@@ -42,6 +42,28 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   const [billingData, setBillingData] = useState<any>(null)
   const [usageData, setUsageData] = useState<any>(null)
   const [currentTab, setCurrentTab] = useState<string>("overview")
+
+  // Currency Detection
+  const [currency, setCurrency] = useState<'INR' | 'USD'>('USD')
+
+  useEffect(() => {
+    const detectCountry = async () => {
+      try {
+        const res = await fetch('https://ipapi.co/json/')
+        if (!res.ok) throw new Error('Country detection failed')
+        const data = await res.json()
+        const countryCode = data.country_code || data.country
+        setCurrency(countryCode === 'IN' ? 'INR' : 'USD')
+      } catch (err) {
+        console.warn('[BillingContent] Country detection failed, defaulting to USD:', err)
+        setCurrency('USD')
+      }
+    }
+    detectCountry()
+  }, [])
+
+  // Formatted upgrade amount based on pricing page logic
+  const upgradeDisplayAmount = currency === 'INR' ? '₹10,000' : '$100'
 
   // Settings
   const [autoRecharge, setAutoRecharge] = useState(false)
@@ -431,14 +453,41 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             </Card>
           </div>
 
-          {/* PayPal Quick Subscribe */}
-          <PayPalOverview 
-            companyId={companyId}
-            onSubscriptionSuccess={(subscriptionId) => {
-              console.log('Subscription successful:', subscriptionId)
-              loadBillingData()
-            }}
-          />
+          {/* Subscription State Handling */}
+          {billingData?.status === 'active' ? (
+            <Card className="border-emerald-200 bg-gradient-to-r from-emerald-50 to-green-50 shadow-sm mt-6">
+              <CardContent className="pt-6 pb-6">
+                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-white rounded-full shadow-sm">
+                      <CheckCircle className="h-6 w-6 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-emerald-900">Active Subscription</h3>
+                      <p className="text-sm text-emerald-700 mt-1">
+                        Your workspace is currently upgraded. All premium features are unlocked.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
+                    <Button className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-md" onClick={() => window.location.href = '/pricing'}>
+                      Upgrade Plan ({upgradeDisplayAmount}/month)
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="mt-6">
+              <PaymentCheckout 
+                companyId={companyId}
+                onPaymentSuccess={(paymentId, provider) => {
+                  console.log(`Payment successful via ${provider}:`, paymentId)
+                  loadBillingData()
+                }}
+              />
+            </div>
+          )}
 
         </TabsContent>
 

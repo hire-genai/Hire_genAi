@@ -9,11 +9,44 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import Navbar from "@/components/layout/Navbar"
 import Link from "next/link"
-import { Check, X, ArrowRight, Star, Facebook, Instagram, Youtube, Linkedin, Lock } from "lucide-react"
+import { Check, X, ArrowRight, Star, Facebook, Instagram, Youtube, Linkedin, Lock, Globe } from "lucide-react"
 import Footer from "@/components/layout/Footer"
+
+type Country = 'IN' | 'INTERNATIONAL' | null
 
 export default function PricingPage() {
   const searchParams = useSearchParams()
+  const [country, setCountry] = useState<Country>(null)
+  const [detectingCountry, setDetectingCountry] = useState(true)
+
+  // Detect user country
+  useEffect(() => {
+    const detectCountry = async () => {
+      try {
+        // Check for manual override in localStorage (for testing)
+        const manualCountry = localStorage.getItem('forceCountry')
+        if (manualCountry === 'IN' || manualCountry === 'INTERNATIONAL') {
+          console.log('[Pricing] Using manual country override:', manualCountry)
+          setCountry(manualCountry as Country)
+          setDetectingCountry(false)
+          return
+        }
+
+        const res = await fetch('/api/detect-country')
+        if (!res.ok) throw new Error('Country detection failed')
+        const data = await res.json()
+        const countryCode = data.countryCode
+        console.log('[Pricing] Detected country:', countryCode)
+        setCountry(countryCode === 'IN' ? 'IN' : 'INTERNATIONAL')
+      } catch (err) {
+        console.warn('[Pricing] Country detection failed, defaulting to INTERNATIONAL:', err)
+        setCountry('INTERNATIONAL')
+      } finally {
+        setDetectingCountry(false)
+      }
+    }
+    detectCountry()
+  }, [])
 
   useEffect(() => {
     const scrollTo = searchParams?.get('scroll')
@@ -28,6 +61,20 @@ export default function PricingPage() {
       return () => clearTimeout(timer)
     }
   }, [searchParams])
+
+  // Currency conversion: 1 USD = 100 INR (approximate)
+  const USD_TO_INR = 100
+  
+  const getDisplayPrice = (usdPrice: number | null) => {
+    if (usdPrice === null) return null
+    if (country === 'IN') {
+      return Math.round(usdPrice * USD_TO_INR).toLocaleString('en-IN')
+    }
+    return usdPrice.toLocaleString()
+  }
+
+  const getCurrencySymbol = () => country === 'IN' ? '₹' : '$'
+  const getCurrencyLabel = () => country === 'IN' ? 'INR' : 'USD'
 
   const plans = [
     {
@@ -95,18 +142,7 @@ export default function PricingPage() {
     <div className="min-h-screen bg-white">
       <Navbar />
       
-      {/* Hero Section */}
-      <section className="sr-hero-bg py-20">
-        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
-          <h1 className="text-5xl lg:text-6xl font-bold text-slate-800 mb-6">
-            Simple, transparent <span className="sr-text-gradient">pricing</span>
-          </h1>
-          <p className="text-xl text-slate-600 mb-8 max-w-2xl mx-auto">
-            Choose the perfect plan for your hiring needs. All plans include our core AI features with no hidden fees.
-          </p>
-        </div>
-      </section>
-
+      
       {/* Value Proposition Section */}
       <section className="py-16 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -169,8 +205,10 @@ export default function PricingPage() {
                     <div className="flex items-center justify-center">
                       {plan.monthlyPrice !== null ? (
                         <>
-                          <span className="text-5xl font-bold text-slate-800">${plan.monthlyPrice}</span>
-                          <span className="text-slate-600 ml-2">{plan.monthlyPrice === 0 ? '' : 'flexible billing'}</span>
+                          <span className="text-5xl font-bold text-slate-800">
+                            {getCurrencySymbol()}{getDisplayPrice(plan.monthlyPrice)}
+                          </span>
+                          <span className="text-slate-600 ml-2">{plan.monthlyPrice === 0 ? '' : '/month'}</span>
                         </>
                       ) : (
                         <span className="text-3xl font-bold text-slate-800">Custom</span>

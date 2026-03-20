@@ -344,7 +344,7 @@ export async function POST(
 
     // Get application and job details
     const applicationQuery = `
-      SELECT a.id, a.job_id, j.title as job_title, c.name as company_name,
+      SELECT a.id, a.job_id, a.candidate_id, j.title as job_title, c.name as company_name,
              c.id as company_id, cand.first_name, cand.last_name
       FROM applications a
       JOIN job_postings j ON a.job_id = j.id
@@ -575,6 +575,38 @@ export async function POST(
 
       console.log("✅ [EVAL-RT] Evaluation stored using real-time data")
       console.log("✅ [EVAL-RT] Application kept in ai_interview stage")
+
+      // Record video interview usage for billing
+      try {
+        const interviewInfo = (await DatabaseService.query(
+          `SELECT interview_completed_at, interview_sent_at FROM interviews WHERE application_id = $1::uuid LIMIT 1`,
+          [applicationId]
+        )) as any[]
+        let durationMinutes = 0
+        if (interviewInfo?.[0]?.interview_sent_at && interviewInfo?.[0]?.interview_completed_at) {
+          durationMinutes = Math.max(1, Math.round(
+            (new Date(interviewInfo[0].interview_completed_at).getTime() - new Date(interviewInfo[0].interview_sent_at).getTime()) / 60000
+          ))
+        }
+        if (durationMinutes > 0) {
+          await DatabaseService.recordVideoInterviewUsage({
+            companyId,
+            jobId,
+            interviewId: applicationId,
+            candidateId: application.candidate_id || undefined,
+            durationMinutes,
+            completedQuestions: answeredCount,
+            totalQuestions,
+            videoQuality: 'HD'
+          })
+          console.log("✅ [EVAL-RT] Video interview usage recorded:", durationMinutes, "minutes")
+        } else {
+          console.log("⚠️ [EVAL-RT] Could not determine interview duration, skipping usage recording")
+        }
+      } catch (usageErr: any) {
+        console.warn("⚠️ [EVAL-RT] Failed to record video usage:", usageErr?.message)
+      }
+
       console.log("=".repeat(80) + "\n")
 
       return NextResponse.json({
@@ -838,6 +870,38 @@ export async function POST(
 
     console.log("✅ [EVAL] Evaluation stored in interviews table")
     console.log("✅ [EVAL] Application kept in ai_interview stage")
+
+    // Record video interview usage for billing
+    try {
+      const interviewInfo = (await DatabaseService.query(
+        `SELECT interview_completed_at, interview_sent_at FROM interviews WHERE application_id = $1::uuid LIMIT 1`,
+        [applicationId]
+      )) as any[]
+      let durationMinutes = 0
+      if (interviewInfo?.[0]?.interview_sent_at && interviewInfo?.[0]?.interview_completed_at) {
+        durationMinutes = Math.max(1, Math.round(
+          (new Date(interviewInfo[0].interview_completed_at).getTime() - new Date(interviewInfo[0].interview_sent_at).getTime()) / 60000
+        ))
+      }
+      if (durationMinutes > 0) {
+        await DatabaseService.recordVideoInterviewUsage({
+          companyId,
+          jobId,
+          interviewId: applicationId,
+          candidateId: application.candidate_id || undefined,
+          durationMinutes,
+          completedQuestions: answeredCount,
+          totalQuestions,
+          videoQuality: 'HD'
+        })
+        console.log("✅ [EVAL] Video interview usage recorded:", durationMinutes, "minutes")
+      } else {
+        console.log("⚠️ [EVAL] Could not determine interview duration, skipping usage recording")
+      }
+    } catch (usageErr: any) {
+      console.warn("⚠️ [EVAL] Failed to record video usage:", usageErr?.message)
+    }
+
     console.log("=".repeat(80) + "\n")
 
     return NextResponse.json({
