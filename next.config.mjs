@@ -8,6 +8,11 @@ const nextConfig = {
   },
   // Empty turbopack config to silence the warning
   turbopack: {},
+  // Experimental: disable static generation
+  experimental: {
+    // PPR (Partial Prerendering) disabled
+    ppr: false,
+  },
   // Webpack fallbacks for client-side modules
   webpack: (config, { isServer }) => {
     config.resolve.fallback = {
