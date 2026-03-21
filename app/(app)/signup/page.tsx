@@ -70,7 +70,7 @@ function SignupContent() {
   const [step, setStep] = useState(1)
   const [mounted, setMounted] = useState(false)
   
-  // Only access searchParams after component mounts
+  // Only access URL params after component mounts
   useEffect(() => {
     setMounted(true)
   }, [])
