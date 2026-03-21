@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -12,7 +11,6 @@ import { ArrowRight, Mail, MessageSquare, Zap, Facebook, Instagram, Youtube, Lin
 import Navbar from "@/components/layout/Navbar"
 
 export default function ContactPage() {
-  const searchParams = useSearchParams()
   const [formData, setFormData] = useState({
     fullName: '',
     workEmail: '',
@@ -26,7 +24,8 @@ export default function ContactPage() {
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
-    const scrollTo = searchParams?.get('scroll')
+    const urlParams = new URLSearchParams(window.location.search)
+    const scrollTo = urlParams.get('scroll')
     if (scrollTo) {
       const timer = setTimeout(() => {
         const element = document.getElementById(scrollTo)
@@ -37,7 +36,7 @@ export default function ContactPage() {
       }, 300)
       return () => clearTimeout(timer)
     }
-  }, [searchParams])
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { getAppUrl } from "@/lib/domain-config"
@@ -15,7 +14,6 @@ import Footer from "@/components/layout/Footer"
 type Country = 'IN' | 'INTERNATIONAL' | null
 
 export default function PricingPage() {
-  const searchParams = useSearchParams()
   const [country, setCountry] = useState<Country>(null)
   const [detectingCountry, setDetectingCountry] = useState(true)
 
@@ -49,7 +47,8 @@ export default function PricingPage() {
   }, [])
 
   useEffect(() => {
-    const scrollTo = searchParams?.get('scroll')
+    const urlParams = new URLSearchParams(window.location.search)
+    const scrollTo = urlParams.get('scroll')
     if (scrollTo) {
       const timer = setTimeout(() => {
         const element = document.getElementById(scrollTo)
@@ -60,7 +59,7 @@ export default function PricingPage() {
       }, 300)
       return () => clearTimeout(timer)
     }
-  }, [searchParams])
+  }, [])
 
   // Currency conversion: 1 USD = 100 INR (approximate)
   const USD_TO_INR = 100

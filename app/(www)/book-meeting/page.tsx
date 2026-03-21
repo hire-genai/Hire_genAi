@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { Clock, Globe, MapPin, Zap, Facebook, Instagram, Youtube, Linkedin, Lock, Star, Loader2, ArrowRight, Calendar, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,7 +32,6 @@ const DAYS_OF_WEEK = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 
 export default function BookMeetingPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { toast } = useToast()
   const [step, setStep] = useState(1) // 1: Calendar, 2: Details Form, 3: Confirmation
 

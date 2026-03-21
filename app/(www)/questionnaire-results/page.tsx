@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
 import { Check, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,16 +8,16 @@ import { getAppUrl } from "@/lib/domain-config"
 import Link from "next/link"
 
 export default function QuestionnaireResults() {
-  const searchParams = useSearchParams()
   const [score, setScore] = useState(0)
   const [contactInfo, setContactInfo] = useState({ name: "", email: "", company: "" })
 
   useEffect(() => {
     // Get data from URL params or localStorage (only on client side)
-    const scoreParam = searchParams.get('score')
-    const nameParam = searchParams.get('name')
-    const emailParam = searchParams.get('email')
-    const companyParam = searchParams.get('company')
+    const urlParams = new URLSearchParams(window.location.search)
+    const scoreParam = urlParams.get('score')
+    const nameParam = urlParams.get('name')
+    const emailParam = urlParams.get('email')
+    const companyParam = urlParams.get('company')
 
     if (scoreParam) {
       setScore(parseInt(scoreParam))
@@ -27,8 +26,8 @@ export default function QuestionnaireResults() {
         email: emailParam || '',
         company: companyParam || ''
       })
-    } else if (typeof window !== 'undefined') {
-      // Fallback to localStorage if no params (only on client side)
+    } else {
+      // Fallback to localStorage if no params
       const storedScore = localStorage.getItem('questionnaireScore')
       const storedContact = localStorage.getItem('questionnaireContact')
 
@@ -39,7 +38,7 @@ export default function QuestionnaireResults() {
         setContactInfo(JSON.parse(storedContact))
       }
     }
-  }, [searchParams])
+  }, [])
 
   const getResultsText = () => {
     if (score >= 80) {

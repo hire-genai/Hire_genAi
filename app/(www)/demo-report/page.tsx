@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
 import { Check, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,7 +8,6 @@ import { getAppUrl } from "@/lib/domain-config"
 import Link from "next/link"
 
 export default function DemoReport() {
-  const searchParams = useSearchParams()
   const [score, setScore] = useState(0)
   const [contactInfo, setContactInfo] = useState({ name: "", email: "", company: "" })
 
