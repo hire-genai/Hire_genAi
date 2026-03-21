@@ -220,7 +220,7 @@ importers:
         specifier: ^10.4.27
         version: 10.4.27(postcss@8.5.8)
       baseline-browser-mapping:
-        specifier: ^2.10.0
+        specifier: ^2.10.9
         version: 2.10.9
       postcss:
         specifier: ^8.5.8
