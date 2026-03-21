@@ -2533,7 +2533,7 @@ export class DatabaseService {
       }]
     })
 
-    // In production, this would call Stripe/PayPal API
+    // In production, this would call Razorpay/PayPal API
     // For now, simulate successful payment
     const paymentSuccess = true
 
@@ -2957,7 +2957,7 @@ export class DatabaseService {
 
   // Update payment method
   static async updatePaymentMethod(companyId: string, paymentData: {
-    provider: 'stripe' | 'paypal'
+    provider: 'razorpay' | 'paypal'
     paymentMethodId: string
     last4?: string
     brand?: string

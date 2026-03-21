@@ -950,6 +950,173 @@ CREATE INDEX idx_invoices_company_id ON invoices (company_id);
 CREATE INDEX idx_invoices_subscription_id ON invoices (subscription_id);
 
 
+-- ---------------------------------------------------------------------------
+-- 11d. company_billing
+-- WHY: Main billing/wallet table for each company. Tracks wallet balance,
+--      spending, and auto-recharge settings for Razorpay/PayPal integration.
+-- USED BY: /api/billing/*, PaymentCheckout component
+-- ---------------------------------------------------------------------------
+CREATE TABLE company_billing (
+  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id              UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  
+  -- Wallet balance (prepaid credits)
+  wallet_balance          NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+  
+  -- Spending tracking
+  current_month_spent     NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+  total_spent             NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+  
+  -- Monthly spend cap (optional)
+  monthly_spend_cap       NUMERIC(12,2),
+  
+  -- Auto-recharge settings
+  auto_recharge_enabled   BOOLEAN NOT NULL DEFAULT FALSE,
+  auto_recharge_amount    NUMERIC(12,2) DEFAULT 100.00,
+  auto_recharge_threshold NUMERIC(12,2) DEFAULT 10.00,
+  
+  -- Billing status
+  status                  TEXT NOT NULL DEFAULT 'trial',  -- trial, active, past_due, suspended
+  
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  UNIQUE (company_id)
+);
+
+CREATE INDEX idx_company_billing_company_id ON company_billing (company_id);
+CREATE INDEX idx_company_billing_status ON company_billing (status);
+
+
+-- ---------------------------------------------------------------------------
+-- 11e. payment_transactions
+-- WHY: All payment records (Razorpay/PayPal) for audit trail and verification.
+--      Links to company_billing for wallet updates.
+-- USED BY: /api/payment/verify, billing reports
+-- ---------------------------------------------------------------------------
+CREATE TABLE payment_transactions (
+  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id              UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  
+  -- Payment provider info
+  provider                TEXT NOT NULL,                  -- 'razorpay' or 'paypal'
+  provider_order_id       TEXT,                           -- Razorpay order_id or PayPal order_id
+  provider_payment_id     TEXT,                           -- Razorpay payment_id or PayPal capture_id
+  provider_signature      TEXT,                           -- For verification
+  
+  -- Amount details
+  amount                  NUMERIC(12,2) NOT NULL,         -- Amount in base currency (INR/USD)
+  currency                TEXT NOT NULL DEFAULT 'INR',
+  amount_in_paise         INTEGER,                        -- For Razorpay (amount * 100)
+  
+  -- Status
+  status                  TEXT NOT NULL DEFAULT 'pending', -- pending, completed, failed, refunded
+  
+  -- Metadata
+  description             TEXT,
+  notes                   JSONB,
+  
+  -- Timestamps
+  initiated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at            TIMESTAMPTZ,
+  failed_at               TIMESTAMPTZ,
+  failure_reason          TEXT,
+  
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_payment_transactions_company_id ON payment_transactions (company_id);
+CREATE INDEX idx_payment_transactions_provider ON payment_transactions (provider);
+CREATE INDEX idx_payment_transactions_status ON payment_transactions (status);
+CREATE INDEX idx_payment_transactions_provider_payment_id ON payment_transactions (provider_payment_id);
+
+
+-- ---------------------------------------------------------------------------
+-- 11f. cv_parsing_usage
+-- WHY: Track CV parsing usage for billing. Each CV parse is charged.
+-- USED BY: /api/billing/usage, billing calculations
+-- ---------------------------------------------------------------------------
+CREATE TABLE cv_parsing_usage (
+  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id              UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  job_id                  UUID REFERENCES job_postings(id) ON DELETE SET NULL,
+  application_id          UUID REFERENCES applications(id) ON DELETE SET NULL,
+  
+  -- Usage details
+  candidate_name          TEXT,
+  cv_file_name            TEXT,
+  cv_file_size            INTEGER,
+  
+  -- Cost
+  cost                    NUMERIC(10,4) NOT NULL,         -- Cost charged for this parsing
+  
+  -- Timestamps
+  parsed_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_cv_parsing_usage_company_id ON cv_parsing_usage (company_id);
+CREATE INDEX idx_cv_parsing_usage_job_id ON cv_parsing_usage (job_id);
+CREATE INDEX idx_cv_parsing_usage_parsed_at ON cv_parsing_usage (parsed_at);
+
+
+-- ---------------------------------------------------------------------------
+-- 11g. question_generation_usage
+-- WHY: Track AI question generation usage for billing.
+-- USED BY: /api/billing/usage, billing calculations
+-- ---------------------------------------------------------------------------
+CREATE TABLE question_generation_usage (
+  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id              UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  job_id                  UUID REFERENCES job_postings(id) ON DELETE SET NULL,
+  
+  -- Usage details
+  question_count          INTEGER NOT NULL,               -- Number of questions generated
+  token_count             INTEGER,                        -- Tokens used (for cost calculation)
+  
+  -- Cost
+  cost                    NUMERIC(10,4) NOT NULL,         -- Cost charged
+  
+  -- Timestamps
+  generated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_question_generation_usage_company_id ON question_generation_usage (company_id);
+CREATE INDEX idx_question_generation_usage_job_id ON question_generation_usage (job_id);
+CREATE INDEX idx_question_generation_usage_generated_at ON question_generation_usage (generated_at);
+
+
+-- ---------------------------------------------------------------------------
+-- 11h. video_interview_usage
+-- WHY: Track video interview usage for billing. Charged per minute.
+-- USED BY: /api/billing/usage, billing calculations
+-- ---------------------------------------------------------------------------
+CREATE TABLE video_interview_usage (
+  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id              UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  job_id                  UUID REFERENCES job_postings(id) ON DELETE SET NULL,
+  application_id          UUID REFERENCES applications(id) ON DELETE SET NULL,
+  
+  -- Usage details
+  candidate_name          TEXT,
+  duration_seconds        INTEGER NOT NULL,               -- Interview duration in seconds
+  duration_minutes        NUMERIC(10,2),                  -- Duration in minutes (for display)
+  
+  -- Cost
+  cost                    NUMERIC(10,4) NOT NULL,         -- Cost charged
+  
+  -- Timestamps
+  interview_date          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_video_interview_usage_company_id ON video_interview_usage (company_id);
+CREATE INDEX idx_video_interview_usage_job_id ON video_interview_usage (job_id);
+CREATE INDEX idx_video_interview_usage_interview_date ON video_interview_usage (interview_date);
+
+
 -- ============================================================================
 -- 12. NOTIFICATION PREFERENCES
 -- ============================================================================
@@ -1008,7 +1175,9 @@ BEGIN
       'subscriptions',
       'contact_messages',
       'meeting_bookings',
-      'email_templates'
+      'email_templates',
+      'company_billing',
+      'payment_transactions'
     ])
   LOOP
     EXECUTE format(
@@ -1018,6 +1187,335 @@ BEGIN
   END LOOP;
 END;
 $$;
+
+
+-- ============================================================================
+-- BILLING HELPER FUNCTIONS
+-- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- Function to initialize billing for a company (call on company creation)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION initialize_company_billing(p_company_id UUID)
+RETURNS UUID AS $$
+DECLARE
+  billing_id UUID;
+BEGIN
+  INSERT INTO company_billing (company_id, wallet_balance, status)
+  VALUES (p_company_id, 0.00, 'trial')
+  ON CONFLICT (company_id) DO NOTHING
+  RETURNING id INTO billing_id;
+  
+  RETURN billing_id;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- ---------------------------------------------------------------------------
+-- Function to add credits to wallet (after successful payment)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION add_wallet_credits(
+  p_company_id UUID,
+  p_amount NUMERIC,
+  p_payment_id UUID
+)
+RETURNS NUMERIC AS $$
+DECLARE
+  new_balance NUMERIC;
+BEGIN
+  -- Update wallet balance
+  UPDATE company_billing
+  SET 
+    wallet_balance = wallet_balance + p_amount,
+    status = CASE WHEN status = 'trial' OR status = 'past_due' THEN 'active' ELSE status END,
+    updated_at = NOW()
+  WHERE company_id = p_company_id
+  RETURNING wallet_balance INTO new_balance;
+  
+  -- If no billing record exists, create one
+  IF new_balance IS NULL THEN
+    INSERT INTO company_billing (company_id, wallet_balance, status)
+    VALUES (p_company_id, p_amount, 'active')
+    RETURNING wallet_balance INTO new_balance;
+  END IF;
+  
+  RETURN new_balance;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- ---------------------------------------------------------------------------
+-- Function to deduct from wallet (for usage charges)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION deduct_wallet_credits(
+  p_company_id UUID,
+  p_amount NUMERIC
+)
+RETURNS TABLE(success BOOLEAN, new_balance NUMERIC, message TEXT) AS $$
+DECLARE
+  current_balance NUMERIC;
+  updated_balance NUMERIC;
+BEGIN
+  -- Get current balance
+  SELECT wallet_balance INTO current_balance
+  FROM company_billing
+  WHERE company_id = p_company_id;
+  
+  -- Check if sufficient balance
+  IF current_balance IS NULL OR current_balance < p_amount THEN
+    RETURN QUERY SELECT FALSE, COALESCE(current_balance, 0.00), 'Insufficient wallet balance'::TEXT;
+    RETURN;
+  END IF;
+  
+  -- Deduct amount
+  UPDATE company_billing
+  SET 
+    wallet_balance = wallet_balance - p_amount,
+    current_month_spent = current_month_spent + p_amount,
+    total_spent = total_spent + p_amount,
+    updated_at = NOW()
+  WHERE company_id = p_company_id
+  RETURNING wallet_balance INTO updated_balance;
+  
+  RETURN QUERY SELECT TRUE, updated_balance, 'Success'::TEXT;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- ============================================================================
+-- 13. ADMIN SESSIONS & SETTINGS (from migrations)
+-- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 13a. admin_sessions
+-- WHY: Tracks authenticated sessions for owner/admin access to HireGenAI admin panel
+-- USED BY: /admin-hiregenai/* pages
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS admin_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_email VARCHAR(255) NOT NULL,
+  session_token_hash VARCHAR(255) NOT NULL UNIQUE,
+  ip_address INET,
+  user_agent TEXT,
+  issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  last_activity_at TIMESTAMPTZ DEFAULT NOW(),
+  revoked_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_owner_email ON admin_sessions(owner_email);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_token_hash ON admin_sessions(session_token_hash);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires_at ON admin_sessions(expires_at);
+
+
+-- ---------------------------------------------------------------------------
+-- 13b. admin_settings
+-- WHY: Key-value store for admin configurations (profit margin, feature toggles, etc.)
+-- USED BY: /admin-hiregenai/settings
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS admin_settings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  key VARCHAR(100) UNIQUE NOT NULL,
+  value TEXT,
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO admin_settings (key, value, description)
+VALUES ('profit_margin', '20', 'Profit margin percentage applied to AI costs')
+ON CONFLICT (key) DO NOTHING;
+
+INSERT INTO admin_settings (key, value, description)
+VALUES ('anomaly_detection', 'true', 'Enable anomaly detection alerts')
+ON CONFLICT (key) DO NOTHING;
+
+INSERT INTO admin_settings (key, value, description)
+VALUES ('realtime_alerts', 'true', 'Enable real-time alert notifications')
+ON CONFLICT (key) DO NOTHING;
+
+
+-- ---------------------------------------------------------------------------
+-- 13c. admin_alerts
+-- WHY: Tracks system alerts for admin dashboard (usage spikes, payment failures, etc.)
+-- USED BY: /admin-hiregenai/anomalies
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS admin_alerts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  alert_type VARCHAR(50) NOT NULL,     -- 'usage_spike', 'payment_failure', 'system_error', 'low_balance'
+  severity VARCHAR(20) NOT NULL DEFAULT 'medium',  -- 'high', 'medium', 'low'
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'active',  -- 'active', 'resolved', 'dismissed'
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_alerts_status ON admin_alerts (status);
+CREATE INDEX IF NOT EXISTS idx_admin_alerts_severity ON admin_alerts (severity);
+CREATE INDEX IF NOT EXISTS idx_admin_alerts_created_at ON admin_alerts (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_alerts_company_id ON admin_alerts (company_id);
+
+
+-- ============================================================================
+-- 14. DELEGATIONS & ACCESS CONTROL (from migrations)
+-- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 14a. delegations
+-- WHY: Tracks delegation of jobs/applications to other users for access control
+-- USED BY: /delegation, /jobs, /candidate
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS delegations (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  delegation_type TEXT NOT NULL,                     -- 'job' or 'application'
+  item_id         UUID NOT NULL,                     -- references job_postings.id or applications.id
+  item_name       TEXT NOT NULL,                     -- denormalized for display
+  delegated_by    UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  delegated_to    UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  reason          TEXT,
+  start_date      DATE NOT NULL,
+  end_date        DATE NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'active',    -- active, expired, revoked
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_delegations_company_id ON delegations (company_id);
+CREATE INDEX IF NOT EXISTS idx_delegations_delegated_by ON delegations (delegated_by);
+CREATE INDEX IF NOT EXISTS idx_delegations_delegated_to ON delegations (delegated_to);
+CREATE INDEX IF NOT EXISTS idx_delegations_status ON delegations (status);
+CREATE INDEX IF NOT EXISTS idx_delegations_item_id ON delegations (item_id);
+CREATE INDEX IF NOT EXISTS idx_delegations_type ON delegations (delegation_type);
+CREATE INDEX IF NOT EXISTS idx_delegations_dates ON delegations (start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_delegations_access_control 
+  ON delegations (delegated_to, delegation_type, status, start_date, end_date);
+
+
+-- ---------------------------------------------------------------------------
+-- 14b. delegation_audit_logs
+-- WHY: Audit trail for delegation changes (created, revoked, expired)
+-- USED BY: /admin-hiregenai/audit-logs
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS delegation_audit_logs (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  delegation_id   UUID NOT NULL REFERENCES delegations(id) ON DELETE CASCADE,
+  action          TEXT NOT NULL,                     -- created, revoked, expired
+  performed_by    UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  details         TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_deleg_audit_delegation_id ON delegation_audit_logs (delegation_id);
+CREATE INDEX IF NOT EXISTS idx_deleg_audit_created_at ON delegation_audit_logs (created_at);
+
+
+-- ============================================================================
+-- 15. TALENT POOL UPDATES (from migrations)
+-- ============================================================================
+
+-- Add missing columns to talent_pool_entries if they don't exist
+ALTER TABLE talent_pool_entries ADD COLUMN IF NOT EXISTS added_by UUID REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE talent_pool_entries ADD COLUMN IF NOT EXISTS application_id UUID REFERENCES applications(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_talent_pool_added_by ON talent_pool_entries (added_by);
+CREATE INDEX IF NOT EXISTS idx_talent_pool_application_id ON talent_pool_entries (application_id);
+
+
+-- ============================================================================
+-- 16. ASSESSMENT UPDATES (from migrations)
+-- ============================================================================
+
+-- Add missing columns to assessments
+ALTER TABLE assessments ADD COLUMN IF NOT EXISTS ip_address INET;
+ALTER TABLE assessments ADD COLUMN IF NOT EXISTS user_agent TEXT;
+
+-- Update answers column default
+UPDATE assessments SET answers = '{}' WHERE answers IS NULL;
+ALTER TABLE assessments ALTER COLUMN answers SET DEFAULT '{}';
+
+-- Create GIN index for JSON queries
+CREATE INDEX IF NOT EXISTS idx_assessments_answers ON assessments USING GIN (answers);
+
+
+-- ============================================================================
+-- 17. CONTACT MESSAGES UPDATES (from migrations)
+-- ============================================================================
+
+-- Add missing columns to contact_messages
+ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
+ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS admin_notes TEXT;
+ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS interaction_summary TEXT;
+ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS replied BOOLEAN DEFAULT FALSE;
+ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS responded_at TIMESTAMPTZ;
+
+-- Create triggers for contact_messages if not exists
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_updated_at_contact_messages') THEN
+    CREATE TRIGGER set_updated_at_contact_messages 
+      BEFORE UPDATE ON contact_messages 
+      FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+  END IF;
+END;
+$$;
+
+
+-- ============================================================================
+-- 18. MEETING BOOKINGS UPDATES (from migrations)
+-- ============================================================================
+
+-- Add missing columns to meeting_bookings if they don't exist
+ALTER TABLE meeting_bookings ADD COLUMN IF NOT EXISTS responded_at TIMESTAMPTZ;
+
+-- Create trigger for meeting_bookings if not exists
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_updated_at_meeting_bookings') THEN
+    CREATE TRIGGER set_updated_at_meeting_bookings 
+      BEFORE UPDATE ON meeting_bookings 
+      FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+  END IF;
+END;
+$$;
+
+
+-- ============================================================================
+-- 19. EMAIL TEMPLATES UPDATES (from migrations)
+-- ============================================================================
+
+-- Create trigger for email_templates if not exists
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_updated_at_email_templates') THEN
+    CREATE TRIGGER set_updated_at_email_templates 
+      BEFORE UPDATE ON email_templates 
+      FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+  END IF;
+END;
+$$;
+
+
+-- ============================================================================
+-- 20. JOB POSTINGS UPDATES (from migrations)
+-- ============================================================================
+
+-- Add index for created_by (from delegation_access_control migration)
+CREATE INDEX IF NOT EXISTS idx_job_postings_created_by ON job_postings (created_by);
+
+
+-- ============================================================================
+-- 21. AUTO-EXPIRE DELEGATIONS (from migrations)
+-- ============================================================================
+
+-- Auto-expire delegations whose end_date has passed
+UPDATE delegations 
+SET status = 'expired' 
+WHERE status = 'active' 
+  AND end_date < CURRENT_DATE;
 
 
 -- ============================================================================
