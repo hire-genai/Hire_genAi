@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSearchParams, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -86,7 +86,6 @@ const STATUS_TABS = [
 ]
 
 export default function CustomerInteractionPage() {
-  const searchParams = useSearchParams()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState("contacts")
   const [contacts, setContacts] = useState<ContactMessage[]>([])
@@ -127,8 +126,9 @@ export default function CustomerInteractionPage() {
   useEffect(() => {
     loadData()
     // Handle OAuth callback params
-    const googleConnected = searchParams?.get('google_connected')
-    const googleError = searchParams?.get('google_error')
+    const urlParams = new URLSearchParams(window.location.search)
+    const googleConnected = urlParams.get('google_connected')
+    const googleError = urlParams.get('google_error')
     if (googleConnected === 'true') {
       setActiveTab('google-calendar')
       setGcalConnected(true)

@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Users, Zap, Brain, MessageSquare, Target } from "lucide-react"
@@ -10,10 +9,9 @@ import Navbar from "@/components/layout/Navbar"
 import { getAppUrl } from "@/lib/domain-config"
 
 export default function AboutPage() {
-  const searchParams = useSearchParams()
-
   useEffect(() => {
-    const scrollTo = searchParams?.get('scroll')
+    const urlParams = new URLSearchParams(window.location.search)
+    const scrollTo = urlParams.get('scroll')
     if (scrollTo) {
       const timer = setTimeout(() => {
         const element = document.getElementById(scrollTo)
@@ -24,7 +22,7 @@ export default function AboutPage() {
       }, 300)
       return () => clearTimeout(timer)
     }
-  }, [searchParams])
+  }, [])
 
   return (
     <div className="min-h-screen bg-white">

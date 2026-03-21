@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState, Suspense } from "react"
 import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -67,8 +67,13 @@ const countryOptions = [
 // Separate component to handle search params
 function SignupContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [step, setStep] = useState(1)
+  const [mounted, setMounted] = useState(false)
+  
+  // Only access searchParams after component mounts
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const [form, setForm] = useState({
     // step 1
@@ -130,30 +135,37 @@ function SignupContent() {
     }
   }
 
-  // Initialize step from URL on first render and when section changes
+  // Initialize step from URL on first render (only after mount)
   useEffect(() => {
-    const sec = searchParams?.get('section')
+    if (!mounted) return
+    
+    const urlParams = new URLSearchParams(window.location.search)
+    const sec = urlParams.get('section')
     const target = sectionToStep(sec)
     setStep(target)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams])
+  }, [mounted])
 
   // Update URL whenever step changes (but avoid infinite loop)
   useEffect(() => {
-    const currentSection = searchParams?.get('section')
+    if (!mounted) return
+    
+    const urlParams = new URLSearchParams(window.location.search)
+    const currentSection = urlParams.get('section')
     const expectedSection = stepToSection(step)
     
     // Only update URL if it doesn't match current step
     if (currentSection !== expectedSection) {
       router.replace(`/signup?section=${expectedSection}`, { scroll: false })
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step])
+  }, [step, mounted, router])
 
   // Handle browser back/forward navigation
   useEffect(() => {
+    if (!mounted) return
+    
     const handlePopState = () => {
-      const currentSection = searchParams?.get('section')
+      const urlParams = new URLSearchParams(window.location.search)
+      const currentSection = urlParams.get('section')
       if (currentSection) {
         const newStep = sectionToStep(currentSection)
         if (newStep && newStep !== step) {
@@ -164,7 +176,7 @@ function SignupContent() {
 
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
-  }, [searchParams, step])
+  }, [mounted, step])
 
   const next = () => {
     // Validate current step before proceeding

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useParams, useSearchParams, useRouter } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,17 +17,27 @@ import {
 export default function InterviewStartPage() {
   const params = useParams()
   const router = useRouter()
-  const search = useSearchParams()
   const applicationId = (params?.applicationId as string) || ""
 
   // DB-backed fields (fallback to query params if provided)
-  const [jobTitle, setJobTitle] = useState<string>(search?.get("title") || "")
-  const [company, setCompany] = useState<string>(search?.get("company") || "")
-  const [location, setLocation] = useState<string>(search?.get("loc") || "")
+  const [jobTitle, setJobTitle] = useState<string>("")
+  const [company, setCompany] = useState<string>("")
+  const [location, setLocation] = useState<string>("")
   const [loading, setLoading] = useState(true)
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false)
   const [showDisclaimerWarning, setShowDisclaimerWarning] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
+
+  // Read query params on mount for fallback values
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const titleParam = urlParams.get('title')
+    const companyParam = urlParams.get('company')
+    const locParam = urlParams.get('loc')
+    if (titleParam) setJobTitle(titleParam)
+    if (companyParam) setCompany(companyParam)
+    if (locParam) setLocation(locParam)
+  }, [])
 
   useEffect(() => {
     const load = async () => {
