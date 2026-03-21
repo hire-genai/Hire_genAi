@@ -1,5 +1,7 @@
 import JobsTab from "@/app/admin-hiregenai/_components/JobsTab"
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: "Jobs - Admin Dashboard",
 }

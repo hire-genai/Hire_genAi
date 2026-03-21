@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { SelectItem } from "@/components/ui/select"
 import { SelectContent } from "@/components/ui/select"
 import { SelectValue } from "@/components/ui/select"
