@@ -148,7 +148,35 @@ export default function PaymentCheckout({ onPaymentSuccess, companyId, amount = 
         },
         onApprove: async function (data: any) {
           console.log('[PayPal] Payment approved:', data.orderID)
-          toast({ title: 'Payment Successful!', description: 'Your PayPal payment has been processed.' })
+          
+          // Verify payment and add credits to wallet
+          try {
+            const usdAmount = (amount / 100) // Amount in USD
+            const verifyRes = await fetch('/api/payment/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                provider: 'paypal',
+                paymentId: data.orderID,
+                amount: usdAmount,
+                companyId
+              })
+            })
+            const verifyData = await verifyRes.json()
+            
+            if (verifyData.ok) {
+              toast({ 
+                title: 'Payment Successful!', 
+                description: `₹${verifyData.amountCredited} added to wallet. New balance: ₹${verifyData.walletBalance}` 
+              })
+            } else {
+              toast({ title: 'Payment Successful!', description: 'Your PayPal payment has been processed.' })
+            }
+          } catch (verifyErr) {
+            console.error('[PayPal] Verification error:', verifyErr)
+            toast({ title: 'Payment Successful!', description: 'Your PayPal payment has been processed.' })
+          }
+          
           onPaymentSuccess?.(data.orderID, 'paypal')
         },
         onError: function (err: any) {
@@ -176,6 +204,38 @@ export default function PaymentCheckout({ onPaymentSuccess, companyId, amount = 
     setError(null)
 
     try {
+      // Clear Razorpay stored customer data to prevent "Using as" phone number
+      try {
+        const keysToRemove: string[] = []
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && (key.startsWith('rzp_') || key.includes('razorpay'))) {
+            keysToRemove.push(key)
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key))
+        
+        // Also clear sessionStorage
+        const sessionKeysToRemove: string[] = []
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i)
+          if (key && (key.startsWith('rzp_') || key.includes('razorpay'))) {
+            sessionKeysToRemove.push(key)
+          }
+        }
+        sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key))
+        
+        // Clear Razorpay cookies
+        document.cookie.split(';').forEach(cookie => {
+          const name = cookie.split('=')[0].trim()
+          if (name.startsWith('rzp_') || name.includes('razorpay')) {
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
+          }
+        })
+      } catch (e) {
+        console.warn('[Razorpay] Could not clear stored data:', e)
+      }
+
       // Create order on backend
       const res = await fetch('/api/create-order', {
         method: 'POST',
@@ -198,50 +258,63 @@ export default function PaymentCheckout({ onPaymentSuccess, companyId, amount = 
         name: 'HireGenAI',
         description: 'Subscription Payment',
         order_id: data.orderId,
-        handler: function (response: any) {
+        handler: async function (response: any) {
           console.log('[Razorpay] Payment successful:', response.razorpay_payment_id)
-          toast({ title: 'Payment Successful!', description: `Payment ID: ${response.razorpay_payment_id}` })
+          
+          // Verify payment and add credits to wallet
+          try {
+            const verifyRes = await fetch('/api/payment/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                provider: 'razorpay',
+                paymentId: response.razorpay_payment_id,
+                orderId: response.razorpay_order_id,
+                signature: response.razorpay_signature,
+                amount: data.amount,
+                companyId
+              })
+            })
+            const verifyData = await verifyRes.json()
+            
+            if (verifyData.ok) {
+              toast({ 
+                title: 'Payment Successful!', 
+                description: `₹${verifyData.amountCredited} added to wallet. New balance: ₹${verifyData.walletBalance}` 
+              })
+            } else {
+              console.warn('[Razorpay] Verification warning:', verifyData.error)
+              toast({ title: 'Payment Successful!', description: `Payment ID: ${response.razorpay_payment_id}` })
+            }
+          } catch (verifyErr) {
+            console.error('[Razorpay] Verification error:', verifyErr)
+            toast({ title: 'Payment Successful!', description: `Payment ID: ${response.razorpay_payment_id}` })
+          }
+          
           onPaymentSuccess?.(response.razorpay_payment_id, 'razorpay')
           setProcessing(false)
         },
         prefill: {
+          contact: '',
+          email: '',
+          name: ''
+        },
+        config: {
+          display: {
+            preferences: {
+              hide_header: false,
+              hide_footer: false,
+              show_default_blocks: true
+            }
+          }
+        },
+        customer_details: {
           name: '',
           email: '',
           contact: ''
         },
-        notes: {
-          address: 'HireGenAI Subscription'
-        },
         theme: {
-          color: '#7c3aed',
-          backdrop_color: 'rgba(0, 0, 0, 0.5)'
-        },
-        method: {
-          upi: true,
-          card: true,
-          netbanking: true,
-          wallet: true,
-          emi: false,
-          paylater: false
-        },
-        config: {
-          display: {
-            blocks: {
-              banks: {
-                name: 'All payment methods',
-                instruments: [
-                  { method: 'upi' },
-                  { method: 'card' },
-                  { method: 'netbanking' },
-                  { method: 'wallet' }
-                ]
-              }
-            },
-            sequence: ['block.banks'],
-            preferences: {
-              show_default_blocks: true
-            }
-          }
+          color: '#7c3aed'
         },
         modal: {
           ondismiss: function () {
@@ -258,12 +331,7 @@ export default function PaymentCheckout({ onPaymentSuccess, companyId, amount = 
           max_count: 3
         },
         timeout: 900,
-        remember_customer: false,
-        readonly: {
-          email: false,
-          contact: false,
-          name: false
-        }
+        remember_customer: false
       }
 
       const rzp = new window.Razorpay(options)
