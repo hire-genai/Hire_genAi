@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic';
+
 import { Textarea } from "@/components/ui/textarea"
 
 import { Input } from "@/components/ui/input"

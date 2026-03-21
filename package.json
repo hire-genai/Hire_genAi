@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "next build --webpack",
-    "build:fast": "next build --webpack --no-lint --experimental-build-mode=compile",
+    "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
     "start": "next start"

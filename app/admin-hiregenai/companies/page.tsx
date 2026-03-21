@@ -1,5 +1,7 @@
 import CompaniesTab from "@/app/admin-hiregenai/_components/CompaniesTab"
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: "Companies - Admin Dashboard",
 }

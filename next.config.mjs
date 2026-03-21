@@ -6,22 +6,16 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Force build to complete faster
-  generateBuildId: async () => {
-    return 'build-' + Date.now()
-  },
-  // Skip static optimization for faster builds
-  experimental: {
-    optimizeCss: false,
-    optimizePackageImports: [],
-  },
-  // Minimal config to prevent hanging
+  // Empty turbopack config to silence the warning
+  turbopack: {},
+  // Webpack fallbacks for client-side modules
   webpack: (config, { isServer }) => {
-    // Add fallbacks for Node.js modules that cause warnings
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
       encoding: false,
+      net: false,
+      tls: false,
     }
     return config
   },

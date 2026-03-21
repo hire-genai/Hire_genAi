@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = 'force-dynamic';
+
 import { useEffect } from "react"
 import Navbar from "@/components/layout/Navbar"
 import Link from "next/link"

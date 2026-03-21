@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = 'force-dynamic';
+
 import SettingsTab from "@/app/admin-hiregenai/_components/SettingsTab"
 
 export default function SettingsPage() {
