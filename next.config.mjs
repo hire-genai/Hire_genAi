@@ -6,22 +6,22 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  serverExternalPackages: ['pdf-parse', 'mammoth'],
-  turbopack: {
-    rules: {
-      '*.svg': {
-        loaders: ['@svgr/webpack'],
-        as: '*.js',
-      },
-    },
+  // Force build to complete faster
+  generateBuildId: async () => {
+    return 'build-' + Date.now()
   },
+  // Skip static optimization for faster builds
+  experimental: {
+    optimizeCss: false,
+    optimizePackageImports: [],
+  },
+  // Minimal config to prevent hanging
   webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.externals = config.externals || []
-      config.externals.push({
-        'pdf-parse': 'commonjs pdf-parse',
-        'mammoth': 'commonjs mammoth',
-      })
+    // Add fallbacks for Node.js modules that cause warnings
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      encoding: false,
     }
     return config
   },
