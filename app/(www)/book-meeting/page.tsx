@@ -167,7 +167,8 @@ export default function BookMeetingPage() {
   }, [selectedDate])
 
   useEffect(() => {
-    const scrollTo = searchParams?.get('scroll')
+    const urlParams = new URLSearchParams(window.location.search)
+    const scrollTo = urlParams.get('scroll')
     if (scrollTo) {
       const timer = setTimeout(() => {
         const element = document.getElementById(scrollTo)
@@ -178,7 +179,7 @@ export default function BookMeetingPage() {
       }, 300)
       return () => clearTimeout(timer)
     }
-  }, [searchParams])
+  }, [])
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
