@@ -407,3 +407,91 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Chrome, Safari, and Opera */
 }
+
+/* ===== SUMMARY GRID CONTAINER ===== */
+.summary-grid {
+  display: grid;
+  grid-template-columns: 1fr;  /* 4 rows × 1 column */
+  gap: 20px;              /* Space between cards */
+  margin-bottom: 32px;    /* Space below the entire grid */
+}
+
+/* ===== INDIVIDUAL CARD ===== */
+.summary-card {
+  background: #ffffff;
+  border-radius: 16px;    /* Card corner radius */
+  padding: 20px;          /* Inner spacing on all sides */
+  border: 1px solid #eef2f6;
+}
+
+/* ===== CARD LABEL ===== */
+.card-label {
+  font-size: 11px;
+  margin-bottom: 8px;     /* Space between label and value */
+}
+
+/* ===== CARD VALUE ===== */
+.card-value {
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+/* ===== CARD SUBTEXT ===== */
+.card-sub {
+  font-size: 11px;
+  margin-top: 8px;        /* Space between value and subtext */
+}
+
+/* Responsive Measurements */
+/* Tablet (768px - 1024px) */
+@media (max-width: 900px) {
+  .summary-grid {
+    gap: 16px;           /* 1rem */
+  }
+  .summary-card {
+    padding: 16px;       /* 1rem */
+  }
+  .card-value {
+    font-size: 24px;     /* 1.5rem */
+  }
+}
+
+/* Mobile (up to 640px) - 2 cards per row */
+@media (max-width: 640px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;           /* 0.875rem */
+    margin-bottom: 24px; /* 1.5rem */
+  }
+  .summary-card {
+    padding: 14px;       /* 0.875rem */
+    border-radius: 14px;
+  }
+  .card-value {
+    font-size: 20px;     /* 1.25rem */
+  }
+  .card-label,
+  .card-sub {
+    font-size: 10px;
+  }
+}
+
+/* Small Mobile (up to 480px) */
+@media (max-width: 480px) {
+  .summary-grid {
+    gap: 12px;           /* 0.75rem */
+  }
+  .summary-card {
+    padding: 12px;       /* 0.75rem */
+    border-radius: 12px;
+  }
+  .card-value {
+    font-size: 18px;     /* 1.125rem */
+  }
+  .card-label {
+    margin-bottom: 6px;
+  }
+  .card-sub {
+    margin-top: 6px;
+  }
+}
