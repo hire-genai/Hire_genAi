@@ -18,6 +18,14 @@ export function getDomainConfig() {
     }
   }
   
+  // For Vercel deployments - use same domain for both
+  if (hostname.includes('vercel.app') || hostname.includes('vercel.com')) {
+    return {
+      wwwDomain: hostname,
+      appDomain: hostname
+    }
+  }
+  
   // For other domains (custom deployment)
   const baseDomain = hostname.replace(/^(www|app)\./, '')
   return {
@@ -31,8 +39,11 @@ export function getAppUrl(path: string = '') {
   if (typeof window === 'undefined') {
     return path || '/'
   }
-  // Local dev: use relative paths (www and app are same origin)
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+  // Local dev or Vercel: use relative paths (same origin)
+  if (window.location.hostname === 'localhost' || 
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname.includes('vercel.app') ||
+      window.location.hostname.includes('vercel.com')) {
     return path || '/'
   }
   // Production: use full URL with app subdomain
@@ -45,8 +56,11 @@ export function getWwwUrl(path: string = '') {
   if (typeof window === 'undefined') {
     return path || '/'
   }
-  // Local dev: use relative paths (www and app are same origin)
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+  // Local dev or Vercel: use relative paths (same origin)
+  if (window.location.hostname === 'localhost' || 
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname.includes('vercel.app') ||
+      window.location.hostname.includes('vercel.com')) {
     return path || '/'
   }
   // Production: use full URL with www subdomain

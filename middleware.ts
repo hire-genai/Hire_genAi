@@ -41,6 +41,11 @@ function getSubdomain(host: string): 'www' | 'app' | 'local' {
     return 'local'
   }
 
+  // Vercel deployment: treat as combined (no subdomain routing)
+  if (hostname.includes('vercel.app') || hostname.includes('vercel.com')) {
+    return 'local'
+  }
+
   // Extract subdomain from hostname
   const parts = hostname.split('.')
   if (parts.length >= 3) {

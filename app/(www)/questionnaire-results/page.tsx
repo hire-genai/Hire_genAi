@@ -162,7 +162,7 @@ export default function QuestionnaireResults() {
               </nav>
             </div>
             <div className="flex items-center space-x-4">
-              <Link href={getAppUrl('/login')} target="_blank" rel="noopener noreferrer">
+              <Link href={getAppUrl('/login')}>
                 <Button
                   variant="ghost"
                   className="text-gray-700 hover:text-emerald-600 font-medium"
@@ -170,7 +170,7 @@ export default function QuestionnaireResults() {
                   Login
                 </Button>
               </Link>
-              <Link href={getAppUrl('/signup')} target="_blank" rel="noopener noreferrer">
+              <Link href={getAppUrl('/signup')}>
                 <Button className="sr-button-primary">Get started</Button>
               </Link>
             </div>
