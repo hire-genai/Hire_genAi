@@ -42,6 +42,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   const [billingData, setBillingData] = useState<any>(null)
   const [usageData, setUsageData] = useState<any>(null)
   const [currentTab, setCurrentTab] = useState<string>("overview")
+  const [showPaymentCheckout, setShowPaymentCheckout] = useState(false)
 
   // Currency Detection
   const [currency, setCurrency] = useState<'INR' | 'USD'>('USD')
@@ -368,22 +369,6 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
   return (
     <div className="space-y-6">
-      {/* Past Due Banner */}
-      {billingData?.status === 'past_due' && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-4">
-              <AlertCircle className="h-6 w-6 text-red-600" />
-              <div>
-                <h3 className="font-semibold text-red-900 mb-1">Payment Required</h3>
-                <p className="text-sm text-red-700">
-                  Your account is past due. Please update your payment method to continue using the service.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <Tabs 
         value={currentTab} 
@@ -470,11 +455,26 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                     </div>
                   </div>
                   <div className="flex items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
-                    <Button className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-md" onClick={() => window.location.href = '/pricing'}>
-                      Upgrade Plan ({upgradeDisplayAmount}/month)
+                    <Button 
+                      className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-md" 
+                      onClick={() => setShowPaymentCheckout(!showPaymentCheckout)}
+                    >
+                      {showPaymentCheckout ? 'Hide Payment' : `Upgrade Plan (${upgradeDisplayAmount}/month)`}
                     </Button>
                   </div>
                 </div>
+                {showPaymentCheckout && (
+                  <div className="mt-6 pt-6 border-t border-emerald-200">
+                    <PaymentCheckout 
+                      companyId={companyId}
+                      onPaymentSuccess={(paymentId, provider) => {
+                        console.log(`Payment successful via ${provider}:`, paymentId)
+                        setShowPaymentCheckout(false)
+                        loadBillingData()
+                      }}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           ) : (
