@@ -31,7 +31,7 @@ import {
   Loader2,
   Filter
 } from "lucide-react"
-import PaymentCheckout from "./PaymentCheckout"
+import SubscriptionCard, { BillingStatus } from "./SubscriptionCard"
 
 interface BillingContentProps {
   companyId: string
@@ -42,7 +42,6 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   const [billingData, setBillingData] = useState<any>(null)
   const [usageData, setUsageData] = useState<any>(null)
   const [currentTab, setCurrentTab] = useState<string>("overview")
-  const [showPaymentCheckout, setShowPaymentCheckout] = useState(false)
 
   // Currency Detection
   const [currency, setCurrency] = useState<'INR' | 'USD'>('USD')
@@ -105,7 +104,19 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
   const loadBillingData = async () => {
     try {
-      const res = await fetch(`/api/billing/status?companyId=${companyId}`)
+      // Detect country for billing status calculation
+      let countryCode = 'US'
+      try {
+        const countryRes = await fetch('/api/detect-country')
+        if (countryRes.ok) {
+          const countryData = await countryRes.json()
+          countryCode = countryData.countryCode || 'US'
+        }
+      } catch {
+        countryCode = currency === 'INR' ? 'IN' : 'US'
+      }
+      
+      const res = await fetch(`/api/billing/status?companyId=${companyId}&country=${countryCode}`)
       const data = await res.json()
       if (data.ok) {
         setBillingData(data.billing)
@@ -349,14 +360,16 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   }
 
   const getStatusBadge = (status: string) => {
+    // 5 billing status values: active, trial, trial_over, low_balance, recharge_over
     const statusConfig: Record<string, { color: string; icon: any; label: string }> = {
-      trial: { color: 'bg-blue-100 text-blue-800', icon: AlertCircle, label: 'Free Trial' },
       active: { color: 'bg-green-100 text-green-800', icon: CheckCircle, label: 'Active' },
-      past_due: { color: 'bg-red-100 text-red-800', icon: AlertCircle, label: 'Past Due' },
-      suspended: { color: 'bg-gray-100 text-gray-800', icon: XCircle, label: 'Suspended' },
+      trial: { color: 'bg-amber-100 text-amber-800', icon: AlertCircle, label: 'Free Trial' },
+      trial_over: { color: 'bg-red-100 text-red-800', icon: XCircle, label: 'Trial Expired' },
+      low_balance: { color: 'bg-orange-100 text-orange-800', icon: AlertCircle, label: 'Low Balance' },
+      recharge_over: { color: 'bg-red-100 text-red-800', icon: XCircle, label: 'Recharge Required' },
     }
     
-    const config = statusConfig[status] || statusConfig.active
+    const config = statusConfig[status] || statusConfig.trial
     const Icon = config.icon
     
     return (
@@ -384,110 +397,82 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-            <Card className="py-2">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
-                <CardTitle className="text-xs font-medium">Wallet Balance</CardTitle>
-                <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
-              </CardHeader>
-              <CardContent className="px-3 py-1">
-                <div className="text-lg font-bold">₹{billingData?.walletBalance?.toFixed(2) || '0.00'}</div>
-                <div className="text-[10px] text-muted-foreground">
-                  {getStatusBadge(billingData?.status || 'trial')}
-                </div>
-              </CardContent>
-            </Card>
+          {/* Summary Grid - Custom styling as per measurements */}
+          <div className="summary-grid">
+            {/* Wallet Balance Card */}
+            <div className="summary-card">
+              <div className="flex items-center justify-between mb-2">
+                <span className="card-label text-muted-foreground">Wallet Balance</span>
+                <Wallet className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div className="card-value font-bold">
+                ₹{billingData?.walletBalance?.toFixed(2) || '0.00'}
+              </div>
+              <div className="card-sub text-muted-foreground">
+                {getStatusBadge(billingData?.status || 'trial')}
+              </div>
+            </div>
 
-            <Card className="py-2">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
-                <CardTitle className="text-xs font-medium">Current Month</CardTitle>
-                <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
-              </CardHeader>
-              <CardContent className="px-3 py-1">
-                <div className="text-lg font-bold">₹{billingData?.currentMonthSpent?.toFixed(2) || '0.00'}</div>
-                <p className="text-[10px] text-muted-foreground">
-                  {billingData?.monthlySpendCap 
-                    ? `Cap: ₹${billingData.monthlySpendCap.toFixed(2)}`
-                    : 'No cap set'}
-                </p>
-              </CardContent>
-            </Card>
+            {/* Current Month Card */}
+            <div className="summary-card">
+              <div className="flex items-center justify-between mb-2">
+                <span className="card-label text-muted-foreground">Current Month</span>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div className="card-value font-bold">
+                ₹{billingData?.currentMonthSpent?.toFixed(2) || '0.00'}
+              </div>
+              <div className="card-sub text-muted-foreground">
+                {billingData?.monthlySpendCap 
+                  ? `Cap: ₹${billingData.monthlySpendCap.toFixed(2)}`
+                  : 'No cap set'}
+              </div>
+            </div>
 
-            <Card className="py-2">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
-                <CardTitle className="text-xs font-medium">Total Spent</CardTitle>
-                <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
-              </CardHeader>
-              <CardContent className="px-3 py-1">
-                <div className="text-lg font-bold">₹{billingData?.totalSpent?.toFixed(2) || '0.00'}</div>
-                <p className="text-[10px] text-muted-foreground">All-time usage</p>
-              </CardContent>
-            </Card>
+            {/* Total Spent Card */}
+            <div className="summary-card">
+              <div className="flex items-center justify-between mb-2">
+                <span className="card-label text-muted-foreground">Total Spent</span>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div className="card-value font-bold">
+                ₹{billingData?.totalSpent?.toFixed(2) || '0.00'}
+              </div>
+              <div className="card-sub text-muted-foreground">
+                All-time usage
+              </div>
+            </div>
 
-            <Card className="py-2">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
-                <CardTitle className="text-xs font-medium">Auto-Recharge</CardTitle>
-                <Shield className="h-3.5 w-3.5 text-muted-foreground" />
-              </CardHeader>
-              <CardContent className="px-3 py-1">
-                <div className="text-lg font-bold">{billingData?.autoRechargeEnabled ? 'ON' : 'OFF'}</div>
-                <p className="text-[10px] text-muted-foreground">
-                  {billingData?.autoRechargeEnabled ? 'Automatic ₹100' : 'Manual top-up'}
-                </p>
-              </CardContent>
-            </Card>
+            {/* Auto-Recharge Card */}
+            <div className="summary-card">
+              <div className="flex items-center justify-between mb-2">
+                <span className="card-label text-muted-foreground">Auto-Recharge</span>
+                <Shield className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div className="card-value font-bold">
+                {billingData?.autoRechargeEnabled ? 'ON' : 'OFF'}
+              </div>
+              <div className="card-sub text-muted-foreground">
+                {billingData?.autoRechargeEnabled ? 'Automatic ₹100' : 'Manual top-up'}
+              </div>
+            </div>
           </div>
 
-          {/* Subscription State Handling */}
-          {billingData?.status === 'active' ? (
-            <Card className="border-emerald-200 bg-gradient-to-r from-emerald-50 to-green-50 shadow-sm mt-6">
-              <CardContent className="pt-6 pb-6">
-                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-white rounded-full shadow-sm">
-                      <CheckCircle className="h-6 w-6 text-emerald-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-emerald-900">Active Subscription</h3>
-                      <p className="text-sm text-emerald-700 mt-1">
-                        Your workspace is currently upgraded. All premium features are unlocked.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
-                    <Button 
-                      className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-md" 
-                      onClick={() => setShowPaymentCheckout(!showPaymentCheckout)}
-                    >
-                      {showPaymentCheckout ? 'Hide Payment' : `Upgrade Plan (${upgradeDisplayAmount}/month)`}
-                    </Button>
-                  </div>
-                </div>
-                {showPaymentCheckout && (
-                  <div className="mt-6 pt-6 border-t border-emerald-200">
-                    <PaymentCheckout 
-                      companyId={companyId}
-                      onPaymentSuccess={(paymentId, provider) => {
-                        console.log(`Payment successful via ${provider}:`, paymentId)
-                        setShowPaymentCheckout(false)
-                        loadBillingData()
-                      }}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="mt-6">
-              <PaymentCheckout 
-                companyId={companyId}
-                onPaymentSuccess={(paymentId, provider) => {
-                  console.log(`Payment successful via ${provider}:`, paymentId)
-                  loadBillingData()
-                }}
-              />
-            </div>
-          )}
+          {/* Dynamic Subscription Card - Directly triggers Razorpay/PayPal */}
+          <SubscriptionCard
+            status={(billingData?.billingStatus || billingData?.status || 'trial') as BillingStatus}
+            trialDaysRemaining={billingData?.trialDaysRemaining ?? 7}
+            trialTotalDays={billingData?.trialTotalDays ?? 7}
+            planName="Pro Plan"
+            nextBillingDate={billingData?.nextBillingDate}
+            autoRenewal={billingData?.autoRechargeEnabled ?? true}
+            walletBalance={billingData?.walletBalance ?? 0}
+            lowBalanceThreshold={billingData?.lowBalanceThreshold ?? 200}
+            currency={billingData?.currency ?? 'INR'}
+            companyId={companyId}
+            onPaymentSuccess={() => loadBillingData()}
+            onManagePlan={() => setCurrentTab('settings')}
+          />
 
         </TabsContent>
 
