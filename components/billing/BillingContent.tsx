@@ -32,12 +32,14 @@ import {
   Filter
 } from "lucide-react"
 import SubscriptionCard, { BillingStatus } from "./SubscriptionCard"
+import { useAuth } from '@/contexts/auth-context'
 
 interface BillingContentProps {
   companyId: string
 }
 
 export default function BillingContent({ companyId }: BillingContentProps) {
+  const { user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [billingData, setBillingData] = useState<any>(null)
   const [usageData, setUsageData] = useState<any>(null)
@@ -470,6 +472,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             lowBalanceThreshold={billingData?.lowBalanceThreshold ?? 200}
             currency={billingData?.currency ?? 'INR'}
             companyId={companyId}
+            userEmail={user?.email}
             onPaymentSuccess={() => loadBillingData()}
             onManagePlan={() => setCurrentTab('settings')}
           />
