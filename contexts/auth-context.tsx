@@ -129,18 +129,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         console.log("🔄 Initializing auth system...")
 
-        // Check if session has expired (only clear if mockAuth exists but session is expired)
+        // Try to restore session from cookie if localStorage is empty (e.g., after external redirect)
         const hasMockAuth = localStorage.getItem('mockAuth')
-        if (hasMockAuth && !SessionManager.isSessionValid()) {
-          console.log("⏰ Session expired on init, clearing...")
-          SessionManager.clearSession()
-          MockAuthService.signOut()
-          setLoading(false)
-          return
+        if (!hasMockAuth) {
+          // Check if we have a session cookie (set before redirect)
+          const sessionCookie = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('session='))
+          
+          if (sessionCookie) {
+            try {
+              const cookieData = JSON.parse(decodeURIComponent(sessionCookie.split('=')[1]))
+              console.log("🍪 Found session cookie, restoring session...")
+              
+              // Restore session from cookie
+              const restoredSession = {
+                user: {
+                  id: cookieData.userId,
+                  email: cookieData.email,
+                  name: cookieData.fullName,
+                  role: cookieData.role
+                },
+                company: {
+                  id: cookieData.companyId,
+                  name: cookieData.companyName || 'Company',
+                  slug: 'company',
+                  industry: 'Technology',
+                  size: '1-10',
+                  website: ''
+                }
+              }
+              
+              // Save to localStorage
+              localStorage.setItem('mockAuth', JSON.stringify(restoredSession))
+              localStorage.setItem('mockAuth_backup', JSON.stringify(restoredSession))
+              
+              // Start new session timer
+              SessionManager.startSession()
+              
+              console.log("✅ Session restored from cookie for:", cookieData.email)
+            } catch (e) {
+              console.warn("⚠️ Failed to restore session from cookie:", e)
+            }
+          }
+        }
+
+        // Re-check after potential cookie restore
+        const hasMockAuthNow = localStorage.getItem('mockAuth')
+        if (hasMockAuthNow && !SessionManager.isSessionValid()) {
+          // Session exists but timer expired - restart timer instead of clearing
+          console.log("🔧 Session timer expired, restarting...")
+          SessionManager.startSession()
         }
         
         // If mockAuth exists but no session timer, start one (for existing logged-in users)
-        if (hasMockAuth && !localStorage.getItem('sessionExpiresAt')) {
+        if (hasMockAuthNow && !localStorage.getItem('sessionExpiresAt')) {
           console.log("🔧 Starting session timer for existing user...")
           SessionManager.startSession()
         }

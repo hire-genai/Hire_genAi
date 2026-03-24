@@ -636,6 +636,7 @@ export class MockAuthService {
         const cookieData = {
           userId: currentUser.user.id,
           companyId: currentUser.company.id,
+          companyName: currentUser.company.name,
           fullName: currentUser.user.name,
           email: currentUser.user.email,
           role: currentUser.user.role
