@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -15,17 +15,12 @@ import {
   Calendar,
   RefreshCw,
   Wallet,
-  Loader2,
-  Zap
+  Zap,
+  ExternalLink
 } from 'lucide-react'
-import { useToast } from '@/hooks/use-toast'
 
-declare global {
-  interface Window {
-    Razorpay: any
-    paypal: any
-  }
-}
+// Razorpay Payment Link URL
+const RAZORPAY_PAYMENT_LINK = 'https://pages.razorpay.com/hire-genai'
 
 // 5 billing status values (matches backend)
 export type BillingStatus = 'active' | 'trial' | 'trial_over' | 'low_balance' | 'recharge_over'
@@ -41,6 +36,7 @@ interface SubscriptionCardProps {
   lowBalanceThreshold?: number
   currency?: 'INR' | 'USD'
   companyId: string
+  userEmail?: string
   onPaymentSuccess?: () => void
   onManagePlan?: () => void
 }
@@ -56,77 +52,14 @@ export default function SubscriptionCard({
   lowBalanceThreshold = 200,
   currency = 'INR',
   companyId,
+  userEmail,
   onPaymentSuccess,
   onManagePlan
 }: SubscriptionCardProps) {
   const [showContinueMessage, setShowContinueMessage] = useState(false)
-  const [processing, setProcessing] = useState(false)
-  const [country, setCountry] = useState<'IN' | 'INTERNATIONAL' | null>(null)
-  const [config, setConfig] = useState<{ razorpayKeyId: string | null; paypalClientId: string | null } | null>(null)
-  const [sdkReady, setSdkReady] = useState(false)
-  const { toast } = useToast()
 
   // Currency symbol helper
   const currencySymbol = currency === 'INR' ? '₹' : '$'
-
-  // Detect country
-  useEffect(() => {
-    const detectCountry = async () => {
-      try {
-        const res = await fetch('/api/detect-country')
-        if (!res.ok) throw new Error('Country detection failed')
-        const data = await res.json()
-        setCountry(data.countryCode === 'IN' ? 'IN' : 'INTERNATIONAL')
-      } catch {
-        setCountry('INTERNATIONAL')
-      }
-    }
-    detectCountry()
-  }, [])
-
-  // Load payment config
-  useEffect(() => {
-    const loadConfig = async () => {
-      try {
-        const res = await fetch('/api/payment/config')
-        const data = await res.json()
-        if (data.ok) {
-          setConfig({ razorpayKeyId: data.razorpayKeyId, paypalClientId: data.paypalClientId })
-        }
-      } catch (err) {
-        console.error('[SubscriptionCard] Config fetch error:', err)
-      }
-    }
-    loadConfig()
-  }, [])
-
-  // Load Razorpay SDK
-  useEffect(() => {
-    if (country !== 'IN' || !config?.razorpayKeyId) return
-    if (window.Razorpay) { setSdkReady(true); return }
-    if (document.querySelector('script[data-razorpay-sdk]')) return
-
-    const script = document.createElement('script')
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
-    script.setAttribute('data-razorpay-sdk', 'true')
-    script.async = true
-    script.onload = () => setSdkReady(true)
-    document.head.appendChild(script)
-  }, [country, config])
-
-  // Load PayPal SDK
-  useEffect(() => {
-    if (country !== 'INTERNATIONAL' || !config?.paypalClientId) return
-    if (window.paypal) { setSdkReady(true); return }
-    if (document.querySelector('script[data-paypal-sdk]')) return
-
-    const script = document.createElement('script')
-    script.src = `https://www.paypal.com/sdk/js?client-id=${config.paypalClientId}&currency=USD`
-    script.setAttribute('data-paypal-sdk', 'true')
-    script.async = true
-    script.onload = () => setSdkReady(true)
-    document.head.appendChild(script)
-  }, [country, config])
 
   const handleContinueTrial = () => {
     setShowContinueMessage(true)
@@ -137,142 +70,23 @@ export default function SubscriptionCard({
     ? ((trialTotalDays - trialDaysRemaining) / trialTotalDays) * 100 
     : 0
 
-  // Direct Razorpay payment
-  const handleRazorpayPayment = async (amount: number = 10000) => {
-    if (!config?.razorpayKeyId || !window.Razorpay) {
-      toast({ title: 'Error', description: 'Payment system not ready. Please try again.', variant: 'destructive' })
-      return
+  // Open Razorpay payment link in new tab with email prefill
+  const handlePayment = () => {
+    let paymentUrl = RAZORPAY_PAYMENT_LINK
+    if (userEmail) {
+      paymentUrl += `?email=${encodeURIComponent(userEmail)}`
     }
-
-    setProcessing(true)
-    try {
-      const res = await fetch('/api/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, currency: 'INR', companyId }),
-      })
-      const data = await res.json()
-      if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to create order')
-
-      const options = {
-        key: config.razorpayKeyId,
-        amount: data.amount,
-        currency: data.currency,
-        name: 'HireGenAI',
-        description: 'Subscription Payment',
-        order_id: data.orderId,
-        handler: async function (response: any) {
-          try {
-            const verifyRes = await fetch('/api/payment/verify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                provider: 'razorpay',
-                paymentId: response.razorpay_payment_id,
-                orderId: response.razorpay_order_id,
-                signature: response.razorpay_signature,
-                amount: data.amount,
-                companyId
-              })
-            })
-            const verifyData = await verifyRes.json()
-            if (verifyData.ok) {
-              toast({ title: 'Payment Successful!', description: `₹${verifyData.amountCredited} added to wallet.` })
-            } else {
-              toast({ title: 'Payment Successful!', description: `Payment ID: ${response.razorpay_payment_id}` })
-            }
-          } catch {
-            toast({ title: 'Payment Successful!', description: `Payment ID: ${response.razorpay_payment_id}` })
-          }
-          onPaymentSuccess?.()
-          setProcessing(false)
-        },
-        prefill: { contact: '', email: '', name: '' },
-        theme: { color: '#4f46e5' },
-        modal: {
-          ondismiss: () => setProcessing(false),
-        },
-        remember_customer: false
-      }
-
-      const rzp = new window.Razorpay(options)
-      rzp.on('payment.failed', function (response: any) {
-        toast({ title: 'Payment Failed', description: response.error?.description || 'Payment could not be completed.', variant: 'destructive' })
-        setProcessing(false)
-      })
-      rzp.open()
-    } catch (err: any) {
-      toast({ title: 'Error', description: err.message || 'Payment failed', variant: 'destructive' })
-      setProcessing(false)
-    }
+    window.open(paymentUrl, '_blank')
   }
 
-  // Direct PayPal payment
-  const handlePayPalPayment = async (amount: number = 100) => {
-    if (!config?.paypalClientId || !window.paypal) {
-      toast({ title: 'Error', description: 'Payment system not ready. Please try again.', variant: 'destructive' })
-      return
-    }
-
-    setProcessing(true)
-    try {
-      const container = document.getElementById('paypal-button-temp')
-      if (container) container.innerHTML = ''
-      
-      window.paypal.Buttons({
-        style: { shape: 'pill', color: 'blue', layout: 'vertical', label: 'pay' },
-        createOrder: (_data: any, actions: any) => {
-          return actions.order.create({
-            purchase_units: [{ amount: { value: amount.toFixed(2), currency_code: 'USD' }, description: 'HireGenAI Subscription' }],
-          })
-        },
-        onApprove: async (data: any) => {
-          try {
-            const verifyRes = await fetch('/api/payment/verify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ provider: 'paypal', paymentId: data.orderID, amount, companyId })
-            })
-            const verifyData = await verifyRes.json()
-            if (verifyData.ok) {
-              toast({ title: 'Payment Successful!', description: `$${amount} payment processed.` })
-            }
-          } catch {
-            toast({ title: 'Payment Successful!', description: 'PayPal payment processed.' })
-          }
-          onPaymentSuccess?.()
-          setProcessing(false)
-        },
-        onError: () => {
-          toast({ title: 'Payment Failed', description: 'PayPal payment could not be completed.', variant: 'destructive' })
-          setProcessing(false)
-        },
-        onCancel: () => {
-          toast({ title: 'Cancelled', description: 'Payment was cancelled.' })
-          setProcessing(false)
-        },
-      }).render('#paypal-button-temp')
-    } catch (err) {
-      setProcessing(false)
-    }
-  }
-
-  // Handle upgrade click - directly open payment
+  // Handle upgrade click - open payment link
   const handleUpgrade = () => {
-    if (country === 'IN') {
-      handleRazorpayPayment(10000)
-    } else {
-      handlePayPalPayment(100)
-    }
+    handlePayment()
   }
 
-  // Handle recharge click
+  // Handle recharge click - open payment link
   const handleRecharge = () => {
-    if (country === 'IN') {
-      handleRazorpayPayment(1000) // ₹1000 recharge
-    } else {
-      handlePayPalPayment(10) // $10 recharge
-    }
+    handlePayment()
   }
 
   // Card border color based on status
@@ -318,10 +132,9 @@ export default function SubscriptionCard({
               <div className="flex flex-wrap justify-center gap-3">
                 <Button 
                   onClick={handleRecharge}
-                  disabled={processing}
                   className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-6 py-2.5 font-semibold text-sm shadow-md transition-all"
                 >
-                  {processing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wallet className="h-4 w-4 mr-2" />}
+                  <Wallet className="h-4 w-4 mr-2" />
                   Recharge Now
                 </Button>
               </div>
@@ -356,10 +169,9 @@ export default function SubscriptionCard({
               <div className="flex flex-wrap justify-center gap-3">
                 <Button 
                   onClick={handleRecharge}
-                  disabled={processing}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm shadow-md transition-all"
                 >
-                  {processing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wallet className="h-4 w-4 mr-2" />}
+                  <Wallet className="h-4 w-4 mr-2" />
                   Recharge Wallet
                 </Button>
                 <Button 
@@ -403,10 +215,9 @@ export default function SubscriptionCard({
               <div className="flex flex-wrap justify-center gap-3">
                 <Button 
                   onClick={handleUpgrade}
-                  disabled={processing}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm shadow-md transition-all"
                 >
-                  {processing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                  <Sparkles className="h-4 w-4 mr-2" />
                   Upgrade to Pro
                 </Button>
                 <Button 
@@ -453,10 +264,9 @@ export default function SubscriptionCard({
               <div className="flex justify-center">
                 <Button 
                   onClick={handleUpgrade}
-                  disabled={processing}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm shadow-md transition-all"
                 >
-                  {processing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Rocket className="h-4 w-4 mr-2" />}
+                  <Rocket className="h-4 w-4 mr-2" />
                   Upgrade Plan
                 </Button>
               </div>
@@ -517,8 +327,6 @@ export default function SubscriptionCard({
             </>
           )}
 
-          {/* Hidden PayPal container for dynamic rendering */}
-          <div id="paypal-button-temp" className="hidden" />
         </CardContent>
       </Card>
     </div>
