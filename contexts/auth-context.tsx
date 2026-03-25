@@ -129,9 +129,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         console.log("🔄 Initializing auth system...")
 
-        // Try to restore session from cookie if localStorage is empty (e.g., after external redirect)
+        // Try to restore session from cookie ONLY if coming from external redirect (like Razorpay)
         const hasMockAuth = localStorage.getItem('mockAuth')
-        if (!hasMockAuth) {
+        const isExternalRedirect = sessionStorage.getItem('externalRedirect') === 'true'
+        
+        if (!hasMockAuth && isExternalRedirect) {
           // Check if we have a session cookie (set before redirect)
           const sessionCookie = document.cookie
             .split('; ')
@@ -140,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (sessionCookie) {
             try {
               const cookieData = JSON.parse(decodeURIComponent(sessionCookie.split('=')[1]))
-              console.log("🍪 Found session cookie, restoring session...")
+              console.log("🍪 Found session cookie after external redirect, restoring session...")
               
               // Restore session from cookie
               const restoredSession = {
@@ -172,14 +174,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               console.warn("⚠️ Failed to restore session from cookie:", e)
             }
           }
+          
+          // Clear the external redirect flag
+          sessionStorage.removeItem('externalRedirect')
         }
 
         // Re-check after potential cookie restore
         const hasMockAuthNow = localStorage.getItem('mockAuth')
         if (hasMockAuthNow && !SessionManager.isSessionValid()) {
-          // Session exists but timer expired - restart timer instead of clearing
-          console.log("🔧 Session timer expired, restarting...")
-          SessionManager.startSession()
+          // Session exists but timer expired - clear session properly
+          console.log("⏰ Session expired, clearing...")
+          SessionManager.clearSession()
+          MockAuthService.signOut()
+          setLoading(false)
+          return
         }
         
         // If mockAuth exists but no session timer, start one (for existing logged-in users)

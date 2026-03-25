@@ -72,6 +72,9 @@ export default function SubscriptionCard({
 
   // Open Razorpay payment link in new tab with email prefill
   const handlePayment = () => {
+    // Set flag to indicate external redirect for session restore
+    sessionStorage.setItem('externalRedirect', 'true')
+    
     let paymentUrl = RAZORPAY_PAYMENT_LINK
     if (userEmail) {
       paymentUrl += `?email=${encodeURIComponent(userEmail)}`
