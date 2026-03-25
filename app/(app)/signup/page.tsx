@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import React, { useEffect, useMemo, useState, Suspense } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -69,6 +70,7 @@ const countryOptions = [
 // Separate component to handle search params
 function SignupContent() {
   const router = useRouter()
+  const { setAuthSession } = useAuth()
   const [step, setStep] = useState(1)
   const [mounted, setMounted] = useState(false)
   
@@ -367,9 +369,49 @@ function SignupContent() {
         localStorage.setItem('refreshToken', data.session.refreshToken)
       }
 
-      // Show success message and redirect to login
-      alert('Signup successful! Please login to continue.')
-      router.push("/login")
+      // Set auth session so user is logged in immediately (no redirect to /login needed)
+      if (data.user && data.company) {
+        setAuthSession(
+          {
+            id: data.user.id,
+            email: data.user.email,
+            full_name: data.user.full_name,
+            status: data.user.status || 'active',
+          },
+          {
+            id: data.company.id,
+            name: data.company.name,
+            status: data.company.status || 'active',
+            verified: data.company.verified || false,
+          }
+        )
+      }
+
+      // Check if user had selected a plan from pricing page
+      const pendingPlan = localStorage.getItem('pendingPlan')
+      
+      if (pendingPlan) {
+        // User came from pricing page → redirect DIRECTLY to Razorpay payment (same tab)
+        localStorage.removeItem('pendingPlan') // Clear after use
+        
+        // Extend session before going to external payment page (30 minutes)
+        const sessionExpiresAt = localStorage.getItem('sessionExpiresAt')
+        if (sessionExpiresAt) {
+          const newExpiry = Date.now() + (30 * 60 * 1000)
+          localStorage.setItem('sessionExpiresAt', newExpiry.toString())
+        }
+        
+        const RAZORPAY_PAYMENT_LINK = 'https://pages.razorpay.com/hire-genai'
+        const userEmail = data.user?.email || form.email
+        let paymentUrl = RAZORPAY_PAYMENT_LINK
+        if (userEmail) {
+          paymentUrl += `?email=${encodeURIComponent(userEmail)}`
+        }
+        window.location.href = paymentUrl
+      } else {
+        // Normal signup → redirect to dashboard
+        router.push("/dashboard")
+      }
     } catch (error: any) {
       console.error('Signup error:', error)
       setErrorMessage(error?.message || 'Failed to complete signup. Please try again.')

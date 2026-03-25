@@ -411,9 +411,15 @@
 /* ===== SUMMARY GRID CONTAINER ===== */
 .summary-grid {
   display: grid;
+<<<<<<< HEAD
+  grid-template-columns: repeat(4, 1fr);  /* 4 columns in a single row */
+  gap: 20px;              /* Space between cards */
+  margin-bottom: 32px;    /* Space below the entire grid */
+=======
   grid-template-columns: 1fr;
   gap: 12px;
   margin-bottom: 16px;
+>>>>>>> a5df62ae2b11084ee36364941123b41da2e11edb
 }
 
 /* ===== INDIVIDUAL CARD ===== */

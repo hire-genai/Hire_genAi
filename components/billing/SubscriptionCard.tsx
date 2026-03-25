@@ -38,6 +38,7 @@ interface SubscriptionCardProps {
   companyId: string
   userEmail?: string
   onPaymentSuccess?: () => void
+  onPaymentCancel?: () => void
   onManagePlan?: () => void
 }
 
@@ -54,6 +55,7 @@ export default function SubscriptionCard({
   companyId,
   userEmail,
   onPaymentSuccess,
+  onPaymentCancel,
   onManagePlan
 }: SubscriptionCardProps) {
   const [showContinueMessage, setShowContinueMessage] = useState(false)
@@ -70,16 +72,25 @@ export default function SubscriptionCard({
     ? ((trialTotalDays - trialDaysRemaining) / trialTotalDays) * 100 
     : 0
 
-  // Open Razorpay payment link in new tab with email prefill
+  // Open Razorpay payment link in same tab with email prefill
   const handlePayment = () => {
+<<<<<<< HEAD
+    // Extend session before going to external payment page (30 minutes)
+    const sessionExpiresAt = localStorage.getItem('sessionExpiresAt')
+    if (sessionExpiresAt) {
+      const newExpiry = Date.now() + (30 * 60 * 1000)
+      localStorage.setItem('sessionExpiresAt', newExpiry.toString())
+    }
+=======
     // Set flag to indicate external redirect for session restore
     sessionStorage.setItem('externalRedirect', 'true')
+>>>>>>> a5df62ae2b11084ee36364941123b41da2e11edb
     
     let paymentUrl = RAZORPAY_PAYMENT_LINK
     if (userEmail) {
       paymentUrl += `?email=${encodeURIComponent(userEmail)}`
     }
-    window.open(paymentUrl, '_blank')
+    window.location.href = paymentUrl
   }
 
   // Handle upgrade click - open payment link
