@@ -26,6 +26,7 @@ import {
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Settings, User, Bell, Lock, Building2, Users, CreditCard, Plus, Trash2, Edit, Mail, MapPin, FileText, CheckCircle2, Loader2 } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import BillingContent from '@/components/billing/BillingContent'
 
@@ -80,9 +81,25 @@ interface TeamUser {
 
 export default function SettingsPage() {
   const { user, company } = useAuth()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<SettingsTab>('company')
   const [showAddUserDialog, setShowAddUserDialog] = useState(false)
   const [newUser, setNewUser] = useState({ name: '', email: '', role: 'recruiter' as UserRole })
+
+  // Auto-switch tab based on URL param ?tab=payment
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam === 'payment') {
+      setActiveTab('payment')
+    } else if (tabParam === 'company') {
+      setActiveTab('company')
+    } else if (tabParam === 'users') {
+      setActiveTab('users')
+    } else if (tabParam === 'agency') {
+      setActiveTab('agency')
+    }
+  }, [searchParams])
 
   const [loadingCompany, setLoadingCompany] = useState(false)
   const [savingCompany, setSavingCompany] = useState(false)

@@ -15,6 +15,7 @@ declare global {
 
 interface PaymentCheckoutProps {
   onPaymentSuccess?: (paymentId: string, provider: string) => void
+  onPaymentCancel?: () => void
   companyId?: string
   amount?: number
 }
@@ -26,7 +27,7 @@ interface PaymentConfig {
 
 type Country = 'IN' | 'INTERNATIONAL' | null
 
-export default function PaymentCheckout({ onPaymentSuccess, companyId, amount = 10000 }: PaymentCheckoutProps) {
+export default function PaymentCheckout({ onPaymentSuccess, onPaymentCancel, companyId, amount = 10000 }: PaymentCheckoutProps) {
   const [country, setCountry] = useState<Country>(null)
   const [detectingCountry, setDetectingCountry] = useState(true)
   const [config, setConfig] = useState<PaymentConfig | null>(null)
@@ -320,6 +321,7 @@ export default function PaymentCheckout({ onPaymentSuccess, companyId, amount = 
           ondismiss: function () {
             console.log('[Razorpay] Checkout dismissed')
             setProcessing(false)
+            onPaymentCancel?.()
           },
           escape: true,
           handleback: true,

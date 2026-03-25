@@ -27,6 +27,7 @@ const APP_ROUTES = new Set([
   '/delegation',
   '/support',
   '/settings',
+  '/payment/return',
 ])
 
 // API routes are only allowed on app.domain.com

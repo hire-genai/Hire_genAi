@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { getAppUrl } from "@/lib/domain-config"
@@ -12,12 +13,28 @@ import Navbar from "@/components/layout/Navbar"
 import Link from "next/link"
 import { Check, X, ArrowRight, Star, Facebook, Instagram, Youtube, Linkedin, Lock, Globe } from "lucide-react"
 import Footer from "@/components/layout/Footer"
-
 type Country = 'IN' | 'INTERNATIONAL' | null
 
 export default function PricingPage() {
+  const router = useRouter()
   const [country, setCountry] = useState<Country>(null)
   const [detectingCountry, setDetectingCountry] = useState(true)
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false)
+
+  // Check if user is logged in (manual check since we're not in AuthProvider)
+  useEffect(() => {
+    const checkAuthStatus = () => {
+      // Check for refresh token or any session indicator
+      const refreshToken = localStorage.getItem('refreshToken')
+      const sessionData = sessionStorage.getItem('authSession')
+      setIsLoggedIn(!!(refreshToken || sessionData))
+    }
+    
+    checkAuthStatus()
+    // Listen for storage changes (login/logout in other tabs)
+    window.addEventListener('storage', checkAuthStatus)
+    return () => window.removeEventListener('storage', checkAuthStatus)
+  }, [])
 
   // Detect user country
   useEffect(() => {
@@ -139,6 +156,23 @@ export default function PricingPage() {
     },
   ]
 
+  // Handle plan selection: store plan & redirect based on auth
+  const handlePlanSelect = (planName: string) => {
+    // Store the selected plan in localStorage so it persists through signup
+    localStorage.setItem('pendingPlan', JSON.stringify({
+      name: planName,
+      timestamp: Date.now(),
+    }))
+
+    if (isLoggedIn) {
+      // User is logged in → go to settings payment tab
+      router.push(getAppUrl('/settings?tab=payment'))
+    } else {
+      // User is not logged in → go to signup
+      router.push(getAppUrl('/signup'))
+    }
+  }
+
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
@@ -243,12 +277,10 @@ export default function PricingPage() {
                   ) : (
                     <Button
                       className={`w-full ${plan.popular ? "sr-button-primary" : "sr-button-secondary"}`}
-                      asChild
+                      onClick={() => handlePlanSelect(plan.name)}
                     >
-                      <Link href={getAppUrl('/signup')}>
-                        {plan.cta}
-                        <ArrowRight className="w-4 h-4 ml-2" />
-                      </Link>
+                      {plan.cta}
+                      <ArrowRight className="w-4 h-4 ml-2" />
                     </Button>
                   )}
                 </CardContent>

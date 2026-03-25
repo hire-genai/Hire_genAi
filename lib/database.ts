@@ -103,9 +103,10 @@ export class DatabaseService {
       throw new Error('Database not configured. Please set DATABASE_URL in your .env.local file.')
     }
 
-    const domain = email.split('@')[1]
-
-    // Map UI company size values to DB ENUM values
+    // Extract domain properly from email
+    let domain = email.split('@')[1] || 'gmail.com'
+    // Clean domain to get just the main domain part (e.g., gmail.com -> gmail)
+    domain = domain.split('.')[0]
     // UI sends: '1-10 employees', '11-50 employees', etc.
     // DB expects: '1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000', '10000+'
     const mapSizeToEnum = (size?: string): string | null => {
@@ -150,9 +151,9 @@ export class DatabaseService {
     const nameCheck = await this.query(checkNameQuery, [finalCompanyName]) as any[]
     
     if (nameCheck[0].count > 0) {
-      // Append domain or timestamp to make name unique
-      const timestamp = Date.now()
-      finalCompanyName = `${signupData.companyName} (${domain.split('.')[0]}-${timestamp})`
+      // Append domain and a short random suffix to make name unique
+      const randomSuffix = Math.random().toString(36).substring(2, 8)
+      finalCompanyName = `${signupData.companyName} (${domain}-${randomSuffix})`
     }
 
     // Create OpenAI project and service account for the company
@@ -2511,67 +2512,12 @@ export class DatabaseService {
   }
 
   // Auto-recharge wallet
+  // IMPORTANT: Auto-recharge is DISABLED until real Razorpay payment integration is added.
+  // Wallet credits should ONLY be added after a verified Razorpay payment (via webhook or /api/payment/verify).
+  // The old code was simulating payment success and adding credits without real payment — this is a critical bug.
   static async autoRecharge(companyId: string) {
-    if (!this.isDatabaseConfigured()) {
-      throw new Error('Database not configured')
-    }
-
-    const pricing = this.getPricing()
-    const rechargeAmount = pricing.rechargeAmount
-
-    // Create invoice for recharge
-    const invoice = await this.createInvoice({
-      companyId,
-      description: 'Wallet Auto-Recharge',
-      subtotal: rechargeAmount,
-      total: rechargeAmount,
-      lineItems: [{
-        description: 'Wallet Top-up',
-        quantity: 1,
-        unitPrice: rechargeAmount,
-        amount: rechargeAmount
-      }]
-    })
-
-    // In production, this would call Razorpay/PayPal API
-    // For now, simulate successful payment
-    const paymentSuccess = true
-
-    if (paymentSuccess) {
-      // Update wallet
-      const addQuery = `
-        UPDATE company_billing
-        SET 
-          wallet_balance = wallet_balance + $2,
-          current_month_spent = current_month_spent + $2,
-          total_spent = total_spent + $2,
-          updated_at = NOW()
-        WHERE company_id = $1::uuid
-        RETURNING *
-      `
-      await this.query(addQuery, [companyId, rechargeAmount])
-
-      // Mark invoice as paid
-      await this.markInvoicePaid(invoice.id)
-
-      // Record ledger entry
-      const billing = await this.getCompanyBilling(companyId)
-      await this.addLedgerEntry({
-        companyId,
-        entryType: 'AUTO_RECHARGE',
-        description: `Wallet auto-recharge`,
-        quantity: 1,
-        unitPrice: rechargeAmount,
-        amount: -rechargeAmount, // Negative because it's a credit
-        invoiceId: invoice.id,
-        balanceBefore: billing.wallet_balance - rechargeAmount,
-        balanceAfter: billing.wallet_balance
-      })
-
-      return invoice
-    } else {
-      throw new Error('Payment failed')
-    }
+    console.warn(`⚠️ [Auto-Recharge] Auto-recharge requested for company ${companyId} but is DISABLED. Wallet credits can only be added after a real Razorpay payment.`)
+    throw new Error('Insufficient wallet balance. Please recharge your wallet via the Payment page to continue.')
   }
 
   // Deduct from wallet

@@ -41,9 +41,19 @@ export default function LoginPage() {
     }
   }, [])
 
+  // Helper to get redirect destination after login
+  const getPostLoginRedirect = () => {
+    const postLoginRedirect = localStorage.getItem('postLoginRedirect')
+    if (postLoginRedirect) {
+      localStorage.removeItem('postLoginRedirect')
+      return postLoginRedirect
+    }
+    return '/dashboard'
+  }
+
   useEffect(() => {
     if (!authLoading && user) {
-      router.push("/dashboard")
+      router.push(getPostLoginRedirect())
     }
   }, [user, authLoading, router])
 
@@ -103,7 +113,7 @@ export default function LoginPage() {
       toast({ title: "Welcome back!", description: "Login successful" })
       // ensure state commit is observed
       await Promise.resolve()
-      router.push("/dashboard")
+      router.push(getPostLoginRedirect())
     } catch (err: any) {
       toast({ title: "Error", description: err?.message || "Failed to verify OTP", variant: "destructive" })
     } finally {
@@ -205,7 +215,7 @@ export default function LoginPage() {
         description: "Welcome to the HireGenAI demo" 
       })
       await Promise.resolve()
-      router.push("/dashboard")
+      router.push(getPostLoginRedirect())
     } catch (err: any) {
       toast({ 
         title: "Demo verification error", 

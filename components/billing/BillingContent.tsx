@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -40,10 +41,15 @@ interface BillingContentProps {
 
 export default function BillingContent({ companyId }: BillingContentProps) {
   const { user } = useAuth()
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [billingData, setBillingData] = useState<any>(null)
   const [usageData, setUsageData] = useState<any>(null)
   const [currentTab, setCurrentTab] = useState<string>("overview")
+  // Handle payment cancel → redirect to settings payment tab
+  const handlePaymentCancel = () => {
+    router.push('/settings?tab=payment')
+  }
 
   // Currency Detection
   const [currency, setCurrency] = useState<'INR' | 'USD'>('USD')
@@ -474,6 +480,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             companyId={companyId}
             userEmail={user?.email}
             onPaymentSuccess={() => loadBillingData()}
+            onPaymentCancel={handlePaymentCancel}
             onManagePlan={() => setCurrentTab('settings')}
           />
 

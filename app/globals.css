@@ -411,7 +411,7 @@
 /* ===== SUMMARY GRID CONTAINER ===== */
 .summary-grid {
   display: grid;
-  grid-template-columns: 1fr;  /* 4 rows × 1 column */
+  grid-template-columns: repeat(4, 1fr);  /* 4 columns in a single row */
   gap: 20px;              /* Space between cards */
   margin-bottom: 32px;    /* Space below the entire grid */
 }
