@@ -185,7 +185,7 @@ export default function PricingPage() {
       {/* Pricing Cards */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {plans.map((plan, index) => (
               <Card
                 key={index}
@@ -199,10 +199,10 @@ export default function PricingPage() {
                     </Badge>
                   </div>
                 )}
-                <CardHeader className="text-center pb-8">
+                <CardHeader className="text-center pb-4">
                   <CardTitle className="text-2xl font-bold text-slate-800">{plan.name}</CardTitle>
                   <CardDescription className="text-slate-600 mt-2">{plan.description}</CardDescription>
-                  <div className="mt-6">
+                  <div className="mt-4">
                     <div className="flex items-center justify-center">
                       {plan.monthlyPrice !== null ? (
                         <>
@@ -217,8 +217,8 @@ export default function PricingPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-3">
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
                     {plan.features.map((feature, featureIndex) => (
                       <div key={featureIndex} className="flex items-start space-x-3">
                         <Check className="w-5 h-5 text-emerald-600 mt-0.5 flex-shrink-0" />
@@ -266,9 +266,9 @@ export default function PricingPage() {
             <p className="text-slate-600">Everything you need to know about our pricing</p>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-4">
             <Card className="sr-card">
-              <CardContent className="p-6">
+              <CardContent className="p-4">
                 <h3 className="font-semibold text-slate-800 mb-2">Can I change my plan anytime?</h3>
                 <p className="text-slate-600">
                   Yes, you can upgrade or downgrade your plan at any time. Changes take effect immediately, and we'll
@@ -278,7 +278,7 @@ export default function PricingPage() {
             </Card>
 
             <Card className="sr-card">
-              <CardContent className="p-6">
+              <CardContent className="p-4">
                 <h3 className="font-semibold text-slate-800 mb-2">Is there a free trial?</h3>
                 <p className="text-slate-600">
                   Yes, we offer a 14-day free trial for all plans. No credit card required to start your trial.
@@ -287,7 +287,7 @@ export default function PricingPage() {
             </Card>
 
             <Card className="sr-card">
-              <CardContent className="p-6">
+              <CardContent className="p-4">
                 <h3 className="font-semibold text-slate-800 mb-2">What happens if I exceed my plan limits?</h3>
                 <p className="text-slate-600">
                   We'll notify you when you're approaching your limits. You can either upgrade your plan or purchase
@@ -297,7 +297,7 @@ export default function PricingPage() {
             </Card>
 
             <Card className="sr-card">
-              <CardContent className="p-6">
+              <CardContent className="p-4">
                 <h3 className="font-semibold text-slate-800 mb-2">Do you offer custom enterprise solutions?</h3>
                 <p className="text-slate-600">
                   Yes, we work with large enterprises to create custom solutions that fit their specific needs. Contact

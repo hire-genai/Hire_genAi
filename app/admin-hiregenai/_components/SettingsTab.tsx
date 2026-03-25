@@ -87,7 +87,7 @@ export default function SettingsTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {saveMessage && (
         <div className={`p-3 rounded-lg text-sm ${saveMessage.includes("Error") || saveMessage.includes("Failed") ? "bg-red-900/20 border border-red-700 text-red-200" : "bg-emerald-900/20 border border-emerald-700 text-emerald-200"}`}>
           {saveMessage}
@@ -101,10 +101,10 @@ export default function SettingsTab() {
           <CardDescription>Configure markup on OpenAI costs</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div>
               <Label className="text-slate-300">Margin Percentage (%)</Label>
-              <div className="flex gap-2 mt-2">
+              <div className="flex gap-2 mt-1.5">
                 <Input
                   type="number"
                   value={profitMargin}
@@ -137,9 +137,9 @@ export default function SettingsTab() {
           <CardDescription>Admin key health check</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="space-y-3">
             {openai.configured ? (
-              <div className="flex items-center gap-3 p-4 bg-slate-800 rounded-lg border border-slate-700">
+              <div className="flex items-center gap-3 p-3 bg-slate-800 rounded-lg border border-slate-700">
                 {openai.valid ? (
                   <CheckCircle2 className="h-6 w-6 text-green-500" />
                 ) : (
@@ -158,7 +158,7 @@ export default function SettingsTab() {
                 </Badge>
               </div>
             ) : (
-              <div className="flex items-center gap-3 p-4 bg-slate-800 rounded-lg border border-slate-700">
+              <div className="flex items-center gap-3 p-3 bg-slate-800 rounded-lg border border-slate-700">
                 <AlertCircle className="h-6 w-6 text-amber-500" />
                 <div>
                   <p className="text-white font-semibold">API Key Not Configured</p>

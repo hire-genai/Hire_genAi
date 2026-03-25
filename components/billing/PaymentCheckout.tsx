@@ -362,7 +362,7 @@ export default function PaymentCheckout({ onPaymentSuccess, companyId, amount = 
 
   // ── UI ──
   return (
-    <Card className="border-violet-200 shadow-lg">
+    <Card className="border-violet-200 shadow-sm">
       <CardHeader className="bg-gradient-to-r from-violet-50 to-indigo-50">
         <CardTitle className="flex items-center gap-2 text-violet-800">
           <CreditCard className="h-5 w-5" />

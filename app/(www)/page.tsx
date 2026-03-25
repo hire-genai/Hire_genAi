@@ -249,11 +249,11 @@ export default function HomePage() {
           </div>
 
           {/* Features Grid - 2x2 Layout */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Intelligent CV Parsing */}
-            <Card className="sr-card p-8 text-center transition-all duration-300 hover:shadow-emerald-600/50 hover:shadow-xl hover:-translate-y-2">
+            <Card className="sr-card p-5 text-center transition-all duration-300 hover:shadow-emerald-600/50 hover:shadow-xl hover:-translate-y-2">
               <CardContent className="p-0">
-                <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mb-6 mx-auto transition-transform duration-300 hover:rotate-12">
+                <div className="w-14 h-14 bg-emerald-50 rounded-xl flex items-center justify-center mb-4 mx-auto transition-transform duration-300 hover:rotate-12">
                   <Search className="w-8 h-8 text-emerald-600" />
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 mb-4">Intelligent CV Parsing</h3>
@@ -264,9 +264,9 @@ export default function HomePage() {
             </Card>
 
             {/* AI-Powered Initial Interview */}
-            <Card className="sr-card p-8 text-center transition-all duration-300 hover:shadow-emerald-600/50 hover:shadow-xl hover:-translate-y-2">
+            <Card className="sr-card p-5 text-center transition-all duration-300 hover:shadow-emerald-600/50 hover:shadow-xl hover:-translate-y-2">
               <CardContent className="p-0">
-                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-6 mx-auto transition-transform duration-300 hover:rotate-12">
+                <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center mb-4 mx-auto transition-transform duration-300 hover:rotate-12">
                   <Brain className="w-8 h-8 text-blue-600" />
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 mb-4">AI-Powered Initial Interview</h3>
@@ -277,9 +277,9 @@ export default function HomePage() {
             </Card>
 
             {/* Data-Driven Shortlisting */}
-            <Card className="sr-card p-8 text-center transition-all duration-300 hover:shadow-emerald-600/50 hover:shadow-xl hover:-translate-y-2">
+            <Card className="sr-card p-5 text-center transition-all duration-300 hover:shadow-emerald-600/50 hover:shadow-xl hover:-translate-y-2">
               <CardContent className="p-0">
-                <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mb-6 mx-auto transition-transform duration-300 hover:rotate-12">
+                <div className="w-14 h-14 bg-purple-100 rounded-xl flex items-center justify-center mb-4 mx-auto transition-transform duration-300 hover:rotate-12">
                   <Phone className="w-8 h-8 text-purple-600" />
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 mb-4">Data-Driven Shortlisting</h3>
@@ -290,9 +290,9 @@ export default function HomePage() {
             </Card>
 
             {/* Advanced Analytics */}
-            <Card className="sr-card p-8 text-center transition-all duration-300 hover:shadow-emerald-600/50 hover:shadow-xl hover:-translate-y-2">
+            <Card className="sr-card p-5 text-center transition-all duration-300 hover:shadow-emerald-600/50 hover:shadow-xl hover:-translate-y-2">
               <CardContent className="p-0">
-                <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mb-6 mx-auto transition-transform duration-300 hover:rotate-12">
+                <div className="w-14 h-14 bg-red-100 rounded-xl flex items-center justify-center mb-4 mx-auto transition-transform duration-300 hover:rotate-12">
                   <BarChart3 className="w-8 h-8 text-red-600" />
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 mb-4">Advanced Analytics</h3>
@@ -317,10 +317,10 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Pain Point 1 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-l-4 border-red-500 hover:shadow-xl transition-shadow">
-              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mb-6">
+            <div className="bg-white rounded-lg shadow-sm p-5 border-l-4 border-red-500 hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
                 <Clock className="w-7 h-7 text-red-600" />
               </div>
               <h3 className="text-xl font-bold text-slate-800 mb-4">Slow & Inefficient</h3>
@@ -330,8 +330,8 @@ export default function HomePage() {
             </div>
 
             {/* Pain Point 2 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-l-4 border-orange-500 hover:shadow-xl transition-shadow">
-              <div className="w-14 h-14 bg-orange-100 rounded-full flex items-center justify-center mb-6">
+            <div className="bg-white rounded-lg shadow-sm p-5 border-l-4 border-orange-500 hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-orange-600"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               </div>
               <h3 className="text-xl font-bold text-slate-800 mb-4">Expensive & Resource-Heavy</h3>
@@ -341,8 +341,8 @@ export default function HomePage() {
             </div>
 
             {/* Pain Point 3 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-l-4 border-amber-500 hover:shadow-xl transition-shadow">
-              <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mb-6">
+            <div className="bg-white rounded-lg shadow-sm p-5 border-l-4 border-amber-500 hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" x2="22" y1="8" y2="13"/><line x1="22" x2="17" y1="8" y2="13"/></svg>
               </div>
               <h3 className="text-xl font-bold text-slate-800 mb-4">Limited & Biased</h3>
@@ -366,9 +366,9 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Feature 1 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all hover:-translate-y-1">
+            <div className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-all hover:-translate-y-1">
               <div className="text-4xl mb-4">⚡</div>
               <h3 className="text-xl font-bold text-slate-800 mb-2">Lightning-Fast Hiring</h3>
               <p className="text-emerald-600 font-semibold mb-3">Reduce time-to-hire from 40 days to just 4-11 days</p>
@@ -378,7 +378,7 @@ export default function HomePage() {
             </div>
 
             {/* Feature 2 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all hover:-translate-y-1">
+            <div className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-all hover:-translate-y-1">
               <div className="text-4xl mb-4">💰</div>
               <h3 className="text-xl font-bold text-slate-800 mb-2">Dramatic Cost Savings</h3>
               <p className="text-emerald-600 font-semibold mb-3">Cut recruitment costs by 20-50%</p>
@@ -388,7 +388,7 @@ export default function HomePage() {
             </div>
 
             {/* Feature 3 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all hover:-translate-y-1">
+            <div className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-all hover:-translate-y-1">
               <div className="text-4xl mb-4">🌐</div>
               <h3 className="text-xl font-bold text-slate-800 mb-2">Unlimited Scalability</h3>
               <p className="text-emerald-600 font-semibold mb-3">Handle thousands of applications 24/7</p>
@@ -398,7 +398,7 @@ export default function HomePage() {
             </div>
 
             {/* Feature 4 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all hover:-translate-y-1">
+            <div className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-all hover:-translate-y-1">
               <div className="text-4xl mb-4">🎯</div>
               <h3 className="text-xl font-bold text-slate-800 mb-2">Data-Driven Precision</h3>
               <p className="text-emerald-600 font-semibold mb-3">Match candidates with predictive accuracy</p>
@@ -408,7 +408,7 @@ export default function HomePage() {
             </div>
 
             {/* Feature 5 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all hover:-translate-y-1">
+            <div className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-all hover:-translate-y-1">
               <div className="text-4xl mb-4">🤝</div>
               <h3 className="text-xl font-bold text-slate-800 mb-2">Diversity & Fairness</h3>
               <p className="text-emerald-600 font-semibold mb-3">Reduce unconscious bias by design</p>
@@ -418,7 +418,7 @@ export default function HomePage() {
             </div>
 
             {/* Feature 6 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all hover:-translate-y-1">
+            <div className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-all hover:-translate-y-1">
               <div className="text-4xl mb-4">🔍</div>
               <h3 className="text-xl font-bold text-slate-800 mb-2">Proactive Talent Discovery</h3>
               <p className="text-emerald-600 font-semibold mb-3">Access passive candidates automatically</p>
@@ -440,8 +440,8 @@ export default function HomePage() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-slate-800 rounded-2xl p-8 border border-slate-700">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-slate-800 rounded-lg p-5 border border-slate-700">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 bg-emerald-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Zap className="w-6 h-6 text-emerald-400" />
@@ -455,7 +455,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="bg-slate-800 rounded-2xl p-8 border border-slate-700">
+            <div className="bg-slate-800 rounded-lg p-5 border border-slate-700">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 bg-emerald-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -469,7 +469,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="bg-slate-800 rounded-2xl p-8 border border-slate-700">
+            <div className="bg-slate-800 rounded-lg p-5 border border-slate-700">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 bg-emerald-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
                   <TrendingUp className="w-6 h-6 text-emerald-400" />
@@ -483,7 +483,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="bg-slate-800 rounded-2xl p-8 border border-slate-700">
+            <div className="bg-slate-800 rounded-lg p-5 border border-slate-700">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 bg-emerald-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Users className="w-6 h-6 text-emerald-400" />
@@ -567,7 +567,7 @@ export default function HomePage() {
           </div>
 
           {/* Comparison Table */}
-          <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-12 border border-slate-200">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-12 border border-slate-200">
             <div className="grid grid-cols-3 text-center py-6 bg-slate-800 text-white">
               <div className="px-4">
                 <h3 className="text-lg md:text-xl font-semibold">What Matters Most</h3>

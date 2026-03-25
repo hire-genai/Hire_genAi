@@ -101,13 +101,13 @@ export default function DemoReport() {
       {/* Report Content */}
       <section className="py-12 sm:py-20 bg-gradient-to-br from-slate-50 to-emerald-50">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Card className="overflow-hidden shadow-2xl">
-            <div className="bg-gradient-to-r from-emerald-600 to-purple-600 text-white p-6 sm:p-10 text-center">
+          <Card className="overflow-hidden shadow-sm">
+            <div className="bg-gradient-to-r from-emerald-600 to-purple-600 text-white p-4 sm:p-6 text-center">
               <h2 className="text-2xl sm:text-3xl font-bold mb-2">{contactInfo.name}'s Recruitment Efficiency Report</h2>
               <p className="text-emerald-100">Personalized analysis and actionable recommendations</p>
             </div>
 
-            <CardContent className="p-6 sm:p-10">
+            <CardContent className="p-4 sm:p-6">
               <div className="mb-10">
                 <h3 className="text-2xl font-bold text-emerald-600 mb-4 pb-2 border-b-2 border-emerald-100">Executive Summary</h3>
                 <p className="text-slate-600 mb-6">
@@ -115,26 +115,26 @@ export default function DemoReport() {
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <Card className="bg-slate-50 text-center p-6">
+                  <Card className="bg-slate-50 text-center p-4">
                     <div className="text-4xl font-bold text-emerald-600 mb-2">{score}</div>
                     <div className="text-sm text-slate-600">Efficiency Score</div>
                   </Card>
-                  <Card className="bg-slate-50 text-center p-6">
+                  <Card className="bg-slate-50 text-center p-4">
                     <div className="text-4xl font-bold text-emerald-600 mb-2">{timeSaving}</div>
                     <div className="text-sm text-slate-600">Hours Saved Per Hire</div>
                   </Card>
-                  <Card className="bg-slate-50 text-center p-6">
+                  <Card className="bg-slate-50 text-center p-4">
                     <div className="text-4xl font-bold text-emerald-600 mb-2">{improvementPotential}%</div>
                     <div className="text-sm text-slate-600">Improvement Potential</div>
                   </Card>
-                  <Card className="bg-slate-50 text-center p-6">
+                  <Card className="bg-slate-50 text-center p-4">
                     <div className="text-4xl font-bold text-emerald-600 mb-2">{timeToHireReduction}</div>
                     <div className="text-sm text-slate-600">Days Reduction</div>
                   </Card>
                 </div>
               </div>
 
-              <Card className="bg-gradient-to-r from-emerald-600 to-purple-600 text-white p-6 sm:p-8 text-center">
+              <Card className="bg-gradient-to-r from-emerald-600 to-purple-600 text-white p-4 sm:p-5 text-center">
                 <h3 className="text-2xl font-bold mb-4">Ready to Transform Your Recruitment?</h3>
                 <p className="mb-6">Start your 14-day free trial and experience the power of AI-driven recruitment</p>
                 <Link href={getAppUrl('/signup?section=company')}>

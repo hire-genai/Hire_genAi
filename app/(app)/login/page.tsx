@@ -278,9 +278,9 @@ export default function LoginPage() {
           </div>
         </div>
       )}
-      <Card className="w-full max-w-md shadow-xl border-0">
+      <Card className="w-full max-w-md shadow-sm border-0">
         {/* Header */}
-        <CardHeader className="text-center pb-4">
+        <CardHeader className="text-center pb-2">
           <Link href="/">
             <CardTitle className="text-3xl font-bold mb-2">
               <span className="text-slate-800">Hire</span>
@@ -292,7 +292,7 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="px-4 pb-4">
+        <CardContent className="px-4 pb-3">
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "demo" | "signin")} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6 bg-gray-100">

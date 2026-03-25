@@ -68,7 +68,7 @@ export default function OverviewTab() {
   }, [])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Date Filter - Always Visible */}
       <div className="flex justify-end">
         <DashboardDateFilter onApply={fetchData} defaultPreset="last90Days" />
@@ -82,7 +82,7 @@ export default function OverviewTab() {
       ) : (
         <>
       {/* Revenue & Profitability KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Total Revenue */}
         <Card className="bg-gradient-to-br from-emerald-900 to-slate-900 border-emerald-700">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -141,7 +141,7 @@ export default function OverviewTab() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Revenue vs Expenses Trend */}
         <Card className="bg-slate-900 border-slate-800">
           <CardHeader>

@@ -105,25 +105,25 @@ export default function SubscriptionCard({
   }
 
   return (
-    <div className="w-full mb-6">
-      <Card className={`w-full shadow-sm rounded-2xl ${getCardStyle()}`}>
-        <CardContent className="pt-6 pb-6 text-center">
+    <div className="w-full mb-4">
+      <Card className={`w-full shadow-sm rounded-lg ${getCardStyle()}`}>
+        <CardContent className="pt-4 pb-4 text-center">
           
           {/* RECHARGE_OVER STATE - Wallet is empty */}
           {status === 'recharge_over' && (
             <>
-              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border-0 mb-4">
+              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border-0 mb-3">
                 🔴 RECHARGE REQUIRED
               </Badge>
               
-              <h3 className="text-xl font-bold text-slate-900 mb-2">
+              <h3 className="text-xl font-bold text-slate-900 mb-1.5">
                 Your wallet balance is {currencySymbol}0
               </h3>
-              <p className="text-sm text-slate-500 mb-4">
+              <p className="text-sm text-slate-500 mb-3">
                 Recharge to continue using services without interruption
               </p>
               
-              <div className="bg-red-50 rounded-lg p-3 mb-6 text-center">
+              <div className="bg-red-50 rounded-lg p-2.5 mb-4 text-center">
                 <div className="flex items-center justify-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-red-600 flex-shrink-0" />
                   <p className="text-xs text-red-700">
@@ -151,18 +151,18 @@ export default function SubscriptionCard({
           {/* LOW_BALANCE STATE */}
           {status === 'low_balance' && (
             <>
-              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border-0 mb-4">
+              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border-0 mb-3">
                 🟡 LOW BALANCE
               </Badge>
               
-              <h3 className="text-xl font-bold text-slate-900 mb-2">
+              <h3 className="text-xl font-bold text-slate-900 mb-1.5">
                 Wallet balance: {currencySymbol}{walletBalance.toFixed(2)}
               </h3>
-              <p className="text-sm text-slate-500 mb-4">
+              <p className="text-sm text-slate-500 mb-3">
                 Your balance is running low. Recharge soon to avoid service interruption.
               </p>
               
-              <div className="bg-amber-50 rounded-lg p-3 mb-6 text-left flex items-start gap-2">
+              <div className="bg-amber-50 rounded-lg p-2.5 mb-4 text-left flex items-start gap-2">
                 <Zap className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-700">
                   Recommended minimum: {currencySymbol}{lowBalanceThreshold}
@@ -196,22 +196,22 @@ export default function SubscriptionCard({
           {/* TRIAL STATE */}
           {status === 'trial' && (
             <>
-              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border-0 mb-4">
+              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border-0 mb-3">
                 <Flame className="h-3.5 w-3.5" />
                 FREE TRIAL · {trialDaysRemaining} days remaining
               </Badge>
               
-              <h3 className="text-xl font-bold text-slate-900 mb-2">
+              <h3 className="text-xl font-bold text-slate-900 mb-1.5">
                 Explore Pro features
               </h3>
-              <p className="text-sm text-slate-500 mb-4">
+              <p className="text-sm text-slate-500 mb-3">
                 You're on a 7-day free trial. Upgrade anytime to continue access.
               </p>
               
               <div className="w-full mb-2">
                 <Progress value={progressPercent} className="h-1.5 bg-slate-200 [&>div]:bg-indigo-600" />
               </div>
-              <p className="text-xs text-slate-400 mb-6">
+              <p className="text-xs text-slate-400 mb-4">
                 {trialDaysRemaining} days left out of {trialTotalDays}
               </p>
 
@@ -243,19 +243,19 @@ export default function SubscriptionCard({
           {/* TRIAL_OVER STATE */}
           {status === 'trial_over' && (
             <>
-              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border-0 mb-4">
+              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border-0 mb-3">
                 <AlertTriangle className="h-3.5 w-3.5" />
                 TRIAL EXPIRED · Access Limited
               </Badge>
               
-              <h3 className="text-xl font-bold text-slate-900 mb-2">
+              <h3 className="text-xl font-bold text-slate-900 mb-1.5">
                 Your trial has ended
               </h3>
-              <p className="text-sm text-slate-500 mb-4">
+              <p className="text-sm text-slate-500 mb-3">
                 Some features are locked. Upgrade to restore full access.
               </p>
               
-              <div className="bg-red-50 rounded-lg p-3 mb-6 text-left">
+              <div className="bg-red-50 rounded-lg p-2.5 mb-4 text-left">
                 <p className="text-xs text-red-700 flex items-start gap-2">
                   <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
                   <span>
@@ -283,15 +283,15 @@ export default function SubscriptionCard({
           {/* ACTIVE STATE */}
           {status === 'active' && (
             <>
-              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border-0 mb-4">
+              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border-0 mb-3">
                 <CheckCircle className="h-3.5 w-3.5" />
                 ACTIVE · {planName.toUpperCase()}
               </Badge>
               
-              <h3 className="text-xl font-bold text-slate-900 mb-2">
+              <h3 className="text-xl font-bold text-slate-900 mb-1.5">
                 Your workspace is upgraded
               </h3>
-              <p className="text-sm text-slate-500 mb-4">
+              <p className="text-sm text-slate-500 mb-3">
                 All premium features are unlocked.
               </p>
               
@@ -305,7 +305,7 @@ export default function SubscriptionCard({
                 </div>
               )}
               
-              <div className="bg-slate-50 rounded-lg p-3 mb-6 flex justify-between items-center text-sm">
+              <div className="bg-slate-50 rounded-lg p-2.5 mb-4 flex justify-between items-center text-sm">
                 <span className="flex items-center gap-2 text-slate-600">
                   <RefreshCw className="h-4 w-4" />
                   Auto-renewal

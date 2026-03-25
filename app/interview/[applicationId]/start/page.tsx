@@ -91,8 +91,8 @@ export default function InterviewStartPage() {
         </div>
 
         {/* Main card (simplified, no green relevancy panel) */}
-        <div className="mt-8 rounded-2xl border border-gray-200 bg-white shadow-md">
-          <div className="p-8 md:p-12 flex flex-col items-center justify-center text-center gap-3">
+        <div className="mt-6 rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="p-5 md:p-8 flex flex-col items-center justify-center text-center gap-3">
             <div className="text-2xl md:text-4xl font-bold text-gray-900">{jobTitle || 'Job Title'}</div>
             <div className="text-base md:text-lg text-gray-600">at {company || 'Company'}</div>
             <div className="flex items-center justify-center gap-2 text-sm md:text-base text-gray-500">
@@ -162,7 +162,7 @@ export default function InterviewStartPage() {
         </div>
 
         {/* Instructions + CTA */}
-        <div className="grid md:grid-cols-2 gap-8 items-start mt-8">
+        <div className="grid md:grid-cols-2 gap-6 items-start mt-6">
           <div className="space-y-2 text-left">
             <h3 className="font-semibold text-gray-900">Interview Instructions</h3>
             <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1">

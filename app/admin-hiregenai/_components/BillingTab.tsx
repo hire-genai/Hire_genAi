@@ -51,7 +51,7 @@ export default function BillingTab() {
   }, [])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Date Filter - Always Visible */}
       <div className="flex justify-end">
         <DashboardDateFilter onApply={fetchData} defaultPreset="last90Days" />
@@ -65,7 +65,7 @@ export default function BillingTab() {
       ) : (
         <>
       {/* Usage Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
 
         <Card className="bg-slate-900 border-slate-800">
           <CardHeader className="pb-2">

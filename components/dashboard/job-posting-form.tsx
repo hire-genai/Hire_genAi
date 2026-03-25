@@ -1240,7 +1240,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
 
               {/* Questions List */}
               {interviewQuestions.length === 0 && !isAddingCustomQuestion ? (
-                <div className="border border-dashed rounded-lg p-6 text-center">
+                <div className="border border-dashed rounded-lg p-4 text-center">
                   <p className="text-gray-500 text-sm">No questions added yet</p>
                   <p className="text-gray-400 text-xs mt-1">Click "AI Generate" to auto-generate questions or "Add Custom" to add manually</p>
                   <Button
@@ -1318,7 +1318,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
               </div>
 
               {!formData.enableScreeningQuestions ? (
-                <div className="border border-dashed rounded-lg p-6 text-center">
+                <div className="border border-dashed rounded-lg p-4 text-center">
                   <p className="text-gray-500 text-sm">Screening questions are disabled</p>
                   <p className="text-gray-400 text-xs mt-1">Enable the checkbox above to collect pre-interview information from candidates</p>
                 </div>
@@ -1466,7 +1466,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Work Authorization <span className="text-red-500">*</span>
                     </label>
-                    <div className="flex gap-6">
+                    <div className="flex gap-4">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="radio"

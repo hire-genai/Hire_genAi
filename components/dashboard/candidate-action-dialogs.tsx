@@ -475,7 +475,7 @@ export function CandidateActionDialog({
         <DialogHeader>
           <DialogTitle className="sr-only">Candidate Details</DialogTitle>
         </DialogHeader>
-        <div className="space-y-6 overflow-y-auto flex-1 pr-2">
+        <div className="space-y-4 overflow-y-auto flex-1 pr-2">
           {/* Candidate Info */}
           <Card className="p-4 bg-gray-50">
             <div className="flex items-center gap-4">
@@ -511,24 +511,24 @@ export function CandidateActionDialog({
               <h4 className="font-semibold text-base text-gray-900">Candidate Overview</h4>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <Card className="p-2 border border-gray-200 shadow-sm rounded-xl">
+                <Card className="p-2 border border-gray-200 shadow-sm rounded-lg">
                   <p className="text-xs text-gray-500 mb-1">Position Applied</p>
                   <p className="text-sm font-semibold text-gray-900">{candidate?.position || 'N/A'}</p>
                 </Card>
 
-                <Card className="p-2 border border-gray-200 shadow-sm rounded-xl">
+                <Card className="p-2 border border-gray-200 shadow-sm rounded-lg">
                   <p className="text-xs text-gray-500 mb-1">Current Status</p>
                   <Badge className={getOverviewStatusClassName(candidate?.status)}>
                     {candidate?.status || 'Unknown'}
                   </Badge>
                 </Card>
 
-                <Card className="p-2 border border-gray-200 shadow-sm rounded-xl">
+                <Card className="p-2 border border-gray-200 shadow-sm rounded-lg">
                   <p className="text-xs text-gray-500 mb-1">Applied Date</p>
                   <p className="text-sm font-semibold text-gray-900">{candidate?.appliedDate || 'N/A'}</p>
                 </Card>
 
-                <Card className="p-2 border border-gray-200 shadow-sm rounded-xl">
+                <Card className="p-2 border border-gray-200 shadow-sm rounded-lg">
                   <p className="text-xs text-gray-500 mb-1">Source</p>
                   <p className="text-sm font-semibold text-gray-900">{candidate?.source || 'N/A'}</p>
                 </Card>
