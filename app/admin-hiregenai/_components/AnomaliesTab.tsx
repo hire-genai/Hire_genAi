@@ -81,7 +81,7 @@ export default function AnomaliesTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Card className="bg-slate-900 border-slate-800">
         <CardHeader>
           <div className="flex items-center justify-between">

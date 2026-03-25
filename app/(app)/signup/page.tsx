@@ -473,8 +473,8 @@ function SignupContent() {
           {step === 1 && (
             <Card className="sr-card">
               <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center">
-                  <Building2 className="w-6 h-6 text-emerald-600" />
+                <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-emerald-600" />
                 </div>
                 <CardTitle className="text-2xl">Company Information</CardTitle>
                 <CardDescription>Tell us about your company and what you do</CardDescription>
@@ -525,8 +525,8 @@ function SignupContent() {
           {step === 2 && (
             <Card className="sr-card">
               <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center">
-                  <MapPin className="w-6 h-6 text-blue-600" />
+                <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                  <MapPin className="w-5 h-5 text-blue-600" />
                 </div>
                 <CardTitle className="text-2xl">Contact Information</CardTitle>
                 <CardDescription>Where is your company located?</CardDescription>
@@ -574,8 +574,8 @@ function SignupContent() {
           {step === 3 && (
             <Card className="sr-card">
               <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center">
-                  <FileText className="w-6 h-6 text-indigo-600" />
+                <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-indigo-600" />
                 </div>
                 <CardTitle className="text-2xl">Legal Information</CardTitle>
                 <CardDescription>Legal details for compliance and verification</CardDescription>
@@ -607,8 +607,8 @@ function SignupContent() {
           {step === 4 && (
             <Card className="sr-card">
               <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-purple-100 flex items-center justify-center">
-                  <User2 className="w-6 h-6 text-purple-600" />
+                <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+                  <User2 className="w-5 h-5 text-purple-600" />
                 </div>
                 <CardTitle className="text-2xl">Manager Account</CardTitle>
                 <CardDescription>Set up the primary manager account</CardDescription>
@@ -674,14 +674,14 @@ function SignupContent() {
           {step === 5 && (
             <Card className="sr-card">
               <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                 </div>
                 <CardTitle className="text-2xl">Review & Complete</CardTitle>
                 <CardDescription>Review your information and complete registration</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="rounded-lg border p-4">
                     <h3 className="font-semibold mb-3">Company Summary</h3>
                     <div className="text-sm text-slate-600 space-y-1">

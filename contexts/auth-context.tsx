@@ -129,10 +129,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         console.log("🔄 Initializing auth system...")
 
-        // Check if session has expired (only clear if mockAuth exists but session is expired)
+        // Try to restore session from cookie ONLY if coming from external redirect (like Razorpay)
         const hasMockAuth = localStorage.getItem('mockAuth')
-        if (hasMockAuth && !SessionManager.isSessionValid()) {
-          console.log("⏰ Session expired on init, clearing...")
+        const isExternalRedirect = sessionStorage.getItem('externalRedirect') === 'true'
+        
+        if (!hasMockAuth && isExternalRedirect) {
+          // Check if we have a session cookie (set before redirect)
+          const sessionCookie = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('session='))
+          
+          if (sessionCookie) {
+            try {
+              const cookieData = JSON.parse(decodeURIComponent(sessionCookie.split('=')[1]))
+              console.log("🍪 Found session cookie after external redirect, restoring session...")
+              
+              // Restore session from cookie
+              const restoredSession = {
+                user: {
+                  id: cookieData.userId,
+                  email: cookieData.email,
+                  name: cookieData.fullName,
+                  role: cookieData.role
+                },
+                company: {
+                  id: cookieData.companyId,
+                  name: cookieData.companyName || 'Company',
+                  slug: 'company',
+                  industry: 'Technology',
+                  size: '1-10',
+                  website: ''
+                }
+              }
+              
+              // Save to localStorage
+              localStorage.setItem('mockAuth', JSON.stringify(restoredSession))
+              localStorage.setItem('mockAuth_backup', JSON.stringify(restoredSession))
+              
+              // Start new session timer
+              SessionManager.startSession()
+              
+              console.log("✅ Session restored from cookie for:", cookieData.email)
+            } catch (e) {
+              console.warn("⚠️ Failed to restore session from cookie:", e)
+            }
+          }
+          
+          // Clear the external redirect flag
+          sessionStorage.removeItem('externalRedirect')
+        }
+
+        // Re-check after potential cookie restore
+        const hasMockAuthNow = localStorage.getItem('mockAuth')
+        if (hasMockAuthNow && !SessionManager.isSessionValid()) {
+          // Session exists but timer expired - clear session properly
+          console.log("⏰ Session expired, clearing...")
           SessionManager.clearSession()
           MockAuthService.signOut()
           setLoading(false)
@@ -140,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         // If mockAuth exists but no session timer, start one (for existing logged-in users)
-        if (hasMockAuth && !localStorage.getItem('sessionExpiresAt')) {
+        if (hasMockAuthNow && !localStorage.getItem('sessionExpiresAt')) {
           console.log("🔧 Starting session timer for existing user...")
           SessionManager.startSession()
         }

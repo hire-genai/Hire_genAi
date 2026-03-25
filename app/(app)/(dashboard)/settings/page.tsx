@@ -491,38 +491,58 @@ export default function SettingsPage() {
 
       {/* Horizontal Tabs Navigation */}
       <Card className="p-2">
-        <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           <Button
             variant="ghost"
-            className={`${activeTab === 'company' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
+            className={`flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium rounded-lg transition-colors ${
+              activeTab === 'company' 
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white shadow-sm' 
+                : 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
             onClick={() => setActiveTab('company')}
           >
-            <Building2 className="h-4 w-4 mr-2" />
-            Company Profile
+            <Building2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Company Profile</span>
+            <span className="sm:hidden">Company</span>
           </Button>
           <Button
             variant="ghost"
-            className={`${activeTab === 'users' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
+            className={`flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium rounded-lg transition-colors ${
+              activeTab === 'users' 
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white shadow-sm' 
+                : 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
             onClick={() => setActiveTab('users')}
           >
-            <Users className="h-4 w-4 mr-2" />
-            User Management
+            <Users className="h-4 w-4" />
+            <span className="hidden sm:inline">User Management</span>
+            <span className="sm:hidden">Users</span>
           </Button>
           <Button
             variant="ghost"
-            className={`${activeTab === 'payment' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
+            className={`flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium rounded-lg transition-colors ${
+              activeTab === 'payment' 
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white shadow-sm' 
+                : 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
             onClick={() => setActiveTab('payment')}
           >
-            <CreditCard className="h-4 w-4 mr-2" />
-            Payment
+            <CreditCard className="h-4 w-4" />
+            <span className="hidden sm:inline">Payment</span>
+            <span className="sm:hidden">Payment</span>
           </Button>
           <Button
             variant="ghost"
-            className={`${activeTab === 'agency' ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white' : 'bg-transparent hover:bg-gray-100'}`}
+            className={`flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium rounded-lg transition-colors ${
+              activeTab === 'agency' 
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white shadow-sm' 
+                : 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
             onClick={() => setActiveTab('agency')}
           >
-            <Building2 className="h-4 w-4 mr-2" />
-            Other
+            <Settings className="h-4 w-4" />
+            <span className="hidden sm:inline">Other Settings</span>
+            <span className="sm:hidden">Other</span>
           </Button>
         </div>
       </Card>
@@ -538,12 +558,12 @@ export default function SettingsPage() {
                   <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
                 </div>
               ) : (
-                <div className="space-y-6">
+                <div className="space-y-4">
                   {/* Section 1: Company Information (same as signup step 1) */}
                   <Card className="sr-card">
                     <CardHeader className="text-center">
-                      <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center">
-                        <Building2 className="w-6 h-6 text-emerald-600" />
+                      <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                        <Building2 className="w-5 h-5 text-emerald-600" />
                       </div>
                       <CardTitle className="text-2xl">Company Information</CardTitle>
                       <CardDescription>Tell us about your company and what you do</CardDescription>
@@ -617,8 +637,8 @@ export default function SettingsPage() {
                   {/* Section 2: Contact Information (same as signup step 2) */}
                   <Card className="sr-card">
                     <CardHeader className="text-center">
-                      <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center">
-                        <MapPin className="w-6 h-6 text-emerald-600" />
+                      <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                        <MapPin className="w-5 h-5 text-emerald-600" />
                       </div>
                       <CardTitle className="text-2xl">Contact Information</CardTitle>
                       <CardDescription>Where is your company located?</CardDescription>
@@ -694,8 +714,8 @@ export default function SettingsPage() {
                   {/* Section 3: Legal Information (same as signup step 3) */}
                   <Card className="sr-card">
                     <CardHeader className="text-center">
-                      <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center">
-                        <FileText className="w-6 h-6 text-indigo-600" />
+                      <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+                        <FileText className="w-5 h-5 text-indigo-600" />
                       </div>
                       <CardTitle className="text-2xl">Legal Information</CardTitle>
                       <CardDescription>Legal details for compliance and verification</CardDescription>
@@ -762,8 +782,8 @@ export default function SettingsPage() {
 
           {/* User Management */}
           {activeTab === 'users' && (
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-6">
+            <Card className="p-4">
+              <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <Users className="h-6 w-6 text-emerald-600" />
                   <div>
@@ -889,9 +909,9 @@ export default function SettingsPage() {
 
               {/* Performance Tab - Exact copy of Job Posting Metrics */}
               {agencySubTab === 'performance' && (
-                <Card className="p-6">
+                <Card className="p-4">
                   <div className="space-y-4">
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
                       <h5 className="text-sm font-semibold text-blue-900 mb-1">Dashboard KPI Tracking</h5>
                       <p className="text-xs text-blue-700">
                         These fields help calculate key metrics like Time to Fill, Cost Per Hire, Hiring Velocity, and Team Capacity Load that appear on your dashboard.
@@ -1117,7 +1137,7 @@ export default function SettingsPage() {
                   </Card>
 
                   {/* Connected List Table */}
-                  <Card className="p-6">
+                  <Card className="p-4">
                     <h3 className="text-lg font-semibold">Connected Agencies & Clients</h3>
                     
                     <div className="overflow-x-auto">

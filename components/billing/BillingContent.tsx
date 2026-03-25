@@ -349,12 +349,31 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 </html>`
   }
 
-  // Load overview data when filters change
-  useEffect(() => {
-    if (companyId && currentTab === 'overview') {
-      loadOverviewData()
+  const saveBillingSettings = async (autoRechargeEnabled: boolean) => {
+    try {
+      const res = await fetch('/api/billing/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyId,
+          autoRechargeEnabled,
+        }),
+      })
+      
+      const data = await res.json()
+      if (!data.ok) {
+        console.error('Failed to save billing settings:', data.error)
+        // Revert the local state if save failed
+        setAutoRecharge(!autoRechargeEnabled)
+      }
+    } catch (error) {
+      console.error('Failed to save billing settings:', error)
+      // Revert the local state if save failed
+      setAutoRecharge(!autoRechargeEnabled)
     }
-  }, [overviewStartDate, overviewEndDate, companyId, currentTab])
+  }
 
   if (loading && !billingData) {
     return (
@@ -389,12 +408,12 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
 
       <Tabs 
         value={currentTab} 
         onValueChange={setCurrentTab}
-        className="space-y-4"
+        className="space-y-3"
       >
         <TabsList className="grid w-full grid-cols-4 bg-gray-100">
           <TabsTrigger value="overview" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Overview</TabsTrigger>
@@ -405,65 +424,81 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
-          {/* Summary Grid - Custom styling as per measurements */}
-          <div className="summary-grid">
+          {/* Overview Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Wallet Balance Card */}
-            <div className="summary-card">
-              <div className="flex items-center justify-between mb-2">
-                <span className="card-label text-muted-foreground">Wallet Balance</span>
-                <Wallet className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div className="card-value font-bold">
-                ₹{billingData?.walletBalance?.toFixed(2) || '0.00'}
-              </div>
-              <div className="card-sub text-muted-foreground">
-                {getStatusBadge(billingData?.status || 'trial')}
-              </div>
-            </div>
+            <Card className="border rounded-lg shadow-sm">
+              <CardContent className="p-3">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <p className="text-sm text-muted-foreground font-medium mb-1">Wallet Balance</p>
+                    <p className="text-2xl font-semibold">₹{billingData?.walletBalance?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div className="ml-3">
+                    <Wallet className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                </div>
+                {(billingData?.walletBalance || 0) < 200 && (
+                  <Badge className="bg-red-100 text-red-600 border-red-200 text-xs">Low Balance</Badge>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Current Month Card */}
-            <div className="summary-card">
-              <div className="flex items-center justify-between mb-2">
-                <span className="card-label text-muted-foreground">Current Month</span>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div className="card-value font-bold">
-                ₹{billingData?.currentMonthSpent?.toFixed(2) || '0.00'}
-              </div>
-              <div className="card-sub text-muted-foreground">
-                {billingData?.monthlySpendCap 
-                  ? `Cap: ₹${billingData.monthlySpendCap.toFixed(2)}`
-                  : 'No cap set'}
-              </div>
-            </div>
+            <Card className="border rounded-lg shadow-sm">
+              <CardContent className="p-3">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <p className="text-sm text-muted-foreground font-medium mb-1">Current Month</p>
+                    <p className="text-2xl font-semibold">₹{billingData?.currentMonthSpent?.toFixed(2) || '0.00'}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {billingData?.monthlySpendCap
+                        ? `Cap: ₹${billingData.monthlySpendCap.toFixed(2)}`
+                        : 'No cap set'}
+                    </p>
+                  </div>
+                  <div className="ml-3">
+                    <TrendingUp className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Total Spent Card */}
-            <div className="summary-card">
-              <div className="flex items-center justify-between mb-2">
-                <span className="card-label text-muted-foreground">Total Spent</span>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div className="card-value font-bold">
-                ₹{billingData?.totalSpent?.toFixed(2) || '0.00'}
-              </div>
-              <div className="card-sub text-muted-foreground">
-                All-time usage
-              </div>
-            </div>
+            <Card className="border rounded-lg shadow-sm">
+              <CardContent className="p-3">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <p className="text-sm text-muted-foreground font-medium mb-1">Total Spent</p>
+                    <p className="text-2xl font-semibold">₹{billingData?.totalSpent?.toFixed(2) || '0.00'}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">All-time usage</p>
+                  </div>
+                  <div className="ml-3">
+                    <DollarSign className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Auto-Recharge Card */}
-            <div className="summary-card">
-              <div className="flex items-center justify-between mb-2">
-                <span className="card-label text-muted-foreground">Auto-Recharge</span>
-                <Shield className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div className="card-value font-bold">
-                {billingData?.autoRechargeEnabled ? 'ON' : 'OFF'}
-              </div>
-              <div className="card-sub text-muted-foreground">
-                {billingData?.autoRechargeEnabled ? 'Automatic ₹100' : 'Manual top-up'}
-              </div>
-            </div>
+            <Card className="border rounded-lg shadow-sm">
+              <CardContent className="p-3">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <p className="text-sm text-muted-foreground font-medium mb-1">Auto-Recharge</p>
+                    <p className="text-2xl font-semibold">
+                      {billingData?.autoRechargeEnabled ? 'ON' : 'OFF'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {billingData?.autoRechargeEnabled ? 'Auto recharge active' : 'Manual top-up'}
+                    </p>
+                  </div>
+                  <div className="ml-3">
+                    <Shield className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Dynamic Subscription Card - Directly triggers Razorpay/PayPal */}
@@ -487,7 +522,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
         </TabsContent>
 
         {/* Usage Tab */}
-        <TabsContent value="usage" className="space-y-6">
+        <TabsContent value="usage" className="space-y-4">
           {/* Header Section */}
           <div className="flex items-center justify-between">
             <div>
@@ -504,7 +539,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
           {/* Filters - Exact Match */}
           <Card className="border-dashed">
-            <CardHeader className="pb-0 mb-[-8px]">
+            <CardHeader className="pb-0 mb-[-4px]">
               <CardTitle className="flex items-center gap-2 text-2xl font-semibold leading-none tracking-tight">
                 <SettingsIcon className="h-5 w-5" />
                 Filter Usage Data
@@ -563,7 +598,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
           {/* Usage Overview Cards */}
           {usageData?.totals && (
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <div className="grid grid-cols-4 gap-1.5">
               <Card className="border-l-4 border-l-blue-500 py-2">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
                   <CardTitle className="text-xs font-medium text-blue-700">CV Parsing</CardTitle>
@@ -630,14 +665,14 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
           {/* Usage Type Breakdown */}
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Shield className="h-4 w-4" />
                 Usage Type Analysis
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Service Categories</p>
                   <div className="space-y-2">
@@ -687,14 +722,14 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
           {/* Usage by Job */}
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 Usage Breakdown by Job
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {usageData?.jobUsage?.length > 0 ? (
                   usageData.jobUsage.map((job: any, index: number) => (
                     <div key={job.jobId} className="border rounded-lg p-3 hover:shadow-sm transition-shadow">
@@ -749,7 +784,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
         </TabsContent>
 
         {/* Invoices Tab */}
-        <TabsContent value="invoices" className="space-y-6">
+        <TabsContent value="invoices" className="space-y-4">
           <Card className="py-2 pt-4">
             <CardHeader className="pb-2 px-4">
               <div className="flex items-center justify-between">
@@ -878,7 +913,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
         </TabsContent>
 
         {/* Settings Tab */}
-        <TabsContent value="settings" className="space-y-6">
+        <TabsContent value="settings" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -887,8 +922,8 @@ export default function BillingContent({ companyId }: BillingContentProps) {
               </CardTitle>
               <CardDescription>Configure auto-recharge and spending limits</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between p-4 border rounded-lg">
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div className="flex-1">
                   <Label htmlFor="auto-recharge" className="text-base font-medium">Auto-Recharge</Label>
                   <p className="text-sm text-gray-600 mt-1">
@@ -898,11 +933,14 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                 <Switch 
                   id="auto-recharge"
                   checked={autoRecharge} 
-                  onCheckedChange={setAutoRecharge}
+                  onCheckedChange={(checked) => {
+                    setAutoRecharge(checked)
+                    saveBillingSettings(checked)
+                  }}
                 />
               </div>
 
-              <div className="space-y-4 p-4 border rounded-lg">
+              <div className="space-y-3 p-3 border rounded-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <Label htmlFor="monthly-cap" className="text-base font-medium">Monthly Spend Cap</Label>
@@ -933,7 +971,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
               {/* Pricing Info */}
               <Card className="border-dashed">
-                <CardHeader className="pb-3">
+                <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
                     <DollarSign className="h-4 w-4" />
                     Current Pricing
@@ -941,23 +979,23 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                   <CardDescription>Per-feature pricing from configuration</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="p-3 bg-blue-50 rounded-lg text-center">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <div className="p-2 bg-blue-50 rounded-lg text-center">
                       <p className="text-xs text-blue-600 font-medium">CV Parsing</p>
                       <p className="text-lg font-bold text-blue-900">₹{usageData?.pricing?.cvParsingCost || '2'}</p>
                       <p className="text-xs text-blue-500">per CV</p>
                     </div>
-                    <div className="p-3 bg-green-50 rounded-lg text-center">
+                    <div className="p-2 bg-green-50 rounded-lg text-center">
                       <p className="text-xs text-green-600 font-medium">Questions</p>
                       <p className="text-lg font-bold text-green-900">₹{usageData?.pricing?.questionGenerationCost || '0.5'}</p>
                       <p className="text-xs text-green-500">per question</p>
                     </div>
-                    <div className="p-3 bg-purple-50 rounded-lg text-center">
+                    <div className="p-2 bg-purple-50 rounded-lg text-center">
                       <p className="text-xs text-purple-600 font-medium">Video Interview</p>
                       <p className="text-lg font-bold text-purple-900">₹{usageData?.pricing?.videoInterviewCost || '10'}</p>
                       <p className="text-xs text-purple-500">per interview</p>
                     </div>
-                    <div className="p-3 bg-amber-50 rounded-lg text-center">
+                    <div className="p-2 bg-amber-50 rounded-lg text-center">
                       <p className="text-xs text-amber-600 font-medium">AI Evaluation</p>
                       <p className="text-lg font-bold text-amber-900">₹{usageData?.pricing?.aiEvaluationCost || '1'}</p>
                       <p className="text-xs text-amber-500">per evaluation</p>

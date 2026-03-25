@@ -170,8 +170,8 @@
 
 .sr-card {
   background-color: #ffffff;
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
   border: 1px solid #f3f4f6;
   transition-property: all;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
@@ -179,7 +179,7 @@
 }
 
 .sr-card:hover {
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.07), 0 1px 3px -1px rgba(0, 0, 0, 0.04);
 }
 
 .sr-button-primary {
@@ -300,8 +300,8 @@
 
 .dashboard-card {
   background-color: #ffffff;
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
   border: 1px solid #f3f4f6;
   transition-property: all;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
@@ -309,7 +309,7 @@
 }
 
 .dashboard-card:hover {
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.07), 0 1px 3px -1px rgba(0, 0, 0, 0.04);
 }
 
 /* Standardized spacing system */
@@ -411,23 +411,29 @@
 /* ===== SUMMARY GRID CONTAINER ===== */
 .summary-grid {
   display: grid;
+<<<<<<< HEAD
   grid-template-columns: repeat(4, 1fr);  /* 4 columns in a single row */
   gap: 20px;              /* Space between cards */
   margin-bottom: 32px;    /* Space below the entire grid */
+=======
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+>>>>>>> a5df62ae2b11084ee36364941123b41da2e11edb
 }
 
 /* ===== INDIVIDUAL CARD ===== */
 .summary-card {
   background: #ffffff;
-  border-radius: 16px;    /* Card corner radius */
-  padding: 20px;          /* Inner spacing on all sides */
+  border-radius: 8px;
+  padding: 12px;
   border: 1px solid #eef2f6;
 }
 
 /* ===== CARD LABEL ===== */
 .card-label {
   font-size: 11px;
-  margin-bottom: 8px;     /* Space between label and value */
+  margin-bottom: 4px;
 }
 
 /* ===== CARD VALUE ===== */
@@ -439,7 +445,7 @@
 /* ===== CARD SUBTEXT ===== */
 .card-sub {
   font-size: 11px;
-  margin-top: 8px;        /* Space between value and subtext */
+  margin-top: 4px;
 }
 
 /* Responsive Measurements */

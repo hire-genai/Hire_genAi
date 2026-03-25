@@ -69,7 +69,7 @@ export default function CompaniesTab() {
   )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header Row with Search and Date Filter */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="w-full sm:w-80 relative">

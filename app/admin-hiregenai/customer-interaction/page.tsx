@@ -501,7 +501,7 @@ export default function CustomerInteractionPage() {
       </div>
 
       <Card className="bg-slate-900 border-slate-800">
-        <CardContent className="pt-2 px-6 pb-6">
+        <CardContent className="pt-2 px-4 pb-4">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
               <TabsList className="bg-slate-800 border border-slate-700">
@@ -757,7 +757,7 @@ export default function CustomerInteractionPage() {
             
             {/* Google Calendar Tab */}
             <TabsContent value="google-calendar" className="mt-0">
-              <div className="space-y-6">
+              <div className="space-y-4">
 
                 {/* Connection status warning if disconnected */}
                 {!gcalConnected && !gcalLoading && (
@@ -770,7 +770,7 @@ export default function CustomerInteractionPage() {
                 )}
 
                 {/* Google Calendar Integration Card */}
-                <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
+                <div className="bg-slate-800/50 rounded-lg border border-slate-700 p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-4">
                       <div className={`w-14 h-14 rounded-full flex items-center justify-center ${gcalConnected ? 'bg-emerald-500/20' : 'bg-slate-700'}`}>
@@ -1128,7 +1128,7 @@ export default function CustomerInteractionPage() {
           onClick={() => setViewMeetingModal(null)}
         >
           <div
-            className="bg-slate-900 rounded-xl border border-slate-700 max-w-lg w-full shadow-2xl"
+            className="bg-slate-900 rounded-lg border border-slate-700 max-w-lg w-full shadow-sm"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -1223,7 +1223,7 @@ export default function CustomerInteractionPage() {
           onClick={() => setEmailReplyModal(null)}
         >
           <div
-            className="bg-slate-900 rounded-xl border border-slate-700 max-w-lg w-full shadow-2xl"
+            className="bg-slate-900 rounded-lg border border-slate-700 max-w-lg w-full shadow-sm"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -1310,7 +1310,7 @@ export default function CustomerInteractionPage() {
           onClick={() => setViewAnswersModal(null)}
         >
           <div
-            className="bg-slate-900 rounded-xl border border-slate-700 max-w-2xl w-full shadow-2xl"
+            className="bg-slate-900 rounded-lg border border-slate-700 max-w-2xl w-full shadow-sm"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}

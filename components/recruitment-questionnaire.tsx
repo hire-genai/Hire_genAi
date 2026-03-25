@@ -364,14 +364,14 @@ export function RecruitmentQuestionnaire() {
             </div>
           </div>
 
-          <Card className="shadow-2xl">
-            <CardContent className="p-6 sm:p-8">
-              <div className="text-center mb-8">
+          <Card className="shadow-sm">
+            <CardContent className="p-4 sm:p-5">
+              <div className="text-center mb-5">
                 <h2 className="text-2xl font-bold text-slate-800 mb-2">Recruitment Efficiency Assessment</h2>
                 <p className="text-slate-600">Answer 10 questions to get your personalized report</p>
               </div>
 
-              <div className="h-2 bg-slate-200 rounded-full mb-8 overflow-hidden">
+              <div className="h-2 bg-slate-200 rounded-full mb-5 overflow-hidden">
                 <div
                   className="h-full bg-emerald-600 transition-all duration-500 ease-out"
                   style={{ width: `${progressPercentage}%` }}
@@ -379,8 +379,8 @@ export function RecruitmentQuestionnaire() {
               </div>
 
               {currentQuestion === 0 && (
-                <div className="space-y-6 animate-in fade-in duration-500">
-                  <h3 className="text-xl font-semibold mb-6">Let's get started with your contact information</h3>
+                <div className="space-y-4 animate-in fade-in duration-500">
+                  <h3 className="text-xl font-semibold mb-4">Let's get started with your contact information</h3>
                   <div>
                     <Label htmlFor="name">Full Name</Label>
                     <Input
@@ -424,8 +424,8 @@ export function RecruitmentQuestionnaire() {
 
               {currentQuestion > 0 && currentQuestion <= questions.length && (
                 <div className="animate-in fade-in duration-500">
-                  <h3 className="text-xl font-semibold mb-6">{questions[currentQuestion - 1].title}</h3>
-                  <div className="space-y-4 mb-8">
+                  <h3 className="text-xl font-semibold mb-4">{questions[currentQuestion - 1].title}</h3>
+                  <div className="space-y-3 mb-5">
                     {questions[currentQuestion - 1].options.map((option) => (
                       <div
                         key={option.value}

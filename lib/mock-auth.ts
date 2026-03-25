@@ -636,12 +636,13 @@ export class MockAuthService {
         const cookieData = {
           userId: currentUser.user.id,
           companyId: currentUser.company.id,
+          companyName: currentUser.company.name,
           fullName: currentUser.user.name,
           email: currentUser.user.email,
           role: currentUser.user.role
         }
-        // Set cookie with 7 day expiry, accessible by all paths
-        const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toUTCString()
+        // Set cookie with 1 hour expiry to match session timeout
+        const expires = new Date(Date.now() + 60 * 60 * 1000).toUTCString()
         document.cookie = `session=${encodeURIComponent(JSON.stringify(cookieData))}; path=/; expires=${expires}; SameSite=Lax`
         console.log('🍪 Session synced to cookie for user:', currentUser.user.email)
       }
