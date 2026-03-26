@@ -74,21 +74,24 @@ export default function SubscriptionCard({
 
   // Open Razorpay payment link in same tab with email prefill
   const handlePayment = () => {
-<<<<<<< HEAD
     // Extend session before going to external payment page (30 minutes)
     const sessionExpiresAt = localStorage.getItem('sessionExpiresAt')
     if (sessionExpiresAt) {
       const newExpiry = Date.now() + (30 * 60 * 1000)
       localStorage.setItem('sessionExpiresAt', newExpiry.toString())
     }
-=======
-    // Set flag to indicate external redirect for session restore
-    sessionStorage.setItem('externalRedirect', 'true')
->>>>>>> a5df62ae2b11084ee36364941123b41da2e11edb
+    
+    const callbackUrl = `${window.location.origin}/payment/return`
     
     let paymentUrl = RAZORPAY_PAYMENT_LINK
+    const params = new URLSearchParams()
     if (userEmail) {
-      paymentUrl += `?email=${encodeURIComponent(userEmail)}`
+      params.append('email', userEmail)
+    }
+    params.append('callback_url', callbackUrl)
+    
+    if (params.toString()) {
+      paymentUrl += `?${params.toString()}`
     }
     window.location.href = paymentUrl
   }

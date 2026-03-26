@@ -403,9 +403,17 @@ function SignupContent() {
         
         const RAZORPAY_PAYMENT_LINK = 'https://pages.razorpay.com/hire-genai'
         const userEmail = data.user?.email || form.email
+        const callbackUrl = `${window.location.origin}/payment/return`
+        
         let paymentUrl = RAZORPAY_PAYMENT_LINK
+        const params = new URLSearchParams()
         if (userEmail) {
-          paymentUrl += `?email=${encodeURIComponent(userEmail)}`
+          params.append('email', userEmail)
+        }
+        params.append('callback_url', callbackUrl)
+        
+        if (params.toString()) {
+          paymentUrl += `?${params.toString()}`
         }
         window.location.href = paymentUrl
       } else {
