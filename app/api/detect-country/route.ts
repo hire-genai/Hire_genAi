@@ -58,62 +58,45 @@ async function detectCountryFromIP(ip: string): Promise<string> {
 
 export async function GET(request: NextRequest) {
   try {
-    // Get client IP from request headers
+    // Method 1: Vercel built-in country header (most reliable)
+    const vercelCountry = request.headers.get('x-vercel-ip-country')
+    if (vercelCountry) {
+      console.log('[Detect Country] Vercel header:', vercelCountry)
+      return NextResponse.json({
+        ok: true,
+        countryCode: vercelCountry,
+        country: '',
+        city: '',
+      })
+    }
+
+    // Method 2: Get IP
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
                request.headers.get('x-real-ip') ||
                '0.0.0.0'
 
     console.log('[Detect Country] Client IP:', ip)
 
-    // Check if it's localhost/development
+    // Check localhost/development
     const isLocalhost = ip === '::1' || ip === '127.0.0.1' || ip === 'localhost' || ip === '0.0.0.0'
-    
+
     if (isLocalhost) {
-      console.log('[Detect Country] Development environment detected')
-      
-      // For development, try to detect from timezone or use manual override
-      const userAgent = request.headers.get('user-agent') || ''
-      
-      // Check if user has manual override in localStorage (passed via header)
       const manualCountry = request.headers.get('x-force-country')
       if (manualCountry === 'IN' || manualCountry === 'INTERNATIONAL') {
-        console.log('[Detect Country] Using manual country override:', manualCountry)
-        return NextResponse.json({
-          ok: true,
-          countryCode: manualCountry,
-          country: '',
-          city: '',
-        })
+        console.log('[Detect Country] Manual override:', manualCountry)
+        return NextResponse.json({ ok: true, countryCode: manualCountry, country: '', city: '' })
       }
-      
-      // Default to India for development (you can change this)
       console.log('[Detect Country] Defaulting to India for development')
-      return NextResponse.json({
-        ok: true,
-        countryCode: 'IN',
-        country: 'India',
-        city: '',
-      })
+      return NextResponse.json({ ok: true, countryCode: 'IN', country: 'India', city: '' })
     }
 
-    // Production: use actual IP detection
+    // Method 3: External API fallback
     const countryCode = await detectCountryFromIP(ip)
-
     console.log('[Detect Country] Final detected:', countryCode)
+    return NextResponse.json({ ok: true, countryCode, country: '', city: '' })
 
-    return NextResponse.json({
-      ok: true,
-      countryCode,
-      country: '',
-      city: '',
-    })
   } catch (err: any) {
     console.warn('[Detect Country] Error:', err?.message)
-    return NextResponse.json({
-      ok: true,
-      countryCode: 'US',
-      country: 'United States',
-      city: '',
-    })
+    return NextResponse.json({ ok: true, countryCode: 'US', country: 'United States', city: '' })
   }
 }
