@@ -70,14 +70,31 @@ const countryOptions = [
 // Separate component to handle search params
 function SignupContent() {
   const router = useRouter()
-  const { setAuthSession } = useAuth()
+  const { setAuthSession, user, loading: authLoading } = useAuth()
   const [step, setStep] = useState(1)
   const [mounted, setMounted] = useState(false)
   
-  // Only access URL params after component mounts
+  useEffect(() => {
+    if (authLoading) return
+    
+    if (user) {
+      router.replace('/dashboard')
+      return
+    }
+
+    const fromRazorpay = localStorage.getItem('razorpay_redirect')
+    if (fromRazorpay) {
+      localStorage.removeItem('razorpay_redirect')
+      router.replace('/dashboard')
+      return
+    }
+  }, [user, authLoading])
+  
   useEffect(() => {
     setMounted(true)
   }, [])
+  
+  // ... rest of the code remains the same ...
 
   const [form, setForm] = useState({
     // step 1
@@ -415,6 +432,7 @@ function SignupContent() {
         if (params.toString()) {
           paymentUrl += `?${params.toString()}`
         }
+        localStorage.setItem('razorpay_redirect', 'true')
         window.location.href = paymentUrl
       } else {
         // Normal signup → redirect to dashboard
