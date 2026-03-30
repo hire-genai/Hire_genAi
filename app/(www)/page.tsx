@@ -781,9 +781,9 @@ export default function HomePage() {
       <footer className="bg-slate-900 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Main Footer Content */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-12 mb-12">
+          <div className="grid grid-cols-2 md:grid-cols-12 gap-6 md:gap-12 mb-12">
             {/* Left Section - Brand Block */}
-            <div className="md:col-span-3">
+            <div className="col-span-2 md:col-span-3">
               <h3 className="text-2xl font-bold mb-2">
                 <span className="text-white">Hire</span>
                 <span className="text-emerald-400">GenAI</span>
@@ -812,74 +812,79 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Product Section */}
-            <div className="md:col-span-2">
-              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Product</h4>
-              <ul className="space-y-3 text-slate-400 text-sm">
-                <li>
-                  <Link href="/demo-en" className="hover:text-emerald-400 transition-colors">
-                    Try the Demo
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/pricing" className="hover:text-emerald-400 transition-colors">
-                    Pricing
-                  </Link>
-                </li>
-                <li>
-                  <button 
-                    onClick={() => {
-                      const element = document.getElementById('assessment');
-                      element?.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="text-slate-400 hover:text-emerald-400 transition-colors text-left w-full"
-                  >
-                    Assessment
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => {
-                      const element = document.getElementById('faq');
-                      element?.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="text-slate-400 hover:text-emerald-400 transition-colors text-left w-full"
-                  >
-                    FAQs
-                  </button>
-                </li>
-              </ul>
-            </div>
+            {/* Product & Company Section - Side by side */}
+            <div className="col-span-2 md:col-span-4">
+              <div className="grid grid-cols-2 gap-6">
+                {/* Product Section */}
+                <div>
+                  <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Product</h4>
+                  <ul className="space-y-3 text-slate-400 text-sm">
+                    <li>
+                      <Link href="/demo-en" className="hover:text-emerald-400 transition-colors">
+                        Try the Demo
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/pricing" className="hover:text-emerald-400 transition-colors">
+                        Pricing
+                      </Link>
+                    </li>
+                    <li>
+                      <button 
+                        onClick={() => {
+                          const element = document.getElementById('assessment');
+                          element?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="text-slate-400 hover:text-emerald-400 transition-colors text-left w-full"
+                      >
+                        Assessment
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        onClick={() => {
+                          const element = document.getElementById('faq');
+                          element?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="text-slate-400 hover:text-emerald-400 transition-colors text-left w-full"
+                      >
+                        FAQs
+                      </button>
+                    </li>
+                  </ul>
+                </div>
 
-            {/* Company Section */}
-            <div className="md:col-span-2">
-              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Company</h4>
-              <ul className="space-y-3 text-slate-400 text-sm">
-                <li>
-                  <Link href="/about" className="hover:text-emerald-400 transition-colors">
-                    About us
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/contact" className="hover:text-emerald-400 transition-colors">
-                    Contact
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/book-meeting" className="hover:text-emerald-400 transition-colors">
-                    Book a Meeting
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/owner-login" className="hover:text-emerald-400 transition-colors">
-                    Admin
-                  </Link>
-                </li>
-              </ul>
+                {/* Company Section */}
+                <div>
+                  <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Company</h4>
+                  <ul className="space-y-3 text-slate-400 text-sm">
+                    <li>
+                      <Link href="/about" className="hover:text-emerald-400 transition-colors">
+                        About us
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/contact" className="hover:text-emerald-400 transition-colors">
+                        Contact
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/book-meeting" className="hover:text-emerald-400 transition-colors">
+                        Book a Meeting
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/owner-login" className="hover:text-emerald-400 transition-colors">
+                        Admin
+                      </Link>
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
 
             {/* Legal Section */}
-            <div className="md:col-span-2">
+            <div className="col-span-1 md:col-span-2">
               <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Legal</h4>
               <ul className="space-y-3 text-slate-400 text-sm">
                 <li>
@@ -896,7 +901,7 @@ export default function HomePage() {
             </div>
 
             {/* Right Section - Badges Block */}
-            <div className="md:col-span-3">
+            <div className="col-span-1 md:col-span-3">
               <div className="space-y-4">
                 {/* Trustpilot Badge */}
                 <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
