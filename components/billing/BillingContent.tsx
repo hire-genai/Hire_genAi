@@ -438,7 +438,12 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                     <Wallet className="h-5 w-5 text-muted-foreground" />
                   </div>
                 </div>
-                {(billingData?.walletBalance || 0) < 200 && (
+                {billingData?.status === 'trial' ? (
+                  <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-xs flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    Free Trial
+                  </Badge>
+                ) : (billingData?.walletBalance || 0) < 200 && (
                   <Badge className="bg-red-100 text-red-600 border-red-200 text-xs">Low Balance</Badge>
                 )}
               </CardContent>

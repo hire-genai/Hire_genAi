@@ -34,6 +34,7 @@
 -- ============================================================================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "citext";
 
 
 -- ============================================================================
@@ -55,7 +56,7 @@ CREATE TYPE company_size AS ENUM (
 CREATE TYPE principal_type AS ENUM ('user', 'service_account');
 
 -- OTP purpose
-CREATE TYPE otp_purpose AS ENUM ('login', 'signup', 'email_verification', 'password_reset');
+CREATE TYPE otp_purpose AS ENUM ('login', 'signup', 'email_verification', 'password_reset', 'admin_login');
 
 -- Job posting status
 CREATE TYPE job_status AS ENUM ('draft', 'open', 'closed', 'onhold', 'cancelled');
@@ -111,6 +112,15 @@ CREATE TYPE assessment_status AS ENUM ('partial', 'completed');
 -- Talent pool candidate status
 CREATE TYPE talent_pool_status AS ENUM ('active_interest', 'passive', 'not_interested', 'hired', 'archived');
 
+-- Candidate source type
+CREATE TYPE candidate_source_type AS ENUM ('Direct', 'Agency', 'Employee Referral');
+
+-- Ledger entry type for billing
+CREATE TYPE ledger_entry_type AS ENUM ('CV_PARSE', 'JD_QUESTIONS', 'VIDEO_INTERVIEW', 'WALLET_TOPUP', 'AUTO_RECHARGE', 'REFUND');
+
+-- Salary period
+CREATE TYPE salary_period AS ENUM ('monthly', 'yearly');
+
 
 -- ============================================================================
 -- 2. CORE: COMPANIES & USERS
@@ -140,11 +150,13 @@ CREATE TABLE companies (
   business_registration_number TEXT,
   openai_project_id           TEXT,
   openai_service_account_key  TEXT,
+  slug                        TEXT,
   created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_companies_status ON companies (status);
+CREATE UNIQUE INDEX idx_companies_slug ON companies (slug);
 
 
 -- ---------------------------------------------------------------------------
@@ -515,13 +527,27 @@ CREATE TABLE job_postings (
   agency_fee_pct              NUMERIC(5,2),
   job_board_costs             NUMERIC(12,2),
 
+  -- Interview settings
+  auto_schedule_interview     BOOLEAN DEFAULT FALSE,
+  interview_link_expiry_hours INT DEFAULT 48,
+  
+  -- Screening questions
+  enable_screening_questions  BOOLEAN DEFAULT FALSE,
+  screening_questions         JSONB DEFAULT '{"minExperience": null, "expectedSalary": null, "expectedSkills": [], "noticePeriodNegotiable": null}'::JSONB,
+  
   -- Status
   status                      job_status NOT NULL DEFAULT 'draft',
   published_at                TIMESTAMPTZ,
   closed_at                   TIMESTAMPTZ,
+  
+  -- Agency/Client info
+  client_company_name         TEXT,
+  
   created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+COMMENT ON COLUMN job_postings.job_open_date IS 'Automatically set to current date when job is published';
 
 CREATE INDEX idx_job_postings_company_id ON job_postings (company_id);
 CREATE INDEX idx_job_postings_status ON job_postings (status);
@@ -542,21 +568,29 @@ CREATE INDEX idx_job_postings_created_at ON job_postings (created_at DESC);
 -- USED BY: /candidate, /talent-pool, /dashboard, /messages
 -- ---------------------------------------------------------------------------
 CREATE TABLE candidates (
-  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  full_name       TEXT NOT NULL,
-  email           TEXT NOT NULL,
-  phone           TEXT,
-  location        TEXT,
-  current_company TEXT,
-  current_title   TEXT,
-  experience_years INT,
-  linkedin_url    TEXT,
-  resume_url      TEXT,                              -- S3/blob URL to uploaded CV
-  source          TEXT,                              -- LinkedIn, Referral, Job Board, etc.
-  notes           TEXT,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id              UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  full_name               TEXT NOT NULL,
+  email                   TEXT NOT NULL,
+  first_name              TEXT,
+  last_name               TEXT,
+  photo_url               TEXT,
+  phone                   TEXT,
+  location                TEXT,
+  current_company         TEXT,
+  current_title           TEXT,
+  experience_years        TEXT,
+  linkedin_url            TEXT,
+  resume_url              TEXT,
+  source                  TEXT,
+  notes                   TEXT,
+  source_type             candidate_source_type,
+  sub_source              TEXT,
+  agency_name             TEXT,
+  referral_employee_name  TEXT,
+  referral_employee_email TEXT,
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_candidates_company_id ON candidates (company_id);
@@ -646,17 +680,44 @@ CREATE TABLE applications (
   rejection_stage         application_stage,
   rejected_at             TIMESTAMPTZ,
 
+  -- Additional candidate info
+  expected_salary         NUMERIC(12,2),
+  salary_currency         TEXT DEFAULT 'USD',
+  salary_period           TEXT DEFAULT 'month',
+  location                TEXT,
+  linkedin_url            TEXT,
+  portfolio_url           TEXT,
+  available_start_date    DATE,
+  willing_to_relocate     BOOLEAN DEFAULT FALSE,
+  languages               JSONB,
+  photo_url               TEXT,
+  cover_letter            TEXT,
+  source                  TEXT DEFAULT 'direct_application',
+  confirmation_status     TEXT,
+  
+  -- AI/CV Analysis
+  resume_text             TEXT,
+  ai_cv_score             NUMERIC(5,2),
+  is_qualified            BOOLEAN,
+  qualification_explanations JSONB,
+
   -- General
   remarks                 TEXT,
+  offer_currency          TEXT DEFAULT 'USD',
+  quality_of_hire_rating  JSONB,
   created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+COMMENT ON TABLE applications IS 'Tracks candidate applications through the recruitment pipeline';
+COMMENT ON COLUMN applications.quality_of_hire_rating IS 'Quality of Hire data in JSON format: {rating: 1-5, employmentStatus: "Still with the Firm"|"Left the Firm"}';
 
 CREATE INDEX idx_applications_company_id ON applications (company_id);
 CREATE INDEX idx_applications_job_id ON applications (job_id);
 CREATE INDEX idx_applications_candidate_id ON applications (candidate_id);
 CREATE INDEX idx_applications_current_stage ON applications (current_stage);
 CREATE INDEX idx_applications_offer_status ON applications (offer_status);
+CREATE INDEX idx_applications_offer_currency ON applications (offer_currency);
 CREATE UNIQUE INDEX idx_applications_job_candidate ON applications (job_id, candidate_id);
 
 
@@ -680,6 +741,114 @@ CREATE INDEX idx_app_stage_history_application_id ON application_stage_history (
 CREATE INDEX idx_app_stage_history_created_at ON application_stage_history (created_at);
 
 
+-- ---------------------------------------------------------------------------
+-- 6e. interviews
+-- WHY: Tracks AI interview details for each application
+-- USED BY: /candidate, /api/interviews
+-- ---------------------------------------------------------------------------
+CREATE TABLE interviews (
+  id                                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  application_id                      UUID NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  interview_status                    TEXT DEFAULT 'Not Scheduled',
+  interview_link                      TEXT,
+  interview_sent_at                   TIMESTAMPTZ,
+  interview_completed_at              TIMESTAMPTZ,
+  interview_score                     NUMERIC(5,2),
+  interview_evaluations               JSONB DEFAULT '{}'::JSONB,
+  interview_recommendation            TEXT,
+  interview_summary                   TEXT,
+  interview_feedback                  TEXT,
+  during_interview_screenshot         TEXT,
+  during_interview_screenshot_captured_at TIMESTAMPTZ,
+  post_interview_photo_url            TEXT,
+  post_interview_photo_captured_at    TIMESTAMPTZ,
+  verification_photo_url              TEXT,
+  photo_verified                      BOOLEAN,
+  photo_match_score                   NUMERIC(5,4),
+  verified_at                         TIMESTAMPTZ,
+  created_at                          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at                          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_interviews_application_id ON interviews (application_id);
+CREATE INDEX idx_interviews_completed_at ON interviews (interview_completed_at);
+
+
+-- ---------------------------------------------------------------------------
+-- 6f. screening_otps
+-- WHY: OTP verification for screening submissions
+-- USED BY: /api/screening
+-- ---------------------------------------------------------------------------
+CREATE TABLE screening_otps (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email           TEXT NOT NULL,
+  application_id  UUID NOT NULL,
+  otp             TEXT NOT NULL,
+  verified        BOOLEAN DEFAULT FALSE,
+  expires_at      TIMESTAMPTZ NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  UNIQUE (email, application_id)
+);
+
+CREATE INDEX idx_screening_otps_email ON screening_otps (email);
+CREATE INDEX idx_screening_otps_expires_at ON screening_otps (expires_at);
+
+
+-- ---------------------------------------------------------------------------
+-- 6g. screening_submissions
+-- WHY: Stores pre-screening form submissions before application creation
+-- USED BY: /api/screening, job application flow
+-- ---------------------------------------------------------------------------
+CREATE TABLE screening_submissions (
+  id                          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  job_id                      UUID NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
+  candidate_name              TEXT NOT NULL,
+  candidate_email             TEXT NOT NULL,
+  experience_years            TEXT,
+  expected_salary             NUMERIC(12,2),
+  notice_period               TEXT,
+  notice_period_negotiable    BOOLEAN,
+  work_authorization          TEXT,
+  selected_skills             TEXT[] DEFAULT '{}'::TEXT[],
+  additional_info             TEXT,
+  is_eligible                 BOOLEAN DEFAULT FALSE NOT NULL,
+  reason                      TEXT,
+  non_eligible_reasons        TEXT[] DEFAULT '{}'::TEXT[],
+  matched_skills_count        INT DEFAULT 0,
+  required_skills_count       INT DEFAULT 0,
+  recruiter_min_experience    INT,
+  recruiter_max_salary        NUMERIC(12,2),
+  recruiter_expected_skills   TEXT[] DEFAULT '{}'::TEXT[],
+  recruiter_work_authorization TEXT,
+  submitted_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_screening_submissions_job_id ON screening_submissions (job_id);
+CREATE INDEX idx_screening_submissions_email ON screening_submissions (candidate_email);
+CREATE INDEX idx_screening_submissions_submitted_at ON screening_submissions (submitted_at);
+
+
+-- ---------------------------------------------------------------------------
+-- 6h. job_interview_questions
+-- WHY: Stores AI-generated interview questions for each job
+-- USED BY: /api/jobs/[id]/questions, interview flow
+-- ---------------------------------------------------------------------------
+CREATE TABLE job_interview_questions (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  job_id            UUID NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
+  selected_criteria JSONB DEFAULT '[]'::JSONB NOT NULL,
+  questions         JSONB DEFAULT '[]'::JSONB NOT NULL,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  UNIQUE (job_id)
+);
+
+CREATE INDEX idx_job_interview_questions_job_id ON job_interview_questions (job_id);
+
+
 -- ============================================================================
 -- 7. TALENT POOL
 -- ============================================================================
@@ -700,6 +869,8 @@ CREATE TABLE talent_pool_entries (
   source          TEXT,                              -- LinkedIn, Event, Referral, etc.
   notes           TEXT,
   last_contacted  TIMESTAMPTZ,
+  skills          TEXT,                              -- Skills as comma-separated string (matches UAT)
+  application_id  UUID REFERENCES applications(id) ON DELETE SET NULL,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
@@ -709,6 +880,8 @@ CREATE TABLE talent_pool_entries (
 CREATE INDEX idx_talent_pool_company_id ON talent_pool_entries (company_id);
 CREATE INDEX idx_talent_pool_status ON talent_pool_entries (status);
 CREATE INDEX idx_talent_pool_candidate_id ON talent_pool_entries (candidate_id);
+CREATE INDEX idx_talent_pool_application_id ON talent_pool_entries (application_id);
+CREATE INDEX idx_talent_pool_skills ON talent_pool_entries USING GIN (to_tsvector('english', skills));
 
 
 -- ---------------------------------------------------------------------------
@@ -795,8 +968,8 @@ CREATE TABLE delegations (
   delegated_to    UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   reason          TEXT,
   start_date      DATE NOT NULL,
-  end_date        DATE,
-  status          delegation_status NOT NULL DEFAULT 'active',
+  end_date        DATE NOT NULL,                     -- Made NOT NULL to match UAT
+  status          TEXT NOT NULL DEFAULT 'active',    -- Changed from delegation_status to TEXT
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -804,6 +977,10 @@ CREATE INDEX idx_delegations_company_id ON delegations (company_id);
 CREATE INDEX idx_delegations_delegated_by ON delegations (delegated_by);
 CREATE INDEX idx_delegations_delegated_to ON delegations (delegated_to);
 CREATE INDEX idx_delegations_status ON delegations (status);
+CREATE INDEX idx_delegations_access_control ON delegations (delegated_to, delegation_type, status, start_date, end_date);
+CREATE INDEX idx_delegations_dates ON delegations (start_date, end_date);
+CREATE INDEX idx_delegations_item_id ON delegations (item_id);
+CREATE INDEX idx_delegations_type ON delegations (delegation_type);
 
 
 -- ---------------------------------------------------------------------------
@@ -836,7 +1013,7 @@ CREATE INDEX idx_deleg_audit_created_at ON delegation_audit_logs (created_at);
 -- USED BY: /support
 -- ---------------------------------------------------------------------------
 CREATE TABLE support_tickets (
-  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   created_by      UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   ticket_type     TEXT NOT NULL,                     -- support, feedback, bug_report, feature_request
@@ -855,6 +1032,9 @@ CREATE INDEX idx_support_tickets_company_id ON support_tickets (company_id);
 CREATE INDEX idx_support_tickets_created_by ON support_tickets (created_by);
 CREATE INDEX idx_support_tickets_status ON support_tickets (status);
 CREATE INDEX idx_support_tickets_priority ON support_tickets (priority);
+CREATE INDEX idx_support_tickets_created_at ON support_tickets (created_at);
+CREATE INDEX idx_support_tickets_ticket_type ON support_tickets (ticket_type);
+CREATE INDEX idx_support_tickets_admin_query ON support_tickets (status, priority, updated_at);
 
 
 -- ---------------------------------------------------------------------------
@@ -864,15 +1044,18 @@ CREATE INDEX idx_support_tickets_priority ON support_tickets (priority);
 -- USED BY: /support (ticket detail view)
 -- ---------------------------------------------------------------------------
 CREATE TABLE ticket_comments (
-  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   ticket_id   UUID NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
   author_id   UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   author_role TEXT,                                  -- 'user', 'support_agent'
   message     TEXT NOT NULL,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  image_url   TEXT                                    -- Image attachment for comments (matches UAT)
 );
 
 CREATE INDEX idx_ticket_comments_ticket_id ON ticket_comments (ticket_id);
+CREATE INDEX idx_ticket_comments_author_id ON ticket_comments (author_id);
+CREATE INDEX idx_ticket_comments_created_at ON ticket_comments (created_at);
 
 
 -- ============================================================================
@@ -965,6 +1148,7 @@ CREATE TABLE company_billing (
   
   -- Spending tracking
   current_month_spent     NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+  current_month_start     TIMESTAMPTZ,
   total_spent             NUMERIC(12,2) NOT NULL DEFAULT 0.00,
   
   -- Monthly spend cap (optional)
@@ -1030,6 +1214,33 @@ CREATE INDEX idx_payment_transactions_company_id ON payment_transactions (compan
 CREATE INDEX idx_payment_transactions_provider ON payment_transactions (provider);
 CREATE INDEX idx_payment_transactions_status ON payment_transactions (status);
 CREATE INDEX idx_payment_transactions_provider_payment_id ON payment_transactions (provider_payment_id);
+
+
+-- ---------------------------------------------------------------------------
+-- 11f. subscription_payments
+-- WHY: Track subscription payments from various providers (Stripe, Razorpay, etc.)
+-- USED BY: billing system, payment verification
+-- ---------------------------------------------------------------------------
+CREATE TABLE subscription_payments (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  subscription_id     VARCHAR(255),                           -- Subscription reference
+  provider            VARCHAR(50) NOT NULL,                   -- stripe, razorpay, paypal
+  payment_id          VARCHAR(255) NOT NULL,                  -- Provider payment ID
+  amount              NUMERIC(10,2) NOT NULL,
+  currency            VARCHAR(10),
+  status              VARCHAR(50),                            -- success, failed, pending
+  payment_time        TIMESTAMPTZ,
+  raw_data            JSONB,                                  -- Full provider response
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  CONSTRAINT subscription_payments_payment_id_provider_key UNIQUE (payment_id, provider)
+);
+
+CREATE INDEX idx_subscription_payments_subscription_id ON subscription_payments (subscription_id);
+CREATE INDEX idx_subscription_payments_provider ON subscription_payments (provider);
+CREATE INDEX idx_subscription_payments_status ON subscription_payments (status);
+CREATE UNIQUE INDEX subscription_payments_payment_id_provider_key ON subscription_payments (payment_id, provider);
+CREATE UNIQUE INDEX subscription_payments_pkey ON subscription_payments (id);
 
 
 -- ---------------------------------------------------------------------------
@@ -1117,6 +1328,200 @@ CREATE INDEX idx_video_interview_usage_job_id ON video_interview_usage (job_id);
 CREATE INDEX idx_video_interview_usage_interview_date ON video_interview_usage (interview_date);
 
 
+-- ---------------------------------------------------------------------------
+-- 11i. usage_ledger
+-- WHY: Comprehensive ledger for all billing transactions (usage + wallet operations)
+-- USED BY: /api/billing/ledger, billing reports
+-- ---------------------------------------------------------------------------
+CREATE TABLE usage_ledger (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  job_id          UUID REFERENCES job_postings(id) ON DELETE SET NULL,
+  entry_type      ledger_entry_type NOT NULL,
+  description     TEXT,
+  quantity        INT DEFAULT 1,
+  unit_price      NUMERIC(10,4) DEFAULT 0,
+  amount          NUMERIC(10,4) DEFAULT 0 NOT NULL,
+  balance_before  NUMERIC(12,2),
+  balance_after   NUMERIC(12,2),
+  reference_id    UUID,
+  metadata        JSONB DEFAULT '{}'::JSONB,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_usage_ledger_company_id ON usage_ledger (company_id);
+CREATE INDEX idx_usage_ledger_job_id ON usage_ledger (job_id);
+CREATE INDEX idx_usage_ledger_entry_type ON usage_ledger (entry_type);
+CREATE INDEX idx_usage_ledger_created_at ON usage_ledger (created_at DESC);
+
+
+-- ---------------------------------------------------------------------------
+-- 11j. agency_client_connections
+-- WHY: Tracks agency-client relationships for recruitment agencies
+-- USED BY: /api/agency, agency management
+-- ---------------------------------------------------------------------------
+CREATE TABLE agency_client_connections (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  connection_type TEXT NOT NULL CHECK (connection_type IN ('Agency', 'Client')),
+  name            TEXT NOT NULL,
+  contact_person  TEXT,
+  email           TEXT,
+  rate_type       TEXT CHECK (rate_type IN ('Fixed', '%')),
+  rate            TEXT,
+  role            TEXT,
+  status          TEXT NOT NULL DEFAULT 'active',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_agency_client_company_id ON agency_client_connections (company_id);
+CREATE INDEX idx_agency_client_type ON agency_client_connections (connection_type);
+CREATE INDEX idx_agency_client_status ON agency_client_connections (status);
+CREATE UNIQUE INDEX agency_client_connections_pkey ON agency_client_connections (id);
+
+
+-- ---------------------------------------------------------------------------
+-- 11k. company_subscriptions
+-- WHY: Tracks external subscription integrations (PayPal, etc.)
+-- USED BY: /api/webhooks, subscription management
+-- ---------------------------------------------------------------------------
+CREATE TABLE company_subscriptions (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id        UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  provider          VARCHAR(50) NOT NULL,
+  subscription_id   VARCHAR(255) NOT NULL,
+  plan_id           VARCHAR(255),
+  status            VARCHAR(50),
+  subscriber_email  VARCHAR(255),
+  start_time        TIMESTAMPTZ,
+  next_billing_time TIMESTAMPTZ,
+  raw_data          JSONB,
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW(),
+  
+  UNIQUE (company_id, provider)
+);
+
+CREATE INDEX idx_company_subscriptions_company_id ON company_subscriptions (company_id);
+CREATE INDEX idx_company_subscriptions_provider ON company_subscriptions (provider);
+CREATE INDEX idx_company_subscriptions_status ON company_subscriptions (status);
+
+
+-- ---------------------------------------------------------------------------
+-- 11l. subscription_payments
+-- WHY: Tracks individual payments for subscriptions
+-- USED BY: /api/webhooks/paypal, payment reconciliation
+-- ---------------------------------------------------------------------------
+CREATE TABLE subscription_payments (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  subscription_id VARCHAR(255),
+  provider        VARCHAR(50),
+  payment_id      VARCHAR(255),
+  amount          NUMERIC(10,2),
+  currency        VARCHAR(10),
+  status          VARCHAR(50),
+  payment_time    TIMESTAMPTZ,
+  raw_data        JSONB,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  
+  UNIQUE (payment_id, provider)
+);
+
+CREATE INDEX idx_subscription_payments_subscription_id ON subscription_payments (subscription_id);
+CREATE INDEX idx_subscription_payments_provider ON subscription_payments (provider);
+CREATE INDEX idx_subscription_payments_status ON subscription_payments (status);
+
+
+-- ---------------------------------------------------------------------------
+-- 11m. webhook_logs
+-- WHY: Logs all incoming webhooks for debugging and audit
+-- USED BY: /api/webhooks/*, debugging
+-- ---------------------------------------------------------------------------
+CREATE TABLE webhook_logs (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  provider    VARCHAR(50),
+  event_type  VARCHAR(100),
+  event_id    VARCHAR(255),
+  raw_data    JSONB,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_webhook_logs_provider ON webhook_logs (provider);
+CREATE INDEX idx_webhook_logs_event_type ON webhook_logs (event_type);
+CREATE INDEX idx_webhook_logs_created_at ON webhook_logs (created_at DESC);
+
+
+-- ---------------------------------------------------------------------------
+-- 11n. contact_leads
+-- WHY: Enhanced contact form with detailed company information
+-- USED BY: /contact, /api/contact-leads
+-- ---------------------------------------------------------------------------
+CREATE TABLE contact_leads (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_name    VARCHAR(255) NOT NULL,
+  contact_person  VARCHAR(255) NOT NULL,
+  mobile          VARCHAR(50) NOT NULL,
+  email           VARCHAR(255) NOT NULL,
+  company_size    VARCHAR(50) NOT NULL,
+  industry        VARCHAR(100) NOT NULL,
+  tools           TEXT[],
+  pain_points     TEXT,
+  budget          VARCHAR(100),
+  timeline        VARCHAR(100),
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_contact_leads_email ON contact_leads (email);
+CREATE INDEX idx_contact_leads_company_name ON contact_leads (company_name);
+CREATE INDEX idx_contact_leads_created_at ON contact_leads (created_at DESC);
+
+
+-- ---------------------------------------------------------------------------
+-- 11o. monthly_hiring_targets
+-- WHY: Stores monthly hiring capacity targets for companies
+-- USED BY: /api/settings, dashboard analytics
+-- ---------------------------------------------------------------------------
+CREATE TABLE monthly_hiring_targets (
+  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id              UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  hiring_per_month        INT,
+  team_capacity_per_month INT,
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  UNIQUE (company_id)
+);
+
+CREATE INDEX idx_monthly_hiring_targets_company_id ON monthly_hiring_targets (company_id);
+
+
+-- ---------------------------------------------------------------------------
+-- 11p. performance_settings
+-- WHY: Stores company-level performance targets and KPI settings
+-- USED BY: /api/settings, dashboard KPIs
+-- ---------------------------------------------------------------------------
+CREATE TABLE performance_settings (
+  id                          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id                  UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  target_offer_acceptance_rate NUMERIC(5,2),
+  interview_schedule_sla      INT,
+  cost_per_hire_budget        NUMERIC(12,2),
+  job_board_costs             NUMERIC(12,2),
+  hiring_per_month            INT DEFAULT 7,
+  cost_currency               TEXT DEFAULT 'USD',
+  created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  UNIQUE (company_id)
+);
+
+CREATE INDEX idx_performance_settings_company_id ON performance_settings (company_id);
+CREATE UNIQUE INDEX performance_settings_company_id_key ON performance_settings (company_id);
+CREATE UNIQUE INDEX performance_settings_pkey ON performance_settings (id);
+
+
 -- ============================================================================
 -- 12. NOTIFICATION PREFERENCES
 -- ============================================================================
@@ -1177,7 +1582,14 @@ BEGIN
       'meeting_bookings',
       'email_templates',
       'company_billing',
-      'payment_transactions'
+      'payment_transactions',
+      'interviews',
+      'job_interview_questions',
+      'agency_client_connections',
+      'company_subscriptions',
+      'contact_leads',
+      'monthly_hiring_targets',
+      'performance_settings'
     ])
   LOOP
     EXECUTE format(
@@ -1187,6 +1599,23 @@ BEGIN
   END LOOP;
 END;
 $$;
+
+
+-- ============================================================================
+-- APPLICATION TRIGGERS FOR TALENT POOL MANAGEMENT
+-- ============================================================================
+
+-- Trigger to add rejected candidates to talent pool
+CREATE TRIGGER trigger_add_rejected_to_talent_pool
+  AFTER UPDATE ON applications
+  FOR EACH ROW
+  EXECUTE FUNCTION add_rejected_candidate_to_talent_pool();
+
+-- Trigger to update talent pool status based on application changes
+CREATE TRIGGER trigger_update_talent_pool_from_application
+  AFTER UPDATE ON applications
+  FOR EACH ROW
+  EXECUTE FUNCTION update_talent_pool_from_application();
 
 
 -- ============================================================================
@@ -1282,6 +1711,220 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+-- ---------------------------------------------------------------------------
+-- Function to update candidate screening updated_at timestamp
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION update_candidate_screening_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- ---------------------------------------------------------------------------
+-- Function to update company OpenAI project ID
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION update_company_openai_project_id(
+  company_id UUID,
+  project_id TEXT
+)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE companies 
+  SET openai_project_id = project_id,
+      updated_at = NOW()
+  WHERE id = company_id;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- ---------------------------------------------------------------------------
+-- Function to update job usage summary (aggregates usage across tables)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION update_job_usage_summary(p_job_id UUID)
+RETURNS VOID AS $$
+DECLARE
+  v_company_id uuid;
+  v_cv_count int;
+  v_cv_cost decimal(10,2);
+  v_question_count int;
+  v_token_count int;
+  v_question_cost decimal(10,2);
+  v_interview_count int;
+  v_interview_minutes decimal(10,2);
+  v_interview_cost decimal(10,2);
+  v_total_cost decimal(10,2);
+BEGIN
+  -- Get company_id for this job
+  SELECT company_id INTO v_company_id FROM job_postings WHERE id = p_job_id;
+  
+  -- Calculate CV parsing stats
+  SELECT 
+    COUNT(*),
+    COALESCE(SUM(cost), 0)
+  INTO 
+    v_cv_count,
+    v_cv_cost
+  FROM cv_parsing_usage
+  WHERE job_id = p_job_id;
+  
+  -- Calculate question generation stats
+  SELECT 
+    COUNT(*),
+    COALESCE(SUM(token_count), 0),
+    COALESCE(SUM(cost), 0)
+  INTO 
+    v_question_count,
+    v_token_count,
+    v_question_cost
+  FROM question_generation_usage
+  WHERE job_id = p_job_id;
+  
+  -- Calculate video interview stats
+  SELECT 
+    COUNT(*),
+    COALESCE(SUM(duration_minutes), 0),
+    COALESCE(SUM(cost), 0)
+  INTO 
+    v_interview_count,
+    v_interview_minutes,
+    v_interview_cost
+  FROM video_interview_usage
+  WHERE job_id = p_job_id;
+  
+  -- Calculate total cost
+  v_total_cost := v_cv_cost + v_question_cost + v_interview_cost;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- ---------------------------------------------------------------------------
+-- Function to update meeting bookings updated_at timestamp
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION update_meeting_bookings_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- ---------------------------------------------------------------------------
+-- Function to update question generation usage updated_at timestamp
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION update_question_generation_usage_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- ---------------------------------------------------------------------------
+-- Function to reset monthly spend at start of new month
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION update_monthly_spend()
+RETURNS VOID AS $$
+BEGIN
+  UPDATE company_billing
+  SET 
+    current_month_spent = 0,
+    current_month_start = date_trunc('month', now())
+  WHERE 
+    current_month_start IS NULL 
+    OR current_month_start < date_trunc('month', now());
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- ---------------------------------------------------------------------------
+-- Function to add rejected candidates to talent pool
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION add_rejected_candidate_to_talent_pool()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- When application is rejected, add candidate to talent pool if not already there
+  IF TG_OP = 'UPDATE' AND OLD.current_stage IS DISTINCT FROM NEW.current_stage 
+     AND NEW.current_stage = 'rejected' THEN
+      
+    INSERT INTO talent_pool_entries (
+      company_id,
+      candidate_id,
+      status,
+      source,
+      notes,
+      last_contacted,
+      created_at,
+      updated_at
+    ) VALUES (
+      NEW.company_id,
+      NEW.candidate_id,
+      'not_interested',
+      'rejected_candidate',
+      'Automatically added from rejected application',
+      NOW(),
+      NOW(),
+      NOW()
+    )
+    ON CONFLICT (company_id, candidate_id) 
+    DO UPDATE SET
+      status = 'not_interested',
+      last_contacted = NOW(),
+      updated_at = NOW();
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- ---------------------------------------------------------------------------
+-- Function to update talent pool status based on application changes
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION update_talent_pool_from_application()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Update talent pool status when application changes
+  IF TG_OP = 'UPDATE' AND OLD.current_stage IS DISTINCT FROM NEW.current_stage THEN
+    -- If application is rejected, update talent pool to 'not_interested'
+    IF NEW.current_stage = 'rejected' THEN
+      UPDATE talent_pool_entries tpe
+      SET status = 'not_interested',
+          last_contacted = NOW(),
+          updated_at = NOW()
+      WHERE tpe.candidate_id = NEW.candidate_id 
+        AND tpe.company_id = NEW.company_id;
+    
+    -- If application is hired, update talent pool to 'hired'
+    ELSIF NEW.current_stage = 'hired' THEN
+      UPDATE talent_pool_entries tpe
+      SET status = 'hired',
+          last_contacted = NOW(),
+          updated_at = NOW()
+      WHERE tpe.candidate_id = NEW.candidate_id 
+        AND tpe.company_id = NEW.company_id;
+    
+    -- If application moves to interview, update talent pool to 'active_interest'
+    ELSIF NEW.current_stage IN ('ai_interview', 'hiring_manager', 'offer') THEN
+      UPDATE talent_pool_entries tpe
+      SET status = 'active_interest',
+          last_contacted = NOW(),
+          updated_at = NOW()
+      WHERE tpe.candidate_id = NEW.candidate_id 
+        AND tpe.company_id = NEW.company_id
+        AND tpe.status != 'hired';
+    END IF;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
 -- ============================================================================
 -- 13. ADMIN SESSIONS & SETTINGS (from migrations)
 -- ============================================================================
@@ -1292,7 +1935,7 @@ $$ LANGUAGE plpgsql;
 -- USED BY: /admin-hiregenai/* pages
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS admin_sessions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   owner_email VARCHAR(255) NOT NULL,
   session_token_hash VARCHAR(255) NOT NULL UNIQUE,
   ip_address INET,
@@ -1303,6 +1946,8 @@ CREATE TABLE IF NOT EXISTS admin_sessions (
   revoked_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+COMMENT ON TABLE admin_sessions IS 'Stores authenticated sessions for owner/admin access to HireGenAI admin panel';
 
 CREATE INDEX IF NOT EXISTS idx_admin_sessions_owner_email ON admin_sessions(owner_email);
 CREATE INDEX IF NOT EXISTS idx_admin_sessions_token_hash ON admin_sessions(session_token_hash);
@@ -1315,7 +1960,7 @@ CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires_at ON admin_sessions(expir
 -- USED BY: /admin-hiregenai/settings
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS admin_settings (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   key VARCHAR(100) UNIQUE NOT NULL,
   value TEXT,
   description TEXT,
@@ -1342,7 +1987,7 @@ ON CONFLICT (key) DO NOTHING;
 -- USED BY: /admin-hiregenai/anomalies
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS admin_alerts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   alert_type VARCHAR(50) NOT NULL,     -- 'usage_spike', 'payment_failure', 'system_error', 'low_balance'
   severity VARCHAR(20) NOT NULL DEFAULT 'medium',  -- 'high', 'medium', 'low'
   title VARCHAR(255) NOT NULL,

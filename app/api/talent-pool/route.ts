@@ -36,9 +36,11 @@ export async function GET(request: NextRequest) {
       SELECT 
         tp.id AS pool_id,
         tp.status AS pool_status,
-        tp.skills AS pool_skills,
+        tp.source AS pool_source,
+        tp.notes AS pool_notes,
         tp.last_contacted,
-        c.created_at AS added_date,
+        tp.added_by,
+        tp.created_at AS added_date,
         c.id AS candidate_id,
         c.full_name,
         c.email,
@@ -57,6 +59,7 @@ export async function GET(request: NextRequest) {
           ELSE 'Direct'
         END AS candidate_source,
         c.notes AS candidate_notes,
+        tp.skills AS skills,                          -- Skills from talent_pool_entries (matches UAT)
         -- Get best CV score from any application
         (SELECT MAX(a.ai_cv_score) FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid) AS best_cv_score,
         -- Get best interview score from interviews table
@@ -64,12 +67,13 @@ export async function GET(request: NextRequest) {
         -- Get rejection info from most recent application
         (SELECT a.rejection_stage FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid AND a.current_stage = 'rejected' ORDER BY a.updated_at DESC LIMIT 1) AS rejection_stage,
         (SELECT a.rejection_reason FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid AND a.current_stage = 'rejected' ORDER BY a.updated_at DESC LIMIT 1) AS rejection_reason,
-                -- Default added by name since tp.added_by doesn't exist
-        'System' AS added_by_name
+        -- Get added by user name
+        COALESCE(u.full_name, 'System') AS added_by_name
       FROM talent_pool_entries tp
       JOIN candidates c ON tp.candidate_id = c.id
+      LEFT JOIN users u ON tp.added_by = u.id
       WHERE tp.company_id = $1::uuid
-      ORDER BY c.created_at DESC
+      ORDER BY tp.created_at DESC
     `
     const entries = await DatabaseService.query(entriesQuery, [companyId])
 
@@ -142,7 +146,7 @@ export async function GET(request: NextRequest) {
 
     const formattedEntries = entries.map((e: any) => {
       // Parse skills from comma-separated string to array
-      const skills = e.pool_skills ? e.pool_skills.split(',').map((s: string) => s.trim()).filter(Boolean) : []
+      const skills = e.skills ? e.skills.split(',').map((s: string) => s.trim()).filter(Boolean) : []
       const appHistory = appHistoryMap[e.candidate_id] || []
 
       // Build combined history
@@ -400,11 +404,23 @@ export async function POST(request: NextRequest) {
       RETURNING id
     `
     
+    // Convert skills to comma-separated string for TEXT field (handle both array and string inputs)
+    let skillsString = null
+    if (skills) {
+      if (Array.isArray(skills)) {
+        // If it's an array, join with comma
+        skillsString = skills.length > 0 ? skills.join(', ') : null
+      } else if (typeof skills === 'string') {
+        // If it's already a string, use as-is
+        skillsString = skills.trim() || null
+      }
+    }
+    
     await DatabaseService.query(talentPoolQuery, [
       finalCompanyId,
       candidateId,
       dbStatus,
-      skills || null,
+      skillsString,
     ])
 
     return NextResponse.json({

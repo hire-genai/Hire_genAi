@@ -118,8 +118,39 @@ export async function POST(req: NextRequest) {
         }
       })
     } else {
-      // Regular login mode - user must be registered under the company matching their email domain
-      const user = await DatabaseService.findUserByEmailAndCompanyDomain(normEmail)
+      // Regular login mode - try to find user by email domain first, then fallback to direct email lookup
+      let user = await DatabaseService.findUserByEmailAndCompanyDomain(normEmail)
+      
+      // Fallback: If domain-based lookup fails, try finding user directly by email
+      if (!user) {
+        try {
+          const directUserQuery = `
+            SELECT u.*, c.*, ur.role
+            FROM users u
+            JOIN companies c ON u.company_id = c.id
+            LEFT JOIN user_roles ur ON u.id = ur.user_id
+            WHERE u.email = $1 AND u.status = 'active'
+            LIMIT 1
+          `
+          const directUsers = await DatabaseService.query(directUserQuery, [normEmail.toLowerCase()]) as any[]
+          
+          if (directUsers.length > 0) {
+            user = {
+              ...directUsers[0],
+              companies: {
+                id: directUsers[0].id,
+                name: directUsers[0].name,
+                status: directUsers[0].status,
+                verified: directUsers[0].verified
+              }
+            }
+            console.log(`✅ Found user by direct email lookup: ${normEmail}`)
+          }
+        } catch (directError) {
+          console.error('Direct user lookup failed:', directError)
+        }
+      }
+      
       if (!user) {
         return NextResponse.json({ error: 'User does not exist. Please sign up first before trying to login.' }, { status: 400 })
       }

@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     // Auto-expire delegations whose end_date has passed
     try {
       await DatabaseService.query(
-        `UPDATE delegations SET status = 'expired' WHERE status = 'active' AND end_date < CURRENT_DATE AND company_id::text = $1::text`,
+        `UPDATE delegations SET status = 'expired' WHERE status = 'active' AND end_date < CURRENT_DATE AND company_id = $1::uuid`,
         [companyId]
       )
     } catch (e) {
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     let resolvedUserId: string = userId
     try {
       const byIdRow = await DatabaseService.query(
-        `SELECT id::text AS id FROM users WHERE id::text = $1::text LIMIT 1`,
+        `SELECT id::text AS id FROM users WHERE id = $1::uuid LIMIT 1`,
         [userId]
       )
       if (byIdRow.length > 0) {
@@ -86,8 +86,8 @@ export async function GET(req: NextRequest) {
       FROM delegations d
       LEFT JOIN users u_by ON d.delegated_by = u_by.id
       LEFT JOIN users u_to ON d.delegated_to = u_to.id
-      WHERE d.company_id::text = $1::text
-        AND d.delegated_by::text = $2::text
+      WHERE d.company_id = $1::uuid
+        AND d.delegated_by = $2::uuid
       ORDER BY d.created_at DESC`,
       [companyId, resolvedUserId]
     )
@@ -109,8 +109,8 @@ export async function GET(req: NextRequest) {
       LEFT JOIN users u ON dal.performed_by = u.id
       LEFT JOIN users u_by ON d.delegated_by = u_by.id
       LEFT JOIN users u_to ON d.delegated_to = u_to.id
-      WHERE d.company_id::text = $1::text
-        AND d.delegated_by::text = $2::text
+      WHERE d.company_id = $1::uuid
+        AND d.delegated_by = $2::uuid
       ORDER BY dal.created_at DESC
       LIMIT 100`,
       [companyId, resolvedUserId]
@@ -120,8 +120,8 @@ export async function GET(req: NextRequest) {
     const recruiters = await DatabaseService.query(
       `SELECT u.id::text as id, u.full_name, u.email 
        FROM users u 
-       WHERE u.company_id::text = $1::text
-         AND u.id::text != $2::text
+       WHERE u.company_id = $1::uuid
+         AND u.id != $2::uuid
          AND u.status = 'active'
        ORDER BY u.full_name`,
       [companyId, resolvedUserId]
@@ -130,8 +130,8 @@ export async function GET(req: NextRequest) {
     // Fetch jobs owned by current user (for job delegation dropdown)
     const myJobs = await DatabaseService.query(
       `SELECT DISTINCT jp.id::text as id, jp.title, jp.status, jp.created_at FROM job_postings jp
-       WHERE jp.company_id::text = $1::text
-         AND jp.created_by = $2::text
+       WHERE jp.company_id = $1::uuid
+         AND jp.created_by = $2::uuid
        ORDER BY jp.created_at DESC`,
       [companyId, resolvedUserId]
     )
@@ -148,8 +148,8 @@ export async function GET(req: NextRequest) {
        FROM applications a
        JOIN candidates c ON a.candidate_id = c.id
        JOIN job_postings j ON a.job_id = j.id
-       WHERE j.company_id::text = $1::text
-         AND j.created_by = $2::text
+       WHERE j.company_id = $1::uuid
+         AND j.created_by = $2::uuid
        ORDER BY a.applied_at DESC`,
       [companyId, resolvedUserId]
     )
@@ -194,7 +194,7 @@ export async function POST(req: NextRequest) {
     let resolvedUserId: string = userId
     try {
       const byIdRow = await DatabaseService.query(
-        `SELECT id::text AS id FROM users WHERE id::text = $1::text LIMIT 1`,
+        `SELECT id::text AS id FROM users WHERE id = $1::uuid LIMIT 1`,
         [userId]
       )
       if (byIdRow.length > 0) {
@@ -233,7 +233,7 @@ export async function POST(req: NextRequest) {
     let itemName = ''
     if (delegationType === 'job') {
       const jobCheck = await DatabaseService.query(
-        `SELECT id, title, created_by FROM job_postings WHERE id::text = $1::text AND company_id::text = $2::text`,
+        `SELECT id, title, created_by FROM job_postings WHERE id = $1::uuid AND company_id = $2::uuid`,
         [itemId, companyId]
       )
       if (jobCheck.length === 0) {
@@ -250,7 +250,7 @@ export async function POST(req: NextRequest) {
          FROM applications a
          JOIN candidates c ON a.candidate_id = c.id
          JOIN job_postings j ON a.job_id = j.id
-         WHERE a.id::text = $1::text AND a.company_id::text = $2::text`,
+         WHERE a.id = $1::uuid AND a.company_id = $2::uuid`,
         [itemId, companyId]
       )
       if (appCheck.length === 0) {
@@ -264,7 +264,7 @@ export async function POST(req: NextRequest) {
 
     // Verify delegatee exists in same company
     const delegateeCheck = await DatabaseService.query(
-      `SELECT id FROM users WHERE id::text = $1::text AND company_id::text = $2::text AND status = 'active'`,
+      `SELECT id FROM users WHERE id = $1::uuid AND company_id = $2::uuid AND status = 'active'`,
       [delegatedTo, companyId]
     )
     if (delegateeCheck.length === 0) {
@@ -274,7 +274,7 @@ export async function POST(req: NextRequest) {
     // Check for duplicate active delegation
     const duplicateCheck = await DatabaseService.query(
       `SELECT id FROM delegations 
-       WHERE item_id::text = $1::text AND delegated_to::text = $2::text AND status = 'active'
+       WHERE item_id = $1::uuid AND delegated_to = $2::uuid AND status = 'active'
          AND delegation_type = $3`,
       [itemId, delegatedTo, delegationType]
     )
@@ -302,15 +302,15 @@ export async function POST(req: NextRequest) {
     // Send email notification to the delegatee (recruiter)
     try {
       const delegateeInfo = await DatabaseService.query(
-        `SELECT email, full_name FROM users WHERE id::text = $1::text LIMIT 1`,
+        `SELECT email, full_name FROM users WHERE id = $1::uuid LIMIT 1`,
         [delegatedTo]
       )
       const delegatorInfo = await DatabaseService.query(
-        `SELECT full_name FROM users WHERE id::text = $1::text LIMIT 1`,
+        `SELECT full_name FROM users WHERE id = $1::uuid LIMIT 1`,
         [resolvedUserId]
       )
       const companyInfo = await DatabaseService.query(
-        `SELECT name FROM companies WHERE id::text = $1::text LIMIT 1`,
+        `SELECT name FROM companies WHERE id = $1::uuid LIMIT 1`,
         [companyId]
       )
 
@@ -363,7 +363,7 @@ export async function DELETE(req: NextRequest) {
 
     // Verify ownership — only the delegator can revoke
     const delegation = await DatabaseService.query(
-      `SELECT *, delegated_by::text AS delegated_by_text FROM delegations WHERE id::text = $1 AND company_id::text = $2`,
+      `SELECT *, delegated_by::text AS delegated_by_text FROM delegations WHERE id = $1::uuid AND company_id = $2::uuid`,
       [delegationId, companyId]
     )
 
@@ -381,7 +381,7 @@ export async function DELETE(req: NextRequest) {
 
     // Revoke
     await DatabaseService.query(
-      `UPDATE delegations SET status = 'revoked' WHERE id::text = $1`,
+      `UPDATE delegations SET status = 'revoked' WHERE id = $1::uuid`,
       [delegationId]
     )
 

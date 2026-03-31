@@ -578,8 +578,7 @@ export default function SettingsPage() {
                             disabled
                             className="sr-input bg-gray-50"
                           />
-                          <p className="text-xs text-gray-500">Cannot be changed after signup</p>
-                        </div>
+                                                  </div>
                         <div className="space-y-2">
                           <Label htmlFor="industry">Industry *</Label>
                           <Select value={companyForm.industry} disabled>
@@ -592,8 +591,7 @@ export default function SettingsPage() {
                               ))}
                             </SelectContent>
                           </Select>
-                          <p className="text-xs text-gray-500">Cannot be changed after signup</p>
-                        </div>
+                                                  </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -608,8 +606,7 @@ export default function SettingsPage() {
                               ))}
                             </SelectContent>
                           </Select>
-                          <p className="text-xs text-gray-500">Cannot be changed after signup</p>
-                        </div>
+                                                  </div>
                         <div className="space-y-2">
                           <Label htmlFor="website">Website</Label>
                           <Input 
@@ -652,8 +649,7 @@ export default function SettingsPage() {
                           disabled
                           className="sr-input bg-gray-50" 
                         />
-                        <p className="text-xs text-gray-500">Cannot be changed after signup</p>
-                      </div>
+                                              </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="city">City *</Label>
@@ -729,8 +725,7 @@ export default function SettingsPage() {
                           disabled
                           className="sr-input bg-gray-50" 
                         />
-                        <p className="text-xs text-gray-500">Cannot be changed after signup</p>
-                      </div>
+                                              </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="taxId">Tax ID / EIN</Label>
