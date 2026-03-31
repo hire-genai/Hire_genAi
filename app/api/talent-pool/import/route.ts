@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       try {
         // First try to find by ID
         const userById = await DatabaseService.query(
-          `SELECT id FROM users WHERE id::text = $1 LIMIT 1`, [userId]
+          `SELECT id FROM users WHERE id = $1::uuid LIMIT 1`, [userId]
         )
         if (userById.length > 0) {
           actualUserId = userById[0].id

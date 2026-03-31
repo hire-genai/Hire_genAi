@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     if (userId && sessionEmail) {
       try {
         const byIdRow = await DatabaseService.query(
-          `SELECT id::text AS id FROM users WHERE id::text = $1::text LIMIT 1`,
+          `SELECT id::text AS id FROM users WHERE id = $1::uuid LIMIT 1`,
           [userId]
         )
         if (byIdRow.length > 0) {
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
     // Auto-expire delegations whose end_date has passed
     try {
       await DatabaseService.query(
-        `UPDATE delegations SET status = 'expired' WHERE status = 'active' AND end_date < CURRENT_DATE AND company_id::text = $1`,
+        `UPDATE delegations SET status = 'expired' WHERE status = 'active' AND end_date < CURRENT_DATE AND company_id = $1::uuid`,
         [companyId]
       )
     } catch { /* delegations table may not exist yet */ }
@@ -86,9 +86,9 @@ export async function GET(request: NextRequest) {
         const roleCheck = await DatabaseService.query(
           `SELECT ur.role FROM user_roles ur 
            JOIN users u ON ur.user_id = u.id 
-           WHERE u.company_id::text = $2::text
+           WHERE u.company_id = $2::uuid
            AND (
-             u.id::text = $1::text
+             u.id = $1::uuid
              OR ($3::text IS NOT NULL AND u.email = $3::text)
            )
            LIMIT 1`,
@@ -107,8 +107,8 @@ export async function GET(request: NextRequest) {
         jobs = await DatabaseService.query(
           `SELECT jp.*, u.full_name as recruiter_name
           FROM job_postings jp
-          LEFT JOIN users u ON jp.created_by = u.id::text
-          WHERE jp.company_id::text = $1::text
+          LEFT JOIN users u ON jp.created_by = u.id
+          WHERE jp.company_id = $1::uuid
           ORDER BY jp.created_at DESC`,
           [companyId]
         )
@@ -119,13 +119,13 @@ export async function GET(request: NextRequest) {
         jobs = await DatabaseService.query(
           `SELECT DISTINCT jp.*, u.full_name as recruiter_name
           FROM job_postings jp
-          LEFT JOIN users u ON jp.created_by = u.id::text
-          WHERE jp.company_id::text = $1::text
+          LEFT JOIN users u ON jp.created_by = u.id
+          WHERE jp.company_id = $1::uuid
             AND (
-              jp.created_by = $2::text
+              jp.created_by = $2::uuid
               OR jp.id IN (
                 SELECT d.item_id FROM delegations d
-                WHERE d.delegated_to::text = $2::text
+                WHERE d.delegated_to = $2::uuid
                   AND d.delegation_type = 'job'
                   AND d.status = 'active'
                   AND CURRENT_DATE >= d.start_date
@@ -140,8 +140,8 @@ export async function GET(request: NextRequest) {
       jobs = await DatabaseService.query(
         `SELECT jp.*, u.full_name as recruiter_name
         FROM job_postings jp
-        LEFT JOIN users u ON jp.created_by = u.id::text
-        WHERE jp.company_id::text = $1::text
+        LEFT JOIN users u ON jp.created_by = u.id
+        WHERE jp.company_id = $1::uuid
         ORDER BY jp.created_at DESC`,
         [companyId]
       )
@@ -308,7 +308,7 @@ async function checkRecentDuplicate(companyId: string, title: string): Promise<b
   try {
     const result = await DatabaseService.query(
       `SELECT id FROM job_postings 
-       WHERE company_id::text = $1 AND title = $2 AND created_at > NOW() - INTERVAL '5 seconds'
+       WHERE company_id = $1::uuid AND title = $2 AND created_at > NOW() - INTERVAL '5 seconds'
        LIMIT 1`,
       [companyId, title.trim()]
     );
@@ -670,65 +670,77 @@ export async function POST(request: NextRequest) {
       
       const insertQuery = `
         INSERT INTO job_postings (
-          company_id, created_by, title, job_type, work_mode, status, auto_schedule_interview,
-          department, location, description, responsibilities, required_skills, preferred_skills,
-          experience_years, published_at, job_open_date, salary_min, salary_max, currency,
-          application_deadline, expected_start_date, required_education, certifications_required,
-          languages_required, hiring_manager_name, hiring_manager_email, number_of_openings,
-          hiring_priority, target_time_to_fill_days, budget_allocated, target_sources,
-          diversity_goals, diversity_target_pct, client_company_name, interview_link_expiry_hours,
-          enable_screening_questions, screening_questions
+          company_id, created_by, title, department, location, job_type, work_mode,
+          salary_min, salary_max, currency, application_deadline, expected_start_date,
+          description, responsibilities, required_skills, preferred_skills, experience_years,
+          required_education, certifications_required, languages_required, recruiter_id,
+          hiring_manager_name, hiring_manager_email, number_of_openings, hiring_priority,
+          target_time_to_fill_days, budget_allocated, target_sources, diversity_goals, diversity_target_pct,
+          job_open_date, expected_hires_per_month, target_offer_acceptance_pct,
+          candidate_response_sla_hrs, interview_schedule_sla_hrs, cost_per_hire_budget,
+          agency_fee_pct, job_board_costs, auto_schedule_interview, interview_link_expiry_hours,
+          enable_screening_questions, screening_questions, client_company_name, status, published_at
         ) VALUES (
-          $1::uuid, $2, $3, $4, $5, $6, $7,
-          $8, $9, $10, $11, $12, $13,
-          $14, $15, $16, $17, $18, $19,
-          $20, $21, $22, $23,
-          $24, $25, $26, $27,
-          $28, $29, $30, $31,
-          $32, $33, $34, $35,
-          $36, $37
+          $1::uuid, $2::uuid, $3, $4, $5, $6, $7,
+          $8, $9, $10, $11, $12,
+          $13, $14, $15, $16, $17,
+          $18, $19, $20, $2::uuid,
+          $21, $22, $23, $24,
+          $25, $26, $27, $28, $29,
+          $30, $31, $32,
+          $33, $34, $35,
+          $36, $37, $38, $39,
+          $40, $41, $42, $43, $44
         )
         RETURNING *
       `;
       
       const insertParams = [
-        sanitizedData.companyId,
-        sanitizedData.userId,
-        sanitizedData.jobTitle,
-        sanitizedData.jobType,
-        sanitizedData.workMode,
-        sanitizedData.status,
-        sanitizedData.autoScheduleInterview,
-        sanitizedData.department,
-        sanitizedData.location,
-        sanitizedData.jobDescription,
-        sanitizedData.responsibilities,
-        sanitizedData.requiredSkills,
-        sanitizedData.preferredSkills,
-        sanitizedData.experienceYears,
-        sanitizedData.publishedAt,
-        sanitizedData.jobOpenDate,
-        sanitizedData.salaryMin,
-        sanitizedData.salaryMax,
-        sanitizedData.currency,
-        sanitizedData.applicationDeadline,
-        sanitizedData.expectedStartDate,
-        sanitizedData.requiredEducation,
-        sanitizedData.certificationsRequired,
-        sanitizedData.languagesRequired,
-        sanitizedData.hiringManager,
-        sanitizedData.hiringManagerEmail,
-        sanitizedData.numberOfOpenings,
-        sanitizedData.hiringPriority,
-        sanitizedData.targetTimeToFill,
-        sanitizedData.budgetAllocated,
-        sanitizedData.targetSources,
-        sanitizedData.diversityGoals,
-        sanitizedData.diversityTargetPercentage,
-        sanitizedData.clientCompanyName,
-        sanitizedData.interviewLinkExpiryHours,
-        sanitizedData.enableScreeningQuestions,
-        sanitizedData.screeningQuestions
+        sanitizedData.companyId,              // $1
+        sanitizedData.userId,                 // $2 (also used for recruiter_id)
+        sanitizedData.jobTitle,               // $3
+        sanitizedData.department,             // $4
+        sanitizedData.location,               // $5
+        sanitizedData.jobType,                // $6
+        sanitizedData.workMode,               // $7
+        sanitizedData.salaryMin,              // $8
+        sanitizedData.salaryMax,              // $9
+        sanitizedData.currency,               // $10
+        sanitizedData.applicationDeadline,    // $11
+        sanitizedData.expectedStartDate,      // $12
+        sanitizedData.jobDescription,         // $13
+        sanitizedData.responsibilities,       // $14
+        sanitizedData.requiredSkills,         // $15
+        sanitizedData.preferredSkills,        // $16
+        sanitizedData.experienceYears,        // $17
+        sanitizedData.requiredEducation,      // $18
+        sanitizedData.certificationsRequired, // $19
+        sanitizedData.languagesRequired,      // $20
+        // recruiter_id uses $2::uuid (same as created_by)
+        sanitizedData.hiringManager,          // $21
+        sanitizedData.hiringManagerEmail,     // $22
+        sanitizedData.numberOfOpenings,       // $23
+        sanitizedData.hiringPriority,         // $24
+        sanitizedData.targetTimeToFill,       // $25
+        sanitizedData.budgetAllocated,        // $26
+        sanitizedData.targetSources,          // $27
+        sanitizedData.diversityGoals,         // $28
+        sanitizedData.diversityTargetPercentage, // $29
+        sanitizedData.jobOpenDate,            // $30
+        sanitizedData.expectedHiresPerMonth,  // $31
+        sanitizedData.targetOfferAcceptanceRate, // $32
+        sanitizedData.candidateResponseTimeSLA,  // $33
+        sanitizedData.interviewScheduleSLA,   // $34
+        sanitizedData.costPerHireBudget,      // $35
+        sanitizedData.agencyFeePercentage,    // $36
+        sanitizedData.jobBoardCosts,          // $37
+        sanitizedData.autoScheduleInterview,  // $38
+        sanitizedData.interviewLinkExpiryHours, // $39
+        sanitizedData.enableScreeningQuestions, // $40
+        sanitizedData.screeningQuestions,     // $41
+        sanitizedData.clientCompanyName,      // $42
+        sanitizedData.status,                 // $43
+        sanitizedData.publishedAt             // $44
       ];
       
       const result = await DatabaseService.query(insertQuery, insertParams);

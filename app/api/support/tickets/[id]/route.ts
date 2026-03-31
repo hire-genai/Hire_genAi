@@ -56,29 +56,75 @@ export async function GET(
 
     const { id } = await params
 
-    // Fetch ticket
-    const ticketResult = await DatabaseService.query(
-      `SELECT 
-        st.id,
-        st.company_id,
-        st.created_by,
-        st.ticket_type,
-        st.category,
-        st.title,
-        st.description,
-        st.priority,
-        st.status,
-        st.screenshot_url,
-        st.resolved_at,
-        st.created_at,
-        st.updated_at,
-        u.full_name as created_by_name,
-        u.email as created_by_email
-      FROM support_tickets st
-      LEFT JOIN users u ON st.created_by = u.id
-      WHERE st.id = $1::uuid AND st.company_id = $2::uuid`,
-      [id, companyId]
-    )
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(id)) {
+      return NextResponse.json(
+        { error: 'Invalid ticket ID format' },
+        { status: 400 }
+      )
+    }
+
+    let ticketResult
+    try {
+      // Fetch ticket
+      ticketResult = await DatabaseService.query(
+        `SELECT 
+          st.id,
+          st.company_id,
+          st.created_by,
+          st.ticket_type,
+          st.category,
+          st.title,
+          st.description,
+          st.priority,
+          st.status,
+          st.screenshot_url,
+          st.resolved_at,
+          st.created_at,
+          st.updated_at,
+          u.full_name as created_by_name,
+          u.email as created_by_email
+        FROM support_tickets st
+        LEFT JOIN users u ON st.created_by = u.id
+        WHERE st.id = $1::uuid AND st.company_id = $2::uuid`,
+        [id, companyId]
+      )
+    } catch (dbError: any) {
+      console.error('Database error fetching ticket:', dbError)
+      
+      // Fallback: Try without UUID casting if database has issues
+      try {
+        ticketResult = await DatabaseService.query(
+          `SELECT 
+            st.id,
+            st.company_id,
+            st.created_by,
+            st.ticket_type,
+            st.category,
+            st.title,
+            st.description,
+            st.priority,
+            st.status,
+            st.screenshot_url,
+            st.resolved_at,
+            st.created_at,
+            st.updated_at,
+            u.full_name as created_by_name,
+            u.email as created_by_email
+          FROM support_tickets st
+          LEFT JOIN users u ON st.created_by = u.id
+          WHERE st.id = $1 AND st.company_id = $2`,
+          [id, companyId]
+        )
+      } catch (fallbackError: any) {
+        console.error('Fallback query also failed:', fallbackError)
+        return NextResponse.json(
+          { error: 'Database connection error. Please try again later.' },
+          { status: 500 }
+        )
+      }
+    }
 
     if (!ticketResult || ticketResult.length === 0) {
       return NextResponse.json(
@@ -90,23 +136,52 @@ export async function GET(
     const ticket = ticketResult[0]
 
     // Fetch comments
-    const commentsResult = await DatabaseService.query(
-      `SELECT 
-        tc.id,
-        tc.ticket_id,
-        tc.author_id,
-        tc.author_role,
-        tc.message,
-        tc.image_url,
-        tc.created_at,
-        u.full_name as author_name,
-        u.email as author_email
-      FROM ticket_comments tc
-      LEFT JOIN users u ON tc.author_id = u.id
-      WHERE tc.ticket_id = $1::uuid
-      ORDER BY tc.created_at ASC`,
-      [id]
-    )
+    let commentsResult
+    try {
+      commentsResult = await DatabaseService.query(
+        `SELECT 
+          tc.id,
+          tc.ticket_id,
+          tc.author_id,
+          tc.author_role,
+          tc.message,
+          tc.image_url,
+          tc.created_at,
+          u.full_name as author_name,
+          u.email as author_email
+        FROM ticket_comments tc
+        LEFT JOIN users u ON tc.author_id = u.id
+        WHERE tc.ticket_id = $1::uuid
+        ORDER BY tc.created_at ASC`,
+        [id]
+      )
+    } catch (commentsError: any) {
+      console.error('Database error fetching comments:', commentsError)
+      
+      // Fallback: Try without UUID casting
+      try {
+        commentsResult = await DatabaseService.query(
+          `SELECT 
+            tc.id,
+            tc.ticket_id,
+            tc.author_id,
+            tc.author_role,
+            tc.message,
+            tc.image_url,
+            tc.created_at,
+            u.full_name as author_name,
+            u.email as author_email
+          FROM ticket_comments tc
+          LEFT JOIN users u ON tc.author_id = u.id
+          WHERE tc.ticket_id = $1
+          ORDER BY tc.created_at ASC`,
+          [id]
+        )
+      } catch (fallbackError: any) {
+        console.error('Comments fallback query failed:', fallbackError)
+        commentsResult = [] // Return empty comments if both fail
+      }
+    }
 
     // Format comments
     const comments = commentsResult.map((comment: any) => ({

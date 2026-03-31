@@ -108,25 +108,26 @@ export class DatabaseService {
     // Clean domain to get just the main domain part (e.g., gmail.com -> gmail)
     domain = domain.split('.')[0]
     // UI sends: '1-10 employees', '11-50 employees', etc.
-    // DB expects: '1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000', '10000+'
+    // DB expects: '1-10 employees', '11-50 employees', etc. (full values)
     const mapSizeToEnum = (size?: string): string | null => {
       if (!size) return null
       const sizeMap: Record<string, string> = {
-        '1-10 employees': '1-10',
-        '11-50 employees': '11-50',
-        '51-200 employees': '51-200',
-        '201-500 employees': '201-500',
-        '501-1000 employees': '501-1000',
-        '1000+ employees': '10000+',
-        // Direct matches (if already in enum format)
-        '1-10': '1-10',
-        '11-50': '11-50',
-        '51-200': '51-200',
-        '201-500': '201-500',
-        '501-1000': '501-1000',
-        '1001-5000': '1001-5000',
-        '5001-10000': '5001-10000',
-        '10000+': '10000+',
+        // Direct matches (UI values match DB enum values exactly)
+        '1-10 employees': '1-10 employees',
+        '11-50 employees': '11-50 employees',
+        '51-200 employees': '51-200 employees',
+        '201-500 employees': '201-500 employees',
+        '501-1000 employees': '501-1000 employees',
+        '1000+ employees': '1000+ employees',
+        // Legacy support for values without ' employees'
+        '1-10': '1-10 employees',
+        '11-50': '11-50 employees',
+        '51-200': '51-200 employees',
+        '201-500': '201-500 employees',
+        '501-1000': '501-1000 employees',
+        '1001-5000': '1000+ employees',
+        '5001-10000': '1000+ employees',
+        '10000+': '1000+ employees',
       }
       return sizeMap[size] || null
     }
