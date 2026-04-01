@@ -137,25 +137,35 @@ export async function POST(request: NextRequest) {
 
       const transactionId = paymentRecord[0]?.id
 
-      // 2. Add credits to wallet using the function
-      const walletResult = await DatabaseService.query(
-        `SELECT add_wallet_credits($1::uuid, $2, $3::uuid) as new_balance`,
-        [companyId, amountInRupees, transactionId]
-      )
+      // 2. Add credits to wallet - CRITICAL: This must succeed for payment to be valid
+      let newBalance = 0
+      
+      try {
+        // Try using the DB function first
+        const walletResult = await DatabaseService.query(
+          `SELECT add_wallet_credits($1::uuid, $2, $3::uuid) as new_balance`,
+          [companyId, amountInRupees, transactionId]
+        )
+        newBalance = parseFloat(walletResult[0]?.new_balance || '0')
+        console.log(`[Payment Verify] add_wallet_credits returned: ${newBalance}`)
+      } catch (funcError: any) {
+        console.warn(`[Payment Verify] add_wallet_credits function failed, using fallback:`, funcError.message)
+        newBalance = NaN // Force fallback
+      }
 
-      let newBalance = parseFloat(walletResult[0]?.new_balance || '0')
-
-      // If function doesn't exist, do manual update
-      if (isNaN(newBalance)) {
+      // Fallback: manual update if function doesn't exist or failed
+      if (isNaN(newBalance) || newBalance === 0) {
+        console.log(`[Payment Verify] Using manual wallet update fallback`)
+        
         // Ensure company_billing record exists
         await DatabaseService.query(
-          `INSERT INTO company_billing (company_id, wallet_balance, status)
-           VALUES ($1::uuid, 0, 'trial')
+          `INSERT INTO company_billing (company_id, wallet_balance, status, created_at, updated_at)
+           VALUES ($1::uuid, 0, 'trial', NOW(), NOW())
            ON CONFLICT (company_id) DO NOTHING`,
           [companyId]
         )
 
-        // Update wallet balance
+        // Update wallet balance - CRITICAL: wallet_balance = wallet_balance + amount
         const updateResult = await DatabaseService.query(
           `UPDATE company_billing 
            SET wallet_balance = wallet_balance + $2,
@@ -167,6 +177,12 @@ export async function POST(request: NextRequest) {
         )
 
         newBalance = parseFloat(updateResult[0]?.wallet_balance || '0')
+        console.log(`[Payment Verify] Manual update result - new balance: ${newBalance}`)
+        
+        // Verify the update actually happened
+        if (updateResult.length === 0) {
+          throw new Error('Failed to update wallet balance - no rows affected')
+        }
       }
 
       await DatabaseService.query('COMMIT')

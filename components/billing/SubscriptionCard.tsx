@@ -210,25 +210,22 @@ export default function SubscriptionCard({
           {/* TRIAL STATE */}
           {status === 'trial' && (
             <>
-              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border-0 mb-3">
+              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border-0 mb-3">
                 <Flame className="h-3.5 w-3.5" />
-                FREE TRIAL · {trialDaysRemaining} days remaining
+                FREE TRIAL · {trialDaysRemaining} {trialDaysRemaining === 1 ? 'day' : 'days'} remaining
               </Badge>
               
               <h3 className="text-xl font-bold text-slate-900 mb-1.5">
-                Explore Pro features
+                Free Trial - {trialDaysRemaining} {trialDaysRemaining === 1 ? 'day' : 'days'} remaining
               </h3>
               <p className="text-sm text-slate-500 mb-3">
-                You're on a 7-day free trial. Upgrade anytime to continue access.
+                Enjoy full access to all Pro features during your 7-day free trial.
               </p>
               
               <div className="w-full mb-2">
-                <Progress value={progressPercent} className="h-1.5 bg-slate-200 [&>div]:bg-indigo-600" />
+                <Progress value={progressPercent} className="h-1.5 bg-slate-200 [&>div]:bg-emerald-500" />
               </div>
-              <p className="text-xs text-slate-400 mb-4">
-                {trialDaysRemaining} days left out of {trialTotalDays}
-              </p>
-
+              
               <div className="flex flex-wrap justify-center gap-3">
                 <Button 
                   onClick={handleUpgrade}
@@ -249,7 +246,7 @@ export default function SubscriptionCard({
               <p className="text-xs text-slate-400 mt-4">
                 {showContinueMessage 
                   ? '✓ You can continue using trial features until expiration.'
-                  : 'Your trial ends soon. Upgrade to keep premium features.'}
+                  : 'No credit card required. Upgrade anytime to keep premium features.'}
               </p>
             </>
           )}
