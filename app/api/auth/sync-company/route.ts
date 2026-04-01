@@ -79,10 +79,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Ensure company_billing exists (wallet starts at 0 - only updated after real payment)
+    // Set trial_ends_at = NOW() + 7 days for new companies
     try {
       await DatabaseService.query(
-        `INSERT INTO company_billing (company_id, wallet_balance, auto_recharge_enabled, auto_recharge_amount, auto_recharge_threshold, current_month_spent, total_spent, status, created_at, updated_at)
-         VALUES ($1::uuid, 0.00, false, 0.00, 0.00, 0, 0, 'trial', NOW(), NOW())
+        `INSERT INTO company_billing (
+          company_id, wallet_balance, auto_recharge_enabled, auto_recharge_amount, 
+          auto_recharge_threshold, current_month_spent, total_spent, status, 
+          trial_ends_at, created_at, updated_at
+        )
+         VALUES (
+           $1::uuid, 0.00, false, 0.00, 0.00, 0, 0, 'trial', 
+           NOW() + INTERVAL '7 days', NOW(), NOW()
+         )
          ON CONFLICT (company_id) DO NOTHING`,
         [company.id]
       )

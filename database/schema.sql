@@ -1159,6 +1159,11 @@ CREATE TABLE company_billing (
   auto_recharge_amount    NUMERIC(12,2) DEFAULT 100.00,
   auto_recharge_threshold NUMERIC(12,2) DEFAULT 10.00,
   
+  -- Trial tracking (7-day free trial)
+  -- trial_ends_at is calculated as company.created_at + 7 days
+  -- Trial only ends when: (1) trial_ends_at passes, OR (2) successful payment made
+  trial_ends_at           TIMESTAMPTZ,
+  
   -- Billing status
   status                  TEXT NOT NULL DEFAULT 'trial',  -- trial, active, past_due, suspended
   
