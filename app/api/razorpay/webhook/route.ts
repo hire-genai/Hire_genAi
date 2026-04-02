@@ -196,6 +196,18 @@ export async function POST(request: NextRequest) {
 
         console.log(`[Razorpay Webhook] ✅ Success! Company: ${companyId}, Credited: ₹${amountInRupees}, New Balance: ₹${newBalance}`)
 
+        // Restore jobs and interviews that were put on hold due to trial expiry
+        try {
+          const restoredJobsCount = await DatabaseService.restoreJobsAfterRecharge(companyId)
+          const restoredInterviewsCount = await DatabaseService.restoreInterviewsAfterRecharge(companyId)
+          if (restoredJobsCount > 0 || restoredInterviewsCount > 0) {
+            console.log(`[Razorpay Webhook] Restored ${restoredJobsCount} jobs and ${restoredInterviewsCount} interviews after recharge`)
+          }
+        } catch (restoreError: any) {
+          console.error('[Razorpay Webhook] Failed to restore jobs/interviews after recharge:', restoreError.message)
+          // Don't fail the payment if restoration fails
+        }
+
         return NextResponse.json({
           ok: true,
           message: 'Payment processed',

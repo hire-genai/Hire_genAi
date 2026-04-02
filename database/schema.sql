@@ -537,6 +537,7 @@ CREATE TABLE job_postings (
   
   -- Status
   status                      job_status NOT NULL DEFAULT 'draft',
+  on_hold_reason              TEXT,                                -- Reason for on_hold: TRIAL_EXPIRED, MANUAL, etc.
   published_at                TIMESTAMPTZ,
   closed_at                   TIMESTAMPTZ,
   
@@ -554,6 +555,7 @@ CREATE INDEX idx_job_postings_status ON job_postings (status);
 CREATE INDEX idx_job_postings_recruiter_id ON job_postings (recruiter_id);
 CREATE INDEX idx_job_postings_department ON job_postings (department);
 CREATE INDEX idx_job_postings_created_at ON job_postings (created_at DESC);
+CREATE INDEX idx_job_postings_on_hold_reason ON job_postings (on_hold_reason) WHERE on_hold_reason IS NOT NULL;
 
 
 -- ============================================================================
@@ -766,12 +768,15 @@ CREATE TABLE interviews (
   photo_verified                      BOOLEAN,
   photo_match_score                   NUMERIC(5,4),
   verified_at                         TIMESTAMPTZ,
+  on_hold_reason                      TEXT,                                -- Reason for on_hold: TRIAL_EXPIRED, MANUAL, etc.
+  original_status                     TEXT,                                -- Original status before on_hold (for restoration)
   created_at                          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at                          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE UNIQUE INDEX idx_interviews_application_id ON interviews (application_id);
 CREATE INDEX idx_interviews_completed_at ON interviews (interview_completed_at);
+CREATE INDEX idx_interviews_on_hold_reason ON interviews (on_hold_reason) WHERE on_hold_reason IS NOT NULL;
 
 
 -- ---------------------------------------------------------------------------

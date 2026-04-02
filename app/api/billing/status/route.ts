@@ -179,6 +179,9 @@ export async function GET(request: NextRequest) {
         })
       : null
 
+    // Calculate is_trial_expired: current_date > trial_end_date AND wallet_balance <= 0
+    const isTrialExpired = !isWithinTrialPeriod && walletBalance <= 0
+
     return NextResponse.json({
       ok: true,
       billing: {
@@ -193,6 +196,7 @@ export async function GET(request: NextRequest) {
         trialDaysRemaining,
         trialTotalDays: TRIAL_DAYS,
         isTrialActive,
+        isTrialExpired,
         nextBillingDate,
         hasSuccessfulRecharge,
         lowBalanceThreshold: effectiveThreshold,
