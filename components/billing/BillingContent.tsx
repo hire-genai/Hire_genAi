@@ -135,11 +135,12 @@ export default function BillingContent({ companyId }: BillingContentProps) {
     }
   }
 
-  const loadUsageData = async (startOverride?: Date, endOverride?: Date) => {
+  const loadUsageData = async (startOverride?: Date, endOverride?: Date, jobFilterOverride?: string) => {
     try {
       setLoading(true)
       const startToUse = startOverride || usageStartDate
       const endToUse = endOverride || usageEndDate
+      const jobFilterToUse = jobFilterOverride !== undefined ? jobFilterOverride : usageJobFilter
 
       const params = new URLSearchParams({
         startDate: startToUse.toISOString(),
@@ -147,10 +148,16 @@ export default function BillingContent({ companyId }: BillingContentProps) {
         companyId
       })
 
+      if (jobFilterToUse && jobFilterToUse !== 'all') {
+        params.append('jobId', jobFilterToUse)
+      }
+
       const res = await fetch(`/api/billing/usage?${params.toString()}`)
       const data = await res.json()
       
       if (data.ok) {
+        console.log('Usage data loaded:', data)
+        console.log('All jobs:', data.allJobs)
         setUsageData(data)
       }
     } catch (error) {
@@ -534,12 +541,6 @@ export default function BillingContent({ companyId }: BillingContentProps) {
               <h2 className="text-2xl font-bold tracking-tight">Usage Analytics</h2>
               <p className="text-muted-foreground">Track your AI service consumption and costs</p>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export Data
-              </Button>
-            </div>
           </div>
 
           {/* Filters - Exact Match */}
@@ -561,7 +562,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Jobs</SelectItem>
-                      {usageData?.jobUsage?.map((job: any) => (
+                      {usageData?.allJobs?.map((job: any) => (
                         <SelectItem key={job.jobId} value={job.jobId}>{job.jobTitle}</SelectItem>
                       ))}
                     </SelectContent>
@@ -591,7 +592,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                       start.setDate(start.getDate() - days)
                       setUsageStartDate(start)
                       setUsageEndDate(end)
-                      loadUsageData(start, end)
+                      loadUsageData(start, end, usageJobFilter)
                     }}
                   >
                     Apply Filters

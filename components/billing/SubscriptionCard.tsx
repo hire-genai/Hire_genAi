@@ -176,9 +176,9 @@ export default function SubscriptionCard({
                 Your balance is running low. Recharge soon to avoid service interruption.
               </p>
               
-              <div className="bg-amber-50 rounded-lg p-2.5 mb-4 text-left flex items-start gap-2">
-                <Zap className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-700">
+              <div className="bg-amber-50 rounded-lg p-2.5 mb-4 flex items-center justify-center gap-2">
+                <Zap className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                <p className="text-xs text-amber-700 text-center">
                   Recommended minimum: {currencySymbol}{lowBalanceThreshold}
                 </p>
               </div>

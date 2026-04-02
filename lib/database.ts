@@ -2409,6 +2409,188 @@ export class DatabaseService {
     return result[0] || null
   }
 
+  // Check if trial has expired for a company
+  // Trial is expired if: current_date > trial_end_date AND wallet_balance <= 0
+  // When wallet_balance > 0, trial is NOT expired (recharge restores access)
+  static async isTrialExpired(companyId: string): Promise<boolean> {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const query = `
+      SELECT 
+        cb.trial_ends_at,
+        cb.wallet_balance,
+        c.created_at as company_created_at
+      FROM company_billing cb
+      JOIN companies c ON c.id = cb.company_id
+      WHERE cb.company_id = $1::uuid
+    `
+    const result = await this.query(query, [companyId]) as any[]
+    
+    if (result.length === 0) {
+      // No billing record - treat as not expired (new company)
+      return false
+    }
+
+    const billing = result[0]
+    const walletBalance = parseFloat(billing.wallet_balance) || 0
+    
+    // If wallet has balance, trial is NOT expired (recharge restores access)
+    if (walletBalance > 0) {
+      return false
+    }
+
+    const now = new Date()
+
+    // Determine trial end date
+    let trialEndsAt: Date
+    if (billing.trial_ends_at) {
+      trialEndsAt = new Date(billing.trial_ends_at)
+    } else {
+      // Fallback: 7 days from company creation
+      const companyCreatedAt = new Date(billing.company_created_at || Date.now())
+      trialEndsAt = new Date(companyCreatedAt.getTime() + 7 * 24 * 60 * 60 * 1000)
+    }
+
+    // Trial is expired if: current_date > trial_end_date AND wallet_balance <= 0
+    const isExpired = now > trialEndsAt && walletBalance <= 0
+    
+    return isExpired
+  }
+
+  // Put all OPEN jobs on hold when trial expires
+  // Only updates jobs with status = 'open', does not touch 'onhold' or 'closed'
+  static async putOpenJobsOnHoldForTrialExpiry(companyId: string): Promise<number> {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const query = `
+      UPDATE job_postings
+      SET 
+        status = 'onhold',
+        on_hold_reason = 'TRIAL_EXPIRED',
+        updated_at = NOW()
+      WHERE company_id = $1::uuid 
+        AND status = 'open'
+      RETURNING id
+    `
+    const result = await this.query(query, [companyId]) as any[]
+    
+    const count = result.length
+    if (count > 0) {
+      console.log(`⏸️ [Trial Expiry] Put ${count} OPEN jobs on hold for company ${companyId}`)
+    }
+    
+    return count
+  }
+
+  // Restore jobs after successful recharge
+  // Only restores jobs that were put on hold due to TRIAL_EXPIRED
+  // Does not touch jobs with MANUAL hold or CLOSED status
+  // IMPORTANT: Keeps on_hold_reason as 'TRIAL_EXPIRED' for history
+  static async restoreJobsAfterRecharge(companyId: string): Promise<number> {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    // Note: We keep on_hold_reason = 'TRIAL_EXPIRED' for historical tracking
+    // Only update status to 'open', do NOT clear on_hold_reason
+    const query = `
+      UPDATE job_postings
+      SET 
+        status = 'open',
+        updated_at = NOW()
+      WHERE company_id = $1::uuid 
+        AND status = 'onhold'
+        AND on_hold_reason = 'TRIAL_EXPIRED'
+      RETURNING id, title
+    `
+    const result = await this.query(query, [companyId]) as any[]
+    
+    const count = result.length
+    if (count > 0) {
+      console.log(`🚀 [Recharge] Restored ${count} jobs from TRIAL_EXPIRED hold for company ${companyId}`)
+      result.forEach((job: any) => {
+        console.log(`   - Restored job: ${job.title} (${job.id})`)
+      })
+    }
+    
+    return count
+  }
+
+  // Put all pending interviews on hold when trial expires
+  // Only updates interviews that are NOT completed
+  // Stores original status for restoration
+  static async putInterviewsOnHoldForTrialExpiry(companyId: string): Promise<number> {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    // Find all non-completed interviews for this company's jobs
+    // Store original_status before changing to ON_HOLD
+    // Invalidate interview link by clearing it
+    const query = `
+      UPDATE interviews i
+      SET 
+        original_status = i.interview_status,
+        interview_status = 'ON_HOLD',
+        interview_link = NULL,
+        on_hold_reason = 'TRIAL_EXPIRED',
+        updated_at = NOW()
+      FROM applications a
+      JOIN job_postings jp ON jp.id = a.job_id
+      WHERE i.application_id = a.id
+        AND jp.company_id = $1::uuid
+        AND i.interview_status NOT IN ('Completed', 'COMPLETED', 'ON_HOLD')
+        AND (i.on_hold_reason IS NULL OR i.on_hold_reason != 'MANUAL')
+      RETURNING i.id, i.original_status
+    `
+    const result = await this.query(query, [companyId]) as any[]
+    
+    const count = result.length
+    if (count > 0) {
+      console.log(`⏸️ [Trial Expiry] Put ${count} interviews on hold for company ${companyId}`)
+    }
+    
+    return count
+  }
+
+  // Restore interviews after successful recharge
+  // Only restores interviews that were put on hold due to TRIAL_EXPIRED
+  // Restores to original_status (or 'Scheduled' if not available)
+  // Does NOT remove on_hold_reason (keeps history)
+  static async restoreInterviewsAfterRecharge(companyId: string): Promise<number> {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    // Restore interviews to their original status
+    // Keep on_hold_reason = 'TRIAL_EXPIRED' for historical tracking
+    const query = `
+      UPDATE interviews i
+      SET 
+        interview_status = COALESCE(i.original_status, 'Scheduled'),
+        updated_at = NOW()
+      FROM applications a
+      JOIN job_postings jp ON jp.id = a.job_id
+      WHERE i.application_id = a.id
+        AND jp.company_id = $1::uuid
+        AND i.interview_status = 'ON_HOLD'
+        AND i.on_hold_reason = 'TRIAL_EXPIRED'
+      RETURNING i.id, i.interview_status as restored_status
+    `
+    const result = await this.query(query, [companyId]) as any[]
+    
+    const count = result.length
+    if (count > 0) {
+      console.log(`🚀 [Recharge] Restored ${count} interviews from TRIAL_EXPIRED hold for company ${companyId}`)
+    }
+    
+    return count
+  }
+
   // Record usage and handle charging
   static async recordUsage(params: {
     companyId: string

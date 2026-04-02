@@ -590,7 +590,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
   const isJobDescriptionValid =
     formData.jobDescription.trim().length > 0 &&
     formData.requiredSkills.filter((s) => s.trim()).length > 0 &&
-    formData.experienceYears.trim().length > 0
+    (formData.experienceYears && String(formData.experienceYears).trim().length > 0)
 
   const removeQuestion = (questionId: number) => {
     setInterviewQuestions(prev => {
@@ -614,6 +614,13 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
   // Add form submission tracking
   const [isSubmitted, setIsSubmitted] = useState(false);
   const submissionTimeRef = useRef<number | null>(null);
+
+  // Trial expiry popup state
+  const [showTrialPopup, setShowTrialPopup] = useState(false);
+
+  const showTrialExpiredPopup = () => {
+    setShowTrialPopup(true);
+  };
 
   const handleSubmit = async (isDraft: boolean) => {
     // Prevent duplicate submissions
@@ -698,6 +705,11 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
 
       const result = await response.json()
       if (!response.ok) {
+        // Handle trial expiry error specifically
+        if (response.status === 403 && result.error?.includes('Trial period is over')) {
+          showTrialExpiredPopup()
+          return
+        }
         throw new Error(result.error || 'Failed to save job posting')
       }
 
@@ -1706,6 +1718,48 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
           </div>
         </div>
       </Card>
+
+      {/* Trial Expiry Popup */}
+      {showTrialPopup && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                <X className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Trial Period Expired
+              </h3>
+              <p className="text-sm text-gray-500 mb-6">
+                Trial period is over, please recharge wallet to continue creating jobs.
+              </p>
+              <div className="flex gap-3 justify-center">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowTrialPopup(false);
+                    onClose();
+                  }}
+                  className="px-4 py-2"
+                >
+                  Close
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowTrialPopup(false);
+                    onClose();
+                    // Redirect to billing page
+                    window.location.href = '/dashboard/billing';
+                  }}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  Recharge Wallet
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -525,6 +525,27 @@ export async function POST(request: NextRequest) {
     }
     console.log('✅ User and company fully verified in DB:', { userId: actualUserId, companyId })
 
+    // Check if trial has expired (current_date > trial_end_date AND wallet_balance <= 0)
+    // If expired, block job creation and put existing OPEN jobs and pending interviews on hold
+    try {
+      const isTrialExpired = await DatabaseService.isTrialExpired(companyId)
+      if (isTrialExpired) {
+        console.log('⏸️ [Trial Expiry] Trial expired for company:', companyId)
+        // Put all OPEN jobs on hold when trial expires
+        const jobsOnHold = await DatabaseService.putOpenJobsOnHoldForTrialExpiry(companyId)
+        // Put all pending interviews on hold and expire their links
+        const interviewsOnHold = await DatabaseService.putInterviewsOnHoldForTrialExpiry(companyId)
+        console.log(`⏸️ [Trial Expiry] Jobs on hold: ${jobsOnHold}, Interviews on hold: ${interviewsOnHold}`)
+        return NextResponse.json(
+          { error: 'Trial period is over, please recharge wallet' },
+          { status: 403 }
+        )
+      }
+    } catch (trialCheckError: any) {
+      console.error('⚠️ Failed to check trial status:', trialCheckError.message)
+      // Continue with job creation if trial check fails (fail-open for better UX)
+    }
+
     // Normalize enums to valid values
     const allowedJobTypes = ['Full-time', 'Part-time', 'Contract', 'Temporary']
     const allowedWorkModes = ['Remote', 'Hybrid', 'On-site']

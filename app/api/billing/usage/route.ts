@@ -60,7 +60,20 @@ export async function GET(request: NextRequest) {
         ${jobId && jobId !== 'all' ? 'AND job_id = $4::uuid' : ''}
     `
 
-    // Get usage breakdown by job
+    // Get ALL jobs for dropdown (regardless of usage)
+    const allJobsQuery = `
+      SELECT 
+        id as job_id,
+        title as job_title,
+        status,
+        created_at
+      FROM job_postings 
+      WHERE company_id = $1::uuid 
+        AND status IN ('open', 'closed', 'onhold', 'draft')
+      ORDER BY created_at DESC
+    `
+
+    // Get usage breakdown by job (only jobs with usage)
     const jobUsageQuery = `
       WITH job_cv AS (
         SELECT job_id, COUNT(*) as cv_count, COALESCE(SUM(cost), 0) as cv_cost
@@ -99,10 +112,11 @@ export async function GET(request: NextRequest) {
       ORDER BY total_cost DESC
     `
 
-    const [cvResult, questionResult, videoResult, jobUsageResult] = await Promise.all([
+    const [cvResult, questionResult, videoResult, allJobsResult, jobUsageResult] = await Promise.all([
       DatabaseService.query(cvQuery, cvParams),
       DatabaseService.query(questionQuery, cvParams),
       DatabaseService.query(videoQuery, cvParams),
+      DatabaseService.query(allJobsQuery, [companyId]),
       DatabaseService.query(jobUsageQuery, [companyId, start, end])
     ])
 
@@ -125,6 +139,13 @@ export async function GET(request: NextRequest) {
         videoMinutes: parseFloat(video.total_minutes) || 0,
         tokenCount: (parseInt(cv.total_tokens) || 0) + (parseInt(questions.total_tokens) || 0) + (parseInt(video.total_tokens) || 0)
       },
+      // All jobs for dropdown (regardless of usage)
+      allJobs: allJobsResult.map((job: any) => ({
+        jobId: job.job_id,
+        jobTitle: job.job_title || 'Untitled Job',
+        status: job.status
+      })),
+      // Jobs with usage data
       jobUsage: jobUsageResult.map((job: any) => ({
         jobId: job.job_id,
         jobTitle: job.job_title || 'Untitled Job',

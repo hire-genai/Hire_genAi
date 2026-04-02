@@ -189,6 +189,18 @@ export async function POST(request: NextRequest) {
 
       console.log(`[Payment Verify] Success! New wallet balance: ₹${newBalance}`)
 
+      // Restore jobs and interviews that were put on hold due to trial expiry
+      try {
+        const restoredJobsCount = await DatabaseService.restoreJobsAfterRecharge(companyId)
+        const restoredInterviewsCount = await DatabaseService.restoreInterviewsAfterRecharge(companyId)
+        if (restoredJobsCount > 0 || restoredInterviewsCount > 0) {
+          console.log(`[Payment Verify] Restored ${restoredJobsCount} jobs and ${restoredInterviewsCount} interviews after recharge`)
+        }
+      } catch (restoreError: any) {
+        console.error('[Payment Verify] Failed to restore jobs/interviews after recharge:', restoreError.message)
+        // Don't fail the payment if restoration fails
+      }
+
       return NextResponse.json({
         ok: true,
         message: 'Payment verified and wallet credited',
