@@ -113,72 +113,11 @@ export default function JobsPage() {
 	const [error, setError] = useState<string | null>(null)
 	const [copiedJobId, setCopiedJobId] = useState<string | null>(null)
 	const [togglingJobId, setTogglingJobId] = useState<string | null>(null)
+	const [showTrialExpiredPopup, setShowTrialExpiredPopup] = useState(false)
+	const [isCheckingTrial, setIsCheckingTrial] = useState(false)
 	
 	// Permission check - all users can modify
 	const canModify = true
-
-	// Copy JD link to clipboard
-	const copyJDLink = async (job: Job) => {
-		const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-		const jdLink = `${baseUrl}/jobs/${job.companySlug}/${job.id}`
-		
-		try {
-			await navigator.clipboard.writeText(jdLink)
-			setCopiedJobId(job.id)
-			setTimeout(() => setCopiedJobId(null), 2000) // Reset after 2 seconds
-		} catch (err) {
-			console.error('Failed to copy link:', err)
-		}
-	}
-
-	// Toggle auto schedule interview for a job
-	const toggleAutoSchedule = async (job: Job, newValue: boolean) => {
-		if (togglingJobId === job.id) return
-		setTogglingJobId(job.id)
-		// Optimistic update
-		setJobs(prev => prev.map(j => j.id === job.id ? { ...j, autoScheduleInterview: newValue } : j))
-		try {
-			const res = await fetch(`/api/jobs/${job.companySlug}/${job.id}`, {
-				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ autoScheduleInterview: newValue }),
-			})
-			if (!res.ok) {
-				// Revert on failure
-				setJobs(prev => prev.map(j => j.id === job.id ? { ...j, autoScheduleInterview: !newValue } : j))
-			}
-		} catch {
-			setJobs(prev => prev.map(j => j.id === job.id ? { ...j, autoScheduleInterview: !newValue } : j))
-		} finally {
-			setTogglingJobId(null)
-		}
-	}
-
-	// Format date to relative time
-	const formatRelativeTime = (dateString: string) => {
-		if (!dateString) return 'Just now'
-		const date = new Date(dateString)
-		const now = new Date()
-		const diffMs = now.getTime() - date.getTime()
-		const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-		
-		if (diffDays === 0) return 'Today'
-		if (diffDays === 1) return '1 day ago'
-		if (diffDays < 7) return `${diffDays} days ago`
-		if (diffDays < 14) return '1 week ago'
-		if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
-		return `${Math.floor(diffDays / 30)} months ago`
-	}
-
-	// Format salary range
-	const formatSalary = (min: number | null, max: number | null, currency: string) => {
-		if (!min && !max) return 'Not specified'
-		const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD', maximumFractionDigits: 0 })
-		if (min && max) return `${formatter.format(min)} - ${formatter.format(max)}`
-		if (min) return `From ${formatter.format(min)}`
-		if (max) return `Up to ${formatter.format(max)}`
-		return 'Not specified'
-	}
 
 	// Fetch jobs from API
 	const fetchJobs = useCallback(async () => {
@@ -251,6 +190,136 @@ export default function JobsPage() {
 			setIsLoading(false)
 		}
 	}, [company?.id])
+
+	// Check trial status and enforce/restore jobs based on trial status
+	const checkAndEnforceTrialExpiry = useCallback(async () => {
+		if (!company?.id) return
+		try {
+			const response = await fetch(`/api/billing/status?companyId=${company.id}`)
+			const result = await response.json()
+			if (result.ok && result.billing?.isTrialExpired) {
+				// Trial expired - put jobs on hold
+				console.log('🔍 [Trial Check] Trial expired, enforcing hold on jobs/interviews')
+				await fetch('/api/jobs/enforce-trial-expiry', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ companyId: company.id })
+				})
+				fetchJobs()
+			} else if (result.ok && !result.billing?.isTrialExpired) {
+				// Trial NOT expired - restore jobs that were on hold due to trial expiry
+				console.log('🔍 [Trial Check] Trial active, restoring jobs from trial expiry hold')
+				await fetch('/api/jobs/restore-from-trial-expiry', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ companyId: company.id })
+				})
+				fetchJobs()
+			}
+		} catch (error) {
+			console.error('Failed to check/enforce trial expiry:', error)
+		}
+	}, [company?.id, fetchJobs])
+
+	// Check trial expiry on page load
+	useEffect(() => {
+		if (company?.id) {
+			checkAndEnforceTrialExpiry()
+		}
+	}, [company?.id, checkAndEnforceTrialExpiry])
+
+	// Check trial status before opening job form
+	const handlePostNewJob = async () => {
+		if (!company?.id) return
+		setIsCheckingTrial(true)
+		try {
+			const response = await fetch(`/api/billing/status?companyId=${company.id}`)
+			const result = await response.json()
+			if (result.ok && result.billing?.isTrialExpired) {
+				// Trial expired - show popup, don't open form
+				setShowTrialExpiredPopup(true)
+				return
+			}
+			// Trial not expired - open form
+			setJobFormInitialData(null)
+			setJobFormMode('create')
+			setJobFormJobId(null)
+			setShowJobPostingDialog(true)
+		} catch (error) {
+			console.error('Failed to check trial status:', error)
+			// On error, allow form to open (fail-open)
+			setJobFormInitialData(null)
+			setJobFormMode('create')
+			setJobFormJobId(null)
+			setShowJobPostingDialog(true)
+		} finally {
+			setIsCheckingTrial(false)
+		}
+	}
+
+	// Copy JD link to clipboard
+	const copyJDLink = async (job: Job) => {
+		const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+		const jdLink = `${baseUrl}/jobs/${job.companySlug}/${job.id}`
+		
+		try {
+			await navigator.clipboard.writeText(jdLink)
+			setCopiedJobId(job.id)
+			setTimeout(() => setCopiedJobId(null), 2000) // Reset after 2 seconds
+		} catch (err) {
+			console.error('Failed to copy link:', err)
+		}
+	}
+
+	// Toggle auto schedule interview for a job
+	const toggleAutoSchedule = async (job: Job, newValue: boolean) => {
+		if (togglingJobId === job.id) return
+		setTogglingJobId(job.id)
+		// Optimistic update
+		setJobs(prev => prev.map(j => j.id === job.id ? { ...j, autoScheduleInterview: newValue } : j))
+		try {
+			const res = await fetch(`/api/jobs/${job.companySlug}/${job.id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ autoScheduleInterview: newValue }),
+			})
+			if (!res.ok) {
+				// Revert on failure
+				setJobs(prev => prev.map(j => j.id === job.id ? { ...j, autoScheduleInterview: !newValue } : j))
+			}
+		} catch {
+			setJobs(prev => prev.map(j => j.id === job.id ? { ...j, autoScheduleInterview: !newValue } : j))
+		} finally {
+			setTogglingJobId(null)
+		}
+	}
+
+	// Format date to relative time
+	const formatRelativeTime = (dateString: string) => {
+		if (!dateString) return 'Just now'
+		const date = new Date(dateString)
+		const now = new Date()
+		const diffMs = now.getTime() - date.getTime()
+		const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+		
+		if (diffDays === 0) return 'Today'
+		if (diffDays === 1) return '1 day ago'
+		if (diffDays < 7) return `${diffDays} days ago`
+		if (diffDays < 14) return '1 week ago'
+		if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
+		return `${Math.floor(diffDays / 30)} months ago`
+	}
+
+	// Format salary range
+	const formatSalary = (min: number | null, max: number | null, currency: string) => {
+		if (!min && !max) return 'Not specified'
+		const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD', maximumFractionDigits: 0 })
+		if (min && max) return `${formatter.format(min)} - ${formatter.format(max)}`
+		if (min) return `From ${formatter.format(min)}`
+		if (max) return `Up to ${formatter.format(max)}`
+		return 'Not specified'
+	}
+
 
 	// Fetch jobs on mount
 	useEffect(() => {
@@ -331,14 +400,10 @@ export default function JobsPage() {
 				<Button
 					className="gap-2"
 					size="sm"
-					onClick={() => {
-						setJobFormInitialData(null)
-						setJobFormMode('create')
-						setJobFormJobId(null)
-						setShowJobPostingDialog(true)
-					}}
+					onClick={handlePostNewJob}
+					disabled={isCheckingTrial}
 				>
-					<Plus className="h-3 w-3" />
+					{isCheckingTrial ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
 					Post New Job
 				</Button>
 			</div>
@@ -463,14 +528,10 @@ export default function JobsPage() {
 								<Button 
 									size="sm" 
 									className="mt-3"
-									onClick={() => {
-										setJobFormInitialData(null)
-										setJobFormMode('create')
-										setJobFormJobId(null)
-										setShowJobPostingDialog(true)
-									}}
+									onClick={handlePostNewJob}
+									disabled={isCheckingTrial}
 								>
-									<Plus className="h-3 w-3 mr-1" />
+									{isCheckingTrial ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
 									Post New Job
 								</Button>
 							)}
@@ -672,6 +733,43 @@ export default function JobsPage() {
 					jobId={jobFormJobId || undefined}
 					companySlug={jobFormCompanySlug || undefined}
 				/>
+			)}
+
+			{/* Trial Expired Popup */}
+			{showTrialExpiredPopup && (
+				<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+					<div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl">
+						<div className="text-center">
+							<div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+								<XCircle className="h-6 w-6 text-red-600" />
+							</div>
+							<h3 className="text-lg font-medium text-gray-900 mb-2">
+								Trial Period Expired
+							</h3>
+							<p className="text-sm text-gray-500 mb-6">
+								Trial period is over, please recharge wallet to continue creating jobs.
+							</p>
+							<div className="flex gap-3 justify-center">
+								<Button
+									variant="outline"
+									onClick={() => setShowTrialExpiredPopup(false)}
+									className="px-4 py-2"
+								>
+									Close
+								</Button>
+								<Button
+									onClick={() => {
+										setShowTrialExpiredPopup(false)
+										window.location.href = '/settings?tab=payment'
+									}}
+									className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+								>
+									Recharge Wallet
+								</Button>
+							</div>
+						</div>
+					</div>
+				</div>
 			)}
 		</div>
 	)

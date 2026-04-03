@@ -418,7 +418,7 @@ function SignupContent() {
           localStorage.setItem('sessionExpiresAt', newExpiry.toString())
         }
         
-        const RAZORPAY_PAYMENT_LINK = 'https://pages.razorpay.com/hire-genai'
+        const RAZORPAY_PAYMENT_LINK = process.env.NEXT_PUBLIC_RAZORPAY_PAYMENT_LINK || 'https://pages.razorpay.com/hire-genai'
         const userEmail = data.user?.email || form.email
         const callbackUrl = `${window.location.origin}/payment/return`
         

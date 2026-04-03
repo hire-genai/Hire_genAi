@@ -1748,8 +1748,8 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   onClick={() => {
                     setShowTrialPopup(false);
                     onClose();
-                    // Redirect to billing page
-                    window.location.href = '/dashboard/billing';
+                    // Redirect to payment settings page
+                    window.location.href = '/settings?tab=payment';
                   }}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
