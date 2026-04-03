@@ -8,7 +8,7 @@ export type BillingStatus = 'active' | 'trial' | 'trial_over' | 'low_balance' | 
 // Thresholds for low balance detection
 const LOW_BALANCE_THRESHOLD_INR = 200  // ₹200 for India
 const LOW_BALANCE_THRESHOLD_USD = 50   // $50 for other countries
-const TRIAL_DAYS = 7 // 7-day free trial
+const TRIAL_DAYS = parseInt(process.env.TRIAL_DAYS || '7') // Configurable trial period (default: 7 days)
 
 export async function GET(request: NextRequest) {
   try {
@@ -103,9 +103,9 @@ export async function GET(request: NextRequest) {
     // ============================================
     // TRIAL CALCULATION (from company.created_at or trial_ends_at)
     // ============================================
-    // Trial is 7 days from company creation
+    // Trial is configurable days from company creation (TRIAL_DAYS env var)
     // Trial ONLY ends when:
-    //   1. 7 days have passed (trial_ends_at < now), OR
+    //   1. TRIAL_DAYS have passed (trial_ends_at < now), OR
     //   2. A SUCCESSFUL payment has been made
     // Payment attempts or failures do NOT affect trial
     
@@ -113,23 +113,16 @@ export async function GET(request: NextRequest) {
     let trialDaysRemaining = 0
     let isWithinTrialPeriod = false
     
-    // Use trial_ends_at if available (cleaner logic), otherwise calculate from company.created_at
-    if (billing.trial_ends_at) {
-      const trialEndsAt = new Date(billing.trial_ends_at)
-      const msUntilTrialEnds = trialEndsAt.getTime() - now.getTime()
-      trialDaysRemaining = Math.max(0, Math.ceil(msUntilTrialEnds / (1000 * 60 * 60 * 24)))
-      isWithinTrialPeriod = msUntilTrialEnds > 0
-    } else {
-      // Fallback: calculate from company.created_at
-      const companyCreatedAt = new Date(billing.company_created_at || Date.now())
-      const msSinceCreation = now.getTime() - companyCreatedAt.getTime()
-      const daysSinceCreation = Math.floor(msSinceCreation / (1000 * 60 * 60 * 24))
-      
-      // Calculate remaining days: 7 - days_passed
-      // Day 1 → 6 days left, Day 2 → 5 days left, etc.
-      trialDaysRemaining = Math.max(0, TRIAL_DAYS - daysSinceCreation)
-      isWithinTrialPeriod = daysSinceCreation < TRIAL_DAYS
-    }
+    // Always calculate from company.created_at using current TRIAL_DAYS env var
+    // This ensures that changing TRIAL_DAYS takes effect immediately for all companies
+    const companyCreatedAt = new Date(billing.company_created_at || Date.now())
+    const msSinceCreation = now.getTime() - companyCreatedAt.getTime()
+    const daysSinceCreation = Math.floor(msSinceCreation / (1000 * 60 * 60 * 24))
+    
+    // Calculate remaining days: TRIAL_DAYS - days_passed
+    // Day 1 → (TRIAL_DAYS-1) days left, Day 2 → (TRIAL_DAYS-2) days left, etc.
+    trialDaysRemaining = Math.max(0, TRIAL_DAYS - daysSinceCreation)
+    isWithinTrialPeriod = daysSinceCreation < TRIAL_DAYS
     
     // Trial is active if:
     // - Within trial period AND
@@ -170,14 +163,74 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Calculate next billing date (30 days from last payment or subscription start)
-    const nextBillingDate = billingStatus === 'active' 
-      ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric' 
-        })
-      : null
+    // ============================================
+    // SUBSCRIPTION CHECK
+    // ============================================
+    // Check if company has an active subscription
+    let subscription = null
+    let hasActiveSubscription = false
+    
+    try {
+      const subscriptionQuery = `
+        SELECT 
+          subscription_id,
+          provider,
+          plan_id,
+          status,
+          subscriber_email,
+          start_time,
+          next_billing_time,
+          created_at,
+          updated_at
+        FROM company_subscriptions
+        WHERE company_id = $1::uuid
+        ORDER BY updated_at DESC
+        LIMIT 1
+      `
+      const subscriptionResult = await DatabaseService.query(subscriptionQuery, [companyId])
+      
+      if (subscriptionResult.length > 0) {
+        const sub = subscriptionResult[0]
+        subscription = {
+          id: sub.subscription_id,
+          provider: sub.provider,
+          planId: sub.plan_id,
+          status: sub.status,
+          subscriberEmail: sub.subscriber_email,
+          startTime: sub.start_time,
+          nextBillingDate: sub.next_billing_time,
+          createdAt: sub.created_at,
+          updatedAt: sub.updated_at
+        }
+        
+        // Check if subscription is active
+        hasActiveSubscription = ['active', 'authenticated'].includes(sub.status)
+        
+        // If subscription is active, override billing status to 'active'
+        if (hasActiveSubscription && billingStatus !== 'active') {
+          billingStatus = 'active'
+        }
+      }
+    } catch (subError) {
+      // company_subscriptions table may not exist yet, continue without subscription
+      console.log('[Billing Status] Subscription check skipped:', subError)
+    }
+
+    // Calculate next billing date (from subscription or 30 days from last payment)
+    let nextBillingDate = null
+    if (subscription?.nextBillingDate) {
+      nextBillingDate = new Date(subscription.nextBillingDate).toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      })
+    } else if (billingStatus === 'active') {
+      nextBillingDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      })
+    }
 
     // Calculate is_trial_expired: current_date > trial_end_date AND wallet_balance <= 0
     const isTrialExpired = !isWithinTrialPeriod && walletBalance <= 0
@@ -199,6 +252,7 @@ export async function GET(request: NextRequest) {
         isTrialExpired,
         nextBillingDate,
         hasSuccessfulRecharge,
+        hasActiveSubscription,
         lowBalanceThreshold: effectiveThreshold,
         currency: effectiveIsIndia ? 'INR' : 'USD',
         usageCounts: {
@@ -206,7 +260,8 @@ export async function GET(request: NextRequest) {
           questionsGenerated: parseInt(questionResult[0]?.count) || 0,
           videoInterviews: parseInt(videoResult[0]?.count) || 0
         }
-      }
+      },
+      subscription
     })
   } catch (error: any) {
     console.error('[Billing Status] Error:', error)

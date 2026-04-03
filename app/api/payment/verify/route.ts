@@ -20,7 +20,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { provider, paymentId, orderId, signature, amount, companyId } = body
+    const { provider, paymentId, orderId, subscriptionId, signature, amount, companyId } = body
 
     if (!provider || !paymentId || !companyId) {
       return NextResponse.json(
@@ -47,12 +47,30 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      if (orderId && signature) {
-        // Verify signature: SHA256(order_id + "|" + payment_id, secret)
-        const expectedSignature = crypto
-          .createHmac('sha256', razorpayKeySecret)
-          .update(`${orderId}|${paymentId}`)
-          .digest('hex')
+      if (signature) {
+        let expectedSignature: string
+        
+        if (subscriptionId) {
+          // Subscription flow: SHA256(payment_id + "|" + subscription_id, secret)
+          expectedSignature = crypto
+            .createHmac('sha256', razorpayKeySecret)
+            .update(`${paymentId}|${subscriptionId}`)
+            .digest('hex')
+          console.log(`[Payment Verify] Subscription signature verification for: ${paymentId}|${subscriptionId}`)
+        } else if (orderId) {
+          // Order flow: SHA256(order_id + "|" + payment_id, secret)
+          expectedSignature = crypto
+            .createHmac('sha256', razorpayKeySecret)
+            .update(`${orderId}|${paymentId}`)
+            .digest('hex')
+          console.log(`[Payment Verify] Order signature verification for: ${orderId}|${paymentId}`)
+        } else {
+          console.error('[Payment Verify] Neither subscriptionId nor orderId provided')
+          return NextResponse.json(
+            { ok: false, error: 'Missing subscriptionId or orderId for signature verification' },
+            { status: 400 }
+          )
+        }
 
         verified = expectedSignature === signature
         console.log(`[Payment Verify] Razorpay signature verification: ${verified}`)

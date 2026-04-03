@@ -237,28 +237,26 @@ export default function PaymentCheckout({ onPaymentSuccess, onPaymentCancel, com
         console.warn('[Razorpay] Could not clear stored data:', e)
       }
 
-      // Create order on backend
-      const res = await fetch('/api/create-order', {
+      // Create subscription on backend
+      const res = await fetch('/api/subscriptions/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, currency: 'INR', companyId }),
+        body: JSON.stringify({ planType: 'monthly' }),
       })
       const data = await res.json()
 
       if (!res.ok || !data.ok) {
-        throw new Error(data.error || 'Failed to create order')
+        throw new Error(data.error || 'Failed to create subscription')
       }
 
-      console.log('[Razorpay] Order created:', data.orderId)
+      console.log('[Razorpay] Subscription created:', data.subscription.id)
 
       // Open Razorpay checkout
       const options = {
         key: config.razorpayKeyId,
-        amount: data.amount,
-        currency: data.currency,
+        subscription_id: data.subscription.id,
         name: 'HireGenAI',
         description: 'Subscription Payment',
-        order_id: data.orderId,
         handler: async function (response: any) {
           console.log('[Razorpay] Payment successful:', response.razorpay_payment_id)
           
@@ -270,9 +268,8 @@ export default function PaymentCheckout({ onPaymentSuccess, onPaymentCancel, com
               body: JSON.stringify({
                 provider: 'razorpay',
                 paymentId: response.razorpay_payment_id,
-                orderId: response.razorpay_order_id,
+                subscriptionId: response.razorpay_subscription_id,
                 signature: response.razorpay_signature,
-                amount: data.amount,
                 companyId
               })
             })
@@ -280,8 +277,8 @@ export default function PaymentCheckout({ onPaymentSuccess, onPaymentCancel, com
             
             if (verifyData.ok) {
               toast({ 
-                title: 'Payment Successful!', 
-                description: `₹${verifyData.amountCredited} added to wallet. New balance: ₹${verifyData.walletBalance}` 
+                title: 'Subscription Activated!', 
+                description: 'Your subscription has been successfully activated.' 
               })
             } else {
               console.warn('[Razorpay] Verification warning:', verifyData.error)

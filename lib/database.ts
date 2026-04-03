@@ -2430,6 +2430,7 @@ export class DatabaseService {
     
     if (result.length === 0) {
       // No billing record - treat as not expired (new company)
+      console.log('🔍 [Trial Check] No billing record found for company:', companyId)
       return false
     }
 
@@ -2438,23 +2439,30 @@ export class DatabaseService {
     
     // If wallet has balance, trial is NOT expired (recharge restores access)
     if (walletBalance > 0) {
+      console.log('💰 [Trial Check] Wallet has balance, trial NOT expired:', { companyId, walletBalance })
       return false
     }
 
     const now = new Date()
-
-    // Determine trial end date
-    let trialEndsAt: Date
-    if (billing.trial_ends_at) {
-      trialEndsAt = new Date(billing.trial_ends_at)
-    } else {
-      // Fallback: 7 days from company creation
-      const companyCreatedAt = new Date(billing.company_created_at || Date.now())
-      trialEndsAt = new Date(companyCreatedAt.getTime() + 7 * 24 * 60 * 60 * 1000)
-    }
-
-    // Trial is expired if: current_date > trial_end_date AND wallet_balance <= 0
-    const isExpired = now > trialEndsAt && walletBalance <= 0
+    const trialDays = parseInt(process.env.TRIAL_DAYS || '7')
+    
+    // ALWAYS calculate from company creation using current TRIAL_DAYS env var
+    // This ensures that changing TRIAL_DAYS takes effect immediately
+    const companyCreatedAt = new Date(billing.company_created_at || Date.now())
+    const msSinceCreation = now.getTime() - companyCreatedAt.getTime()
+    const daysSinceCreation = Math.floor(msSinceCreation / (1000 * 60 * 60 * 24))
+    
+    const isExpired = daysSinceCreation >= trialDays && walletBalance <= 0
+    
+    console.log('🔍 [Trial Check] Debug info:', {
+      companyId,
+      trialDays,
+      daysSinceCreation,
+      walletBalance,
+      companyCreatedAt: companyCreatedAt.toISOString(),
+      now: now.toISOString(),
+      isExpired
+    })
     
     return isExpired
   }
@@ -4842,6 +4850,271 @@ export class DatabaseService {
       RETURNING *
     `
     const rows = await this.query(q, [meetingId, meetingLink]) as any[]
+    return rows[0]
+  }
+
+  // ============================================================================
+  // SUBSCRIPTION MANAGEMENT FUNCTIONS
+  // ============================================================================
+
+  /**
+   * Create or update a subscription record for a company
+   */
+  static async upsertSubscription(data: {
+    companyId: string
+    provider: string
+    subscriptionId: string
+    planId?: string
+    status: string
+    subscriberEmail?: string
+    startTime?: Date
+    nextBillingTime?: Date
+    rawData?: any
+  }) {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      INSERT INTO company_subscriptions (
+        company_id, provider, subscription_id, plan_id, status,
+        subscriber_email, start_time, next_billing_time, raw_data, updated_at
+      ) VALUES (
+        $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, NOW()
+      )
+      ON CONFLICT (company_id, provider) DO UPDATE SET
+        subscription_id = EXCLUDED.subscription_id,
+        plan_id = COALESCE(EXCLUDED.plan_id, company_subscriptions.plan_id),
+        status = EXCLUDED.status,
+        subscriber_email = COALESCE(EXCLUDED.subscriber_email, company_subscriptions.subscriber_email),
+        start_time = COALESCE(EXCLUDED.start_time, company_subscriptions.start_time),
+        next_billing_time = COALESCE(EXCLUDED.next_billing_time, company_subscriptions.next_billing_time),
+        raw_data = COALESCE(EXCLUDED.raw_data, company_subscriptions.raw_data),
+        updated_at = NOW()
+      RETURNING *
+    `
+    const rows = await this.query(q, [
+      data.companyId,
+      data.provider,
+      data.subscriptionId,
+      data.planId || null,
+      data.status,
+      data.subscriberEmail || null,
+      data.startTime?.toISOString() || null,
+      data.nextBillingTime?.toISOString() || null,
+      data.rawData ? JSON.stringify(data.rawData) : null
+    ]) as any[]
+    return rows[0]
+  }
+
+  /**
+   * Get subscription by company ID and provider
+   */
+  static async getSubscription(companyId: string, provider: string = 'razorpay') {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      SELECT * FROM company_subscriptions
+      WHERE company_id = $1::uuid AND provider = $2
+      LIMIT 1
+    `
+    const rows = await this.query(q, [companyId, provider]) as any[]
+    return rows[0] || null
+  }
+
+  /**
+   * Get subscription by Razorpay subscription ID
+   */
+  static async getSubscriptionByProviderId(subscriptionId: string, provider: string = 'razorpay') {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      SELECT cs.*, c.name as company_name
+      FROM company_subscriptions cs
+      JOIN companies c ON c.id = cs.company_id
+      WHERE cs.subscription_id = $1 AND cs.provider = $2
+      LIMIT 1
+    `
+    const rows = await this.query(q, [subscriptionId, provider]) as any[]
+    return rows[0] || null
+  }
+
+  /**
+   * Update subscription status
+   */
+  static async updateSubscriptionStatus(
+    companyId: string,
+    provider: string,
+    status: string,
+    nextBillingTime?: Date
+  ) {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    let q: string
+    let params: any[]
+
+    if (nextBillingTime) {
+      q = `
+        UPDATE company_subscriptions
+        SET status = $3, next_billing_time = $4, updated_at = NOW()
+        WHERE company_id = $1::uuid AND provider = $2
+        RETURNING *
+      `
+      params = [companyId, provider, status, nextBillingTime.toISOString()]
+    } else {
+      q = `
+        UPDATE company_subscriptions
+        SET status = $3, updated_at = NOW()
+        WHERE company_id = $1::uuid AND provider = $2
+        RETURNING *
+      `
+      params = [companyId, provider, status]
+    }
+
+    const rows = await this.query(q, params) as any[]
+    return rows[0]
+  }
+
+  /**
+   * Cancel subscription (set status to cancelled)
+   */
+  static async cancelSubscription(companyId: string, provider: string = 'razorpay') {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      UPDATE company_subscriptions
+      SET status = 'cancelled', updated_at = NOW()
+      WHERE company_id = $1::uuid AND provider = $2
+      RETURNING *
+    `
+    const rows = await this.query(q, [companyId, provider]) as any[]
+    return rows[0]
+  }
+
+  /**
+   * Record a subscription payment
+   */
+  static async recordSubscriptionPayment(data: {
+    subscriptionId: string
+    provider: string
+    paymentId: string
+    amount: number
+    currency: string
+    status: string
+    paymentTime?: Date
+    rawData?: any
+  }) {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      INSERT INTO subscription_payments (
+        subscription_id, provider, payment_id, amount, currency,
+        status, payment_time, raw_data
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (payment_id, provider) DO NOTHING
+      RETURNING *
+    `
+    const rows = await this.query(q, [
+      data.subscriptionId,
+      data.provider,
+      data.paymentId,
+      data.amount,
+      data.currency,
+      data.status,
+      data.paymentTime?.toISOString() || new Date().toISOString(),
+      data.rawData ? JSON.stringify(data.rawData) : null
+    ]) as any[]
+    return rows[0]
+  }
+
+  /**
+   * Get active subscription for a company (any provider)
+   */
+  static async getActiveSubscription(companyId: string) {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      SELECT * FROM company_subscriptions
+      WHERE company_id = $1::uuid
+        AND status IN ('active', 'authenticated', 'created')
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `
+    const rows = await this.query(q, [companyId]) as any[]
+    return rows[0] || null
+  }
+
+  /**
+   * Log webhook event for debugging
+   */
+  static async logWebhookEvent(data: {
+    provider: string
+    eventType: string
+    eventId?: string
+    rawData: any
+  }) {
+    if (!this.isDatabaseConfigured()) {
+      return null // Don't fail if logging fails
+    }
+
+    try {
+      const q = `
+        INSERT INTO webhook_logs (provider, event_type, event_id, raw_data)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id
+      `
+      const rows = await this.query(q, [
+        data.provider,
+        data.eventType,
+        data.eventId || null,
+        JSON.stringify(data.rawData)
+      ]) as any[]
+      return rows[0]?.id
+    } catch (error) {
+      console.error('[DatabaseService] Failed to log webhook event:', error)
+      return null
+    }
+  }
+
+  /**
+   * Activate company billing after subscription is activated
+   * Sets status to 'active' and optionally adds credits
+   */
+  static async activateCompanyFromSubscription(companyId: string, addCredits: number = 0) {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    // Ensure company_billing record exists
+    await this.query(
+      `INSERT INTO company_billing (company_id, wallet_balance, status, created_at, updated_at)
+       VALUES ($1::uuid, 0, 'active', NOW(), NOW())
+       ON CONFLICT (company_id) DO NOTHING`,
+      [companyId]
+    )
+
+    // Update status to active and optionally add credits
+    const q = `
+      UPDATE company_billing
+      SET status = 'active',
+          wallet_balance = wallet_balance + $2,
+          updated_at = NOW()
+      WHERE company_id = $1::uuid
+      RETURNING *
+    `
+    const rows = await this.query(q, [companyId, addCredits]) as any[]
     return rows[0]
   }
 }
