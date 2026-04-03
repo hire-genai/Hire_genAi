@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
           COUNT(*) as total_jobs,
           COUNT(*) FILTER (WHERE recruiter_id = $2::uuid) as recruiter_jobs,
           COUNT(*) FILTER (WHERE recruiter_id IS NULL) as null_recruiter_jobs,
-          COUNT(*) FILTER (WHERE created_by = $2::text) as created_by_recruiter
+          COUNT(*) FILTER (WHERE created_by = $2::uuid) as created_by_recruiter
         FROM job_postings 
         WHERE company_id = $1::uuid
       `
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
           UPDATE job_postings 
           SET recruiter_id = $2::uuid 
           WHERE company_id = $1::uuid 
-            AND created_by = $2::text 
+            AND created_by = $2::uuid 
             AND recruiter_id IS NULL
         `
         await DatabaseService.query(updateQuery, [companyId, recruiterId])
@@ -277,7 +277,7 @@ export async function GET(request: NextRequest) {
       WHERE c.company_id = $1::uuid 
         AND c.created_at >= $2::timestamp 
         AND c.created_at <= $3::timestamp
-        AND (jp.created_by = $4::text OR a.id IS NULL)  -- Include candidates without applications for this recruiter
+        AND (jp.created_by::text = $4::text OR a.id IS NULL)  -- Include candidates without applications for this recruiter
       GROUP BY 
         CASE 
           WHEN c.source_type = 'Direct' THEN COALESCE(c.sub_source, 'Direct')
@@ -340,7 +340,7 @@ export async function GET(request: NextRequest) {
         LEFT JOIN job_postings jp ON a.job_id = jp.id
         WHERE c.company_id = $1::uuid
           AND c.created_at >= $2::timestamp AND c.created_at <= $3::timestamp
-          AND (jp.created_by = $4::text OR a.id IS NULL)  -- Include candidates without applications for this recruiter
+          AND (jp.created_by::text = $4::text OR a.id IS NULL)  -- Include candidates without applications for this recruiter
       ),
       source_stats AS (
         SELECT 
@@ -424,10 +424,10 @@ export async function GET(request: NextRequest) {
     // --- 7. Recruiters list (team members) ---
     const recruitersQuery = `
       SELECT u.id, u.full_name AS name, u.email,
-        (SELECT COUNT(*) FROM job_postings jp WHERE jp.created_by = u.id::text AND jp.status = 'open' AND jp.created_at >= $2::timestamp AND jp.created_at <= $3::timestamp) AS active_jobs,
+        (SELECT COUNT(*) FROM job_postings jp WHERE jp.created_by = u.id AND jp.status = 'open' AND jp.created_at >= $2::timestamp AND jp.created_at <= $3::timestamp) AS active_jobs,
         (SELECT COUNT(*) FROM applications a2 
          JOIN job_postings jp2 ON a2.job_id = jp2.id 
-         WHERE jp2.created_by = u.id::text AND a2.current_stage NOT IN ('hired', 'rejected', 'withdrawn') AND a2.applied_at >= $2::timestamp AND a2.applied_at <= $3::timestamp) AS active_candidates
+         WHERE jp2.created_by = u.id AND a2.current_stage NOT IN ('hired', 'rejected', 'withdrawn') AND a2.applied_at >= $2::timestamp AND a2.applied_at <= $3::timestamp) AS active_candidates
       FROM users u
       WHERE u.company_id = $1::uuid AND u.status = 'active'
       ORDER BY u.full_name
@@ -442,18 +442,18 @@ export async function GET(request: NextRequest) {
         -- Total candidates managed by this recruiter
         (SELECT COUNT(*) FROM applications a 
          JOIN job_postings jp ON a.job_id = jp.id 
-         WHERE jp.company_id = $1::uuid AND jp.created_by = u.id::text AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp) AS total_candidates,
+         WHERE jp.company_id = $1::uuid AND jp.created_by = u.id AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp) AS total_candidates,
         -- Bottlenecks: candidates stuck in same stage for more than 2 days
         (SELECT COUNT(*) FROM applications a 
          JOIN job_postings jp ON a.job_id = jp.id 
-         WHERE jp.company_id = $1::uuid AND jp.created_by = u.id::text 
+         WHERE jp.company_id = $1::uuid AND jp.created_by = u.id 
          AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp
          AND a.current_stage NOT IN ('hired', 'rejected', 'withdrawn')
          AND (CURRENT_DATE - a.updated_at::date) > 2) AS bottlenecks,
         -- Average time in current stage (in days)
         (SELECT COALESCE(AVG(CURRENT_DATE - a.updated_at::date), 0) FROM applications a 
          JOIN job_postings jp ON a.job_id = jp.id 
-         WHERE jp.company_id = $1::uuid AND jp.created_by = u.id::text 
+         WHERE jp.company_id = $1::uuid AND jp.created_by = u.id 
          AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp
          AND a.current_stage NOT IN ('hired', 'rejected', 'withdrawn')) AS avg_time_in_stage
       FROM users u
@@ -486,11 +486,11 @@ export async function GET(request: NextRequest) {
         -- Offers Given = count where offer_status = 'sent' or 'under_review' or 'negotiating' or current_stage = 'offer'
         (SELECT COUNT(*) FROM applications a 
          JOIN job_postings jp ON a.job_id = jp.id 
-         WHERE jp.company_id = $1::uuid AND jp.created_by = u.id::text AND (a.offer_status IN ('sent', 'under_review', 'negotiating') OR a.current_stage = 'offer') AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp) AS offers_given,
+         WHERE jp.company_id = $1::uuid AND jp.created_by = u.id AND (a.offer_status IN ('sent', 'under_review', 'negotiating') OR a.current_stage = 'offer') AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp) AS offers_given,
         -- Offers Accepted = count where offer_status = 'accepted'
         (SELECT COUNT(*) FROM applications a 
          JOIN job_postings jp ON a.job_id = jp.id 
-         WHERE jp.company_id = $1::uuid AND jp.created_by = u.id::text AND a.offer_status = 'accepted' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp) AS offers_accepted
+         WHERE jp.company_id = $1::uuid AND jp.created_by = u.id AND a.offer_status = 'accepted' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp) AS offers_accepted
       FROM users u
       JOIN user_roles ur ON u.id = ur.user_id
       WHERE u.company_id = $1::uuid 
@@ -510,7 +510,7 @@ export async function GET(request: NextRequest) {
         u.email,
         -- Active Reqs = count of active job_posting where created_by = user id and status = 'open'
         (SELECT COUNT(*) FROM job_postings jp 
-         WHERE jp.company_id = $1::uuid AND jp.created_by = u.id::text AND jp.status = 'open' AND jp.created_at >= $2::timestamp AND jp.created_at <= $3::timestamp) AS active_reqs
+         WHERE jp.company_id = $1::uuid AND jp.created_by = u.id AND jp.status = 'open' AND jp.created_at >= $2::timestamp AND jp.created_at <= $3::timestamp) AS active_reqs
       FROM users u
       JOIN user_roles ur ON u.id = ur.user_id
       WHERE u.company_id = $1::uuid 
@@ -1292,7 +1292,7 @@ export async function GET(request: NextRequest) {
           // Always ensure we have values, even if 0
           const investment = Math.abs(totalInvestment)
           const valueCreated = Math.abs(totalValueCreated)
-          const roi = calculatedRoi
+          const roi = parseFloat(calculatedRoi)
           
           const avgQuality = qualityResult?.[0]?.avg_quality_rating ? parseFloat(qualityResult[0].avg_quality_rating) : 0
           const qualityBenchmark = avgQuality >= 4 ? 'Top Quartile' : avgQuality >= 3 ? 'Above Average' : avgQuality > 0 ? 'Needs Improvement' : 'No Data'

@@ -103,29 +103,31 @@ export class DatabaseService {
       throw new Error('Database not configured. Please set DATABASE_URL in your .env.local file.')
     }
 
-    const domain = email.split('@')[1]
-
-    // Map UI company size values to DB ENUM values
+    // Extract domain properly from email
+    let domain = email.split('@')[1] || 'gmail.com'
+    // Clean domain to get just the main domain part (e.g., gmail.com -> gmail)
+    domain = domain.split('.')[0]
     // UI sends: '1-10 employees', '11-50 employees', etc.
-    // DB expects: '1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000', '10000+'
+    // DB expects: '1-10 employees', '11-50 employees', etc. (full values)
     const mapSizeToEnum = (size?: string): string | null => {
       if (!size) return null
       const sizeMap: Record<string, string> = {
-        '1-10 employees': '1-10',
-        '11-50 employees': '11-50',
-        '51-200 employees': '51-200',
-        '201-500 employees': '201-500',
-        '501-1000 employees': '501-1000',
-        '1000+ employees': '10000+',
-        // Direct matches (if already in enum format)
-        '1-10': '1-10',
-        '11-50': '11-50',
-        '51-200': '51-200',
-        '201-500': '201-500',
-        '501-1000': '501-1000',
-        '1001-5000': '1001-5000',
-        '5001-10000': '5001-10000',
-        '10000+': '10000+',
+        // Direct matches (UI values match DB enum values exactly)
+        '1-10 employees': '1-10 employees',
+        '11-50 employees': '11-50 employees',
+        '51-200 employees': '51-200 employees',
+        '201-500 employees': '201-500 employees',
+        '501-1000 employees': '501-1000 employees',
+        '1000+ employees': '1000+ employees',
+        // Legacy support for values without ' employees'
+        '1-10': '1-10 employees',
+        '11-50': '11-50 employees',
+        '51-200': '51-200 employees',
+        '201-500': '201-500 employees',
+        '501-1000': '501-1000 employees',
+        '1001-5000': '1000+ employees',
+        '5001-10000': '1000+ employees',
+        '10000+': '1000+ employees',
       }
       return sizeMap[size] || null
     }
@@ -150,9 +152,9 @@ export class DatabaseService {
     const nameCheck = await this.query(checkNameQuery, [finalCompanyName]) as any[]
     
     if (nameCheck[0].count > 0) {
-      // Append domain or timestamp to make name unique
-      const timestamp = Date.now()
-      finalCompanyName = `${signupData.companyName} (${domain.split('.')[0]}-${timestamp})`
+      // Append domain and a short random suffix to make name unique
+      const randomSuffix = Math.random().toString(36).substring(2, 8)
+      finalCompanyName = `${signupData.companyName} (${domain}-${randomSuffix})`
     }
 
     // Create OpenAI project and service account for the company
@@ -2407,6 +2409,188 @@ export class DatabaseService {
     return result[0] || null
   }
 
+  // Check if trial has expired for a company
+  // Trial is expired if: current_date > trial_end_date AND wallet_balance <= 0
+  // When wallet_balance > 0, trial is NOT expired (recharge restores access)
+  static async isTrialExpired(companyId: string): Promise<boolean> {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const query = `
+      SELECT 
+        cb.trial_ends_at,
+        cb.wallet_balance,
+        c.created_at as company_created_at
+      FROM company_billing cb
+      JOIN companies c ON c.id = cb.company_id
+      WHERE cb.company_id = $1::uuid
+    `
+    const result = await this.query(query, [companyId]) as any[]
+    
+    if (result.length === 0) {
+      // No billing record - treat as not expired (new company)
+      return false
+    }
+
+    const billing = result[0]
+    const walletBalance = parseFloat(billing.wallet_balance) || 0
+    
+    // If wallet has balance, trial is NOT expired (recharge restores access)
+    if (walletBalance > 0) {
+      return false
+    }
+
+    const now = new Date()
+
+    // Determine trial end date
+    let trialEndsAt: Date
+    if (billing.trial_ends_at) {
+      trialEndsAt = new Date(billing.trial_ends_at)
+    } else {
+      // Fallback: 7 days from company creation
+      const companyCreatedAt = new Date(billing.company_created_at || Date.now())
+      trialEndsAt = new Date(companyCreatedAt.getTime() + 7 * 24 * 60 * 60 * 1000)
+    }
+
+    // Trial is expired if: current_date > trial_end_date AND wallet_balance <= 0
+    const isExpired = now > trialEndsAt && walletBalance <= 0
+    
+    return isExpired
+  }
+
+  // Put all OPEN jobs on hold when trial expires
+  // Only updates jobs with status = 'open', does not touch 'onhold' or 'closed'
+  static async putOpenJobsOnHoldForTrialExpiry(companyId: string): Promise<number> {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const query = `
+      UPDATE job_postings
+      SET 
+        status = 'onhold',
+        on_hold_reason = 'TRIAL_EXPIRED',
+        updated_at = NOW()
+      WHERE company_id = $1::uuid 
+        AND status = 'open'
+      RETURNING id
+    `
+    const result = await this.query(query, [companyId]) as any[]
+    
+    const count = result.length
+    if (count > 0) {
+      console.log(`⏸️ [Trial Expiry] Put ${count} OPEN jobs on hold for company ${companyId}`)
+    }
+    
+    return count
+  }
+
+  // Restore jobs after successful recharge
+  // Only restores jobs that were put on hold due to TRIAL_EXPIRED
+  // Does not touch jobs with MANUAL hold or CLOSED status
+  // IMPORTANT: Keeps on_hold_reason as 'TRIAL_EXPIRED' for history
+  static async restoreJobsAfterRecharge(companyId: string): Promise<number> {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    // Note: We keep on_hold_reason = 'TRIAL_EXPIRED' for historical tracking
+    // Only update status to 'open', do NOT clear on_hold_reason
+    const query = `
+      UPDATE job_postings
+      SET 
+        status = 'open',
+        updated_at = NOW()
+      WHERE company_id = $1::uuid 
+        AND status = 'onhold'
+        AND on_hold_reason = 'TRIAL_EXPIRED'
+      RETURNING id, title
+    `
+    const result = await this.query(query, [companyId]) as any[]
+    
+    const count = result.length
+    if (count > 0) {
+      console.log(`🚀 [Recharge] Restored ${count} jobs from TRIAL_EXPIRED hold for company ${companyId}`)
+      result.forEach((job: any) => {
+        console.log(`   - Restored job: ${job.title} (${job.id})`)
+      })
+    }
+    
+    return count
+  }
+
+  // Put all pending interviews on hold when trial expires
+  // Only updates interviews that are NOT completed
+  // Stores original status for restoration
+  static async putInterviewsOnHoldForTrialExpiry(companyId: string): Promise<number> {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    // Find all non-completed interviews for this company's jobs
+    // Store original_status before changing to ON_HOLD
+    // Invalidate interview link by clearing it
+    const query = `
+      UPDATE interviews i
+      SET 
+        original_status = i.interview_status,
+        interview_status = 'ON_HOLD',
+        interview_link = NULL,
+        on_hold_reason = 'TRIAL_EXPIRED',
+        updated_at = NOW()
+      FROM applications a
+      JOIN job_postings jp ON jp.id = a.job_id
+      WHERE i.application_id = a.id
+        AND jp.company_id = $1::uuid
+        AND i.interview_status NOT IN ('Completed', 'COMPLETED', 'ON_HOLD')
+        AND (i.on_hold_reason IS NULL OR i.on_hold_reason != 'MANUAL')
+      RETURNING i.id, i.original_status
+    `
+    const result = await this.query(query, [companyId]) as any[]
+    
+    const count = result.length
+    if (count > 0) {
+      console.log(`⏸️ [Trial Expiry] Put ${count} interviews on hold for company ${companyId}`)
+    }
+    
+    return count
+  }
+
+  // Restore interviews after successful recharge
+  // Only restores interviews that were put on hold due to TRIAL_EXPIRED
+  // Restores to original_status (or 'Scheduled' if not available)
+  // Does NOT remove on_hold_reason (keeps history)
+  static async restoreInterviewsAfterRecharge(companyId: string): Promise<number> {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    // Restore interviews to their original status
+    // Keep on_hold_reason = 'TRIAL_EXPIRED' for historical tracking
+    const query = `
+      UPDATE interviews i
+      SET 
+        interview_status = COALESCE(i.original_status, 'Scheduled'),
+        updated_at = NOW()
+      FROM applications a
+      JOIN job_postings jp ON jp.id = a.job_id
+      WHERE i.application_id = a.id
+        AND jp.company_id = $1::uuid
+        AND i.interview_status = 'ON_HOLD'
+        AND i.on_hold_reason = 'TRIAL_EXPIRED'
+      RETURNING i.id, i.interview_status as restored_status
+    `
+    const result = await this.query(query, [companyId]) as any[]
+    
+    const count = result.length
+    if (count > 0) {
+      console.log(`🚀 [Recharge] Restored ${count} interviews from TRIAL_EXPIRED hold for company ${companyId}`)
+    }
+    
+    return count
+  }
+
   // Record usage and handle charging
   static async recordUsage(params: {
     companyId: string
@@ -2511,67 +2695,12 @@ export class DatabaseService {
   }
 
   // Auto-recharge wallet
+  // IMPORTANT: Auto-recharge is DISABLED until real Razorpay payment integration is added.
+  // Wallet credits should ONLY be added after a verified Razorpay payment (via webhook or /api/payment/verify).
+  // The old code was simulating payment success and adding credits without real payment — this is a critical bug.
   static async autoRecharge(companyId: string) {
-    if (!this.isDatabaseConfigured()) {
-      throw new Error('Database not configured')
-    }
-
-    const pricing = this.getPricing()
-    const rechargeAmount = pricing.rechargeAmount
-
-    // Create invoice for recharge
-    const invoice = await this.createInvoice({
-      companyId,
-      description: 'Wallet Auto-Recharge',
-      subtotal: rechargeAmount,
-      total: rechargeAmount,
-      lineItems: [{
-        description: 'Wallet Top-up',
-        quantity: 1,
-        unitPrice: rechargeAmount,
-        amount: rechargeAmount
-      }]
-    })
-
-    // In production, this would call Stripe/PayPal API
-    // For now, simulate successful payment
-    const paymentSuccess = true
-
-    if (paymentSuccess) {
-      // Update wallet
-      const addQuery = `
-        UPDATE company_billing
-        SET 
-          wallet_balance = wallet_balance + $2,
-          current_month_spent = current_month_spent + $2,
-          total_spent = total_spent + $2,
-          updated_at = NOW()
-        WHERE company_id = $1::uuid
-        RETURNING *
-      `
-      await this.query(addQuery, [companyId, rechargeAmount])
-
-      // Mark invoice as paid
-      await this.markInvoicePaid(invoice.id)
-
-      // Record ledger entry
-      const billing = await this.getCompanyBilling(companyId)
-      await this.addLedgerEntry({
-        companyId,
-        entryType: 'AUTO_RECHARGE',
-        description: `Wallet auto-recharge`,
-        quantity: 1,
-        unitPrice: rechargeAmount,
-        amount: -rechargeAmount, // Negative because it's a credit
-        invoiceId: invoice.id,
-        balanceBefore: billing.wallet_balance - rechargeAmount,
-        balanceAfter: billing.wallet_balance
-      })
-
-      return invoice
-    } else {
-      throw new Error('Payment failed')
-    }
+    console.warn(`⚠️ [Auto-Recharge] Auto-recharge requested for company ${companyId} but is DISABLED. Wallet credits can only be added after a real Razorpay payment.`)
+    throw new Error('Insufficient wallet balance. Please recharge your wallet via the Payment page to continue.')
   }
 
   // Deduct from wallet
@@ -2957,7 +3086,7 @@ export class DatabaseService {
 
   // Update payment method
   static async updatePaymentMethod(companyId: string, paymentData: {
-    provider: 'stripe' | 'paypal'
+    provider: 'razorpay' | 'paypal'
     paymentMethodId: string
     last4?: string
     brand?: string
@@ -4468,6 +4597,30 @@ export class DatabaseService {
       throw new Error('Database not configured')
     }
 
+    // Convert local date/time to UTC for proper comparison
+    // meetingDate format: "2026-03-13"
+    // meetingTime format: "9:00am"
+    
+    // Create a proper date-time object in UTC for comparison
+    const [year, month, day] = meetingDate.split('-').map(Number)
+    const time = meetingTime.toLowerCase()
+    const isPM = time.includes('pm')
+    const timeOnly = time.replace('am', '').replace('pm', '').trim()
+    const [hours, minutes] = timeOnly.split(':').map(Number)
+    
+    let meetingHours = hours
+    if (isPM && hours !== 12) {
+      meetingHours += 12
+    } else if (!isPM && hours === 12) {
+      meetingHours = 0
+    }
+    
+    // Create UTC date-time for the requested slot
+    const requestedDateTime = new Date(Date.UTC(year, month - 1, day, meetingHours, minutes || 0))
+    
+    // Convert to UTC date string for database comparison
+    const utcDate = requestedDateTime.toISOString().split('T')[0]
+    
     // Check for overlapping bookings - slot is unavailable if:
     // 1. Same date AND
     // 2. Status is not cancelled AND
@@ -4493,7 +4646,7 @@ export class DatabaseService {
     `
 
     const endTime = meetingEndTime || meetingTime
-    const result = await this.query(query, [meetingDate, meetingTime, endTime]) as any[]
+    const result = await this.query(query, [utcDate, meetingTime, endTime]) as any[]
     return parseInt(result[0]?.count || '0') === 0
   }
 
@@ -4574,5 +4727,121 @@ export class DatabaseService {
     const q = `SELECT * FROM interviews WHERE application_id = $1::uuid LIMIT 1`
     const rows = await this.query(q, [applicationId]) as any[]
     return rows.length > 0 ? rows[0] : null
+  }
+
+  // =========================================================================
+  // INTEGRATION SETTINGS (Google Calendar OAuth)
+  // =========================================================================
+
+  static async getIntegrationSettings(integrationName: string) {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    // Auto-create table if it doesn't exist (safe for all environments)
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS integration_settings (
+        id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        integration_name      TEXT NOT NULL UNIQUE,
+        access_token          TEXT,
+        refresh_token         TEXT,
+        token_expiry          TIMESTAMPTZ,
+        calendar_connected    BOOLEAN NOT NULL DEFAULT false,
+        calendar_id           TEXT,
+        extra_data            JSONB,
+        created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at            TIMESTAMPTZ
+      )
+    `, [])
+
+    const q = `SELECT * FROM integration_settings WHERE integration_name = $1 LIMIT 1`
+    const rows = await this.query(q, [integrationName]) as any[]
+    return rows[0] || null
+  }
+
+  static async upsertIntegrationSettings(data: {
+    integrationName: string
+    accessToken: string
+    refreshToken: string
+    tokenExpiry: string | null
+    calendarConnected: boolean
+    calendarId?: string
+    extraData?: any
+  }) {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      INSERT INTO integration_settings (
+        integration_name, access_token, refresh_token, token_expiry,
+        calendar_connected, calendar_id, extra_data, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      ON CONFLICT (integration_name) DO UPDATE SET
+        access_token = EXCLUDED.access_token,
+        refresh_token = COALESCE(EXCLUDED.refresh_token, integration_settings.refresh_token),
+        token_expiry = EXCLUDED.token_expiry,
+        calendar_connected = EXCLUDED.calendar_connected,
+        calendar_id = COALESCE(EXCLUDED.calendar_id, integration_settings.calendar_id),
+        extra_data = COALESCE(EXCLUDED.extra_data, integration_settings.extra_data),
+        updated_at = NOW()
+      RETURNING *
+    `
+    const rows = await this.query(q, [
+      data.integrationName,
+      data.accessToken,
+      data.refreshToken,
+      data.tokenExpiry,
+      data.calendarConnected,
+      data.calendarId || null,
+      data.extraData ? JSON.stringify(data.extraData) : null
+    ]) as any[]
+    return rows[0]
+  }
+
+  static async updateIntegrationTokens(integrationName: string, accessToken: string, tokenExpiry: string | null) {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      UPDATE integration_settings
+      SET access_token = $2, token_expiry = $3, updated_at = NOW()
+      WHERE integration_name = $1
+      RETURNING *
+    `
+    const rows = await this.query(q, [integrationName, accessToken, tokenExpiry]) as any[]
+    return rows[0]
+  }
+
+  static async disconnectIntegration(integrationName: string) {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      UPDATE integration_settings
+      SET access_token = NULL, refresh_token = NULL, token_expiry = NULL,
+          calendar_connected = false, updated_at = NOW()
+      WHERE integration_name = $1
+      RETURNING *
+    `
+    const rows = await this.query(q, [integrationName]) as any[]
+    return rows[0]
+  }
+
+  static async updateMeetingLink(meetingId: string, meetingLink: string) {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      UPDATE meeting_bookings
+      SET meeting_link = $2, updated_at = NOW()
+      WHERE id = $1::uuid
+      RETURNING *
+    `
+    const rows = await this.query(q, [meetingId, meetingLink]) as any[]
+    return rows[0]
   }
 }

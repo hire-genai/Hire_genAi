@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useEffect, useCallback } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -158,15 +160,35 @@ export default function SupportPage() {
       if (companyId) params.append('companyId', companyId)
       
       const response = await fetch(`/api/support/tickets/${ticketId}?${params.toString()}`)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
       const data = await response.json()
       
       if (data.success) {
         setSelectedTicket(data.data)
       } else {
         console.error('Failed to fetch ticket details:', data.error)
+        // Show user-friendly error
+        alert(`Failed to load ticket: ${data.error || 'Unknown error'}`)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching ticket details:', error)
+      
+      // Show user-friendly error message
+      let errorMessage = 'Failed to load ticket details. Please try again.'
+      
+      if (error.message.includes('400')) {
+        errorMessage = 'Invalid ticket ID. Please select a valid ticket.'
+      } else if (error.message.includes('404')) {
+        errorMessage = 'Ticket not found. It may have been deleted.'
+      } else if (error.message.includes('500')) {
+        errorMessage = 'Server error. Please try again in a few moments.'
+      }
+      
+      alert(errorMessage)
     }
   }
 

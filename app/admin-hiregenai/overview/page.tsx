@@ -1,5 +1,7 @@
 import OverviewTab from "@/app/admin-hiregenai/_components/OverviewTab"
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: "Overview - Admin Dashboard",
 }

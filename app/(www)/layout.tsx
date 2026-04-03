@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'HireGenAI - AI-Powered Recruitment',
   description: 'AI-powered recruitment platform that pre-screens and interviews candidates',

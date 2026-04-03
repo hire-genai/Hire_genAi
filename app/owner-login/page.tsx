@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = 'force-dynamic';
+
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -98,8 +100,8 @@ export default function OwnerLoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
       <Card className="w-full max-w-md bg-slate-800 border-slate-700">
-        <CardHeader className="space-y-2">
-          <div className="flex items-center gap-2 mb-4">
+        <CardHeader className="space-y-1.5">
+          <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold">H</span>
             </div>

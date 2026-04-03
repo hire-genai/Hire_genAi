@@ -1,8 +1,11 @@
 "use client"
 
-import React, { useEffect, useMemo, useState } from "react"
+export const dynamic = 'force-dynamic';
+
+import React, { useEffect, useMemo, useState, Suspense } from "react"
 import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -64,10 +67,34 @@ const countryOptions = [
   { name: "Other", code: "XX" },
 ]
 
-export default function SignupPage() {
+// Separate component to handle search params
+function SignupContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
+  const { setAuthSession, user, loading: authLoading } = useAuth()
   const [step, setStep] = useState(1)
+  const [mounted, setMounted] = useState(false)
+  
+  useEffect(() => {
+    if (authLoading) return
+    
+    if (user) {
+      router.replace('/dashboard')
+      return
+    }
+
+    const fromRazorpay = localStorage.getItem('razorpay_redirect')
+    if (fromRazorpay) {
+      localStorage.removeItem('razorpay_redirect')
+      router.replace('/dashboard')
+      return
+    }
+  }, [user, authLoading])
+  
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+  
+  // ... rest of the code remains the same ...
 
   const [form, setForm] = useState({
     // step 1
@@ -129,30 +156,37 @@ export default function SignupPage() {
     }
   }
 
-  // Initialize step from URL on first render and when section changes
+  // Initialize step from URL on first render (only after mount)
   useEffect(() => {
-    const sec = searchParams?.get('section')
+    if (!mounted) return
+    
+    const urlParams = new URLSearchParams(window.location.search)
+    const sec = urlParams.get('section')
     const target = sectionToStep(sec)
     setStep(target)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams])
+  }, [mounted])
 
   // Update URL whenever step changes (but avoid infinite loop)
   useEffect(() => {
-    const currentSection = searchParams?.get('section')
+    if (!mounted) return
+    
+    const urlParams = new URLSearchParams(window.location.search)
+    const currentSection = urlParams.get('section')
     const expectedSection = stepToSection(step)
     
     // Only update URL if it doesn't match current step
     if (currentSection !== expectedSection) {
       router.replace(`/signup?section=${expectedSection}`, { scroll: false })
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step])
+  }, [step, mounted, router])
 
   // Handle browser back/forward navigation
   useEffect(() => {
+    if (!mounted) return
+    
     const handlePopState = () => {
-      const currentSection = searchParams?.get('section')
+      const urlParams = new URLSearchParams(window.location.search)
+      const currentSection = urlParams.get('section')
       if (currentSection) {
         const newStep = sectionToStep(currentSection)
         if (newStep && newStep !== step) {
@@ -163,7 +197,7 @@ export default function SignupPage() {
 
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
-  }, [searchParams, step])
+  }, [mounted, step])
 
   const next = () => {
     // Validate current step before proceeding
@@ -352,9 +386,58 @@ export default function SignupPage() {
         localStorage.setItem('refreshToken', data.session.refreshToken)
       }
 
-      // Show success message and redirect to login
-      alert('Signup successful! Please login to continue.')
-      router.push("/login")
+      // Set auth session so user is logged in immediately (no redirect to /login needed)
+      if (data.user && data.company) {
+        setAuthSession(
+          {
+            id: data.user.id,
+            email: data.user.email,
+            full_name: data.user.full_name,
+            status: data.user.status || 'active',
+          },
+          {
+            id: data.company.id,
+            name: data.company.name,
+            status: data.company.status || 'active',
+            verified: data.company.verified || false,
+          }
+        )
+      }
+
+      // Check if user had selected a plan from pricing page
+      const pendingPlan = localStorage.getItem('pendingPlan')
+      
+      if (pendingPlan) {
+        // User came from pricing page → redirect DIRECTLY to Razorpay payment (same tab)
+        localStorage.removeItem('pendingPlan') // Clear after use
+        
+        // Extend session before going to external payment page (30 minutes)
+        const sessionExpiresAt = localStorage.getItem('sessionExpiresAt')
+        if (sessionExpiresAt) {
+          const newExpiry = Date.now() + (30 * 60 * 1000)
+          localStorage.setItem('sessionExpiresAt', newExpiry.toString())
+        }
+        
+        const RAZORPAY_PAYMENT_LINK = 'https://pages.razorpay.com/hire-genai'
+        const userEmail = data.user?.email || form.email
+        const callbackUrl = `${window.location.origin}/payment/return`
+        
+        let paymentUrl = RAZORPAY_PAYMENT_LINK
+        const params = new URLSearchParams()
+        if (userEmail) {
+          params.append('email', userEmail)
+        }
+        params.append('callback_url', callbackUrl)
+        
+        if (params.toString()) {
+          paymentUrl += `?${params.toString()}`
+        }
+        localStorage.setItem('razorpay_redirect', 'true')
+        window.location.href = paymentUrl
+      } else {
+        // Normal signup → redirect to dashboard
+        router.push("/dashboard")
+      }
     } catch (error: any) {
       console.error('Signup error:', error)
       setErrorMessage(error?.message || 'Failed to complete signup. Please try again.')
@@ -416,8 +499,8 @@ export default function SignupPage() {
           {step === 1 && (
             <Card className="sr-card">
               <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center">
-                  <Building2 className="w-6 h-6 text-emerald-600" />
+                <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-emerald-600" />
                 </div>
                 <CardTitle className="text-2xl">Company Information</CardTitle>
                 <CardDescription>Tell us about your company and what you do</CardDescription>
@@ -468,8 +551,8 @@ export default function SignupPage() {
           {step === 2 && (
             <Card className="sr-card">
               <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center">
-                  <MapPin className="w-6 h-6 text-blue-600" />
+                <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                  <MapPin className="w-5 h-5 text-blue-600" />
                 </div>
                 <CardTitle className="text-2xl">Contact Information</CardTitle>
                 <CardDescription>Where is your company located?</CardDescription>
@@ -517,8 +600,8 @@ export default function SignupPage() {
           {step === 3 && (
             <Card className="sr-card">
               <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center">
-                  <FileText className="w-6 h-6 text-indigo-600" />
+                <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-indigo-600" />
                 </div>
                 <CardTitle className="text-2xl">Legal Information</CardTitle>
                 <CardDescription>Legal details for compliance and verification</CardDescription>
@@ -550,8 +633,8 @@ export default function SignupPage() {
           {step === 4 && (
             <Card className="sr-card">
               <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-purple-100 flex items-center justify-center">
-                  <User2 className="w-6 h-6 text-purple-600" />
+                <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+                  <User2 className="w-5 h-5 text-purple-600" />
                 </div>
                 <CardTitle className="text-2xl">Manager Account</CardTitle>
                 <CardDescription>Set up the primary manager account</CardDescription>
@@ -617,14 +700,14 @@ export default function SignupPage() {
           {step === 5 && (
             <Card className="sr-card">
               <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                 </div>
                 <CardTitle className="text-2xl">Review & Complete</CardTitle>
                 <CardDescription>Review your information and complete registration</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="rounded-lg border p-4">
                     <h3 className="font-semibold mb-3">Company Summary</h3>
                     <div className="text-sm text-slate-600 space-y-1">
@@ -697,9 +780,9 @@ export default function SignupPage() {
       <footer className="bg-slate-900 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Main Footer Content */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-12 mb-12">
+          <div className="grid grid-cols-2 md:grid-cols-12 gap-6 md:gap-12 mb-12">
             {/* Left Section - Brand Block */}
-            <div className="md:col-span-3">
+            <div className="col-span-2 md:col-span-3">
               <h3 className="text-2xl font-bold mb-2">
                 <span className="text-white">Hire</span>
                 <span className="text-emerald-400">GenAI</span>
@@ -728,74 +811,79 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* Product Section */}
-            <div className="md:col-span-2">
-              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Product</h4>
-              <ul className="space-y-3 text-slate-400 text-sm">
-                <li>
-                  <Link href="/demo-en" className="hover:text-emerald-400 transition-colors">
-                    Try the Demo
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/pricing" className="hover:text-emerald-400 transition-colors">
-                    Pricing
-                  </Link>
-                </li>
-                <li>
-                  <button 
-                    onClick={() => {
-                      const element = document.getElementById('assessment');
-                      element?.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="text-slate-400 hover:text-emerald-400 transition-colors text-left w-full"
-                  >
-                    Assessment
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => {
-                      const element = document.getElementById('faq');
-                      element?.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="text-slate-400 hover:text-emerald-400 transition-colors text-left w-full"
-                  >
-                    FAQs
-                  </button>
-                </li>
-              </ul>
-            </div>
+            {/* Product & Company Section - Side by side */}
+            <div className="col-span-2 md:col-span-4">
+              <div className="grid grid-cols-2 gap-6">
+                {/* Product Section */}
+                <div>
+                  <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Product</h4>
+                  <ul className="space-y-3 text-slate-400 text-sm">
+                    <li>
+                      <Link href="/demo-en" className="hover:text-emerald-400 transition-colors">
+                        Try the Demo
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/pricing" className="hover:text-emerald-400 transition-colors">
+                        Pricing
+                      </Link>
+                    </li>
+                    <li>
+                      <button 
+                        onClick={() => {
+                          const element = document.getElementById('assessment');
+                          element?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="text-slate-400 hover:text-emerald-400 transition-colors text-left w-full"
+                      >
+                        Assessment
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        onClick={() => {
+                          const element = document.getElementById('faq');
+                          element?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="text-slate-400 hover:text-emerald-400 transition-colors text-left w-full"
+                      >
+                        FAQs
+                      </button>
+                    </li>
+                  </ul>
+                </div>
 
-            {/* Company Section */}
-            <div className="md:col-span-2">
-              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Company</h4>
-              <ul className="space-y-3 text-slate-400 text-sm">
-                <li>
-                  <Link href="/about" className="hover:text-emerald-400 transition-colors">
-                    About us
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/contact" className="hover:text-emerald-400 transition-colors">
-                    Contact
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/book-meeting" className="hover:text-emerald-400 transition-colors">
-                    Book a Meeting
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/owner-login" className="hover:text-emerald-400 transition-colors">
-                    Admin
-                  </Link>
-                </li>
-              </ul>
+                {/* Company Section */}
+                <div>
+                  <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Company</h4>
+                  <ul className="space-y-3 text-slate-400 text-sm">
+                    <li>
+                      <Link href="/about" className="hover:text-emerald-400 transition-colors">
+                        About us
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/contact" className="hover:text-emerald-400 transition-colors">
+                        Contact
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/book-meeting" className="hover:text-emerald-400 transition-colors">
+                        Book a Meeting
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/owner-login" className="hover:text-emerald-400 transition-colors">
+                        Admin
+                      </Link>
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
 
             {/* Legal Section */}
-            <div className="md:col-span-2">
+            <div className="col-span-1 md:col-span-2">
               <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Legal</h4>
               <ul className="space-y-3 text-slate-400 text-sm">
                 <li>
@@ -812,7 +900,7 @@ export default function SignupPage() {
             </div>
 
             {/* Right Section - Badges Block */}
-            <div className="md:col-span-3">
+            <div className="col-span-1 md:col-span-3">
               <div className="space-y-4">
                 {/* Trustpilot Badge */}
                 <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
@@ -844,5 +932,21 @@ export default function SignupPage() {
         </div>
       </footer>
     </div>
+  )
+}
+
+// Main export component with Suspense wrapper
+export default function SignupPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <SignupContent />
+    </Suspense>
   )
 }

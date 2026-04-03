@@ -117,9 +117,293 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    border-color: var(--border);
   }
+
+  /* Ensure clickable elements show pointer cursor globally */
+  button:not(:disabled),
+  [role="button"],
+  a,
+  .cursor-pointer,
+  [data-clickable="true"] {
+    cursor: pointer;
+  }
+
+  /* Disabled states should show not-allowed */
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  html {
+    overflow-x: hidden;
+  }
+  
   body {
-    @apply bg-background text-foreground;
+    overflow-x: hidden;
+    overflow-y: scroll !important;
+    padding-right: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+    background-color: var(--background);
+    color: var(--foreground);
+    outline-color: color-mix(in srgb, var(--ring) 50%, transparent);
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
+  
+  /* Prevent Radix UI from adding scroll lock styles */
+  body[data-scroll-locked] {
+    overflow-y: scroll !important;
+    padding-right: 0 !important;
+    margin-right: 0 !important;
+  }
+  
+  * {
+    box-sizing: border-box;
+  }
+}
+
+/* SmartRecruiters-style components for Homepage */
+.sr-gradient {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.sr-card {
+  background-color: #ffffff;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  border: 1px solid #f3f4f6;
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+.sr-card:hover {
+  box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.07), 0 1px 3px -1px rgba(0, 0, 0, 0.04);
+}
+
+.sr-button-primary {
+  background-color: #059669;
+  color: #ffffff;
+  font-weight: 600;
+  padding-left: 2rem;
+  padding-right: 2rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-radius: 9999px;
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.sr-button-primary:hover {
+  background-color: #047857;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.sr-button-secondary {
+  background-color: #ffffff;
+  border-width: 2px;
+  border-color: #059669;
+  color: #059669;
+  font-weight: 600;
+  padding-left: 2rem;
+  padding-right: 2rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-radius: 9999px;
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+.sr-button-secondary:hover {
+  background-color: #ecfdf5;
+}
+
+.sr-button-dark {
+  background-color: #1e293b;
+  color: #ffffff;
+  font-weight: 600;
+  padding-left: 2rem;
+  padding-right: 2rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-radius: 9999px;
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+.sr-button-dark:hover {
+  background-color: #0f172a;
+}
+
+.sr-input {
+  width: 100%;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-width: 1px;
+  border-color: #e5e7eb;
+  border-radius: 0.5rem;
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+.sr-input:focus {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px #059669;
+  border-color: #10b981;
+}
+
+.sr-select {
+  width: 100%;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-width: 1px;
+  border-color: #e5e7eb;
+  border-radius: 0.5rem;
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+.sr-select:focus {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px #059669;
+  border-color: #10b981;
+}
+
+.sr-text-gradient {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.sr-hero-bg {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+/* Dashboard-specific styles */
+.dashboard-bg {
+  background-color: #f9fafb;
+}
+
+.dashboard-card {
+  background-color: #ffffff;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  border: 1px solid #f3f4f6;
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+.dashboard-card:hover {
+  box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.07), 0 1px 3px -1px rgba(0, 0, 0, 0.04);
+}
+
+/* Standardized spacing system */
+.spacing-xs { padding: 0.5rem; }
+.spacing-sm { padding: 1rem; }
+.spacing-md { padding: 1.5rem; }
+.spacing-lg { padding: 2rem; }
+.spacing-xl { padding: 3rem; }
+.spacing-2xl { padding: 4rem; }
+
+/* Standardized gap system */
+.gap-xs { gap: 0.5rem; }
+.gap-sm { gap: 1rem; }
+.gap-md { gap: 1.5rem; }
+.gap-lg { gap: 2rem; }
+.gap-xl { gap: 3rem; }
+.gap-2xl { gap: 4rem; }
+
+/* Consistent emerald color variants */
+.emerald-accent {
+  background-color: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.emerald-primary {
+  background-color: #059669;
+  color: #ffffff;
+}
+
+.emerald-primary:hover {
+  background-color: #047857;
+}
+
+.emerald-secondary {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.emerald-secondary:hover {
+  background-color: #a7f3d0;
+}
+
+.emerald-outline {
+  border-color: #059669;
+  color: #059669;
+}
+
+.emerald-outline:hover {
+  background-color: #ecfdf5;
+}
+
+/* Custom scrollbar styles for tables and horizontal scroll areas */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-track-transparent::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thumb-transparent::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+
+.scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.scrollbar-thumb-gray-300::-webkit-scrollbar-thumb:hover,
+.hover\:scrollbar-thumb-gray-400:hover::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+}
+
+.hover\:scrollbar-thumb-gray-300:hover::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+}
+
+/* Hide scrollbar completely while keeping scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari, and Opera */
 }

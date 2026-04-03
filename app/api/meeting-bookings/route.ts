@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
+import { GoogleCalendarService } from '@/lib/google-calendar'
 
 // POST - Create a new meeting booking
 export async function POST(request: NextRequest) {
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
       const isAvailable = await DatabaseService.isTimeSlotAvailable(meetingDate, meetingTime, endTime)
       if (!isAvailable) {
         return NextResponse.json(
-          { error: 'This time slot is no longer available. Please select a different time.' },
+          { error: 'This time slot is already booked. Please select a different time.' },
           { status: 409 }
         )
       }
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
                       'unknown'
     const userAgent = request.headers.get('user-agent') || 'unknown'
 
-    // Create the booking
+    // Create the booking in database first
     const booking = await DatabaseService.createMeetingBooking({
       fullName,
       workEmail,
@@ -76,9 +77,42 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ [API] Meeting booking created successfully:', booking.id)
 
+    // Try to create Google Calendar event + Meet link
+    let meetLink: string | null = null
+    let calendarWarning: string | null = null
+
+    if (meetingDate && meetingTime && endTime) {
+      try {
+        const calendarResult = await GoogleCalendarService.createMeetingEvent({
+          summary: `HireGenAI Meeting - ${fullName}`,
+          description: `Meeting with ${fullName} (${workEmail}) from ${companyName}.\n\n${notes ? 'Notes: ' + notes : ''}`,
+          meetingDate,
+          meetingTime,
+          meetingEndTime: endTime,
+          attendeeEmail: workEmail,
+          attendeeName: fullName,
+          timezone: 'Asia/Kolkata',
+        })
+
+        if (calendarResult && calendarResult.meetLink) {
+          meetLink = calendarResult.meetLink
+          // Update booking with meet link
+          await DatabaseService.updateMeetingLink(booking.id, meetLink)
+          console.log('✅ [API] Google Calendar event created with Meet link:', meetLink)
+        } else {
+          calendarWarning = 'Google Calendar disconnected. Reconnect to generate meeting links.'
+          console.warn('⚠️ [API] Google Calendar not connected, booking saved without Meet link')
+        }
+      } catch (calError: any) {
+        calendarWarning = 'Failed to create Google Calendar event. Meeting saved without Meet link.'
+        console.error('⚠️ [API] Google Calendar event creation failed:', calError.message)
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Meeting booked successfully',
+      calendarWarning,
       booking: {
         id: booking.id,
         fullName: booking.full_name,
@@ -87,7 +121,7 @@ export async function POST(request: NextRequest) {
         meetingDate: booking.meeting_date,
         meetingTime: booking.meeting_time,
         meetingEndTime: booking.meeting_end_time,
-        meetingLink: booking.meeting_link,
+        meetingLink: meetLink || booking.meeting_link,
         status: booking.status
       }
     })

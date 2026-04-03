@@ -1,11 +1,14 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { SelectItem } from "@/components/ui/select"
 import { SelectContent } from "@/components/ui/select"
 import { SelectValue } from "@/components/ui/select"
 import { SelectTrigger } from "@/components/ui/select"
 import { Select } from "@/components/ui/select"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
+import { createPortal } from "react-dom"
 import { 
   Users, 
   Briefcase, 
@@ -26,7 +29,8 @@ import {
   DollarSign,
   PieChart,
   FileCheck,
-  AlertCircle
+  AlertCircle,
+  X
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -240,6 +244,8 @@ const getStatusBadge = (status: string) => {
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [hoveredDate, setHoveredDate] = useState<Date | null>(null)
+  const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0, width: 0 })
+  const dateButtonRef = useRef<HTMLButtonElement>(null)
   const [selectedKPI, setSelectedKPI] = useState<string | null>(null)
   const [userRole, setUserRole] = useState<UserRole | null>((user?.role as UserRole) || null)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
@@ -374,6 +380,19 @@ const getStatusBadge = (status: string) => {
   }, [selectedRecruiter, userRole, fetchDashboard])
 
   // Note: Data will only be fetched when Apply button is clicked
+
+  // Handle opening date picker with positioning
+  const handleOpenDatePicker = () => {
+    if (dateButtonRef.current) {
+      const rect = dateButtonRef.current.getBoundingClientRect()
+      setPopupPosition({
+        top: rect.bottom + window.scrollY + 8,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      })
+    }
+    setShowDatePicker(true)
+  }
 
   // Handle preset date filter selection
   const handlePresetDateFilter = (preset: string) => {
@@ -994,7 +1013,7 @@ const roleDescriptions = {
           <p className="text-sm text-gray-600 mt-1 hidden sm:block">{roleDescriptions[selectedRole]}</p>
         </div>
         {/* Filters Row - all in one row with proper responsive spacing */}
-        <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 pb-1">
+        <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 pb-1 relative">
           {/* Only show View As dropdown for manager/director */}
           {effectiveUserRole && (effectiveUserRole === 'manager' || effectiveUserRole === 'director') && (
             <>
@@ -1030,146 +1049,205 @@ const roleDescriptions = {
           )}
           <div className="relative">
             <Button
+              ref={dateButtonRef}
               variant="outline"
               size="sm"
-              onClick={() => setShowDatePicker(!showDatePicker)}
+              onClick={handleOpenDatePicker}
               className="h-8 px-3 text-sm font-normal bg-white text-gray-700 hover:bg-gray-50 border-gray-300"
             >
               <Calendar className="w-4 h-4 mr-2" />
               {getDateRangeDisplay()}
             </Button>
             
-            {showDatePicker && (
-              <div className="absolute right-0 top-10 z-50 bg-white text-gray-900 rounded-lg shadow-2xl border border-gray-200 p-3 w-[calc(100vw-2rem)] max-w-[480px] sm:w-[480px]">
-                <div className="flex gap-3">
-                  {/* Preset Options Sidebar */}
-                  <div className="w-32 border-r border-gray-200 pr-3">
-                    <div className="space-y-1">
-                      <button
-                        onClick={() => handlePresetDateFilter('weekToDate')}
-                        className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
-                      >
-                        Week to date
-                      </button>
-                      <button
-                        onClick={() => handlePresetDateFilter('monthToDate')}
-                        className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
-                      >
-                        Month to date
-                      </button>
-                      <button
-                        onClick={() => handlePresetDateFilter('last7Days')}
-                        className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
-                      >
-                        Last 7 days
-                      </button>
-                      <button
-                        onClick={() => handlePresetDateFilter('last14Days')}
-                        className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
-                      >
-                        Last 14 days
-                      </button>
-                      <button
-                        onClick={() => handlePresetDateFilter('last30Days')}
-                        className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
-                      >
-                        Last 30 days
-                      </button>
-                      <button
-                        onClick={() => handlePresetDateFilter('last90Days')}
-                        className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
-                      >
-                        Last 90 days
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Calendar */}
-                  <div className="flex-1">
-                    {/* Month Navigation */}
-                    <div className="flex items-center justify-between mb-3">
-                      <button
-                        onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-                        className="p-1 hover:bg-gray-100 rounded"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
-                      <span className="font-medium text-sm">
-                        {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                      </span>
-                      <button
-                        onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-                        className="p-1 hover:bg-gray-100 rounded"
-                      >
-                        <ArrowRight className="w-4 h-4" />
-                      </button>
+            {showDatePicker && typeof window !== 'undefined' && createPortal(
+              <>
+                {/* Date Picker Popup */}
+                <div 
+                  className="fixed z-50 bg-white text-gray-900 rounded-lg shadow-2xl border border-gray-200 p-4"
+                  style={{
+                    top: `${popupPosition.top}px`,
+                    left: `${Math.max(16, Math.min(popupPosition.left, window.innerWidth - 600 - 16))}px`,
+                    minWidth: '600px',
+                    maxWidth: 'calc(100vw - 32px)'
+                  }}
+                >
+                  <div className="flex gap-4">
+                    {/* Preset Options Sidebar */}
+                    <div className="w-32 border-r border-gray-200 pr-4">
+                      <div className="space-y-1">
+                        <button
+                          onClick={() => handlePresetDateFilter('weekToDate')}
+                          className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                        >
+                          Week to date
+                        </button>
+                        <button
+                          onClick={() => handlePresetDateFilter('monthToDate')}
+                          className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                        >
+                          Month to date
+                        </button>
+                        <button
+                          onClick={() => handlePresetDateFilter('last7Days')}
+                          className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                        >
+                          Last 7 days
+                        </button>
+                        <button
+                          onClick={() => handlePresetDateFilter('last14Days')}
+                          className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                        >
+                          Last 14 days
+                        </button>
+                        <button
+                          onClick={() => handlePresetDateFilter('last30Days')}
+                          className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                        >
+                          Last 30 days
+                        </button>
+                        <button
+                          onClick={() => handlePresetDateFilter('last90Days')}
+                          className="w-full text-left px-2 py-1.5 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                        >
+                          Last 90 days
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Calendar Grid */}
-                    <div className="grid grid-cols-7 gap-0.5">
-                      {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-                        <div key={day} className="text-center text-xs text-gray-500 py-1 font-medium">
-                          {day}
-                        </div>
-                      ))}
-                      {getCalendarDays(currentMonth).map((date, idx) => (
-                        <div key={idx}>
-                          {date ? (
+                    {/* Dual Calendar Section */}
+                    <div className="flex-1">
+                      <div className="flex gap-4">
+                        {/* Current Month */}
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-3">
                             <button
-                              onClick={() => handleDateClick(date)}
-                              onMouseEnter={() => setHoveredDate(date)}
-                              onMouseLeave={() => setHoveredDate(null)}
-                              disabled={isDateInFuture(date)}
-                              style={!isDateInFuture(date) ? { border: '1px solid transparent' } : {}}
-                              className={`w-full aspect-square text-xs rounded flex items-center justify-center transition-all duration-200 ${
-                                isDateInFuture(date)
-                                  ? 'text-gray-300 cursor-not-allowed'
-                                  : isRangeEdge(date)
-                                  ? 'bg-emerald-600 text-white font-semibold'
-                                  : isDateInRange(date)
-                                  ? 'bg-emerald-100 text-emerald-600'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-300'
-                              }`}
+                              onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+                              className="p-1 hover:bg-gray-100 rounded"
                             >
-                              {date.getDate()}
+                              <ChevronLeft className="w-4 h-4" />
                             </button>
-                          ) : (
-                            <div className="w-full aspect-square" />
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                            <span className="text-sm font-medium">
+                              {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                            </span>
+                            <div className="w-6" /> {/* Spacer */}
+                          </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-gray-200">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setShowDatePicker(false)
-                          handlePresetDateFilter('last90Days')
-                        }}
-                        className="bg-transparent border-gray-300 text-gray-700 hover:bg-gray-50 h-7 text-xs"
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          if (customStartDate && customEndDate) {
+                          <div className="grid grid-cols-7 gap-0.5">
+                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                              <div key={day} className="text-center text-xs text-gray-500 py-1 font-medium">
+                                {day}
+                              </div>
+                            ))}
+                            {getCalendarDays(currentMonth).map((date, idx) => (
+                              <div key={idx}>
+                                {date ? (
+                                  <button
+                                    onClick={() => handleDateClick(date)}
+                                    onMouseEnter={() => setHoveredDate(date)}
+                                    onMouseLeave={() => setHoveredDate(null)}
+                                    disabled={isDateInFuture(date)}
+                                    className={`w-full aspect-square text-xs rounded flex items-center justify-center transition-all duration-200 ${
+                                      isDateInFuture(date)
+                                        ? 'text-gray-300 cursor-not-allowed'
+                                        : isRangeEdge(date)
+                                        ? 'bg-emerald-600 text-white font-semibold'
+                                        : isDateInRange(date)
+                                        ? 'bg-emerald-100 text-emerald-600'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-300'
+                                    }`}
+                                  >
+                                    {date.getDate()}
+                                  </button>
+                                ) : (
+                                  <div className="w-full aspect-square" />
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Next Month */}
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="w-6" /> {/* Spacer */}
+                            <span className="text-sm font-medium">
+                              {new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                            </span>
+                            <button
+                              onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+                              className="p-1 hover:bg-gray-100 rounded"
+                            >
+                              <ArrowRight className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-7 gap-0.5">
+                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                              <div key={day} className="text-center text-xs text-gray-500 py-1 font-medium">
+                                {day}
+                              </div>
+                            ))}
+                            {getCalendarDays(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1)).map((date, idx) => (
+                              <div key={idx}>
+                                {date ? (
+                                  <button
+                                    onClick={() => handleDateClick(date)}
+                                    onMouseEnter={() => setHoveredDate(date)}
+                                    onMouseLeave={() => setHoveredDate(null)}
+                                    disabled={isDateInFuture(date)}
+                                    className={`w-full aspect-square text-xs rounded flex items-center justify-center transition-all duration-200 ${
+                                      isDateInFuture(date)
+                                        ? 'text-gray-300 cursor-not-allowed'
+                                        : isRangeEdge(date)
+                                        ? 'bg-emerald-600 text-white font-semibold'
+                                        : isDateInRange(date)
+                                        ? 'bg-emerald-100 text-emerald-600'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-300'
+                                    }`}
+                                  >
+                                    {date.getDate()}
+                                  </button>
+                                ) : (
+                                  <div className="w-full aspect-square" />
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-gray-200">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
                             setShowDatePicker(false)
-                            fetchDashboard(customStartDate, customEndDate)
-                          }
-                        }}
-                        disabled={!customStartDate || !customEndDate}
-                        className="bg-emerald-600 text-white hover:bg-emerald-700 h-7 text-xs"
-                      >
-                        Apply
-                      </Button>
+                            handlePresetDateFilter('last90Days')
+                          }}
+                          className="bg-transparent border-gray-300 text-gray-700 hover:bg-gray-50 h-7 text-xs"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            if (customStartDate && customEndDate) {
+                              setShowDatePicker(false)
+                              fetchDashboard(customStartDate, customEndDate)
+                            }
+                          }}
+                          disabled={!customStartDate || !customEndDate}
+                          className="bg-emerald-600 text-white hover:bg-emerald-700 h-7 text-xs"
+                        >
+                          Apply
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </>,
+              document.body
             )}
           </div>
         </div>

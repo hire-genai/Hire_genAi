@@ -86,14 +86,14 @@ export default function JobsTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Filters */}
       <Card className="bg-slate-900 border-slate-800">
         <CardHeader>
           <CardTitle className="text-white">Filters</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="text-sm text-slate-300 mb-2 block">Company</label>
               <Select value={selectedCompany} onValueChange={setSelectedCompany}>
@@ -146,13 +146,13 @@ export default function JobsTab() {
           {jobs.length === 0 ? (
             <p className="text-slate-400 text-center py-8">No jobs found</p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {jobs.map((job) => (
                 <div
                   key={job.id}
-                  className="p-4 bg-slate-800 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors"
+                  className="p-3 bg-slate-800 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors"
                 >
-                  <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
                       <h3 className="text-white font-semibold text-lg">{job.title}</h3>
                       <p className="text-sm text-slate-400">{job.companyName}</p>
@@ -164,7 +164,7 @@ export default function JobsTab() {
                       {job.status}
                     </Badge>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                     <div>
                       <p className="text-slate-400">Interviews</p>
                       <p className="text-white font-semibold">{job.interviewCount}</p>

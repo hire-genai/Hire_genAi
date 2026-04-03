@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = 'force-dynamic';
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -82,14 +84,14 @@ export default function ProductFeedbackPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
         <h1 className="text-3xl font-bold text-white mb-2">Product Feedback</h1>
         <p className="text-slate-400">Review and manage customer feedback and suggestions</p>
       </div>
 
       <Card className="bg-slate-900 border-slate-800">
-        <CardContent className="pt-6">
+        <CardContent className="pt-4">
           {loadingSupport ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />

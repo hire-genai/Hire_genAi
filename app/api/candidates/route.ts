@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     if (userId && sessionEmail) {
       try {
         const byIdRow = await DatabaseService.query(
-          `SELECT id::text AS id FROM users WHERE id::text = $1::text LIMIT 1`,
+          `SELECT id::text AS id FROM users WHERE id = $1::uuid LIMIT 1`,
           [userId]
         )
         if (byIdRow.length > 0) {
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
     // Auto-expire delegations whose end_date has passed
     try {
       await DatabaseService.query(
-        `UPDATE delegations SET status = 'expired' WHERE status = 'active' AND end_date < CURRENT_DATE AND company_id::text = $1::text`,
+        `UPDATE delegations SET status = 'expired' WHERE status = 'active' AND end_date < CURRENT_DATE AND company_id = $1::uuid`,
         [companyId]
       )
     } catch { /* delegations table may not exist yet */ }
@@ -77,16 +77,16 @@ export async function GET(req: NextRequest) {
     //   2. Job delegation: delegatee sees ONLY candidates whose applied_at is within delegation date range
     //   3. Application delegation: delegatee sees ONLY the specific delegated candidate
     //   4. Delegation must be active and within date range
-    let accessibleJobsClause = `j.company_id::text = $1::text`
+    let accessibleJobsClause = `j.company_id = $1::uuid`
     let queryParams: any[] = [companyId]
 
     if (resolvedUserId) {
-      accessibleJobsClause = `j.company_id::text = $1::text AND (
-        j.created_by = $2::text
+      accessibleJobsClause = `j.company_id = $1::uuid AND (
+        j.created_by = $2::uuid
         OR (
           j.id IN (
             SELECT d.item_id FROM delegations d
-            WHERE d.delegated_to::text = $2::text
+            WHERE d.delegated_to = $2::uuid
               AND d.delegation_type = 'job'
               AND d.status = 'active'
               AND CURRENT_DATE >= d.start_date
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
           )
           AND a.applied_at::date >= (
             SELECT d.start_date FROM delegations d
-            WHERE d.delegated_to::text = $2::text
+            WHERE d.delegated_to = $2::uuid
               AND d.delegation_type = 'job'
               AND d.item_id = j.id
               AND d.status = 'active'
@@ -104,7 +104,7 @@ export async function GET(req: NextRequest) {
           )
           AND a.applied_at::date <= (
             SELECT d.end_date FROM delegations d
-            WHERE d.delegated_to::text = $2::text
+            WHERE d.delegated_to = $2::uuid
               AND d.delegation_type = 'job'
               AND d.item_id = j.id
               AND d.status = 'active'
@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
         )
         OR a.id IN (
           SELECT d.item_id FROM delegations d
-          WHERE d.delegated_to::text = $2::text
+          WHERE d.delegated_to = $2::uuid
             AND d.delegation_type = 'application'
             AND d.status = 'active'
             AND CURRENT_DATE >= d.start_date
@@ -384,24 +384,24 @@ function formatOfferStatus(status: string | null): string {
 function buildAccessFilter(companyId: string, userId: string | null): { clause: string, params: any[] } {
   if (userId) {
     return {
-      clause: `a.company_id::text = $1::text AND (
-        j.created_by = $2::text
+      clause: `a.company_id = $1::uuid AND (
+        j.created_by = $2::uuid
         OR (
           j.id IN (
             SELECT d.item_id FROM delegations d
-            WHERE d.delegated_to::text = $2::text AND d.delegation_type = 'job'
+            WHERE d.delegated_to = $2::uuid AND d.delegation_type = 'job'
               AND d.status = 'active' AND CURRENT_DATE >= d.start_date AND CURRENT_DATE <= d.end_date
           )
           AND a.applied_at::date >= (
             SELECT d.start_date FROM delegations d
-            WHERE d.delegated_to::text = $2::text AND d.delegation_type = 'job'
+            WHERE d.delegated_to = $2::uuid AND d.delegation_type = 'job'
               AND d.item_id = j.id AND d.status = 'active'
               AND CURRENT_DATE >= d.start_date AND CURRENT_DATE <= d.end_date
             LIMIT 1
           )
           AND a.applied_at::date <= (
             SELECT d.end_date FROM delegations d
-            WHERE d.delegated_to::text = $2::text AND d.delegation_type = 'job'
+            WHERE d.delegated_to = $2::uuid AND d.delegation_type = 'job'
               AND d.item_id = j.id AND d.status = 'active'
               AND CURRENT_DATE >= d.start_date AND CURRENT_DATE <= d.end_date
             LIMIT 1
@@ -409,14 +409,14 @@ function buildAccessFilter(companyId: string, userId: string | null): { clause: 
         )
         OR a.id IN (
           SELECT d.item_id FROM delegations d
-          WHERE d.delegated_to::text = $2::text AND d.delegation_type = 'application'
+          WHERE d.delegated_to = $2::uuid AND d.delegation_type = 'application'
             AND d.status = 'active' AND CURRENT_DATE >= d.start_date AND CURRENT_DATE <= d.end_date
         )
       )`,
       params: [companyId, userId]
     }
   }
-  return { clause: `a.company_id::text = $1::text`, params: [companyId] }
+  return { clause: `a.company_id = $1::uuid`, params: [companyId] }
 }
 
 async function getScreeningStats(companyId: string, userId: string | null) {

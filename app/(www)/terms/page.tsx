@@ -1,16 +1,16 @@
 "use client"
 
+export const dynamic = 'force-dynamic';
+
 import { useEffect } from "react"
-import { useSearchParams } from "next/navigation"
 import Navbar from "@/components/layout/Navbar"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 
 export default function TermsAndConditionsPage() {
-  const searchParams = useSearchParams()
-
   useEffect(() => {
-    const scrollTo = searchParams?.get('scroll')
+    const urlParams = new URLSearchParams(window.location.search)
+    const scrollTo = urlParams.get('scroll')
     if (scrollTo) {
       const timer = setTimeout(() => {
         const element = document.getElementById(scrollTo)
@@ -21,7 +21,7 @@ export default function TermsAndConditionsPage() {
       }, 300)
       return () => clearTimeout(timer)
     }
-  }, [searchParams])
+  }, [])
 
   return (
     <div className="min-h-screen bg-white">

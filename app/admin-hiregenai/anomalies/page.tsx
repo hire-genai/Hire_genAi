@@ -1,5 +1,7 @@
 import AnomaliesTab from "@/app/admin-hiregenai/_components/AnomaliesTab"
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: "Anomalies - Admin Dashboard",
 }

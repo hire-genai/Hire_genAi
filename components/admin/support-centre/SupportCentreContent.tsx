@@ -153,7 +153,7 @@ export default function SupportCentreContent({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {showBackButton && (
         <div className="flex items-center gap-4">
           <Link href={backButtonHref}>
@@ -171,7 +171,7 @@ export default function SupportCentreContent({
       </div>
 
       <Card className="bg-slate-900 border-slate-800">
-        <CardContent className="pt-6">
+        <CardContent className="pt-4">
           {loadingSupport ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />

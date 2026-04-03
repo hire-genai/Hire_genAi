@@ -1046,12 +1046,9 @@ export class CVEvaluator {
     // Deep copy scores to avoid mutating originals
     const penalizedScores: CVEvaluationResult['scores'] = JSON.parse(JSON.stringify(scores))
 
-    // --- PENALTY 1: Missing critical skills → reduce skill_match ---
-    const missingCount = scores.skill_match.missing_critical.length
-    if (missingCount > 0) {
-      const penalty = Math.min(missingCount * 5, 20)  // -5 per missing, max -20
-      penalizedScores.skill_match.score = Math.max(0, penalizedScores.skill_match.score - penalty)
-      riskFlags.push(`${missingCount} critical skill(s) missing: ${scores.skill_match.missing_critical.slice(0, 3).join(', ')}`)
+    // Still report missing skills in risk flags (no score deduction)
+    if (scores.skill_match.missing_critical.length > 0) {
+      riskFlags.push(`${scores.skill_match.missing_critical.length} critical skill(s) missing: ${scores.skill_match.missing_critical.slice(0, 3).join(', ')}`)
       criticalGaps.push(`Missing critical skills: ${scores.skill_match.missing_critical.join(', ')}`)
     }
 

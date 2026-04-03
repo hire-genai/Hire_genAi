@@ -1,7 +1,9 @@
 "use client"
 
+export const dynamic = 'force-dynamic';
+
 import Link from "next/link"
-import { useParams, useSearchParams, useRouter } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,17 +19,27 @@ import {
 export default function InterviewStartPage() {
   const params = useParams()
   const router = useRouter()
-  const search = useSearchParams()
   const applicationId = (params?.applicationId as string) || ""
 
   // DB-backed fields (fallback to query params if provided)
-  const [jobTitle, setJobTitle] = useState<string>(search?.get("title") || "")
-  const [company, setCompany] = useState<string>(search?.get("company") || "")
-  const [location, setLocation] = useState<string>(search?.get("loc") || "")
+  const [jobTitle, setJobTitle] = useState<string>("")
+  const [company, setCompany] = useState<string>("")
+  const [location, setLocation] = useState<string>("")
   const [loading, setLoading] = useState(true)
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false)
   const [showDisclaimerWarning, setShowDisclaimerWarning] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
+
+  // Read query params on mount for fallback values
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const titleParam = urlParams.get('title')
+    const companyParam = urlParams.get('company')
+    const locParam = urlParams.get('loc')
+    if (titleParam) setJobTitle(titleParam)
+    if (companyParam) setCompany(companyParam)
+    if (locParam) setLocation(locParam)
+  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -79,8 +91,8 @@ export default function InterviewStartPage() {
         </div>
 
         {/* Main card (simplified, no green relevancy panel) */}
-        <div className="mt-8 rounded-2xl border border-gray-200 bg-white shadow-md">
-          <div className="p-8 md:p-12 flex flex-col items-center justify-center text-center gap-3">
+        <div className="mt-6 rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="p-5 md:p-8 flex flex-col items-center justify-center text-center gap-3">
             <div className="text-2xl md:text-4xl font-bold text-gray-900">{jobTitle || 'Job Title'}</div>
             <div className="text-base md:text-lg text-gray-600">at {company || 'Company'}</div>
             <div className="flex items-center justify-center gap-2 text-sm md:text-base text-gray-500">
@@ -150,7 +162,7 @@ export default function InterviewStartPage() {
         </div>
 
         {/* Instructions + CTA */}
-        <div className="grid md:grid-cols-2 gap-8 items-start mt-8">
+        <div className="grid md:grid-cols-2 gap-6 items-start mt-6">
           <div className="space-y-2 text-left">
             <h3 className="font-semibold text-gray-900">Interview Instructions</h3>
             <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1">

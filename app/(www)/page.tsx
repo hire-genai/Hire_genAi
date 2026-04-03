@@ -1,7 +1,8 @@
 "use client"
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
@@ -33,11 +34,11 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { getAppUrl } from "@/lib/domain-config"
 
 export default function HomePage() {
-  const searchParams = useSearchParams()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
-    const scrollTo = searchParams?.get('scroll')
+    const urlParams = new URLSearchParams(window.location.search)
+    const scrollTo = urlParams.get('scroll')
     if (scrollTo) {
       const timer = setTimeout(() => {
         const element = document.getElementById(scrollTo)
@@ -48,7 +49,7 @@ export default function HomePage() {
       }, 300)
       return () => clearTimeout(timer)
     }
-  }, [searchParams])
+  }, [])
 
   return (
     <div className="min-h-screen bg-white">
@@ -91,7 +92,7 @@ export default function HomePage() {
               </nav>
             </div>
             <div className="hidden md:flex items-center space-x-4">
-              <Link href={getAppUrl('/login')} target="_blank" rel="noopener noreferrer">
+              <Link href={getAppUrl('/login')}>
                 <Button
                   variant="ghost"
                   className="text-gray-700 hover:text-emerald-600 font-medium"
@@ -99,7 +100,7 @@ export default function HomePage() {
                   Login
                 </Button>
               </Link>
-              <Link href={getAppUrl('/signup')} target="_blank" rel="noopener noreferrer">
+              <Link href={getAppUrl('/signup')}>
                 <Button className="sr-button-primary">Get started</Button>
               </Link>
             </div>
@@ -154,7 +155,7 @@ export default function HomePage() {
               </Link>
               <div className="pt-4 pb-3 border-t border-gray-100">
                 <div className="px-3 space-y-2">
-                  <Link href={getAppUrl('/login')} target="_blank" rel="noopener noreferrer" onClick={() => setMobileMenuOpen(false)}>
+                  <Link href={getAppUrl('/login')} onClick={() => setMobileMenuOpen(false)}>
                     <Button
                       variant="ghost"
                       className="w-full justify-start text-gray-700 hover:text-emerald-600 hover:bg-gray-50 font-medium transition-colors"
@@ -162,7 +163,7 @@ export default function HomePage() {
                       Login
                     </Button>
                   </Link>
-                  <Link href={getAppUrl('/signup')} target="_blank" rel="noopener noreferrer" onClick={() => setMobileMenuOpen(false)}>
+                  <Link href={getAppUrl('/signup')} onClick={() => setMobileMenuOpen(false)}>
                     <Button className="w-full sr-button-primary">Get started</Button>
                   </Link>
                 </div>
@@ -248,11 +249,11 @@ export default function HomePage() {
           </div>
 
           {/* Features Grid - 2x2 Layout */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Intelligent CV Parsing */}
-            <Card className="sr-card p-8 text-center transition-all duration-300 hover:shadow-emerald-600/50 hover:shadow-xl hover:-translate-y-2">
+            <Card className="sr-card p-5 text-center transition-all duration-300 hover:shadow-emerald-600/50 hover:shadow-xl hover:-translate-y-2">
               <CardContent className="p-0">
-                <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mb-6 mx-auto transition-transform duration-300 hover:rotate-12">
+                <div className="w-14 h-14 bg-emerald-50 rounded-xl flex items-center justify-center mb-4 mx-auto transition-transform duration-300 hover:rotate-12">
                   <Search className="w-8 h-8 text-emerald-600" />
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 mb-4">Intelligent CV Parsing</h3>
@@ -263,9 +264,9 @@ export default function HomePage() {
             </Card>
 
             {/* AI-Powered Initial Interview */}
-            <Card className="sr-card p-8 text-center transition-all duration-300 hover:shadow-emerald-600/50 hover:shadow-xl hover:-translate-y-2">
+            <Card className="sr-card p-5 text-center transition-all duration-300 hover:shadow-emerald-600/50 hover:shadow-xl hover:-translate-y-2">
               <CardContent className="p-0">
-                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-6 mx-auto transition-transform duration-300 hover:rotate-12">
+                <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center mb-4 mx-auto transition-transform duration-300 hover:rotate-12">
                   <Brain className="w-8 h-8 text-blue-600" />
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 mb-4">AI-Powered Initial Interview</h3>
@@ -276,9 +277,9 @@ export default function HomePage() {
             </Card>
 
             {/* Data-Driven Shortlisting */}
-            <Card className="sr-card p-8 text-center transition-all duration-300 hover:shadow-emerald-600/50 hover:shadow-xl hover:-translate-y-2">
+            <Card className="sr-card p-5 text-center transition-all duration-300 hover:shadow-emerald-600/50 hover:shadow-xl hover:-translate-y-2">
               <CardContent className="p-0">
-                <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mb-6 mx-auto transition-transform duration-300 hover:rotate-12">
+                <div className="w-14 h-14 bg-purple-100 rounded-xl flex items-center justify-center mb-4 mx-auto transition-transform duration-300 hover:rotate-12">
                   <Phone className="w-8 h-8 text-purple-600" />
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 mb-4">Data-Driven Shortlisting</h3>
@@ -289,9 +290,9 @@ export default function HomePage() {
             </Card>
 
             {/* Advanced Analytics */}
-            <Card className="sr-card p-8 text-center transition-all duration-300 hover:shadow-emerald-600/50 hover:shadow-xl hover:-translate-y-2">
+            <Card className="sr-card p-5 text-center transition-all duration-300 hover:shadow-emerald-600/50 hover:shadow-xl hover:-translate-y-2">
               <CardContent className="p-0">
-                <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mb-6 mx-auto transition-transform duration-300 hover:rotate-12">
+                <div className="w-14 h-14 bg-red-100 rounded-xl flex items-center justify-center mb-4 mx-auto transition-transform duration-300 hover:rotate-12">
                   <BarChart3 className="w-8 h-8 text-red-600" />
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 mb-4">Advanced Analytics</h3>
@@ -316,10 +317,10 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Pain Point 1 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-l-4 border-red-500 hover:shadow-xl transition-shadow">
-              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mb-6">
+            <div className="bg-white rounded-lg shadow-sm p-5 border-l-4 border-red-500 hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
                 <Clock className="w-7 h-7 text-red-600" />
               </div>
               <h3 className="text-xl font-bold text-slate-800 mb-4">Slow & Inefficient</h3>
@@ -329,8 +330,8 @@ export default function HomePage() {
             </div>
 
             {/* Pain Point 2 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-l-4 border-orange-500 hover:shadow-xl transition-shadow">
-              <div className="w-14 h-14 bg-orange-100 rounded-full flex items-center justify-center mb-6">
+            <div className="bg-white rounded-lg shadow-sm p-5 border-l-4 border-orange-500 hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-orange-600"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               </div>
               <h3 className="text-xl font-bold text-slate-800 mb-4">Expensive & Resource-Heavy</h3>
@@ -340,8 +341,8 @@ export default function HomePage() {
             </div>
 
             {/* Pain Point 3 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border-l-4 border-amber-500 hover:shadow-xl transition-shadow">
-              <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mb-6">
+            <div className="bg-white rounded-lg shadow-sm p-5 border-l-4 border-amber-500 hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" x2="22" y1="8" y2="13"/><line x1="22" x2="17" y1="8" y2="13"/></svg>
               </div>
               <h3 className="text-xl font-bold text-slate-800 mb-4">Limited & Biased</h3>
@@ -365,9 +366,9 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Feature 1 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all hover:-translate-y-1">
+            <div className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-all hover:-translate-y-1">
               <div className="text-4xl mb-4">⚡</div>
               <h3 className="text-xl font-bold text-slate-800 mb-2">Lightning-Fast Hiring</h3>
               <p className="text-emerald-600 font-semibold mb-3">Reduce time-to-hire from 40 days to just 4-11 days</p>
@@ -377,7 +378,7 @@ export default function HomePage() {
             </div>
 
             {/* Feature 2 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all hover:-translate-y-1">
+            <div className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-all hover:-translate-y-1">
               <div className="text-4xl mb-4">💰</div>
               <h3 className="text-xl font-bold text-slate-800 mb-2">Dramatic Cost Savings</h3>
               <p className="text-emerald-600 font-semibold mb-3">Cut recruitment costs by 20-50%</p>
@@ -387,7 +388,7 @@ export default function HomePage() {
             </div>
 
             {/* Feature 3 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all hover:-translate-y-1">
+            <div className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-all hover:-translate-y-1">
               <div className="text-4xl mb-4">🌐</div>
               <h3 className="text-xl font-bold text-slate-800 mb-2">Unlimited Scalability</h3>
               <p className="text-emerald-600 font-semibold mb-3">Handle thousands of applications 24/7</p>
@@ -397,7 +398,7 @@ export default function HomePage() {
             </div>
 
             {/* Feature 4 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all hover:-translate-y-1">
+            <div className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-all hover:-translate-y-1">
               <div className="text-4xl mb-4">🎯</div>
               <h3 className="text-xl font-bold text-slate-800 mb-2">Data-Driven Precision</h3>
               <p className="text-emerald-600 font-semibold mb-3">Match candidates with predictive accuracy</p>
@@ -407,7 +408,7 @@ export default function HomePage() {
             </div>
 
             {/* Feature 5 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all hover:-translate-y-1">
+            <div className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-all hover:-translate-y-1">
               <div className="text-4xl mb-4">🤝</div>
               <h3 className="text-xl font-bold text-slate-800 mb-2">Diversity & Fairness</h3>
               <p className="text-emerald-600 font-semibold mb-3">Reduce unconscious bias by design</p>
@@ -417,7 +418,7 @@ export default function HomePage() {
             </div>
 
             {/* Feature 6 */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all hover:-translate-y-1">
+            <div className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-all hover:-translate-y-1">
               <div className="text-4xl mb-4">🔍</div>
               <h3 className="text-xl font-bold text-slate-800 mb-2">Proactive Talent Discovery</h3>
               <p className="text-emerald-600 font-semibold mb-3">Access passive candidates automatically</p>
@@ -439,8 +440,8 @@ export default function HomePage() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-slate-800 rounded-2xl p-8 border border-slate-700">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-slate-800 rounded-lg p-5 border border-slate-700">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 bg-emerald-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Zap className="w-6 h-6 text-emerald-400" />
@@ -454,7 +455,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="bg-slate-800 rounded-2xl p-8 border border-slate-700">
+            <div className="bg-slate-800 rounded-lg p-5 border border-slate-700">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 bg-emerald-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -468,7 +469,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="bg-slate-800 rounded-2xl p-8 border border-slate-700">
+            <div className="bg-slate-800 rounded-lg p-5 border border-slate-700">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 bg-emerald-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
                   <TrendingUp className="w-6 h-6 text-emerald-400" />
@@ -482,7 +483,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="bg-slate-800 rounded-2xl p-8 border border-slate-700">
+            <div className="bg-slate-800 rounded-lg p-5 border border-slate-700">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 bg-emerald-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Users className="w-6 h-6 text-emerald-400" />
@@ -566,7 +567,7 @@ export default function HomePage() {
           </div>
 
           {/* Comparison Table */}
-          <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-12 border border-slate-200">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-12 border border-slate-200">
             <div className="grid grid-cols-3 text-center py-6 bg-slate-800 text-white">
               <div className="px-4">
                 <h3 className="text-lg md:text-xl font-semibold">What Matters Most</h3>
@@ -780,9 +781,9 @@ export default function HomePage() {
       <footer className="bg-slate-900 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Main Footer Content */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-12 mb-12">
+          <div className="grid grid-cols-2 md:grid-cols-12 gap-6 md:gap-12 mb-12">
             {/* Left Section - Brand Block */}
-            <div className="md:col-span-3">
+            <div className="col-span-2 md:col-span-3">
               <h3 className="text-2xl font-bold mb-2">
                 <span className="text-white">Hire</span>
                 <span className="text-emerald-400">GenAI</span>
@@ -811,74 +812,79 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Product Section */}
-            <div className="md:col-span-2">
-              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Product</h4>
-              <ul className="space-y-3 text-slate-400 text-sm">
-                <li>
-                  <Link href="/demo-en" className="hover:text-emerald-400 transition-colors">
-                    Try the Demo
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/pricing" className="hover:text-emerald-400 transition-colors">
-                    Pricing
-                  </Link>
-                </li>
-                <li>
-                  <button 
-                    onClick={() => {
-                      const element = document.getElementById('assessment');
-                      element?.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="text-slate-400 hover:text-emerald-400 transition-colors text-left w-full"
-                  >
-                    Assessment
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => {
-                      const element = document.getElementById('faq');
-                      element?.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="text-slate-400 hover:text-emerald-400 transition-colors text-left w-full"
-                  >
-                    FAQs
-                  </button>
-                </li>
-              </ul>
-            </div>
+            {/* Product & Company Section - Side by side */}
+            <div className="col-span-2 md:col-span-4">
+              <div className="grid grid-cols-2 gap-6">
+                {/* Product Section */}
+                <div>
+                  <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Product</h4>
+                  <ul className="space-y-3 text-slate-400 text-sm">
+                    <li>
+                      <Link href="/demo-en" className="hover:text-emerald-400 transition-colors">
+                        Try the Demo
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/pricing" className="hover:text-emerald-400 transition-colors">
+                        Pricing
+                      </Link>
+                    </li>
+                    <li>
+                      <button 
+                        onClick={() => {
+                          const element = document.getElementById('assessment');
+                          element?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="text-slate-400 hover:text-emerald-400 transition-colors text-left w-full"
+                      >
+                        Assessment
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        onClick={() => {
+                          const element = document.getElementById('faq');
+                          element?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="text-slate-400 hover:text-emerald-400 transition-colors text-left w-full"
+                      >
+                        FAQs
+                      </button>
+                    </li>
+                  </ul>
+                </div>
 
-            {/* Company Section */}
-            <div className="md:col-span-2">
-              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Company</h4>
-              <ul className="space-y-3 text-slate-400 text-sm">
-                <li>
-                  <Link href="/about" className="hover:text-emerald-400 transition-colors">
-                    About us
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/contact" className="hover:text-emerald-400 transition-colors">
-                    Contact
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/book-meeting" className="hover:text-emerald-400 transition-colors">
-                    Book a Meeting
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/owner-login" className="hover:text-emerald-400 transition-colors">
-                    Admin
-                  </Link>
-                </li>
-              </ul>
+                {/* Company Section */}
+                <div>
+                  <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Company</h4>
+                  <ul className="space-y-3 text-slate-400 text-sm">
+                    <li>
+                      <Link href="/about" className="hover:text-emerald-400 transition-colors">
+                        About us
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/contact" className="hover:text-emerald-400 transition-colors">
+                        Contact
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/book-meeting" className="hover:text-emerald-400 transition-colors">
+                        Book a Meeting
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/owner-login" className="hover:text-emerald-400 transition-colors">
+                        Admin
+                      </Link>
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
 
             {/* Legal Section */}
-            <div className="md:col-span-2">
+            <div className="col-span-1 md:col-span-2">
               <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Legal</h4>
               <ul className="space-y-3 text-slate-400 text-sm">
                 <li>
@@ -895,7 +901,7 @@ export default function HomePage() {
             </div>
 
             {/* Right Section - Badges Block */}
-            <div className="md:col-span-3">
+            <div className="col-span-1 md:col-span-3">
               <div className="space-y-4">
                 {/* Trustpilot Badge */}
                 <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">

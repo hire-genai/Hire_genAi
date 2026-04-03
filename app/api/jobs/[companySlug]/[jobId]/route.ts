@@ -329,50 +329,49 @@ export async function PATCH(
         updated_at = NOW()
        WHERE id = $43::uuid`,
       [
-        jobTitle,
-        department || null,
-        location || null,
-        normalizedJobType,
-        normalizedWorkMode,
-        salaryMin ? parseFloat(salaryMin) : null,
-        salaryMax ? parseFloat(salaryMax) : null,
-        currency || 'USD',
-        applicationDeadline || null,
-        expectedStartDate || null,
-        jobDescription || null,
-        responsibilities?.filter((r: string) => r.trim()) || [],
-        requiredSkills?.filter((s: string) => s.trim()) || [],
-        preferredSkills?.filter((s: string) => s.trim()) || [],
-        experienceYears ? parseInt(experienceYears) : null,
-        requiredEducation || null,
-        certificationsRequired || null,
-        languagesRequired || null,
-        hiringManager || null,
-        hiringManagerEmail || null,
-        numberOfOpenings ? parseInt(numberOfOpenings) : 1,
-        hiringPriority || 'Medium',
-        targetTimeToFill ? parseInt(targetTimeToFill) : null,
-        budgetAllocated ? parseFloat(budgetAllocated) : null,
-        targetSources || [],
-        diversityGoals || false,
-        diversityTargetPercentage ? parseFloat(diversityTargetPercentage) : null,
-        // Set job_open_date automatically when publishing
-        status === 'open' || status === 'published' ? new Date().toISOString().split('T')[0] : null,
-        expectedHiresPerMonth ? parseInt(expectedHiresPerMonth) : null,
-        targetOfferAcceptanceRate ? parseFloat(targetOfferAcceptanceRate) : null,
-        candidateResponseTimeSLA ? parseInt(candidateResponseTimeSLA) : null,
-        interviewScheduleSLA ? parseInt(interviewScheduleSLA) : null,
-        costPerHireBudget ? parseFloat(costPerHireBudget) : null,
-        agencyFeePercentage ? parseFloat(agencyFeePercentage) : null,
-        jobBoardCosts ? parseFloat(jobBoardCosts) : null,
-        autoScheduleInterview || false,
-        interviewLinkExpiryHours || 48,
-        enableScreeningQuestions || false,
-        JSON.stringify(screeningQuestions || {}),
-        clientCompanyName || null,
-        status,
-        publishedAt,
-        jobId
+        jobTitle,                                                                    // $1
+        department || null,                                                          // $2
+        location || null,                                                            // $3
+        normalizedJobType,                                                           // $4
+        normalizedWorkMode,                                                          // $5
+        salaryMin ? parseFloat(salaryMin) : null,                                   // $6
+        salaryMax ? parseFloat(salaryMax) : null,                                   // $7
+        currency || 'USD',                                                           // $8
+        applicationDeadline || null,                                                 // $9
+        expectedStartDate || null,                                                   // $10
+        jobDescription || null,                                                      // $11
+        responsibilities?.filter((r: string) => r.trim()) || [],                    // $12
+        requiredSkills?.filter((s: string) => s.trim()) || [],                      // $13
+        preferredSkills?.filter((s: string) => s.trim()) || [],                     // $14
+        experienceYears ? parseInt(experienceYears) : null,                         // $15
+        requiredEducation || null,                                                   // $16
+        certificationsRequired || null,                                              // $17
+        languagesRequired || null,                                                   // $18
+        hiringManager || null,                                                       // $19
+        hiringManagerEmail || null,                                                  // $20
+        numberOfOpenings ? parseInt(numberOfOpenings) : 1,                          // $21
+        hiringPriority || 'Medium',                                                  // $22
+        targetTimeToFill ? parseInt(targetTimeToFill) : null,                       // $23
+        budgetAllocated ? parseFloat(budgetAllocated) : null,                       // $24
+        targetSources || [],                                                         // $25
+        diversityGoals || false,                                                     // $26
+        diversityTargetPercentage ? parseFloat(diversityTargetPercentage) : null,   // $27
+        expectedHiresPerMonth ? parseInt(expectedHiresPerMonth) : null,             // $28
+        targetOfferAcceptanceRate ? parseFloat(targetOfferAcceptanceRate) : null,   // $29
+        candidateResponseTimeSLA ? parseInt(candidateResponseTimeSLA) : null,       // $30
+        interviewScheduleSLA ? parseInt(interviewScheduleSLA) : null,               // $31
+        costPerHireBudget ? parseFloat(costPerHireBudget) : null,                   // $32
+        agencyFeePercentage ? parseFloat(agencyFeePercentage) : null,               // $33
+        jobBoardCosts ? parseFloat(jobBoardCosts) : null,                           // $34
+        autoScheduleInterview || false,                                              // $35
+        interviewLinkExpiryHours || 48,                                              // $36
+        enableScreeningQuestions || false,                                           // $37
+        JSON.stringify(screeningQuestions || {}),                                    // $38
+        clientCompanyName || null,                                                   // $39
+        status,                                                                      // $40
+        publishedAt,                                                                 // $41
+        status === 'open' || status === 'published' ? new Date().toISOString().split('T')[0] : null, // $42 job_open_date
+        jobId                                                                        // $43
       ]
     )
 

@@ -6,22 +6,21 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  serverExternalPackages: ['pdf-parse', 'mammoth'],
-  turbopack: {
-    rules: {
-      '*.svg': {
-        loaders: ['@svgr/webpack'],
-        as: '*.js',
-      },
-    },
+  // Empty turbopack config to silence the warning
+  turbopack: {},
+  // Experimental: disable static generation
+  experimental: {
+    // PPR (Partial Prerendering) disabled
+    ppr: false,
   },
+  // Webpack fallbacks for client-side modules
   webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.externals = config.externals || []
-      config.externals.push({
-        'pdf-parse': 'commonjs pdf-parse',
-        'mammoth': 'commonjs mammoth',
-      })
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      encoding: false,
+      net: false,
+      tls: false,
     }
     return config
   },

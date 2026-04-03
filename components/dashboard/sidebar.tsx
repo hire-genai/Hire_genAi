@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { LogoutDialog } from './logout-dialog'
 import { 
   LayoutDashboard, 
   Users, 
@@ -52,6 +53,7 @@ export function DashboardSidebar() {
   const pathname = usePathname()
   const { isMobileOpen, setIsMobileOpen, isCollapsed, setIsCollapsed } = useMobileMenu()
   const { user, signOut } = useAuth()
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
 
   const userName = user?.full_name || 'User'
   const userEmail = user?.email || ''
@@ -202,12 +204,7 @@ export function DashboardSidebar() {
             <Button
               variant="outline"
               className="w-full justify-start border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white text-xs h-8"
-              onClick={async () => {
-                if (confirm('Are you sure you want to logout?')) {
-                  await signOut()
-                  window.location.replace('/login')
-                }
-              }}
+              onClick={() => setLogoutDialogOpen(true)}
             >
               <LogOut className="w-3 h-3 mr-2" />
               Logout
@@ -218,18 +215,23 @@ export function DashboardSidebar() {
               size="icon"
               className="w-8 h-8 mx-auto border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white"
               title="Logout"
-              onClick={async () => {
-                if (confirm('Are you sure you want to logout?')) {
-                  await signOut()
-                  window.location.replace('/login')
-                }
-              }}
+              onClick={() => setLogoutDialogOpen(true)}
             >
               <LogOut className="w-3 h-3" />
             </Button>
           )}
         </div>
       </aside>
+
+      {/* Logout Confirmation Dialog */}
+      <LogoutDialog
+        open={logoutDialogOpen}
+        onOpenChange={setLogoutDialogOpen}
+        onConfirm={async () => {
+          await signOut()
+          window.location.replace('/login')
+        }}
+      />
     </>
   )
 }

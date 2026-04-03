@@ -41,6 +41,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'moveToStage is required' }, { status: 400 })
     }
 
+    // Resolve applicationId if it's an email (handle session mismatch)
+    let resolvedApplicationId = applicationId
+    if (applicationId.includes('@')) {
+      // If applicationId looks like an email, find the application by candidate email
+      const appByCandidate = await DatabaseService.query(
+        `SELECT a.id FROM applications a 
+         JOIN candidates c ON a.candidate_id = c.id 
+         WHERE c.email = $1 AND a.company_id = $2::uuid 
+         LIMIT 1`,
+        [applicationId, companyId]
+      )
+      if (appByCandidate.length > 0) {
+        resolvedApplicationId = appByCandidate[0].id
+      } else {
+        return NextResponse.json({ error: 'Application not found for candidate email' }, { status: 404 })
+      }
+    }
+
     const isTalentPoolOnly = moveToStage === 'talentPool'
     const targetStage = isTalentPoolOnly ? null : stageMap[moveToStage]
 
@@ -60,7 +78,7 @@ export async function POST(req: NextRequest) {
       companyId
         ? `SELECT current_stage, candidate_id, company_id FROM applications WHERE id = $1::uuid AND company_id = $2::uuid LIMIT 1`
         : `SELECT current_stage, candidate_id, company_id FROM applications WHERE id = $1::uuid LIMIT 1`,
-      companyId ? [applicationId, companyId] : [applicationId]
+      companyId ? [resolvedApplicationId, companyId] : [resolvedApplicationId]
     ) as any[]
 
     if (!currentRows || currentRows.length === 0) {
@@ -75,12 +93,12 @@ export async function POST(req: NextRequest) {
     if (isTalentPoolOnly) {
       await DatabaseService.query(
         `UPDATE applications SET current_stage = 'withdrawn'::application_stage WHERE id = $1::uuid`,
-        [applicationId]
+        [resolvedApplicationId]
       )
       await DatabaseService.query(
         `INSERT INTO application_stage_history (application_id, from_stage, to_stage, changed_by, remarks)
          VALUES ($1::uuid, $2::application_stage, 'withdrawn'::application_stage, $3, $4)`,
-        [applicationId, currentStage || null, changedByValue, remarks || 'Moved to Talent Pool']
+        [resolvedApplicationId, currentStage || null, changedByValue, remarks || 'Moved to Talent Pool']
       )
     }
 
@@ -95,7 +113,7 @@ export async function POST(req: NextRequest) {
                rejected_at = NOW()
            WHERE id = $4::uuid
            RETURNING current_stage`,
-          [targetStage, rejectionReason, currentStage, applicationId]
+          [targetStage, rejectionReason, currentStage, resolvedApplicationId]
         ) as any[]
       } else {
         updated = await DatabaseService.query(
@@ -103,7 +121,7 @@ export async function POST(req: NextRequest) {
            SET current_stage = $1::application_stage
            WHERE id = $2::uuid
            RETURNING current_stage`,
-          [targetStage, applicationId]
+          [targetStage, resolvedApplicationId]
         ) as any[]
       }
 
@@ -115,7 +133,7 @@ export async function POST(req: NextRequest) {
       await DatabaseService.query(
         `INSERT INTO application_stage_history (application_id, from_stage, to_stage, changed_by, remarks)
          VALUES ($1::uuid, $2::application_stage, $3::application_stage, $4, $5)`,
-        [applicationId, currentStage || null, targetStage, changedByValue, remarks || '']
+        [resolvedApplicationId, currentStage || null, targetStage, changedByValue, remarks || '']
       )
     }
 
@@ -135,7 +153,7 @@ export async function POST(req: NextRequest) {
                  source = COALESCE(EXCLUDED.source, talent_pool_entries.source),
                  application_id = COALESCE(EXCLUDED.application_id, talent_pool_entries.application_id),
                  last_contacted = NOW()`,
-          [resolvedCompanyId, candidateId, applicationId, poolNotes, poolSource]
+          [resolvedCompanyId, candidateId, resolvedApplicationId, poolNotes, poolSource]
         )
         console.log('✅ Talent pool entry saved for candidate:', candidateId)
       } catch (poolErr: any) {

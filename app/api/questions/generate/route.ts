@@ -120,9 +120,78 @@ KEY RESPONSIBILITIES:
 EVALUATION CRITERIA (distribute questions across these):
 ${criteriaList}
 
+STRICT CRITERION ASSIGNMENT RULES:
+
+1. Communication:
+   - Questions about explaining concepts clearly
+   - Presenting ideas to stakeholders
+   - Written or verbal communication skills
+   - How candidate describes their experience
+   - Storytelling and articulation ability
+   - Example: "Tell me about yourself"
+   - Example: "How do you explain technical concepts to non-technical people?"
+
+2. Technical Skills:
+   - Questions about specific tools and technologies
+   - Coding, system design, architecture
+   - Technical problem solving
+   - Frameworks, languages, databases
+   - Example: "What is your experience with React?"
+   - Example: "How would you design a scalable API?"
+
+3. Problem Solving:
+   - Past challenges and how they were handled
+   - Debugging and analytical thinking
+   - Decision making under pressure
+   - Creative solutions to complex problems
+   - Example: "Describe a difficult bug you fixed"
+   - Example: "How do you approach a problem you have never seen before?"
+
+4. Culture Fit:
+   - Motivation and values alignment
+   - Why this company or role
+   - Work style preferences
+   - Career goals and aspirations
+   - Example: "Why do you want to work here?"
+   - Example: "What motivates you in your work?"
+
+5. Teamwork:
+   - Collaboration and conflict resolution
+   - Working with cross-functional teams
+   - Leadership and mentoring
+   - Handling disagreements professionally
+   - Example: "Tell me about a time you worked in a team"
+   - Example: "How do you handle conflict with a colleague?"
+
+6. Leadership (if in criteria):
+   - Managing people or projects
+   - Taking ownership and initiative
+   - Influencing without authority
+   - Example: "Tell me about a time you led a project"
+
+CRITICAL RULES:
+- Each question MUST match its criterion perfectly
+- A question testing technical knowledge 
+  CANNOT have Communication criterion
+- A question about motivation 
+  CANNOT have Technical Skills criterion
+- Read the question carefully before assigning criterion
+- Ask yourself: what skill does this question test?
+- Assign criterion based on what skill is being tested
+  NOT based on what topic the question mentions
+- If question mentions technology but tests communication
+  then criterion = Communication
+- If question asks about past behavior
+  assign based on what behavior is being tested
+
+DISTRIBUTION RULES:
+- Distribute questions evenly across all selected criteria
+- If 9 questions and 3 criteria then 3 questions each
+- No criterion should have 0 questions
+- No criterion should have more than 40% of total questions
+
 REQUIREMENTS:
 - Generate exactly ${questionCount} questions total
-- Distribute questions evenly across the given criteria
 - Questions should test the REQUIRED SKILLS mentioned above
 - Adjust question complexity based on YEARS OF EXPERIENCE (more experience = deeper technical questions)
 - Include questions related to KEY RESPONSIBILITIES

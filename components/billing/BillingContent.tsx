@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,17 +32,46 @@ import {
   Loader2,
   Filter
 } from "lucide-react"
-import PayPalOverview from "./PayPalOverview"
+import SubscriptionCard, { BillingStatus } from "./SubscriptionCard"
+import { useAuth } from '@/contexts/auth-context'
 
 interface BillingContentProps {
   companyId: string
 }
 
 export default function BillingContent({ companyId }: BillingContentProps) {
+  const { user } = useAuth()
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [billingData, setBillingData] = useState<any>(null)
   const [usageData, setUsageData] = useState<any>(null)
   const [currentTab, setCurrentTab] = useState<string>("overview")
+  // Handle payment cancel → redirect to settings payment tab
+  const handlePaymentCancel = () => {
+    router.push('/settings?tab=payment')
+  }
+
+  // Currency Detection
+  const [currency, setCurrency] = useState<'INR' | 'USD'>('USD')
+
+  useEffect(() => {
+    const detectCountry = async () => {
+      try {
+        const res = await fetch('https://ipapi.co/json/')
+        if (!res.ok) throw new Error('Country detection failed')
+        const data = await res.json()
+        const countryCode = data.country_code || data.country
+        setCurrency(countryCode === 'IN' ? 'INR' : 'USD')
+      } catch (err) {
+        console.warn('[BillingContent] Country detection failed, defaulting to USD:', err)
+        setCurrency('USD')
+      }
+    }
+    detectCountry()
+  }, [])
+
+  // Formatted upgrade amount based on pricing page logic
+  const upgradeDisplayAmount = currency === 'INR' ? '₹10,000' : '$100'
 
   // Settings
   const [autoRecharge, setAutoRecharge] = useState(false)
@@ -82,7 +112,19 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
   const loadBillingData = async () => {
     try {
-      const res = await fetch(`/api/billing/status?companyId=${companyId}`)
+      // Detect country for billing status calculation
+      let countryCode = 'US'
+      try {
+        const countryRes = await fetch('/api/detect-country')
+        if (countryRes.ok) {
+          const countryData = await countryRes.json()
+          countryCode = countryData.countryCode || 'US'
+        }
+      } catch {
+        countryCode = currency === 'INR' ? 'IN' : 'US'
+      }
+      
+      const res = await fetch(`/api/billing/status?companyId=${companyId}&country=${countryCode}`)
       const data = await res.json()
       if (data.ok) {
         setBillingData(data.billing)
@@ -93,11 +135,12 @@ export default function BillingContent({ companyId }: BillingContentProps) {
     }
   }
 
-  const loadUsageData = async (startOverride?: Date, endOverride?: Date) => {
+  const loadUsageData = async (startOverride?: Date, endOverride?: Date, jobFilterOverride?: string) => {
     try {
       setLoading(true)
       const startToUse = startOverride || usageStartDate
       const endToUse = endOverride || usageEndDate
+      const jobFilterToUse = jobFilterOverride !== undefined ? jobFilterOverride : usageJobFilter
 
       const params = new URLSearchParams({
         startDate: startToUse.toISOString(),
@@ -105,10 +148,16 @@ export default function BillingContent({ companyId }: BillingContentProps) {
         companyId
       })
 
+      if (jobFilterToUse && jobFilterToUse !== 'all') {
+        params.append('jobId', jobFilterToUse)
+      }
+
       const res = await fetch(`/api/billing/usage?${params.toString()}`)
       const data = await res.json()
       
       if (data.ok) {
+        console.log('Usage data loaded:', data)
+        console.log('All jobs:', data.allJobs)
         setUsageData(data)
       }
     } catch (error) {
@@ -307,12 +356,31 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 </html>`
   }
 
-  // Load overview data when filters change
-  useEffect(() => {
-    if (companyId && currentTab === 'overview') {
-      loadOverviewData()
+  const saveBillingSettings = async (autoRechargeEnabled: boolean) => {
+    try {
+      const res = await fetch('/api/billing/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyId,
+          autoRechargeEnabled,
+        }),
+      })
+      
+      const data = await res.json()
+      if (!data.ok) {
+        console.error('Failed to save billing settings:', data.error)
+        // Revert the local state if save failed
+        setAutoRecharge(!autoRechargeEnabled)
+      }
+    } catch (error) {
+      console.error('Failed to save billing settings:', error)
+      // Revert the local state if save failed
+      setAutoRecharge(!autoRechargeEnabled)
     }
-  }, [overviewStartDate, overviewEndDate, companyId, currentTab])
+  }
 
   if (loading && !billingData) {
     return (
@@ -326,14 +394,16 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   }
 
   const getStatusBadge = (status: string) => {
+    // 5 billing status values: active, trial, trial_over, low_balance, recharge_over
     const statusConfig: Record<string, { color: string; icon: any; label: string }> = {
-      trial: { color: 'bg-blue-100 text-blue-800', icon: AlertCircle, label: 'Free Trial' },
       active: { color: 'bg-green-100 text-green-800', icon: CheckCircle, label: 'Active' },
-      past_due: { color: 'bg-red-100 text-red-800', icon: AlertCircle, label: 'Past Due' },
-      suspended: { color: 'bg-gray-100 text-gray-800', icon: XCircle, label: 'Suspended' },
+      trial: { color: 'bg-amber-100 text-amber-800', icon: AlertCircle, label: 'Free Trial' },
+      trial_over: { color: 'bg-red-100 text-red-800', icon: XCircle, label: 'Trial Expired' },
+      low_balance: { color: 'bg-orange-100 text-orange-800', icon: AlertCircle, label: 'Low Balance' },
+      recharge_over: { color: 'bg-red-100 text-red-800', icon: XCircle, label: 'Recharge Required' },
     }
     
-    const config = statusConfig[status] || statusConfig.active
+    const config = statusConfig[status] || statusConfig.trial
     const Icon = config.icon
     
     return (
@@ -345,28 +415,12 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Past Due Banner */}
-      {billingData?.status === 'past_due' && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-4">
-              <AlertCircle className="h-6 w-6 text-red-600" />
-              <div>
-                <h3 className="font-semibold text-red-900 mb-1">Payment Required</h3>
-                <p className="text-sm text-red-700">
-                  Your account is past due. Please update your payment method to continue using the service.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+    <div className="space-y-4">
 
       <Tabs 
         value={currentTab} 
         onValueChange={setCurrentTab}
-        className="space-y-4"
+        className="space-y-3"
       >
         <TabsList className="grid w-full grid-cols-4 bg-gray-100">
           <TabsTrigger value="overview" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Overview</TabsTrigger>
@@ -377,90 +431,121 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-            <Card className="py-2">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
-                <CardTitle className="text-xs font-medium">Wallet Balance</CardTitle>
-                <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
-              </CardHeader>
-              <CardContent className="px-3 py-1">
-                <div className="text-lg font-bold">₹{billingData?.walletBalance?.toFixed(2) || '0.00'}</div>
-                <div className="text-[10px] text-muted-foreground">
-                  {getStatusBadge(billingData?.status || 'trial')}
+          {/* Overview Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Wallet Balance Card */}
+            <Card className="border rounded-lg shadow-sm">
+              <CardContent className="p-3">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <p className="text-sm text-muted-foreground font-medium mb-1">Wallet Balance</p>
+                    <p className="text-2xl font-semibold">₹{billingData?.walletBalance?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div className="ml-3">
+                    <Wallet className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                </div>
+                {billingData?.status === 'trial' ? (
+                  <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-xs flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    Free Trial
+                  </Badge>
+                ) : (billingData?.walletBalance || 0) < 200 && (
+                  <Badge className="bg-red-100 text-red-600 border-red-200 text-xs">Low Balance</Badge>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Current Month Card */}
+            <Card className="border rounded-lg shadow-sm">
+              <CardContent className="p-3">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <p className="text-sm text-muted-foreground font-medium mb-1">Current Month</p>
+                    <p className="text-2xl font-semibold">₹{billingData?.currentMonthSpent?.toFixed(2) || '0.00'}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {billingData?.monthlySpendCap
+                        ? `Cap: ₹${billingData.monthlySpendCap.toFixed(2)}`
+                        : 'No cap set'}
+                    </p>
+                  </div>
+                  <div className="ml-3">
+                    <TrendingUp className="h-5 w-5 text-muted-foreground" />
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="py-2">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
-                <CardTitle className="text-xs font-medium">Current Month</CardTitle>
-                <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
-              </CardHeader>
-              <CardContent className="px-3 py-1">
-                <div className="text-lg font-bold">₹{billingData?.currentMonthSpent?.toFixed(2) || '0.00'}</div>
-                <p className="text-[10px] text-muted-foreground">
-                  {billingData?.monthlySpendCap 
-                    ? `Cap: ₹${billingData.monthlySpendCap.toFixed(2)}`
-                    : 'No cap set'}
-                </p>
+            {/* Total Spent Card */}
+            <Card className="border rounded-lg shadow-sm">
+              <CardContent className="p-3">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <p className="text-sm text-muted-foreground font-medium mb-1">Total Spent</p>
+                    <p className="text-2xl font-semibold">₹{billingData?.totalSpent?.toFixed(2) || '0.00'}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">All-time usage</p>
+                  </div>
+                  <div className="ml-3">
+                    <DollarSign className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
-            <Card className="py-2">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
-                <CardTitle className="text-xs font-medium">Total Spent</CardTitle>
-                <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
-              </CardHeader>
-              <CardContent className="px-3 py-1">
-                <div className="text-lg font-bold">₹{billingData?.totalSpent?.toFixed(2) || '0.00'}</div>
-                <p className="text-[10px] text-muted-foreground">All-time usage</p>
-              </CardContent>
-            </Card>
-
-            <Card className="py-2">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
-                <CardTitle className="text-xs font-medium">Auto-Recharge</CardTitle>
-                <Shield className="h-3.5 w-3.5 text-muted-foreground" />
-              </CardHeader>
-              <CardContent className="px-3 py-1">
-                <div className="text-lg font-bold">{billingData?.autoRechargeEnabled ? 'ON' : 'OFF'}</div>
-                <p className="text-[10px] text-muted-foreground">
-                  {billingData?.autoRechargeEnabled ? 'Automatic ₹100' : 'Manual top-up'}
-                </p>
+            {/* Auto-Recharge Card */}
+            <Card className="border rounded-lg shadow-sm">
+              <CardContent className="p-3">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <p className="text-sm text-muted-foreground font-medium mb-1">Auto-Recharge</p>
+                    <p className="text-2xl font-semibold">
+                      {billingData?.autoRechargeEnabled ? 'ON' : 'OFF'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {billingData?.autoRechargeEnabled ? 'Auto recharge active' : 'Manual top-up'}
+                    </p>
+                  </div>
+                  <div className="ml-3">
+                    <Shield className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* PayPal Quick Subscribe */}
-          <PayPalOverview 
+          {/* Dynamic Subscription Card - Directly triggers Razorpay/PayPal */}
+          <SubscriptionCard
+            status={(billingData?.billingStatus || billingData?.status || 'trial') as BillingStatus}
+            trialDaysRemaining={billingData?.trialDaysRemaining ?? 7}
+            trialTotalDays={billingData?.trialTotalDays ?? 7}
+            planName="Pro Plan"
+            nextBillingDate={billingData?.nextBillingDate}
+            autoRenewal={billingData?.autoRechargeEnabled ?? true}
+            walletBalance={billingData?.walletBalance ?? 0}
+            lowBalanceThreshold={billingData?.lowBalanceThreshold ?? 200}
+            currency={billingData?.currency ?? 'INR'}
             companyId={companyId}
-            onSubscriptionSuccess={(subscriptionId) => {
-              console.log('Subscription successful:', subscriptionId)
-              loadBillingData()
-            }}
+            userEmail={user?.email}
+            onPaymentSuccess={() => loadBillingData()}
+            onPaymentCancel={handlePaymentCancel}
+            onManagePlan={() => setCurrentTab('settings')}
           />
 
         </TabsContent>
 
         {/* Usage Tab */}
-        <TabsContent value="usage" className="space-y-6">
+        <TabsContent value="usage" className="space-y-4">
           {/* Header Section */}
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold tracking-tight">Usage Analytics</h2>
               <p className="text-muted-foreground">Track your AI service consumption and costs</p>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export Data
-              </Button>
-            </div>
           </div>
 
           {/* Filters - Exact Match */}
           <Card className="border-dashed">
-            <CardHeader className="pb-0 mb-[-8px]">
+            <CardHeader className="pb-0 mb-[-4px]">
               <CardTitle className="flex items-center gap-2 text-2xl font-semibold leading-none tracking-tight">
                 <SettingsIcon className="h-5 w-5" />
                 Filter Usage Data
@@ -477,7 +562,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Jobs</SelectItem>
-                      {usageData?.jobUsage?.map((job: any) => (
+                      {usageData?.allJobs?.map((job: any) => (
                         <SelectItem key={job.jobId} value={job.jobId}>{job.jobTitle}</SelectItem>
                       ))}
                     </SelectContent>
@@ -507,7 +592,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                       start.setDate(start.getDate() - days)
                       setUsageStartDate(start)
                       setUsageEndDate(end)
-                      loadUsageData(start, end)
+                      loadUsageData(start, end, usageJobFilter)
                     }}
                   >
                     Apply Filters
@@ -519,7 +604,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
           {/* Usage Overview Cards */}
           {usageData?.totals && (
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <div className="grid grid-cols-4 gap-1.5">
               <Card className="border-l-4 border-l-blue-500 py-2">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 py-1">
                   <CardTitle className="text-xs font-medium text-blue-700">CV Parsing</CardTitle>
@@ -586,14 +671,14 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
           {/* Usage Type Breakdown */}
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Shield className="h-4 w-4" />
                 Usage Type Analysis
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Service Categories</p>
                   <div className="space-y-2">
@@ -643,14 +728,14 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
           {/* Usage by Job */}
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 Usage Breakdown by Job
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {usageData?.jobUsage?.length > 0 ? (
                   usageData.jobUsage.map((job: any, index: number) => (
                     <div key={job.jobId} className="border rounded-lg p-3 hover:shadow-sm transition-shadow">
@@ -705,7 +790,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
         </TabsContent>
 
         {/* Invoices Tab */}
-        <TabsContent value="invoices" className="space-y-6">
+        <TabsContent value="invoices" className="space-y-4">
           <Card className="py-2 pt-4">
             <CardHeader className="pb-2 px-4">
               <div className="flex items-center justify-between">
@@ -834,7 +919,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
         </TabsContent>
 
         {/* Settings Tab */}
-        <TabsContent value="settings" className="space-y-6">
+        <TabsContent value="settings" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -843,8 +928,8 @@ export default function BillingContent({ companyId }: BillingContentProps) {
               </CardTitle>
               <CardDescription>Configure auto-recharge and spending limits</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between p-4 border rounded-lg">
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div className="flex-1">
                   <Label htmlFor="auto-recharge" className="text-base font-medium">Auto-Recharge</Label>
                   <p className="text-sm text-gray-600 mt-1">
@@ -854,11 +939,14 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                 <Switch 
                   id="auto-recharge"
                   checked={autoRecharge} 
-                  onCheckedChange={setAutoRecharge}
+                  onCheckedChange={(checked) => {
+                    setAutoRecharge(checked)
+                    saveBillingSettings(checked)
+                  }}
                 />
               </div>
 
-              <div className="space-y-4 p-4 border rounded-lg">
+              <div className="space-y-3 p-3 border rounded-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <Label htmlFor="monthly-cap" className="text-base font-medium">Monthly Spend Cap</Label>
@@ -889,7 +977,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
               {/* Pricing Info */}
               <Card className="border-dashed">
-                <CardHeader className="pb-3">
+                <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
                     <DollarSign className="h-4 w-4" />
                     Current Pricing
@@ -897,23 +985,23 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                   <CardDescription>Per-feature pricing from configuration</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="p-3 bg-blue-50 rounded-lg text-center">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <div className="p-2 bg-blue-50 rounded-lg text-center">
                       <p className="text-xs text-blue-600 font-medium">CV Parsing</p>
                       <p className="text-lg font-bold text-blue-900">₹{usageData?.pricing?.cvParsingCost || '2'}</p>
                       <p className="text-xs text-blue-500">per CV</p>
                     </div>
-                    <div className="p-3 bg-green-50 rounded-lg text-center">
+                    <div className="p-2 bg-green-50 rounded-lg text-center">
                       <p className="text-xs text-green-600 font-medium">Questions</p>
                       <p className="text-lg font-bold text-green-900">₹{usageData?.pricing?.questionGenerationCost || '0.5'}</p>
                       <p className="text-xs text-green-500">per question</p>
                     </div>
-                    <div className="p-3 bg-purple-50 rounded-lg text-center">
+                    <div className="p-2 bg-purple-50 rounded-lg text-center">
                       <p className="text-xs text-purple-600 font-medium">Video Interview</p>
                       <p className="text-lg font-bold text-purple-900">₹{usageData?.pricing?.videoInterviewCost || '10'}</p>
                       <p className="text-xs text-purple-500">per interview</p>
                     </div>
-                    <div className="p-3 bg-amber-50 rounded-lg text-center">
+                    <div className="p-2 bg-amber-50 rounded-lg text-center">
                       <p className="text-xs text-amber-600 font-medium">AI Evaluation</p>
                       <p className="text-lg font-bold text-amber-900">₹{usageData?.pricing?.aiEvaluationCost || '1'}</p>
                       <p className="text-xs text-amber-500">per evaluation</p>

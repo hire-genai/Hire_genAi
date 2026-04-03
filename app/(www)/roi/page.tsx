@@ -1,8 +1,9 @@
 'use client'
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import Navbar from '@/components/layout/Navbar'
 import { 
@@ -82,15 +83,14 @@ const CURRENCY_CONFIG: Record<string, { code: string; symbol: string; rate: numb
 }
 
 export default function ROIPage() {
-  const searchParams = useSearchParams()
-  
   // Currency state
   const [userCountry, setUserCountry] = useState<string>('US')
   const [currencyConfig, setCurrencyConfig] = useState(CURRENCY_CONFIG['US'])
   const [isLoadingLocation, setIsLoadingLocation] = useState(true)
 
   useEffect(() => {
-    const scrollTo = searchParams?.get('scroll')
+    const urlParams = new URLSearchParams(window.location.search)
+    const scrollTo = urlParams.get('scroll')
     if (scrollTo) {
       const timer = setTimeout(() => {
         const element = document.getElementById(scrollTo)
@@ -101,7 +101,7 @@ export default function ROIPage() {
       }, 300)
       return () => clearTimeout(timer)
     }
-  }, [searchParams])
+  }, [])
 
   // Input states
   const [jobPostings, setJobPostings] = useState(5)

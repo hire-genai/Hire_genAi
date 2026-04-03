@@ -1,7 +1,9 @@
 "use client"
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { getAppUrl } from "@/lib/domain-config"
@@ -9,14 +11,63 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import Navbar from "@/components/layout/Navbar"
 import Link from "next/link"
-import { Check, X, ArrowRight, Star, Facebook, Instagram, Youtube, Linkedin, Lock } from "lucide-react"
+import { Check, X, ArrowRight, Star, Facebook, Instagram, Youtube, Linkedin, Lock, Globe } from "lucide-react"
 import Footer from "@/components/layout/Footer"
+type Country = 'IN' | 'INTERNATIONAL' | null
 
 export default function PricingPage() {
-  const searchParams = useSearchParams()
+  const router = useRouter()
+  const [country, setCountry] = useState<Country>(null)
+  const [detectingCountry, setDetectingCountry] = useState(true)
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false)
+
+  // Check if user is logged in (manual check since we're not in AuthProvider)
+  useEffect(() => {
+    const checkAuthStatus = () => {
+      // Check for refresh token or any session indicator
+      const refreshToken = localStorage.getItem('refreshToken')
+      const sessionData = sessionStorage.getItem('authSession')
+      setIsLoggedIn(!!(refreshToken || sessionData))
+    }
+    
+    checkAuthStatus()
+    // Listen for storage changes (login/logout in other tabs)
+    window.addEventListener('storage', checkAuthStatus)
+    return () => window.removeEventListener('storage', checkAuthStatus)
+  }, [])
+
+  // Detect user country
+  useEffect(() => {
+    const detectCountry = async () => {
+      try {
+        // Check for manual override in localStorage (for testing)
+        const manualCountry = localStorage.getItem('forceCountry')
+        if (manualCountry === 'IN' || manualCountry === 'INTERNATIONAL') {
+          console.log('[Pricing] Using manual country override:', manualCountry)
+          setCountry(manualCountry as Country)
+          setDetectingCountry(false)
+          return
+        }
+
+        const res = await fetch('/api/detect-country')
+        if (!res.ok) throw new Error('Country detection failed')
+        const data = await res.json()
+        const countryCode = data.countryCode
+        console.log('[Pricing] Detected country:', countryCode)
+        setCountry(countryCode === 'IN' ? 'IN' : 'INTERNATIONAL')
+      } catch (err) {
+        console.warn('[Pricing] Country detection failed, defaulting to INTERNATIONAL:', err)
+        setCountry('INTERNATIONAL')
+      } finally {
+        setDetectingCountry(false)
+      }
+    }
+    detectCountry()
+  }, [])
 
   useEffect(() => {
-    const scrollTo = searchParams?.get('scroll')
+    const urlParams = new URLSearchParams(window.location.search)
+    const scrollTo = urlParams.get('scroll')
     if (scrollTo) {
       const timer = setTimeout(() => {
         const element = document.getElementById(scrollTo)
@@ -27,7 +78,21 @@ export default function PricingPage() {
       }, 300)
       return () => clearTimeout(timer)
     }
-  }, [searchParams])
+  }, [])
+
+  // Currency conversion: 1 USD = 100 INR (approximate)
+  const USD_TO_INR = 100
+  
+  const getDisplayPrice = (usdPrice: number | null) => {
+    if (usdPrice === null) return null
+    if (country === 'IN') {
+      return Math.round(usdPrice * USD_TO_INR).toLocaleString('en-IN')
+    }
+    return usdPrice.toLocaleString()
+  }
+
+  const getCurrencySymbol = () => country === 'IN' ? '₹' : '$'
+  const getCurrencyLabel = () => country === 'IN' ? 'INR' : 'USD'
 
   const plans = [
     {
@@ -91,22 +156,28 @@ export default function PricingPage() {
     },
   ]
 
+  // Handle plan selection: store plan & redirect based on auth
+  const handlePlanSelect = (planName: string) => {
+    // Store the selected plan in localStorage so it persists through signup
+    localStorage.setItem('pendingPlan', JSON.stringify({
+      name: planName,
+      timestamp: Date.now(),
+    }))
+
+    if (isLoggedIn) {
+      // User is logged in → go to settings payment tab
+      router.push(getAppUrl('/settings?tab=payment'))
+    } else {
+      // User is not logged in → go to signup
+      router.push(getAppUrl('/signup'))
+    }
+  }
+
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
       
-      {/* Hero Section */}
-      <section className="sr-hero-bg py-20">
-        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
-          <h1 className="text-5xl lg:text-6xl font-bold text-slate-800 mb-6">
-            Simple, transparent <span className="sr-text-gradient">pricing</span>
-          </h1>
-          <p className="text-xl text-slate-600 mb-8 max-w-2xl mx-auto">
-            Choose the perfect plan for your hiring needs. All plans include our core AI features with no hidden fees.
-          </p>
-        </div>
-      </section>
-
+      
       {/* Value Proposition Section */}
       <section className="py-16 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -148,7 +219,7 @@ export default function PricingPage() {
       {/* Pricing Cards */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {plans.map((plan, index) => (
               <Card
                 key={index}
@@ -162,15 +233,17 @@ export default function PricingPage() {
                     </Badge>
                   </div>
                 )}
-                <CardHeader className="text-center pb-8">
+                <CardHeader className="text-center pb-4">
                   <CardTitle className="text-2xl font-bold text-slate-800">{plan.name}</CardTitle>
                   <CardDescription className="text-slate-600 mt-2">{plan.description}</CardDescription>
-                  <div className="mt-6">
+                  <div className="mt-4">
                     <div className="flex items-center justify-center">
                       {plan.monthlyPrice !== null ? (
                         <>
-                          <span className="text-5xl font-bold text-slate-800">${plan.monthlyPrice}</span>
-                          <span className="text-slate-600 ml-2">{plan.monthlyPrice === 0 ? '' : 'flexible billing'}</span>
+                          <span className="text-5xl font-bold text-slate-800">
+                            {getCurrencySymbol()}{getDisplayPrice(plan.monthlyPrice)}
+                          </span>
+                          <span className="text-slate-600 ml-2">{plan.monthlyPrice === 0 ? '' : '/month'}</span>
                         </>
                       ) : (
                         <span className="text-3xl font-bold text-slate-800">Custom</span>
@@ -178,8 +251,8 @@ export default function PricingPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-3">
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
                     {plan.features.map((feature, featureIndex) => (
                       <div key={featureIndex} className="flex items-start space-x-3">
                         <Check className="w-5 h-5 text-emerald-600 mt-0.5 flex-shrink-0" />
@@ -204,12 +277,10 @@ export default function PricingPage() {
                   ) : (
                     <Button
                       className={`w-full ${plan.popular ? "sr-button-primary" : "sr-button-secondary"}`}
-                      asChild
+                      onClick={() => handlePlanSelect(plan.name)}
                     >
-                      <Link href={getAppUrl('/signup')}>
-                        {plan.cta}
-                        <ArrowRight className="w-4 h-4 ml-2" />
-                      </Link>
+                      {plan.cta}
+                      <ArrowRight className="w-4 h-4 ml-2" />
                     </Button>
                   )}
                 </CardContent>
@@ -227,9 +298,9 @@ export default function PricingPage() {
             <p className="text-slate-600">Everything you need to know about our pricing</p>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-4">
             <Card className="sr-card">
-              <CardContent className="p-6">
+              <CardContent className="p-4">
                 <h3 className="font-semibold text-slate-800 mb-2">Can I change my plan anytime?</h3>
                 <p className="text-slate-600">
                   Yes, you can upgrade or downgrade your plan at any time. Changes take effect immediately, and we'll
@@ -239,7 +310,7 @@ export default function PricingPage() {
             </Card>
 
             <Card className="sr-card">
-              <CardContent className="p-6">
+              <CardContent className="p-4">
                 <h3 className="font-semibold text-slate-800 mb-2">Is there a free trial?</h3>
                 <p className="text-slate-600">
                   Yes, we offer a 14-day free trial for all plans. No credit card required to start your trial.
@@ -248,7 +319,7 @@ export default function PricingPage() {
             </Card>
 
             <Card className="sr-card">
-              <CardContent className="p-6">
+              <CardContent className="p-4">
                 <h3 className="font-semibold text-slate-800 mb-2">What happens if I exceed my plan limits?</h3>
                 <p className="text-slate-600">
                   We'll notify you when you're approaching your limits. You can either upgrade your plan or purchase
@@ -258,7 +329,7 @@ export default function PricingPage() {
             </Card>
 
             <Card className="sr-card">
-              <CardContent className="p-6">
+              <CardContent className="p-4">
                 <h3 className="font-semibold text-slate-800 mb-2">Do you offer custom enterprise solutions?</h3>
                 <p className="text-slate-600">
                   Yes, we work with large enterprises to create custom solutions that fit their specific needs. Contact

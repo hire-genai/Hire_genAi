@@ -1,7 +1,8 @@
 "use client"
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
 import { Check, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,16 +10,16 @@ import { getAppUrl } from "@/lib/domain-config"
 import Link from "next/link"
 
 export default function QuestionnaireResults() {
-  const searchParams = useSearchParams()
   const [score, setScore] = useState(0)
   const [contactInfo, setContactInfo] = useState({ name: "", email: "", company: "" })
 
   useEffect(() => {
     // Get data from URL params or localStorage (only on client side)
-    const scoreParam = searchParams.get('score')
-    const nameParam = searchParams.get('name')
-    const emailParam = searchParams.get('email')
-    const companyParam = searchParams.get('company')
+    const urlParams = new URLSearchParams(window.location.search)
+    const scoreParam = urlParams.get('score')
+    const nameParam = urlParams.get('name')
+    const emailParam = urlParams.get('email')
+    const companyParam = urlParams.get('company')
 
     if (scoreParam) {
       setScore(parseInt(scoreParam))
@@ -27,8 +28,8 @@ export default function QuestionnaireResults() {
         email: emailParam || '',
         company: companyParam || ''
       })
-    } else if (typeof window !== 'undefined') {
-      // Fallback to localStorage if no params (only on client side)
+    } else {
+      // Fallback to localStorage if no params
       const storedScore = localStorage.getItem('questionnaireScore')
       const storedContact = localStorage.getItem('questionnaireContact')
 
@@ -39,7 +40,7 @@ export default function QuestionnaireResults() {
         setContactInfo(JSON.parse(storedContact))
       }
     }
-  }, [searchParams])
+  }, [])
 
   const getResultsText = () => {
     if (score >= 80) {
@@ -161,7 +162,7 @@ export default function QuestionnaireResults() {
               </nav>
             </div>
             <div className="flex items-center space-x-4">
-              <Link href={getAppUrl('/login')} target="_blank" rel="noopener noreferrer">
+              <Link href={getAppUrl('/login')}>
                 <Button
                   variant="ghost"
                   className="text-gray-700 hover:text-emerald-600 font-medium"
@@ -169,7 +170,7 @@ export default function QuestionnaireResults() {
                   Login
                 </Button>
               </Link>
-              <Link href={getAppUrl('/signup')} target="_blank" rel="noopener noreferrer">
+              <Link href={getAppUrl('/signup')}>
                 <Button className="sr-button-primary">Get started</Button>
               </Link>
             </div>
@@ -197,7 +198,7 @@ export default function QuestionnaireResults() {
           <h2 className="text-2xl sm:text-4xl font-bold text-slate-800 mb-4">{resultsText.title}</h2>
           <p className="text-lg sm:text-xl text-slate-600 mb-8 max-w-2xl mx-auto">{resultsText.description}</p>
 
-          <Card className="bg-slate-50 p-6 sm:p-8 mb-8 text-left">
+          <Card className="bg-slate-50 p-4 sm:p-5 mb-6 text-left">
             <h3 className="text-xl sm:text-2xl font-bold text-center mb-6">Your Personalized Recommendations</h3>
             <ul className="space-y-4">
               {recommendations.map((rec, index) => (
@@ -209,7 +210,7 @@ export default function QuestionnaireResults() {
             </ul>
           </Card>
 
-          <Card className="bg-slate-50 p-6 sm:p-8 max-w-lg mx-auto">
+          <Card className="bg-slate-50 p-4 sm:p-5 max-w-lg mx-auto">
             <h3 className="text-xl sm:text-2xl font-bold mb-4">Get Your Full Detailed Report</h3>
             <p className="text-slate-600 mb-6">
               Enter your email to receive your complete recruitment efficiency analysis with customized action plan.

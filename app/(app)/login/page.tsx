@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = 'force-dynamic';
+
 import type React from "react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -39,9 +41,19 @@ export default function LoginPage() {
     }
   }, [])
 
+  // Helper to get redirect destination after login
+  const getPostLoginRedirect = () => {
+    const postLoginRedirect = localStorage.getItem('postLoginRedirect')
+    if (postLoginRedirect) {
+      localStorage.removeItem('postLoginRedirect')
+      return postLoginRedirect
+    }
+    return '/dashboard'
+  }
+
   useEffect(() => {
     if (!authLoading && user) {
-      router.push("/dashboard")
+      router.push(getPostLoginRedirect())
     }
   }, [user, authLoading, router])
 
@@ -101,7 +113,7 @@ export default function LoginPage() {
       toast({ title: "Welcome back!", description: "Login successful" })
       // ensure state commit is observed
       await Promise.resolve()
-      router.push("/dashboard")
+      router.push(getPostLoginRedirect())
     } catch (err: any) {
       toast({ title: "Error", description: err?.message || "Failed to verify OTP", variant: "destructive" })
     } finally {
@@ -203,7 +215,7 @@ export default function LoginPage() {
         description: "Welcome to the HireGenAI demo" 
       })
       await Promise.resolve()
-      router.push("/dashboard")
+      router.push(getPostLoginRedirect())
     } catch (err: any) {
       toast({ 
         title: "Demo verification error", 
@@ -276,9 +288,9 @@ export default function LoginPage() {
           </div>
         </div>
       )}
-      <Card className="w-full max-w-md shadow-xl border-0">
+      <Card className="w-full max-w-md shadow-sm border-0">
         {/* Header */}
-        <CardHeader className="text-center pb-4">
+        <CardHeader className="text-center pb-2">
           <Link href="/">
             <CardTitle className="text-3xl font-bold mb-2">
               <span className="text-slate-800">Hire</span>
@@ -290,7 +302,7 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="px-4 pb-4">
+        <CardContent className="px-4 pb-3">
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "demo" | "signin")} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6 bg-gray-100">

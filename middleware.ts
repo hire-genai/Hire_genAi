@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAppUrl } from '@/lib/domain-config'
 
 // Marketing routes allowed on www.domain.com
 const WWW_ROUTES = new Set([
@@ -28,6 +27,7 @@ const APP_ROUTES = new Set([
   '/delegation',
   '/support',
   '/settings',
+  '/payment/return',
 ])
 
 // API routes are only allowed on app.domain.com
@@ -39,6 +39,11 @@ function getSubdomain(host: string): 'www' | 'app' | 'local' {
 
   // Local development: treat as combined (both routes accessible)
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'local'
+  }
+
+  // Vercel deployment: treat as combined (no subdomain routing)
+  if (hostname.includes('vercel.app') || hostname.includes('vercel.com')) {
     return 'local'
   }
 

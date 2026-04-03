@@ -1,5 +1,7 @@
 import BillingTab from "@/app/admin-hiregenai/_components/BillingTab"
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: "Billing & Usage - Admin Dashboard",
 }

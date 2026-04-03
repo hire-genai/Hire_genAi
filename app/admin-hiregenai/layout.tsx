@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = 'force-dynamic';
+
 import { ReactNode, useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import {
@@ -24,10 +26,10 @@ const navItems = [
   { id: "companies", label: "Companies", icon: Users },
   { id: "billing", label: "Billing & Usage", icon: DollarSign },
   { id: "anomalies", label: "Anomalies", icon: AlertTriangle },
-  { id: "settings", label: "Settings", icon: Settings },
   { id: "customer-interaction", label: "Customer Interaction", icon: MessageCircle },
   { id: "support-centre", label: "Support Centre", icon: Headphones },
   { id: "product-feedback", label: "Product Feedback", icon: Lightbulb },
+  { id: "settings", label: "Settings", icon: Settings },
 ]
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
