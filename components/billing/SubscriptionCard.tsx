@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -10,23 +10,15 @@ import {
   AlertTriangle, 
   CheckCircle, 
   Sparkles, 
-  Rocket, 
   Settings as SettingsIcon,
   Calendar,
-  RefreshCw,
-  Wallet,
-  Zap,
-  ExternalLink,
   CreditCard,
   XCircle,
   Loader2
 } from 'lucide-react'
 
-// Razorpay Payment Link URL - configurable via environment variable
-const RAZORPAY_PAYMENT_LINK = process.env.NEXT_PUBLIC_RAZORPAY_PAYMENT_LINK || 'https://pages.razorpay.com/hire-genai'
-
-// 5 billing status values (matches backend)
-export type BillingStatus = 'active' | 'trial' | 'trial_over' | 'low_balance' | 'recharge_over'
+// 3 billing status values (matches backend - subscription-based)
+export type BillingStatus = 'active' | 'trial' | 'trial_over'
 
 // Subscription status from Razorpay
 export type SubscriptionStatus = 'active' | 'pending' | 'halted' | 'cancelled' | 'completed' | 'paused' | 'created' | 'authenticated' | null
@@ -46,17 +38,19 @@ interface SubscriptionCardProps {
   planName?: string
   nextBillingDate?: string
   autoRenewal?: boolean
-  walletBalance?: number
-  lowBalanceThreshold?: number
   currency?: 'INR' | 'USD'
   companyId: string
   userEmail?: string
   subscription?: SubscriptionInfo | null
-  onPaymentSuccess?: () => void
-  onPaymentCancel?: () => void
   onManagePlan?: () => void
   onSubscribe?: (planType: 'monthly' | 'yearly') => void
   onCancelSubscription?: () => void
+}
+
+declare global {
+  interface Window {
+    Razorpay: any
+  }
 }
 
 export default function SubscriptionCard({
@@ -66,14 +60,10 @@ export default function SubscriptionCard({
   planName = 'Pro Plan',
   nextBillingDate,
   autoRenewal = true,
-  walletBalance = 0,
-  lowBalanceThreshold = 200,
   currency = 'INR',
   companyId,
   userEmail,
   subscription,
-  onPaymentSuccess,
-  onPaymentCancel,
   onManagePlan,
   onSubscribe,
   onCancelSubscription
@@ -82,9 +72,6 @@ export default function SubscriptionCard({
   const [isCreatingSubscription, setIsCreatingSubscription] = useState(false)
   const [isCancellingSubscription, setIsCancellingSubscription] = useState(false)
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null)
-
-  // Currency symbol helper
-  const currencySymbol = currency === 'INR' ? '₹' : '$'
 
   const handleContinueTrial = () => {
     setShowContinueMessage(true)
@@ -95,41 +82,25 @@ export default function SubscriptionCard({
     ? ((trialTotalDays - trialDaysRemaining) / trialTotalDays) * 100 
     : 0
 
-  // Open Razorpay payment link in same tab with email prefill
-  const handlePayment = () => {
-    // Extend session before going to external payment page (30 minutes)
-    const sessionExpiresAt = localStorage.getItem('sessionExpiresAt')
-    if (sessionExpiresAt) {
-      const newExpiry = Date.now() + (30 * 60 * 1000)
-      localStorage.setItem('sessionExpiresAt', newExpiry.toString())
-    }
-    
-    const callbackUrl = `${window.location.origin}/payment/return`
-    
-    let paymentUrl = RAZORPAY_PAYMENT_LINK
-    const params = new URLSearchParams()
-    if (userEmail) {
-      params.append('email', userEmail)
-    }
-    params.append('callback_url', callbackUrl)
-    
-    if (params.toString()) {
-      paymentUrl += `?${params.toString()}`
-    }
-    window.location.href = paymentUrl
+  // Handle upgrade click - create subscription with monthly plan
+  const handleUpgrade = () => handleCreateSubscription('monthly')
+
+  // Load Razorpay script dynamically
+  const loadRazorpayScript = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true)
+        return
+      }
+      const script = document.createElement('script')
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+      script.onload = () => resolve(true)
+      script.onerror = () => resolve(false)
+      document.body.appendChild(script)
+    })
   }
 
-  // Handle upgrade click - open payment link
-  const handleUpgrade = () => {
-    handlePayment()
-  }
-
-  // Handle recharge click - open payment link
-  const handleRecharge = () => {
-    handlePayment()
-  }
-
-  // Handle subscription creation
+  // Handle subscription creation with Razorpay popup
   const handleCreateSubscription = async (planType: 'monthly' | 'yearly' = 'monthly') => {
     if (onSubscribe) {
       onSubscribe(planType)
@@ -140,6 +111,12 @@ export default function SubscriptionCard({
     setSubscriptionError(null)
 
     try {
+      // Load Razorpay script
+      const scriptLoaded = await loadRazorpayScript()
+      if (!scriptLoaded) {
+        throw new Error('Failed to load Razorpay SDK')
+      }
+
       const response = await fetch('/api/subscriptions/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -152,14 +129,34 @@ export default function SubscriptionCard({
         throw new Error(data.error || 'Failed to create subscription')
       }
 
-      // Redirect to Razorpay subscription page
-      if (data.subscription?.shortUrl) {
-        window.location.href = data.subscription.shortUrl
+      // Open Razorpay popup with subscription_id
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        subscription_id: data.subscription.id,
+        name: 'HireGenAI',
+        description: `${planType === 'monthly' ? 'Monthly' : 'Yearly'} Subscription`,
+        handler: function () {
+          // Payment successful - reload to show updated status
+          window.location.reload()
+        },
+        prefill: {
+          email: userEmail || ''
+        },
+        theme: {
+          color: '#7c3aed'
+        },
+        modal: {
+          ondismiss: function () {
+            setIsCreatingSubscription(false)
+          }
+        }
       }
+
+      const rzp = new window.Razorpay(options)
+      rzp.open()
     } catch (error: any) {
       console.error('Subscription creation error:', error)
       setSubscriptionError(error.message || 'Failed to create subscription')
-    } finally {
       setIsCreatingSubscription(false)
     }
   }
@@ -207,8 +204,6 @@ export default function SubscriptionCard({
   // Card border color based on status
   const getCardStyle = () => {
     switch (status) {
-      case 'recharge_over': return 'border-red-300 bg-red-50/30'
-      case 'low_balance': return 'border-amber-300 bg-amber-50/20'
       case 'trial_over': return 'border-red-200'
       case 'active': return 'border-emerald-200'
       case 'trial': return 'border-amber-200'
@@ -220,90 +215,6 @@ export default function SubscriptionCard({
     <div className="w-full mb-4">
       <Card className={`w-full shadow-sm rounded-lg ${getCardStyle()}`}>
         <CardContent className="pt-4 pb-4 text-center">
-          
-          {/* RECHARGE_OVER STATE - Wallet is empty */}
-          {status === 'recharge_over' && (
-            <>
-              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border-0 mb-3">
-                🔴 RECHARGE REQUIRED
-              </Badge>
-              
-              <h3 className="text-xl font-bold text-slate-900 mb-1.5">
-                Your wallet balance is {currencySymbol}0
-              </h3>
-              <p className="text-sm text-slate-500 mb-3">
-                Recharge to continue using services without interruption
-              </p>
-              
-              <div className="bg-red-50 rounded-lg p-2.5 mb-4 text-center">
-                <div className="flex items-center justify-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-red-600 flex-shrink-0" />
-                  <p className="text-xs text-red-700">
-                    <strong>Services paused:</strong> API calls and AI features are disabled until recharge
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap justify-center gap-3">
-                <Button 
-                  onClick={handleRecharge}
-                  className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-6 py-2.5 font-semibold text-sm shadow-md transition-all"
-                >
-                  <Wallet className="h-4 w-4 mr-2" />
-                  Recharge Now
-                </Button>
-              </div>
-
-              <p className="text-xs text-slate-400 mt-4">
-                ⚠️ Wallet empty. Services may be paused. Recharge immediately.
-              </p>
-            </>
-          )}
-
-          {/* LOW_BALANCE STATE */}
-          {status === 'low_balance' && (
-            <>
-              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border-0 mb-3">
-                🟡 LOW BALANCE
-              </Badge>
-              
-              <h3 className="text-xl font-bold text-slate-900 mb-1.5">
-                Wallet balance: {currencySymbol}{walletBalance.toFixed(2)}
-              </h3>
-              <p className="text-sm text-slate-500 mb-3">
-                Your balance is running low. Recharge soon to avoid service interruption.
-              </p>
-              
-              <div className="bg-amber-50 rounded-lg p-2.5 mb-4 flex items-center justify-center gap-2">
-                <Zap className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                <p className="text-xs text-amber-700 text-center">
-                  Recommended minimum: {currencySymbol}{lowBalanceThreshold}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap justify-center gap-3">
-                <Button 
-                  onClick={handleRecharge}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm shadow-md transition-all"
-                >
-                  <Wallet className="h-4 w-4 mr-2" />
-                  Recharge Wallet
-                </Button>
-                <Button 
-                  variant="outline"
-                  onClick={onManagePlan}
-                  className="rounded-full px-6 py-2.5 font-medium text-sm border-slate-200 hover:bg-slate-50"
-                >
-                  <SettingsIcon className="h-4 w-4 mr-2" />
-                  Manage Plan
-                </Button>
-              </div>
-
-              <p className="text-xs text-slate-400 mt-4">
-                ⚡ Low balance ({currencySymbol}{walletBalance.toFixed(2)}). Recharge to avoid interruption.
-              </p>
-            </>
-          )}
 
           {/* TRIAL STATE */}
           {status === 'trial' && (
@@ -361,7 +272,7 @@ export default function SubscriptionCard({
                 Your trial has ended
               </h3>
               <p className="text-sm text-slate-500 mb-3">
-                Some features are locked. Upgrade to restore full access.
+                Some features are locked. Subscribe to restore full access.
               </p>
               
               <div className="bg-red-50 rounded-lg p-2.5 mb-4 text-left">
@@ -390,20 +301,12 @@ export default function SubscriptionCard({
                   ) : (
                     <CreditCard className="h-4 w-4 mr-2" />
                   )}
-                  Subscribe Monthly
-                </Button>
-                <Button 
-                  onClick={handleUpgrade}
-                  variant="outline"
-                  className="rounded-full px-6 py-2.5 font-medium text-sm border-slate-200 hover:bg-slate-50"
-                >
-                  <Wallet className="h-4 w-4 mr-2" />
-                  Pay-as-you-go
+                  Subscribe Now
                 </Button>
               </div>
 
               <p className="text-xs text-slate-400 mt-4">
-                Your trial expired. Subscribe or add credits to regain all Pro features.
+                Your trial expired. Subscribe to regain all Pro features.
               </p>
             </>
           )}
@@ -450,29 +353,6 @@ export default function SubscriptionCard({
                 </>
               )}
 
-              {/* Show wallet balance if not using subscription */}
-              {!hasActiveSubscription && (
-                <>
-                  {nextBillingDate && (
-                    <div className="bg-slate-50 rounded-lg p-3 mb-3 flex justify-between items-center text-sm">
-                      <span className="flex items-center gap-2 text-slate-600">
-                        <Calendar className="h-4 w-4" />
-                        Next billing date
-                      </span>
-                      <strong className="text-slate-900">{nextBillingDate}</strong>
-                    </div>
-                  )}
-                  
-                  <div className="bg-slate-50 rounded-lg p-2.5 mb-4 flex justify-between items-center text-sm">
-                    <span className="flex items-center gap-2 text-slate-600">
-                      <Wallet className="h-4 w-4" />
-                      Wallet Balance
-                    </span>
-                    <strong className="text-slate-900">{currencySymbol}{walletBalance.toFixed(2)}</strong>
-                  </div>
-                </>
-              )}
-
               {subscriptionError && (
                 <div className="bg-red-50 rounded-lg p-2.5 mb-4 text-center">
                   <p className="text-xs text-red-700">{subscriptionError}</p>
@@ -489,37 +369,23 @@ export default function SubscriptionCard({
                   Manage Plan
                 </Button>
                 
-                {hasActiveSubscription && (
-                  <Button 
-                    variant="outline"
-                    onClick={handleCancelSubscription}
-                    disabled={isCancellingSubscription}
-                    className="rounded-full px-6 py-2.5 font-medium text-sm border-red-200 text-red-600 hover:bg-red-50"
-                  >
-                    {isCancellingSubscription ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <XCircle className="h-4 w-4 mr-2" />
-                    )}
-                    Cancel Subscription
-                  </Button>
-                )}
-                
-                {!hasActiveSubscription && (
-                  <Button 
-                    onClick={handleRecharge}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm shadow-md transition-all"
-                  >
-                    <Wallet className="h-4 w-4 mr-2" />
-                    Add Credits
-                  </Button>
-                )}
+                <Button 
+                  variant="outline"
+                  onClick={handleCancelSubscription}
+                  disabled={isCancellingSubscription}
+                  className="rounded-full px-6 py-2.5 font-medium text-sm border-red-200 text-red-600 hover:bg-red-50"
+                >
+                  {isCancellingSubscription ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <XCircle className="h-4 w-4 mr-2" />
+                  )}
+                  Cancel Subscription
+                </Button>
               </div>
 
               <p className="text-xs text-slate-400 mt-4">
-                {hasActiveSubscription 
-                  ? 'Your subscription is active. Manage billing or cancel anytime.'
-                  : 'Your account is active. Add credits or subscribe for automatic billing.'}
+                Your subscription is active. Manage billing or cancel anytime.
               </p>
             </>
           )}
@@ -555,14 +421,6 @@ export default function SubscriptionCard({
                     <CreditCard className="h-4 w-4 mr-2" />
                   )}
                   {subscription.status === 'pending' ? 'Complete Payment' : 'Retry Payment'}
-                </Button>
-                <Button 
-                  onClick={handleRecharge}
-                  variant="outline"
-                  className="rounded-full px-6 py-2.5 font-medium text-sm border-slate-200 hover:bg-slate-50"
-                >
-                  <Wallet className="h-4 w-4 mr-2" />
-                  Pay-as-you-go Instead
                 </Button>
               </div>
             </>
