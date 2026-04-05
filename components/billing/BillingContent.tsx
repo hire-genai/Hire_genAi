@@ -32,7 +32,7 @@ import {
   Loader2,
   Filter
 } from "lucide-react"
-import SubscriptionCard, { BillingStatus } from "./SubscriptionCard"
+import SubscriptionCard, { BillingStatus, SubscriptionInfo } from "./SubscriptionCard"
 import { useAuth } from '@/contexts/auth-context'
 
 interface BillingContentProps {
@@ -44,6 +44,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [billingData, setBillingData] = useState<any>(null)
+  const [subscriptionData, setSubscriptionData] = useState<SubscriptionInfo | null>(null)
   const [usageData, setUsageData] = useState<any>(null)
   const [currentTab, setCurrentTab] = useState<string>("overview")
   // Handle payment cancel → redirect to settings payment tab
@@ -129,6 +130,18 @@ export default function BillingContent({ companyId }: BillingContentProps) {
       if (data.ok) {
         setBillingData(data.billing)
         setAutoRecharge(data.billing.autoRechargeEnabled)
+        // Store subscription info for SubscriptionCard
+        if (data.subscription) {
+          setSubscriptionData({
+            id: data.subscription.id,
+            status: data.subscription.status,
+            planId: data.subscription.planId,
+            nextBillingDate: data.subscription.nextBillingDate,
+            subscriberEmail: data.subscription.subscriberEmail
+          })
+        } else {
+          setSubscriptionData(null)
+        }
       }
     } catch (error) {
       console.error('Failed to load billing data:', error)
@@ -521,13 +534,13 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             planName="Pro Plan"
             nextBillingDate={billingData?.nextBillingDate}
             autoRenewal={billingData?.autoRechargeEnabled ?? true}
-            walletBalance={billingData?.walletBalance ?? 0}
-            lowBalanceThreshold={billingData?.lowBalanceThreshold ?? 200}
             currency={billingData?.currency ?? 'INR'}
             companyId={companyId}
             userEmail={user?.email}
-            onPaymentSuccess={() => loadBillingData()}
-            onPaymentCancel={handlePaymentCancel}
+            subscription={subscriptionData}
+            walletBalance={billingData?.walletBalance ?? 0}
+            currentMonthSpent={billingData?.currentMonthSpent ?? 0}
+            totalSpent={billingData?.totalSpent ?? 0}
             onManagePlan={() => setCurrentTab('settings')}
           />
 

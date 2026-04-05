@@ -170,24 +170,7 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
 
         // Activate company billing
         await DatabaseService.activateCompanyFromSubscription(companyId)
-
-        // Credit ₹10,000 to wallet for monthly subscription
-        // First ensure company_billing record exists, then credit the amount
-        await DatabaseService.query(
-          `INSERT INTO company_billing (company_id, wallet_balance, status, created_at, updated_at)
-           VALUES ($1::uuid, 0, 'active', NOW(), NOW())
-           ON CONFLICT (company_id) DO NOTHING`,
-          [companyId]
-        )
-        await DatabaseService.query(
-          `UPDATE company_billing 
-           SET wallet_balance = wallet_balance + 10000,
-               status = 'active',
-               updated_at = NOW()
-           WHERE company_id = $1::uuid`,
-          [companyId]
-        )
-        console.log(`[Razorpay Webhook] Credited ₹10,000 to wallet for company: ${companyId}`)
+        console.log(`[Razorpay Webhook] Company billing activated for: ${companyId}`)
 
         // Restore any jobs/interviews that were on hold
         try {
@@ -220,7 +203,13 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
           chargeAt || currentEnd || undefined
         )
 
-        // Credit ₹10,000 to wallet for monthly renewal
+        // Ensure company_billing record exists and credit wallet
+        await DatabaseService.query(
+          `INSERT INTO company_billing (company_id, wallet_balance, status, created_at, updated_at)
+           VALUES ($1::uuid, 0, 'active', NOW(), NOW())
+           ON CONFLICT (company_id) DO NOTHING`,
+          [companyId]
+        )
         await DatabaseService.query(
           `UPDATE company_billing 
            SET wallet_balance = wallet_balance + 10000,
@@ -229,7 +218,7 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
            WHERE company_id = $1::uuid`,
           [companyId]
         )
-        console.log(`[Razorpay Webhook] Credited ₹10,000 to wallet for monthly renewal, company: ${companyId}`)
+        console.log(`[Razorpay Webhook] Credited ₹10,000 to wallet for subscription payment, company: ${companyId}`)
 
         // Record the payment if payment entity exists
         const payment = event.payload.payment?.entity

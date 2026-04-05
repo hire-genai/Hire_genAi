@@ -137,6 +137,28 @@ export async function GET(request: NextRequest) {
 
     const isTrialExpired = !isWithinTrialPeriod && !hasActiveSubscription
 
+    // ============================================
+    // COMPANY BILLING DATA (wallet, spending, auto-recharge)
+    // ============================================
+    let walletBalance = 0
+    let currentMonthSpent = 0
+    let totalSpent = 0
+    let autoRechargeEnabled = false
+    let monthlySpendCap = null
+
+    try {
+      const billingInfo = await DatabaseService.getCompanyBilling(companyId)
+      if (billingInfo) {
+        walletBalance = parseFloat(billingInfo.wallet_balance) || 0
+        currentMonthSpent = billingInfo.current_month_spent || 0
+        totalSpent = billingInfo.total_spent || 0
+        autoRechargeEnabled = billingInfo.auto_recharge_enabled || false
+        monthlySpendCap = billingInfo.monthly_spend_cap ? parseFloat(billingInfo.monthly_spend_cap) : null
+      }
+    } catch (billingError) {
+      console.log('[Billing Status] Company billing fetch skipped:', billingError)
+    }
+
     return NextResponse.json({
       ok: true,
       billing: {
@@ -149,6 +171,11 @@ export async function GET(request: NextRequest) {
         nextBillingDate,
         hasActiveSubscription,
         currency: effectiveIsIndia ? 'INR' : 'USD',
+        walletBalance,
+        currentMonthSpent,
+        totalSpent,
+        autoRechargeEnabled,
+        monthlySpendCap,
         usageCounts: {
           cvParsed: parseInt(cvResult[0]?.count) || 0,
           questionsGenerated: parseInt(questionResult[0]?.count) || 0,

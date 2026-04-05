@@ -14,7 +14,8 @@ import {
   Calendar,
   CreditCard,
   XCircle,
-  Loader2
+  Loader2,
+  Wallet
 } from 'lucide-react'
 
 // 3 billing status values (matches backend - subscription-based)
@@ -42,6 +43,9 @@ interface SubscriptionCardProps {
   companyId: string
   userEmail?: string
   subscription?: SubscriptionInfo | null
+  walletBalance?: number
+  currentMonthSpent?: number
+  totalSpent?: number
   onManagePlan?: () => void
   onSubscribe?: (planType: 'monthly' | 'yearly') => void
   onCancelSubscription?: () => void
@@ -64,6 +68,9 @@ export default function SubscriptionCard({
   companyId,
   userEmail,
   subscription,
+  walletBalance = 0,
+  currentMonthSpent = 0,
+  totalSpent = 0,
   onManagePlan,
   onSubscribe,
   onCancelSubscription
@@ -168,7 +175,7 @@ export default function SubscriptionCard({
       return
     }
 
-    if (!confirm('Are you sure you want to cancel your subscription? You will retain access until the end of your current billing period.')) {
+    if (!confirm('Are you sure you want to cancel your subscription immediately? Your access will end right away.')) {
       return
     }
 
@@ -179,7 +186,7 @@ export default function SubscriptionCard({
       const response = await fetch('/api/subscriptions/cancel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cancelAtCycleEnd: true })
+        body: JSON.stringify({ cancelAtCycleEnd: false })
       })
 
       const data = await response.json()
@@ -325,6 +332,17 @@ export default function SubscriptionCard({
               <p className="text-sm text-slate-500 mb-3">
                 All premium features are unlocked.
               </p>
+
+              {/* Wallet Balance */}
+              <div className="bg-emerald-50 rounded-lg p-3 mb-3 flex justify-between items-center text-sm">
+                <span className="flex items-center gap-2 text-emerald-700">
+                  <Wallet className="h-4 w-4" />
+                  Wallet Balance
+                </span>
+                <strong className="text-emerald-800">
+                  {currency === 'INR' ? '₹' : '$'}{walletBalance.toLocaleString()}
+                </strong>
+              </div>
 
               {/* Show subscription details if available */}
               {hasActiveSubscription && subscription && (
