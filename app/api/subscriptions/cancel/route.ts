@@ -46,12 +46,12 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── 2. Parse request body ───
-    let cancelAtCycleEnd = true
+    let cancelAtCycleEnd = false
     try {
       const body = await request.json()
-      cancelAtCycleEnd = body.cancelAtCycleEnd !== false
+      cancelAtCycleEnd = body.cancelAtCycleEnd === true
     } catch {
-      // Use default if no body
+      // Use default if no body (immediate cancellation)
     }
 
     // ─── 3. Get existing subscription ───
