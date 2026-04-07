@@ -102,6 +102,7 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
   const status = subscription.status
   const customerId = subscription.customer_id
   const notes = subscription.notes || {}
+  const shortUrl = subscription.short_url || null
   const currentStart = subscription.current_start ? new Date(subscription.current_start * 1000) : null
   const currentEnd = subscription.current_end ? new Date(subscription.current_end * 1000) : null
   const chargeAt = subscription.charge_at ? new Date(subscription.charge_at * 1000) : null
@@ -165,6 +166,7 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
           subscriberEmail,
           startTime: currentStart || new Date(),
           nextBillingTime: chargeAt || currentEnd || undefined,
+          subscriptionLink: shortUrl || undefined,
           rawData: subscription
         })
 
@@ -256,6 +258,7 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
           planId,
           status: 'pending',
           subscriberEmail,
+          subscriptionLink: shortUrl || undefined,
           rawData: subscription
         })
 

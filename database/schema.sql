@@ -1068,33 +1068,15 @@ CREATE INDEX idx_ticket_comments_created_at ON ticket_comments (created_at);
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
--- 11a. subscriptions
--- WHY: Tracks company subscription plans shown in settings (Payment tab).
---      Every company has at most one active subscription.
--- USED BY: /settings (payment section), middleware (feature gating)
--- ---------------------------------------------------------------------------
-CREATE TABLE subscriptions (
-  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  plan_name       TEXT NOT NULL,                     -- Free, Professional, Enterprise
-  status          subscription_status NOT NULL DEFAULT 'active',
-  current_period_start TIMESTAMPTZ,
-  current_period_end   TIMESTAMPTZ,
-  cancel_at       TIMESTAMPTZ,
-  external_id     TEXT,                              -- Stripe subscription ID
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_subscriptions_company_id ON subscriptions (company_id);
-CREATE INDEX idx_subscriptions_status ON subscriptions (status);
+-- REMOVED: subscriptions table (not used in code)
+-- All subscription data now stored in company_subscriptions table below
 
 
 -- ---------------------------------------------------------------------------
--- 11b. payment_methods
+-- 11c. payment_methods (SAVED PAYMENT METHODS)
 -- WHY: Stores saved payment methods for a company (settings → payment tab).
 --      Only stores tokenized references, never raw card numbers.
--- USED BY: /settings (payment section)
+-- USED BY: /settings (payment section), future payment updates
 -- ---------------------------------------------------------------------------
 CREATE TABLE payment_methods (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -1392,9 +1374,10 @@ CREATE UNIQUE INDEX agency_client_connections_pkey ON agency_client_connections 
 
 
 -- ---------------------------------------------------------------------------
--- 11k. company_subscriptions
--- WHY: Tracks external subscription integrations (PayPal, etc.)
--- USED BY: /api/webhooks, subscription management
+-- 11a. company_subscriptions (MAIN SUBSCRIPTION TABLE)
+-- WHY: Tracks all subscription data for companies (Razorpay, Stripe, etc.)
+--      This is the primary table for subscription management.
+-- USED BY: All subscription APIs, webhooks, billing system
 -- ---------------------------------------------------------------------------
 CREATE TABLE company_subscriptions (
   id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -1406,6 +1389,7 @@ CREATE TABLE company_subscriptions (
   subscriber_email  VARCHAR(255),
   start_time        TIMESTAMPTZ,
   next_billing_time TIMESTAMPTZ,
+  subscription_link VARCHAR(500),
   raw_data          JSONB,
   created_at        TIMESTAMPTZ DEFAULT NOW(),
   updated_at        TIMESTAMPTZ DEFAULT NOW(),
@@ -1416,12 +1400,14 @@ CREATE TABLE company_subscriptions (
 CREATE INDEX idx_company_subscriptions_company_id ON company_subscriptions (company_id);
 CREATE INDEX idx_company_subscriptions_provider ON company_subscriptions (provider);
 CREATE INDEX idx_company_subscriptions_status ON company_subscriptions (status);
+CREATE INDEX idx_company_subscriptions_subscription_link ON company_subscriptions (subscription_link);
 
 
 -- ---------------------------------------------------------------------------
--- 11l. subscription_payments
--- WHY: Tracks individual payments for subscriptions
--- USED BY: /api/webhooks/paypal, payment reconciliation
+-- 11b. subscription_payments (PAYMENT HISTORY)
+-- WHY: Tracks individual payment transactions for subscriptions
+--      Stores payment history, amounts, and provider responses.
+-- USED BY: Webhooks, billing reports, payment verification
 -- ---------------------------------------------------------------------------
 CREATE TABLE subscription_payments (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
