@@ -76,8 +76,10 @@ export default function SubscriptionCard({
   onCancelSubscription
 }: SubscriptionCardProps) {
   const [showContinueMessage, setShowContinueMessage] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
   const [isCreatingSubscription, setIsCreatingSubscription] = useState(false)
   const [isCancellingSubscription, setIsCancellingSubscription] = useState(false)
+  const [isManagingPlan, setIsManagingPlan] = useState(false)
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null)
 
   const handleContinueTrial = () => {
@@ -168,14 +170,49 @@ export default function SubscriptionCard({
     }
   }
 
+  // Handle manage plan functionality
+  const handleManagePlan = async () => {
+    if (onManagePlan) {
+      onManagePlan()
+      return
+    }
+
+    setIsManagingPlan(true)
+    setSubscriptionError(null)
+
+    try {
+      // Fetch current active subscription with its unique management link
+      const response = await fetch('/api/subscription/current', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch subscription details')
+      }
+
+      // Use the subscription_link from database (unique per company)
+      const subscriptionLink = data.subscription?.subscriptionLink
+      if (!subscriptionLink) {
+        throw new Error('Subscription management link not available')
+      }
+
+      // Open the company's unique Razorpay subscription management URL in new tab
+      window.open(subscriptionLink, '_blank', 'noopener,noreferrer')
+    } catch (error: any) {
+      console.error('Manage plan error:', error)
+      setSubscriptionError(error.message || 'Failed to open manage plan')
+    } finally {
+      setIsManagingPlan(false)
+    }
+  }
+
   // Handle subscription cancellation
   const handleCancelSubscription = async () => {
     if (onCancelSubscription) {
       onCancelSubscription()
-      return
-    }
-
-    if (!confirm('Are you sure you want to cancel your subscription immediately? Your access will end right away.')) {
       return
     }
 
@@ -195,7 +232,8 @@ export default function SubscriptionCard({
         throw new Error(data.error || 'Failed to cancel subscription')
       }
 
-      // Refresh the page to show updated status
+      // Close modal and refresh the page to show updated status
+      setShowCancelModal(false)
       window.location.reload()
     } catch (error: any) {
       console.error('Subscription cancellation error:', error)
@@ -220,232 +258,292 @@ export default function SubscriptionCard({
 
   return (
     <div className="w-full mb-4">
-      <Card className={`w-full shadow-sm rounded-lg ${getCardStyle()}`}>
-        <CardContent className="pt-4 pb-4 text-center">
+      {/* ACTIVE STATE - Clean Green Theme Card */}
+      {status === 'active' && (
+        <div className="w-full bg-white rounded-xl border border-slate-100 border-l-[6px] border-l-emerald-600 px-7 py-6">
+          
+          {/* Row 1: Badge + Status */}
+          <div className="flex justify-between items-center mb-4">
+            <div className="bg-emerald-600 text-white px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              SUBSCRIBED · PRO PLAN
+            </div>
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-4 py-1.5 rounded-full">
+              <div className="w-2 h-2 bg-green-500 rounded-full" />
+              <span className="text-xs font-medium text-emerald-800">active</span>
+            </div>
+          </div>
 
-          {/* TRIAL STATE */}
-          {status === 'trial' && (
-            <>
-              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border-0 mb-3">
-                <Flame className="h-3.5 w-3.5" />
-                FREE TRIAL · {trialDaysRemaining} {trialDaysRemaining === 1 ? 'day' : 'days'} remaining
-              </Badge>
-              
-              <h3 className="text-xl font-bold text-slate-900 mb-1.5">
-                Free Trial - {trialDaysRemaining} {trialDaysRemaining === 1 ? 'day' : 'days'} remaining
-              </h3>
-              <p className="text-sm text-slate-500 mb-3">
-                Enjoy full access to all Pro features during your {trialTotalDays}-day free trial.
-              </p>
-              
-              <div className="w-full mb-2">
-                <Progress value={progressPercent} className="h-1.5 bg-slate-200 [&>div]:bg-emerald-500" />
+          {/* Title + Description */}
+          <h3 className="text-xl font-semibold text-slate-900 mb-1.5">Your workspace is upgraded</h3>
+          <p className="text-sm text-emerald-700 border-l-[3px] border-emerald-300 pl-3 mb-5 leading-relaxed">
+            All premium features are unlocked. Priority support & analytics.
+          </p>
+
+          {/* Billing Date + Buttons */}
+          <div className="flex justify-between items-center flex-wrap gap-2">
+            
+            {/* Billing Date - side by side */}
+            <div className="bg-emerald-50 border-2 border-emerald-200 rounded-full px-4 py-1.5 flex items-center gap-2">
+              <span className="text-[10px] font-medium text-emerald-700">Next billing date</span>
+              <span className="text-xs font-semibold text-emerald-950">
+                {subscription?.nextBillingDate 
+                  ? new Date(subscription.nextBillingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })
+                  : nextBillingDate || 'TBD'}
+              </span>
+            </div>
+            
+            {/* Buttons */}
+            <div className="flex gap-3">
+              <Button 
+                onClick={handleManagePlan}
+                disabled={isManagingPlan}
+                className="bg-transparent border-2 border-emerald-700 text-emerald-700 hover:bg-emerald-50 rounded-full px-5 py-2 text-sm font-medium"
+              >
+                {isManagingPlan ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <SettingsIcon className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Manage Plan
+              </Button>
+              <Button 
+                onClick={() => setShowCancelModal(true)}
+                disabled={isCancellingSubscription}
+                className="bg-transparent border-2 border-orange-500 text-orange-600 hover:bg-orange-50 rounded-full px-5 py-2 text-sm font-medium"
+              >
+                {isCancellingSubscription ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <XCircle className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Cancel Subscription
+              </Button>
+            </div>
+
+          </div>
+
+          {subscriptionError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-4 text-center">
+              <p className="text-xs text-red-700">{subscriptionError}</p>
+            </div>
+          )}
+
+          {/* Cancel Confirmation Modal */}
+          {showCancelModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-xl border-t-4 border-t-orange-400">
+                
+                {/* Icon + Title */}
+                <div className="flex items-center justify-center gap-3 mb-4">
+                  <span className="text-3xl">⚠️</span>
+                  <h2 className="text-2xl font-bold text-emerald-900">Cancel plan?</h2>
+                </div>
+
+                {/* Description */}
+                <p className="text-center text-slate-600 text-sm leading-relaxed mb-2">
+                  If you cancel your <strong>Pro Plan</strong>, you'll lose premium features at the end of current billing cycle (
+                  {subscription?.nextBillingDate 
+                    ? new Date(subscription.nextBillingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })
+                    : nextBillingDate || 'end of billing cycle'}
+                  ). Your wallet balance remains untouched.
+                </p>
+                <p className="text-center text-slate-400 text-sm mb-8">
+                  You can re-subscribe anytime.
+                </p>
+
+                {/* Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowCancelModal(false)}
+                    className="flex-1 bg-emerald-50 border border-emerald-200 text-slate-700 rounded-full py-3 font-medium text-sm hover:bg-emerald-100 transition-all"
+                  >
+                    Keep my plan
+                  </button>
+                  <button
+                    onClick={handleCancelSubscription}
+                    disabled={isCancellingSubscription}
+                    className="flex-1 bg-orange-600 text-white rounded-full py-3 font-medium text-sm hover:bg-orange-700 transition-all"
+                  >
+                    {isCancellingSubscription ? 'Cancelling...' : 'Confirm cancellation'}
+                  </button>
+                </div>
+
               </div>
-              
-              <div className="flex flex-wrap justify-center gap-3">
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TRIAL STATE */}
+      {status === 'trial' && (
+        <Card className="w-full shadow-lg rounded-[32px] border-0 bg-white border-l-[8px] border-l-emerald-600">
+          <CardContent className="p-[20px_28px]">
+            {/* Header: Badge only */}
+            <div className="mb-4">
+              <div className="bg-emerald-600 text-white px-5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 inline-block">
+                <Flame className="h-3.5 w-3.5" />
+                FREE TRIAL · {trialDaysRemaining} {trialDaysRemaining === 1 ? 'day' : 'days'} left
+              </div>
+            </div>
+
+            {/* Title */}
+            <h3 className="text-xl font-bold text-emerald-800 mb-4">
+              Trial Period Ongoing
+            </h3>
+
+            {/* Progress Bar Section Only */}
+            <div className="mb-5">
+              <div className="flex justify-between text-[0.75rem] text-emerald-600 font-medium mb-2">
+                <span>{trialTotalDays} days trial</span>
+                <span>{Math.round(progressPercent)}% used</span>
+              </div>
+              <div className="bg-emerald-100 rounded-full h-2 overflow-hidden">
+                <div 
+                  className="bg-emerald-600 rounded-full h-full transition-all duration-300"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Footer: Info + Buttons */}
+            <div className="flex justify-between items-center flex-wrap gap-4 mt-4">
+              <div className="bg-emerald-50 px-4 py-2 rounded-full text-sm text-emerald-700 font-medium">
+                {'\u2728'} Full Pro features unlocked
+              </div>
+              <div className="flex gap-3">
                 <Button 
                   onClick={handleUpgrade}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm shadow-md transition-all"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-[20px_7px] py-[7px_20px] font-semibold text-[0.8rem] transition-all"
                 >
-                  <Sparkles className="h-4 w-4 mr-2" />
                   Upgrade to Pro
                 </Button>
                 <Button 
                   variant="outline"
                   onClick={handleContinueTrial}
-                  className="rounded-full px-6 py-2.5 font-medium text-sm border-slate-200 hover:bg-slate-50"
+                  className="border-2 border-emerald-600 text-emerald-700 hover:bg-emerald-50 rounded-full px-[20px_7px] py-[7px_20px] font-semibold text-[0.8rem]"
                 >
                   Continue trial
                 </Button>
               </div>
+            </div>
 
-              <p className="text-xs text-slate-400 mt-4">
-                {showContinueMessage 
-                  ? '✓ You can continue using trial features until expiration.'
-                  : 'No credit card required. Upgrade anytime to keep premium features.'}
-              </p>
-            </>
-          )}
-
-          {/* TRIAL_OVER STATE */}
-          {status === 'trial_over' && (
-            <>
-              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border-0 mb-3">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                TRIAL EXPIRED · Access Limited
-              </Badge>
-              
-              <h3 className="text-xl font-bold text-slate-900 mb-1.5">
-                Your trial has ended
-              </h3>
-              <p className="text-sm text-slate-500 mb-3">
-                Some features are locked. Subscribe to restore full access.
-              </p>
-              
-              <div className="bg-red-50 rounded-lg p-2.5 mb-4 text-left">
-                <p className="text-xs text-red-700 flex items-start gap-2">
-                  <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Limited mode:</strong> Read-only access, no exports, AI features disabled.
-                  </span>
+            {/* Message */}
+            {showContinueMessage && (
+              <div className="mt-3 text-center">
+                <p className="text-xs text-emerald-600">
+                  {'\u2713'} You can continue using trial features until expiration.
                 </p>
               </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-              {subscriptionError && (
-                <div className="bg-red-50 rounded-lg p-2.5 mb-4 text-center">
-                  <p className="text-xs text-red-700">{subscriptionError}</p>
-                </div>
-              )}
+      {/* TRIAL_OVER STATE */}
+      {status === 'trial_over' && (
+        <Card className="w-full shadow-lg rounded-[32px] border-0 bg-gradient-to-br from-white to-orange-50 border-l-[8px] border-l-orange-500">
+          <CardContent className="p-8">
+            {/* Row 1: Badge (left) + Status (right) parallel */}
+            <div className="flex justify-between items-center flex-wrap gap-4 mb-6">
+              <div className="bg-orange-700 text-white px-5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 shadow-md">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                TRIAL EXPIRED · Access Limited
+              </div>
+              <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 px-4 py-1.5 rounded-full">
+                <div className="w-2.5 h-2.5 bg-orange-500 rounded-full animate-pulse" />
+                <span className="text-xs font-semibold text-orange-700">inactive</span>
+              </div>
+            </div>
 
-              <div className="flex flex-wrap justify-center gap-3">
+            {/* Row 2: Title and description */}
+            <h3 className="text-2xl font-bold text-orange-800 mb-2">
+              Your trial has ended
+            </h3>
+            <p className="text-sm text-orange-700 mb-6 leading-relaxed border-l-[3px] border-orange-300 pl-4">
+              Some features are locked. Subscribe to restore full access.
+            </p>
+
+            {/* Limited mode notice */}
+            <div className="bg-orange-50 border border-orange-200 rounded-[20px] p-4 mb-6 flex items-center gap-3 flex-wrap">
+              <div className="text-xl">{'\ud83d\udd12'}</div>
+              <div className="flex-1 text-sm text-orange-700 font-medium">
+                Limited mode: Read-only access, no exports, AI features disabled.
+              </div>
+              <div className="bg-orange-200 text-orange-800 text-xs font-semibold px-3 py-1 rounded-full">
+                Restricted
+              </div>
+            </div>
+
+            {/* Error message if any */}
+            {subscriptionError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-center">
+                <p className="text-xs text-red-700">{subscriptionError}</p>
+              </div>
+            )}
+
+            {/* Row 3: Message + Subscribe Now button (parallel) */}
+            <div className="flex justify-between items-center flex-wrap gap-6">
+              <div className="bg-orange-50 border border-orange-200 px-5 py-3 rounded-full flex items-center gap-3 flex-wrap flex-1">
+                <span className="text-xs font-semibold text-orange-600 uppercase tracking-wide">{'\u26a0\ufe0f'} Status</span>
+                <span className="text-sm text-orange-700 font-medium">Your trial expired. Subscribe to regain all Pro features.</span>
+              </div>
+              <div className="flex gap-4">
                 <Button 
                   onClick={() => handleCreateSubscription('monthly')}
                   disabled={isCreatingSubscription}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm shadow-md transition-all"
+                  className="bg-green-700 hover:bg-green-800 text-white rounded-full px-8 py-3 font-bold text-sm shadow-lg transition-all"
                 >
                   {isCreatingSubscription ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
-                    <CreditCard className="h-4 w-4 mr-2" />
+                    <Sparkles className="h-4 w-4 mr-2" />
                   )}
                   Subscribe Now
                 </Button>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-              <p className="text-xs text-slate-400 mt-4">
-                Your trial expired. Subscribe to regain all Pro features.
-              </p>
-            </>
-          )}
+      {/* SUBSCRIPTION PENDING/HALTED STATE */}
+      {subscription && ['pending', 'halted', 'paused'].includes(subscription.status || '') && (
+        <Card className="w-full shadow-sm rounded-lg">
+          <CardContent className="pt-4 pb-4 text-center">
+            <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border-0 mb-3">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              SUBSCRIPTION {subscription.status?.toUpperCase()}
+            </Badge>
+            
+            <h3 className="text-xl font-bold text-slate-900 mb-1.5">
+              {subscription.status === 'pending' && 'Complete your subscription'}
+              {subscription.status === 'halted' && 'Subscription payment failed'}
+              {subscription.status === 'paused' && 'Subscription paused'}
+            </h3>
+            <p className="text-sm text-slate-500 mb-3">
+              {subscription.status === 'pending' && 'Please complete the payment to activate your subscription.'}
+              {subscription.status === 'halted' && 'Your subscription payment failed. Please update your payment method.'}
+              {subscription.status === 'paused' && 'Your subscription is currently paused.'}
+            </p>
 
-          {/* ACTIVE STATE - with subscription info */}
-          {status === 'active' && (
-            <>
-              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border-0 mb-3">
-                <CheckCircle className="h-3.5 w-3.5" />
-                {hasActiveSubscription ? 'SUBSCRIBED' : 'ACTIVE'} · {planName.toUpperCase()}
-              </Badge>
-              
-              <h3 className="text-xl font-bold text-slate-900 mb-1.5">
-                Your workspace is upgraded
-              </h3>
-              <p className="text-sm text-slate-500 mb-3">
-                All premium features are unlocked.
-              </p>
-
-              {/* Wallet Balance */}
-              <div className="bg-emerald-50 rounded-lg p-3 mb-3 flex justify-between items-center text-sm">
-                <span className="flex items-center gap-2 text-emerald-700">
-                  <Wallet className="h-4 w-4" />
-                  Wallet Balance
-                </span>
-                <strong className="text-emerald-800">
-                  {currency === 'INR' ? '₹' : '$'}{walletBalance.toLocaleString()}
-                </strong>
-              </div>
-
-              {/* Show subscription details if available */}
-              {hasActiveSubscription && subscription && (
-                <>
-                  {(subscription.nextBillingDate || nextBillingDate) && (
-                    <div className="bg-slate-50 rounded-lg p-3 mb-3 flex justify-between items-center text-sm">
-                      <span className="flex items-center gap-2 text-slate-600">
-                        <Calendar className="h-4 w-4" />
-                        Next billing date
-                      </span>
-                      <strong className="text-slate-900">
-                        {subscription.nextBillingDate 
-                          ? new Date(subscription.nextBillingDate).toLocaleDateString()
-                          : nextBillingDate}
-                      </strong>
-                    </div>
-                  )}
-                  
-                  <div className="bg-slate-50 rounded-lg p-2.5 mb-4 flex justify-between items-center text-sm">
-                    <span className="flex items-center gap-2 text-slate-600">
-                      <CreditCard className="h-4 w-4" />
-                      Subscription
-                    </span>
-                    <strong className="text-emerald-600 capitalize">{subscription.status}</strong>
-                  </div>
-                </>
-              )}
-
-              {subscriptionError && (
-                <div className="bg-red-50 rounded-lg p-2.5 mb-4 text-center">
-                  <p className="text-xs text-red-700">{subscriptionError}</p>
-                </div>
-              )}
-
-              <div className="flex flex-wrap justify-center gap-3">
-                <Button 
-                  variant="outline"
-                  onClick={onManagePlan}
-                  className="rounded-full px-6 py-2.5 font-medium text-sm border-slate-200 hover:bg-slate-50"
-                >
-                  <SettingsIcon className="h-4 w-4 mr-2" />
-                  Manage Plan
-                </Button>
-                
-                <Button 
-                  variant="outline"
-                  onClick={handleCancelSubscription}
-                  disabled={isCancellingSubscription}
-                  className="rounded-full px-6 py-2.5 font-medium text-sm border-red-200 text-red-600 hover:bg-red-50"
-                >
-                  {isCancellingSubscription ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <XCircle className="h-4 w-4 mr-2" />
-                  )}
-                  Cancel Subscription
-                </Button>
-              </div>
-
-              <p className="text-xs text-slate-400 mt-4">
-                Your subscription is active. Manage billing or cancel anytime.
-              </p>
-            </>
-          )}
-
-          {/* SUBSCRIPTION PENDING/HALTED STATE */}
-          {subscription && ['pending', 'halted', 'paused'].includes(subscription.status || '') && (
-            <>
-              <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border-0 mb-3">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                SUBSCRIPTION {subscription.status?.toUpperCase()}
-              </Badge>
-              
-              <h3 className="text-xl font-bold text-slate-900 mb-1.5">
-                {subscription.status === 'pending' && 'Complete your subscription'}
-                {subscription.status === 'halted' && 'Subscription payment failed'}
-                {subscription.status === 'paused' && 'Subscription paused'}
-              </h3>
-              <p className="text-sm text-slate-500 mb-3">
-                {subscription.status === 'pending' && 'Please complete the payment to activate your subscription.'}
-                {subscription.status === 'halted' && 'Your subscription payment failed. Please update your payment method.'}
-                {subscription.status === 'paused' && 'Your subscription is currently paused.'}
-              </p>
-
-              <div className="flex flex-wrap justify-center gap-3">
-                <Button 
-                  onClick={() => handleCreateSubscription('monthly')}
-                  disabled={isCreatingSubscription}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm shadow-md transition-all"
-                >
-                  {isCreatingSubscription ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <CreditCard className="h-4 w-4 mr-2" />
-                  )}
-                  {subscription.status === 'pending' ? 'Complete Payment' : 'Retry Payment'}
-                </Button>
-              </div>
-            </>
-          )}
-
-        </CardContent>
-      </Card>
+            <div className="flex flex-wrap justify-center gap-3">
+              <Button 
+                onClick={() => handleCreateSubscription('monthly')}
+                disabled={isCreatingSubscription}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm shadow-md transition-all"
+              >
+                {isCreatingSubscription ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <CreditCard className="h-4 w-4 mr-2" />
+                )}
+                {subscription.status === 'pending' ? 'Complete Payment' : 'Retry Payment'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

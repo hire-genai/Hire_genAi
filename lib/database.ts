@@ -4869,6 +4869,7 @@ export class DatabaseService {
     subscriberEmail?: string
     startTime?: Date
     nextBillingTime?: Date
+    subscriptionLink?: string
     rawData?: any
   }) {
     if (!this.isDatabaseConfigured()) {
@@ -4878,9 +4879,9 @@ export class DatabaseService {
     const q = `
       INSERT INTO company_subscriptions (
         company_id, provider, subscription_id, plan_id, status,
-        subscriber_email, start_time, next_billing_time, raw_data, updated_at
+        subscriber_email, start_time, next_billing_time, subscription_link, raw_data, updated_at
       ) VALUES (
-        $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, NOW()
+        $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW()
       )
       ON CONFLICT (company_id, provider) DO UPDATE SET
         subscription_id = EXCLUDED.subscription_id,
@@ -4889,6 +4890,7 @@ export class DatabaseService {
         subscriber_email = COALESCE(EXCLUDED.subscriber_email, company_subscriptions.subscriber_email),
         start_time = COALESCE(EXCLUDED.start_time, company_subscriptions.start_time),
         next_billing_time = COALESCE(EXCLUDED.next_billing_time, company_subscriptions.next_billing_time),
+        subscription_link = COALESCE(EXCLUDED.subscription_link, company_subscriptions.subscription_link),
         raw_data = COALESCE(EXCLUDED.raw_data, company_subscriptions.raw_data),
         updated_at = NOW()
       RETURNING *
@@ -4902,6 +4904,7 @@ export class DatabaseService {
       data.subscriberEmail || null,
       data.startTime?.toISOString() || null,
       data.nextBillingTime?.toISOString() || null,
+      data.subscriptionLink || null,
       data.rawData ? JSON.stringify(data.rawData) : null
     ]) as any[]
     return rows[0]

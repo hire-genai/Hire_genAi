@@ -34,6 +34,7 @@ import {
 } from "lucide-react"
 import SubscriptionCard, { BillingStatus, SubscriptionInfo } from "./SubscriptionCard"
 import { useAuth } from '@/contexts/auth-context'
+import { StatCardGridLoader, TableLoader, CardLoader } from '@/components/ui/skeleton-loader'
 
 interface BillingContentProps {
   companyId: string
@@ -46,6 +47,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   const [billingData, setBillingData] = useState<any>(null)
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionInfo | null>(null)
   const [usageData, setUsageData] = useState<any>(null)
+  const [loadingUsage, setLoadingUsage] = useState(false)
   const [currentTab, setCurrentTab] = useState<string>("overview")
   // Handle payment cancel → redirect to settings payment tab
   const handlePaymentCancel = () => {
@@ -74,10 +76,8 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   // Formatted upgrade amount based on pricing page logic
   const upgradeDisplayAmount = currency === 'INR' ? '₹10,000' : '$100'
 
-  // Settings
+  // Auto-Recharge
   const [autoRecharge, setAutoRecharge] = useState(false)
-  const [monthlyCapEnabled, setMonthlyCapEnabled] = useState(false)
-  const [monthlyCapAmount, setMonthlyCapAmount] = useState("1000")
 
   // Filters for Usage Tab
   const [usageDateRange, setUsageDateRange] = useState<string>("30")
@@ -103,16 +103,24 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   const [invoiceStartDate, setInvoiceStartDate] = useState<string>("")
   const [invoiceEndDate, setInvoiceEndDate] = useState<string>("")
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState<boolean>(false)
+  const [isTogglingAutoRecharge, setIsTogglingAutoRecharge] = useState(false)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (companyId) {
       loadBillingData()
-      loadUsageData()
     }
   }, [companyId])
 
+  useEffect(() => {
+    if (companyId && billingData) {
+      loadUsageData()
+    }
+  }, [companyId, billingData])
+
   const loadBillingData = async () => {
     try {
+      setLoading(true)
       // Detect country for billing status calculation
       let countryCode = 'US'
       try {
@@ -145,12 +153,14 @@ export default function BillingContent({ companyId }: BillingContentProps) {
       }
     } catch (error) {
       console.error('Failed to load billing data:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
   const loadUsageData = async (startOverride?: Date, endOverride?: Date, jobFilterOverride?: string) => {
     try {
-      setLoading(true)
+      setLoadingUsage(true)
       const startToUse = startOverride || usageStartDate
       const endToUse = endOverride || usageEndDate
       const jobFilterToUse = jobFilterOverride !== undefined ? jobFilterOverride : usageJobFilter
@@ -176,7 +186,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
     } catch (error) {
       console.error('Failed to load usage data:', error)
     } finally {
-      setLoading(false)
+      setLoadingUsage(false)
     }
   }
 
@@ -199,28 +209,6 @@ export default function BillingContent({ companyId }: BillingContentProps) {
     }
   }
 
-  const updateSettings = async () => {
-    try {
-      const res = await fetch('/api/billing/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          autoRechargeEnabled: autoRecharge,
-          monthlySpendCap: monthlyCapEnabled ? parseFloat(monthlyCapAmount) : null
-        })
-      })
-      const data = await res.json()
-      if (data.ok) {
-        alert('Billing settings updated successfully')
-        loadBillingData()
-      } else {
-        alert(data.error || 'Failed to update settings')
-      }
-    } catch (error: any) {
-      alert(error.message || 'Failed to update settings')
-    }
-  }
 
   const handleGenerateInvoice = async () => {
     if (!invoiceStartDate || !invoiceEndDate) {
@@ -369,39 +357,48 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 </html>`
   }
 
-  const saveBillingSettings = async (autoRechargeEnabled: boolean) => {
-    try {
-      const res = await fetch('/api/billing/settings', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          companyId,
-          autoRechargeEnabled,
-        }),
-      })
-      
-      const data = await res.json()
-      if (!data.ok) {
-        console.error('Failed to save billing settings:', data.error)
-        // Revert the local state if save failed
-        setAutoRecharge(!autoRechargeEnabled)
-      }
-    } catch (error) {
-      console.error('Failed to save billing settings:', error)
-      // Revert the local state if save failed
-      setAutoRecharge(!autoRechargeEnabled)
-    }
-  }
 
   if (loading && !billingData) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading billing information...</p>
+      <div className="space-y-4">
+        {/* Skeleton for Tabs */}
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-2">
+          <div className="flex gap-2">
+            <div className="flex-1 h-10 bg-gray-200 rounded animate-pulse" />
+            <div className="flex-1 h-10 bg-gray-200 rounded animate-pulse" />
+            <div className="flex-1 h-10 bg-gray-200 rounded animate-pulse" />
+          </div>
         </div>
+
+        {/* Skeleton for Overview Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <CardLoader />
+          <CardLoader />
+          <CardLoader />
+        </div>
+
+        {/* Skeleton for Subscription Card */}
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="h-4 w-32 bg-gray-200 rounded animate-pulse mb-2" />
+                <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
+              </div>
+              <div className="h-8 w-8 bg-gray-200 rounded animate-pulse" />
+            </div>
+            <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-2" />
+            <div className="h-4 w-full bg-gray-200 rounded animate-pulse mb-4" />
+            <div className="h-2 w-full bg-gray-200 rounded animate-pulse mb-2" />
+            <div className="flex gap-4">
+              <div className="h-10 w-32 bg-gray-200 rounded-full animate-pulse" />
+              <div className="h-10 w-32 bg-gray-200 rounded-full animate-pulse" />
+            </div>
+          </div>
+        </div>
+
+        {/* Skeleton for Usage Table */}
+        <TableLoader rows={4} columns={5} />
       </div>
     )
   }
@@ -428,18 +425,17 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative">
 
       <Tabs 
         value={currentTab} 
         onValueChange={setCurrentTab}
         className="space-y-3"
       >
-        <TabsList className="grid w-full grid-cols-4 bg-gray-100">
+        <TabsList className="grid w-full grid-cols-3 bg-gray-100">
           <TabsTrigger value="overview" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Overview</TabsTrigger>
           <TabsTrigger value="usage" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Usage</TabsTrigger>
           <TabsTrigger value="invoices" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Invoices</TabsTrigger>
-          <TabsTrigger value="settings" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Settings</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -508,14 +504,52 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             {/* Auto-Recharge Card */}
             <Card className="border rounded-lg shadow-sm">
               <CardContent className="p-3">
-                <div className="flex items-start justify-between mb-2">
+                <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <p className="text-sm text-muted-foreground font-medium mb-1">Auto-Recharge</p>
-                    <p className="text-2xl font-semibold">
-                      {billingData?.autoRechargeEnabled ? 'ON' : 'OFF'}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {billingData?.autoRechargeEnabled ? 'Auto recharge active' : 'Manual top-up'}
+                    <p className="text-sm text-muted-foreground font-medium mb-3">Auto-Recharge</p>
+                    <div className="flex items-center gap-2">
+                      <Switch 
+                        checked={autoRecharge}
+                        disabled={isTogglingAutoRecharge}
+                        onCheckedChange={async (checked) => {
+                          setIsTogglingAutoRecharge(true)
+                          const previousState = autoRecharge
+                          setAutoRecharge(checked)
+                          
+                          try {
+                            const res = await fetch('/api/billing/settings', {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                companyId,
+                                autoRechargeEnabled: checked
+                              })
+                            })
+                            
+                            const data = await res.json()
+                            if (!data.ok) {
+                              setAutoRecharge(previousState)
+                              setToastMessage(`Error: ${data.error || 'Failed to update auto-recharge'}`)
+                              setTimeout(() => setToastMessage(null), 3000)
+                            } else {
+                              setToastMessage(`Auto-recharge ${checked ? 'enabled' : 'disabled'}`)
+                              setTimeout(() => setToastMessage(null), 3000)
+                            }
+                          } catch (error: any) {
+                            setAutoRecharge(previousState)
+                            setToastMessage('Error: Failed to update auto-recharge')
+                            setTimeout(() => setToastMessage(null), 3000)
+                          } finally {
+                            setIsTogglingAutoRecharge(false)
+                          }
+                        }}
+                      />
+                      {isTogglingAutoRecharge && (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {autoRecharge ? 'Auto recharge active' : 'Manual top-up'}
                     </p>
                   </div>
                   <div className="ml-3">
@@ -541,7 +575,6 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             walletBalance={billingData?.walletBalance ?? 0}
             currentMonthSpent={billingData?.currentMonthSpent ?? 0}
             totalSpent={billingData?.totalSpent ?? 0}
-            onManagePlan={() => setCurrentTab('settings')}
           />
 
         </TabsContent>
@@ -930,108 +963,14 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             </CardContent>
           </Card>
         </TabsContent>
-
-        {/* Settings Tab */}
-        <TabsContent value="settings" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <SettingsIcon className="h-5 w-5" />
-                Billing Settings
-              </CardTitle>
-              <CardDescription>Configure auto-recharge and spending limits</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex-1">
-                  <Label htmlFor="auto-recharge" className="text-base font-medium">Auto-Recharge</Label>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Automatically add funds to your wallet when balance is low
-                  </p>
-                </div>
-                <Switch 
-                  id="auto-recharge"
-                  checked={autoRecharge} 
-                  onCheckedChange={(checked) => {
-                    setAutoRecharge(checked)
-                    saveBillingSettings(checked)
-                  }}
-                />
-              </div>
-
-              <div className="space-y-3 p-3 border rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <Label htmlFor="monthly-cap" className="text-base font-medium">Monthly Spend Cap</Label>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Set a maximum monthly spending limit
-                    </p>
-                  </div>
-                  <Switch 
-                    id="monthly-cap"
-                    checked={monthlyCapEnabled} 
-                    onCheckedChange={setMonthlyCapEnabled}
-                  />
-                </div>
-                {monthlyCapEnabled && (
-                  <div className="pt-4">
-                    <Label htmlFor="cap-amount">Monthly Cap Amount (₹)</Label>
-                    <Input
-                      id="cap-amount"
-                      type="number"
-                      value={monthlyCapAmount}
-                      onChange={(e) => setMonthlyCapAmount(e.target.value)}
-                      placeholder="1000.00"
-                      className="mt-2"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Pricing Info */}
-              <Card className="border-dashed">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" />
-                    Current Pricing
-                  </CardTitle>
-                  <CardDescription>Per-feature pricing from configuration</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    <div className="p-2 bg-blue-50 rounded-lg text-center">
-                      <p className="text-xs text-blue-600 font-medium">CV Parsing</p>
-                      <p className="text-lg font-bold text-blue-900">₹{usageData?.pricing?.cvParsingCost || '2'}</p>
-                      <p className="text-xs text-blue-500">per CV</p>
-                    </div>
-                    <div className="p-2 bg-green-50 rounded-lg text-center">
-                      <p className="text-xs text-green-600 font-medium">Questions</p>
-                      <p className="text-lg font-bold text-green-900">₹{usageData?.pricing?.questionGenerationCost || '0.5'}</p>
-                      <p className="text-xs text-green-500">per question</p>
-                    </div>
-                    <div className="p-2 bg-purple-50 rounded-lg text-center">
-                      <p className="text-xs text-purple-600 font-medium">Video Interview</p>
-                      <p className="text-lg font-bold text-purple-900">₹{usageData?.pricing?.videoInterviewCost || '10'}</p>
-                      <p className="text-xs text-purple-500">per interview</p>
-                    </div>
-                    <div className="p-2 bg-amber-50 rounded-lg text-center">
-                      <p className="text-xs text-amber-600 font-medium">AI Evaluation</p>
-                      <p className="text-lg font-bold text-amber-900">₹{usageData?.pricing?.aiEvaluationCost || '1'}</p>
-                      <p className="text-xs text-amber-500">per evaluation</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <div className="flex justify-end pt-4">
-                <Button onClick={updateSettings}>
-                  Save Settings
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-4 right-4 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <p className="text-sm font-medium">{toastMessage}</p>
+        </div>
+      )}
     </div>
   )
 }
