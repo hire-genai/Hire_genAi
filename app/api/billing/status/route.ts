@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
 
-// Billing status enum - 3 values only (subscription-based)
-export type BillingStatus = 'active' | 'trial' | 'trial_over'
+// Billing status enum - 5 values (subscription-based)
+export type BillingStatus = 'active' | 'trial' | 'trial_over' | 'cancelled' | 'expired'
 
 const TRIAL_DAYS = parseInt(process.env.TRIAL_DAYS || '7') // Configurable trial period (default: 7 days)
 
@@ -77,6 +77,7 @@ export async function GET(request: NextRequest) {
           subscriber_email,
           start_time,
           next_billing_time,
+          cancel_at_cycle_end,
           created_at,
           updated_at
         FROM company_subscriptions
@@ -96,11 +97,14 @@ export async function GET(request: NextRequest) {
           subscriberEmail: sub.subscriber_email,
           startTime: sub.start_time,
           nextBillingDate: sub.next_billing_time,
+          currentEnd: sub.next_billing_time, // Use next_billing_time as current_end
+          cancelAtCycleEnd: sub.cancel_at_cycle_end || false,
           createdAt: sub.created_at,
           updatedAt: sub.updated_at
         }
         
-        // Check if subscription is active
+        // Check if subscription is active or cancelled
+        // Note: When cancel_at_cycle_end is true, status is still 'active' in DB
         hasActiveSubscription = ['active', 'authenticated'].includes(sub.status)
       }
     } catch (subError) {
@@ -109,15 +113,41 @@ export async function GET(request: NextRequest) {
     }
 
     // ============================================
-    // STATUS CALCULATION - 3 statuses only
+    // STATUS CALCULATION - 5 statuses (DERIVED)
     // ============================================
-    // - 'active': has active subscription
+    // - 'active': has active subscription without cancel_at_cycle_end
+    // - 'cancelled': subscription scheduled for cancellation (cancel_at_cycle_end = true) but still within period
+    // - 'expired': current_end has passed (subscription fully ended)
     // - 'trial': within trial period and no active subscription
     // - 'trial_over': trial expired and no active subscription
+    //
+    // IMPORTANT: We derive status from flags, not just DB status
+    // This ensures correct UI state transitions
     
     let billingStatus: BillingStatus = 'trial'
+    const cancelAtCycleEnd = subscription?.cancelAtCycleEnd === true
+    const dbStatus = subscription?.status
+    
+    // Check if subscription has expired (current_end has passed)
+    let isExpired = false
+    if (subscription?.currentEnd) {
+      const expiryDate = new Date(subscription.currentEnd)
+      const today = new Date()
+      isExpired = today > expiryDate
+    }
+    
+    // Also check if DB status is 'cancelled' (immediate cancellation)
+    const isImmediatelyCancelled = dbStatus === 'cancelled'
 
-    if (hasActiveSubscription) {
+    // Derive billing status
+    if (isExpired || isImmediatelyCancelled) {
+      // Subscription has fully ended
+      billingStatus = 'expired'
+    } else if (hasActiveSubscription && cancelAtCycleEnd) {
+      // Scheduled for cancellation but still active until cycle end
+      billingStatus = 'cancelled'
+    } else if (hasActiveSubscription) {
+      // Active subscription without cancellation scheduled
       billingStatus = 'active'
     } else if (isWithinTrialPeriod) {
       billingStatus = 'trial'
@@ -136,6 +166,11 @@ export async function GET(request: NextRequest) {
     }
 
     const isTrialExpired = !isWithinTrialPeriod && !hasActiveSubscription
+    
+    // Current end date for display
+    const currentEnd = subscription?.currentEnd 
+      ? new Date(subscription.currentEnd).toISOString()
+      : null
 
     // ============================================
     // COMPANY BILLING DATA (wallet, spending, auto-recharge)
@@ -169,6 +204,8 @@ export async function GET(request: NextRequest) {
         isTrialActive: isWithinTrialPeriod && !hasActiveSubscription,
         isTrialExpired,
         nextBillingDate,
+        currentEnd,
+        cancelAtCycleEnd: cancelAtCycleEnd,
         hasActiveSubscription,
         currency: effectiveIsIndia ? 'INR' : 'USD',
         walletBalance,

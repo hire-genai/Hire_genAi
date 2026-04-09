@@ -4953,7 +4953,8 @@ export class DatabaseService {
     companyId: string,
     provider: string,
     status: string,
-    nextBillingTime?: Date
+    nextBillingTime?: Date,
+    cancelAtCycleEnd?: boolean
   ) {
     if (!this.isDatabaseConfigured()) {
       throw new Error('Database not configured')
@@ -4962,25 +4963,49 @@ export class DatabaseService {
     let q: string
     let params: any[]
 
-    if (nextBillingTime) {
-      q = `
-        UPDATE company_subscriptions
-        SET status = $3, next_billing_time = $4, updated_at = NOW()
-        WHERE company_id = $1::uuid AND provider = $2
-        RETURNING *
-      `
-      params = [companyId, provider, status, nextBillingTime.toISOString()]
-    } else {
-      q = `
-        UPDATE company_subscriptions
-        SET status = $3, updated_at = NOW()
-        WHERE company_id = $1::uuid AND provider = $2
-        RETURNING *
-      `
-      params = [companyId, provider, status]
+    // Build dynamic SET clause based on provided parameters
+    const setClauses = ['status = $3', 'updated_at = NOW()']
+    params = [companyId, provider, status]
+    let paramIndex = 4
+
+    if (nextBillingTime !== undefined) {
+      setClauses.push(`next_billing_time = $${paramIndex}`)
+      params.push(nextBillingTime.toISOString())
+      paramIndex++
     }
 
+    if (cancelAtCycleEnd !== undefined) {
+      setClauses.push(`cancel_at_cycle_end = $${paramIndex}`)
+      params.push(cancelAtCycleEnd)
+      paramIndex++
+    }
+
+    q = `
+      UPDATE company_subscriptions
+      SET ${setClauses.join(', ')}
+      WHERE company_id = $1::uuid AND provider = $2
+      RETURNING *
+    `
+
     const rows = await this.query(q, params) as any[]
+    return rows[0]
+  }
+
+  /**
+   * Resume a cancelled subscription (remove cancel_at_cycle_end flag)
+   */
+  static async resumeSubscription(companyId: string, provider: string = 'razorpay') {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      UPDATE company_subscriptions
+      SET cancel_at_cycle_end = false, updated_at = NOW()
+      WHERE company_id = $1::uuid AND provider = $2
+      RETURNING *
+    `
+    const rows = await this.query(q, [companyId, provider]) as any[]
     return rows[0]
   }
 
@@ -5024,7 +5049,9 @@ export class DatabaseService {
         subscription_id, provider, payment_id, amount, currency,
         status, payment_time, raw_data
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      ON CONFLICT (payment_id, provider) DO NOTHING
+      ON CONFLICT (payment_id, provider) DO UPDATE SET 
+        raw_data = EXCLUDED.raw_data,
+        updated_at = NOW()
       RETURNING *
     `
     const rows = await this.query(q, [
