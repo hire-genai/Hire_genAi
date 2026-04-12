@@ -283,13 +283,14 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   }
 
   const generatePaymentReceiptHtml = (payment: any) => {
+    // Fallback HTML receipt generation (kept for emergency fallback)
     const paymentDate = new Date(payment.paymentDate).toLocaleDateString('en-IN', {
       day: '2-digit',
       month: 'long',
       year: 'numeric'
     })
     const amount = payment.amount?.toFixed(2) || '0.00'
-    const currency = payment.currency === 'INR' ? '₹' : '$'
+    const currency = payment.currency === 'INR' ? 'Rs.' : '$'
 
     return `
 <!DOCTYPE html>
@@ -317,7 +318,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 <body>
     <div class="header">
         <div class="logo">HireGenAI</div>
-        <h1 class="receipt-title">Payment Receipt</h1>
+        <h1 class="receipt-title">Payment Receipt (Fallback)</h1>
     </div>
 
     <div class="receipt-info">
@@ -348,24 +349,122 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
     <div class="footer">
         <p>Thank you for your payment!</p>
-        <p>This is a computer-generated receipt. No signature required.</p>
+        <p>This is a computer-generated receipt (fallback). No signature required.</p>
     </div>
 </body>
 </html>`
   }
 
-  const handleDownloadReceipt = (payment: any) => {
-    const receiptHtml = generatePaymentReceiptHtml(payment)
-    const blob = new Blob([receiptHtml], { type: 'text/html' })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    const dateStr = new Date(payment.paymentDate).toISOString().split('T')[0]
-    link.download = `receipt-${dateStr}.html`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
+  const handleDownloadReceipt = async (payment: any) => {
+    try {
+      console.log('[BillingContent] Downloading PDF invoice for payment:', payment.paymentId)
+      
+      // Get company ID from multiple sources
+      let companyId = null
+      
+      // Try from billingData first
+      if (billingData?.companyId) {
+        companyId = billingData.companyId
+        console.log('[BillingContent] Found companyId from billingData:', companyId)
+      }
+      // Try from companyInfo (which is set from payment history API)
+      else if (companyInfo?.id) {
+        companyId = companyInfo.id
+        console.log('[BillingContent] Found companyId from companyInfo:', companyId)
+      }
+      // Try from cookie as fallback
+      else {
+        const cookies = document.cookie.split(';')
+        const companyCookie = cookies.find(c => c.trim().startsWith('company_id='))
+        if (companyCookie) {
+          companyId = companyCookie.split('=')[1]
+          console.log('[BillingContent] Found companyId from cookie:', companyId)
+        }
+      }
+
+      if (!companyId) {
+        console.error('[BillingContent] No company ID found for PDF generation. Available sources:', {
+          billingDataCompanyId: billingData?.companyId,
+          companyInfoId: companyInfo?.id,
+          cookieExists: document.cookie.includes('company_id=')
+        })
+        // Fallback to HTML receipt
+        const receiptHtml = generatePaymentReceiptHtml(payment)
+        const blob = new Blob([receiptHtml], { type: 'text/html' })
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        const dateStr = new Date(payment.paymentDate).toISOString().split('T')[0]
+        const paymentShortId = payment.paymentId.replace(/^pay_/, '').slice(-8)
+        link.download = `receipt-${dateStr}-${paymentShortId}.html`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+        return
+      }
+
+      // Call new PDF generation API
+      const response = await fetch('/api/invoice/generate-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          paymentId: payment.paymentId,
+          companyId: companyId
+        })
+      })
+
+      if (!response.ok) {
+        console.error('[BillingContent] PDF generation failed:', response.status)
+        // Fallback to HTML receipt
+        const receiptHtml = generatePaymentReceiptHtml(payment)
+        const blob = new Blob([receiptHtml], { type: 'text/html' })
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        const dateStr = new Date(payment.paymentDate).toISOString().split('T')[0]
+        const paymentShortId = payment.paymentId.replace(/^pay_/, '').slice(-8)
+        link.download = `receipt-${dateStr}-${paymentShortId}.html`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+        return
+      }
+
+      // Get PDF blob and download
+      const pdfBlob = await response.blob()
+      const url = window.URL.createObjectURL(pdfBlob)
+      const link = document.createElement('a')
+      link.href = url
+      const dateStr = new Date(payment.paymentDate).toISOString().split('T')[0]
+      const paymentShortId = payment.paymentId.replace(/^pay_/, '').slice(-8)
+      link.download = `invoice-${dateStr}-${paymentShortId}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      console.log('[BillingContent] PDF invoice downloaded successfully')
+
+    } catch (error) {
+      console.error('[BillingContent] Error downloading PDF invoice:', error)
+      // Fallback to HTML receipt
+      const receiptHtml = generatePaymentReceiptHtml(payment)
+      const blob = new Blob([receiptHtml], { type: 'text/html' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      const dateStr = new Date(payment.paymentDate).toISOString().split('T')[0]
+      const paymentShortId = payment.paymentId.replace(/^pay_/, '').slice(-8)
+      link.download = `receipt-${dateStr}-${paymentShortId}.html`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    }
   }
 
 
