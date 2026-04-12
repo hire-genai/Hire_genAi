@@ -1,79 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { DatabaseService } from '@/lib/database'
 import { generateInvoiceHTML } from '@/lib/invoice-template'
-import {
-  InvoiceData,
-  getSellerFromEnv,
-  generateInvoiceNumber,
-  parsePaymentMethod,
-  getPlanName,
-  getBillingCycle,
-  getCurrencySymbol,
-} from '@/lib/invoice-types'
-
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+import { InvoiceData, getSellerFromEnv, generateInvoiceNumber, parsePaymentMethod, getPlanName, getBillingCycle, getCurrencySymbol } from '@/lib/invoice-types'
 
 /**
- * GET /api/invoice/generate-pdf?paymentId=xxx
+ * GET /api/invoice/generate-pdf
  * 
- * Generates a PDF invoice for a specific payment.
- * Uses Puppeteer for server-side PDF generation.
+ * Generates a PDF invoice for a specific payment using query parameters
+ * Uses Puppeteer to convert HTML template to high-quality PDF
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const paymentId = searchParams.get('paymentId')
+    const companyId = searchParams.get('companyId')
 
-    if (!paymentId) {
+    if (!paymentId || !companyId) {
       return NextResponse.json(
-        { error: 'Payment ID is required' },
+        { error: 'Payment ID and Company ID are required' },
         { status: 400 }
       )
     }
 
-    // Get company ID from query params (like other billing APIs)
-    let companyId = searchParams.get('companyId')
-
-    // Fallback to cookie if not in query params
-    if (!companyId) {
-      const cookieStore = await cookies()
-      companyId = cookieStore.get('company_id')?.value || null
-    }
-
-    if (!companyId) {
-      return NextResponse.json(
-        { error: 'companyId is required' },
-        { status: 400 }
-      )
-    }
-
-    // Fetch invoice data (same logic as /api/invoice/[id])
-    const invoiceData = await fetchInvoiceData(paymentId, companyId)
+    // Fetch invoice data
+    const invoiceData = await getInvoiceData(paymentId, companyId)
     
     if (!invoiceData) {
       return NextResponse.json(
-        { error: 'Invoice not found' },
+        { error: 'Invoice not found or unauthorized' },
         { status: 404 }
       )
     }
 
-    // Generate PDF using Puppeteer (HTML to PDF)
+    // Generate PDF
     const pdfBuffer = await generatePDF(invoiceData)
 
-    // Return PDF as downloadable file
-    const filename = `invoice_${invoiceData.invoiceNumber.replace(/[^a-zA-Z0-9-]/g, '_')}.pdf`
-    
-    // Convert Buffer to Uint8Array for NextResponse compatibility
-    const uint8Array = new Uint8Array(pdfBuffer)
-    
-    return new NextResponse(uint8Array, {
-      status: 200,
+    // Return PDF with proper headers
+    return new NextResponse(Buffer.from(pdfBuffer), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `inline; filename="invoice-${invoiceData.invoiceNumber}.pdf"`,
         'Content-Length': pdfBuffer.length.toString(),
       },
     })
@@ -90,53 +56,41 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/invoice/generate-pdf
  * 
- * Alternative endpoint that accepts paymentId in body
+ * Generates a PDF invoice for a specific payment using request body
+ * Uses Puppeteer to convert HTML template to high-quality PDF
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const paymentId = body.paymentId
+    const { paymentId, companyId } = body
 
-    if (!paymentId) {
+    if (!paymentId || !companyId) {
       return NextResponse.json(
-        { error: 'Payment ID is required' },
+        { error: 'Payment ID and Company ID are required' },
         { status: 400 }
       )
     }
 
-    // Get company ID from session
-    const cookieStore = await cookies()
-    const companyId = cookieStore.get('company_id')?.value
-
-    if (!companyId) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
     // Fetch invoice data
-    const invoiceData = await fetchInvoiceData(paymentId, companyId)
+    const invoiceData = await getInvoiceData(paymentId, companyId)
     
     if (!invoiceData) {
       return NextResponse.json(
-        { error: 'Invoice not found' },
+        { error: 'Invoice not found or unauthorized' },
         { status: 404 }
       )
     }
 
-    // Generate PDF using Puppeteer (HTML to PDF)
+    // Generate PDF
     const pdfBuffer = await generatePDF(invoiceData)
 
-    // Return PDF as base64 for client-side download
-    const base64 = pdfBuffer.toString('base64')
-    const filename = `invoice_${invoiceData.invoiceNumber.replace(/[^a-zA-Z0-9-]/g, '_')}.pdf`
-
-    return NextResponse.json({
-      success: true,
-      filename,
-      pdf: base64,
-      contentType: 'application/pdf',
+    // Return PDF with proper headers
+    return new NextResponse(Buffer.from(pdfBuffer), {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="invoice-${invoiceData.invoiceNumber}.pdf"`,
+        'Content-Length': pdfBuffer.length.toString(),
+      },
     })
 
   } catch (error: any) {
@@ -150,14 +104,17 @@ export async function POST(request: NextRequest) {
 
 /**
  * Fetch invoice data from database
+ * - Payment details from subscription_payments table
+ * - Company details from companies table  
+ * - Subscription details from company_subscriptions table
  */
-async function fetchInvoiceData(paymentId: string, companyId: string): Promise<InvoiceData | null> {
+async function getInvoiceData(paymentId: string, companyId: string): Promise<InvoiceData | null> {
   // Fetch payment record
   let payment = null
-  
+
   // First try with company_id filter
   const paymentResult = await DatabaseService.query(
-    `SELECT sp.*, cs.plan_id, cs.status as subscription_status, 
+    `SELECT sp.*, cs.plan_id, cs.status as subscription_status,
             cs.start_time, cs.next_billing_time, cs.subscription_id
      FROM subscription_payments sp
      LEFT JOIN company_subscriptions cs ON cs.subscription_id = sp.subscription_id
@@ -215,9 +172,9 @@ async function fetchInvoiceData(paymentId: string, companyId: string): Promise<I
      FROM users u
      LEFT JOIN user_roles ur ON ur.user_id = u.id
      WHERE u.company_id = $1::uuid AND u.status = 'active'
-     ORDER BY 
-       CASE WHEN ur.role = 'admin' THEN 1 
-            WHEN ur.role = 'manager' THEN 2 
+     ORDER BY
+       CASE WHEN ur.role = 'admin' THEN 1
+            WHEN ur.role = 'manager' THEN 2
             ELSE 3 END,
        u.created_at ASC
      LIMIT 1`,
@@ -240,9 +197,9 @@ async function fetchInvoiceData(paymentId: string, companyId: string): Promise<I
     invoiceNumber: generateInvoiceNumber(paymentId, paymentDate),
     invoiceDate: paymentDate,
     dueDate: null,
-    
+
     seller: getSellerFromEnv(),
-    
+
     buyer: {
       companyName: company.name,
       legalName: company.legal_company_name || null,
@@ -257,7 +214,7 @@ async function fetchInvoiceData(paymentId: string, companyId: string): Promise<I
         country: company.country,
       } : null,
     },
-    
+
     subscription: {
       subscriptionId: payment.subscription_id || '',
       planId: payment.plan_id || null,
@@ -267,7 +224,7 @@ async function fetchInvoiceData(paymentId: string, companyId: string): Promise<I
       startDate: payment.start_time ? new Date(payment.start_time) : null,
       nextBillingDate: payment.next_billing_time ? new Date(payment.next_billing_time) : null,
     },
-    
+
     payment: {
       paymentId: paymentId,
       amount: amount,
@@ -277,7 +234,7 @@ async function fetchInvoiceData(paymentId: string, companyId: string): Promise<I
       methodDetails: methodDetails,
       paidAt: paymentDate,
     },
-    
+
     lineItems: [
       {
         description: getPlanName(payment.plan_id),
@@ -287,15 +244,15 @@ async function fetchInvoiceData(paymentId: string, companyId: string): Promise<I
         total: amount,
       },
     ],
-    
+
     subtotal: amount,
     tax: 0,
     taxRate: 0,
     total: amount,
     currency: currency,
     currencySymbol: getCurrencySymbol(currency),
-    status: payment.status === 'captured' || payment.status === 'success' ? 'paid' : 
-            payment.status === 'failed' ? 'failed' : 
+    status: payment.status === 'captured' || payment.status === 'success' ? 'paid' :
+            payment.status === 'failed' ? 'failed' :
             payment.status === 'refunded' ? 'refunded' : 'pending',
   }
 
@@ -309,12 +266,11 @@ async function fetchInvoiceData(paymentId: string, companyId: string): Promise<I
 async function generatePDF(invoiceData: InvoiceData): Promise<Buffer> {
   // Generate HTML from template
   const html = generateInvoiceHTML(invoiceData)
-  
+
   // Import Puppeteer
   const puppeteer = await import('puppeteer')
-  
   let browser = null
-  
+
   try {
     // Configure browser launch options for Windows
     const launchOptions: any = {
@@ -365,4 +321,3 @@ async function generatePDF(invoiceData: InvoiceData): Promise<Buffer> {
     }
   }
 }
-

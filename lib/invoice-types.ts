@@ -108,10 +108,10 @@ export function getSellerFromEnv(): SellerDetails {
 
 export function formatCurrency(amount: number, currency: string = 'INR'): string {
   const symbols: Record<string, string> = {
-    INR: '₹',
+    INR: 'Rs.',
     USD: '$',
-    EUR: '€',
-    GBP: '£',
+    EUR: 'â',
+    GBP: 'Â',
   }
   const symbol = symbols[currency.toUpperCase()] || currency
   return `${symbol}${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -119,10 +119,10 @@ export function formatCurrency(amount: number, currency: string = 'INR'): string
 
 export function getCurrencySymbol(currency: string = 'INR'): string {
   const symbols: Record<string, string> = {
-    INR: '₹',
+    INR: 'Rs.',
     USD: '$',
-    EUR: '€',
-    GBP: '£',
+    EUR: 'â',
+    GBP: 'Â',
   }
   return symbols[currency.toUpperCase()] || currency
 }
@@ -180,20 +180,21 @@ export function parsePaymentMethod(rawData: any): PaymentDetails['methodDetails'
       wallet: rawData.wallet || null,
     }
   }
+  
 
   return { type: 'unknown' }
 }
 
 export function getPlanName(planId: string | null): string {
   if (!planId) return 'HireGenAI Pro Plan'
-  
+
   const planNames: Record<string, string> = {
     'plan_pro_monthly': 'HireGenAI Pro Plan (Monthly)',
     'plan_pro_yearly': 'HireGenAI Pro Plan (Yearly)',
     'plan_enterprise_monthly': 'HireGenAI Enterprise Plan (Monthly)',
     'plan_enterprise_yearly': 'HireGenAI Enterprise Plan (Yearly)',
   }
-  
+
   return planNames[planId] || 'HireGenAI Pro Plan'
 }
 

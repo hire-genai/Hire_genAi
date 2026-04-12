@@ -1,26 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { DatabaseService } from '@/lib/database'
-import {
-  InvoiceData,
-  getSellerFromEnv,
-  generateInvoiceNumber,
-  parsePaymentMethod,
-  getPlanName,
-  getBillingCycle,
-  getCurrencySymbol,
-} from '@/lib/invoice-types'
-
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
+import { cookies } from 'next/headers'
+import { InvoiceData, getSellerFromEnv, generateInvoiceNumber, parsePaymentMethod, getPlanName, getBillingCycle, getCurrencySymbol } from '@/lib/invoice-types'
 
 /**
  * GET /api/invoice/[id]
  * 
- * Fetches complete invoice data for a specific payment ID.
- * Combines:
- * - Seller details from environment variables
- * - Buyer details from database (company + user)
+ * Returns invoice data for a specific payment ID
  * - Payment details from subscription_payments table
  * - Subscription details from company_subscriptions table
  */
@@ -51,7 +37,7 @@ export async function GET(
 
     // Fetch payment record
     const paymentResult = await DatabaseService.query(
-      `SELECT sp.*, cs.plan_id, cs.status as subscription_status, 
+      `SELECT sp.*, cs.plan_id, cs.status as subscription_status,
               cs.start_time, cs.next_billing_time, cs.subscription_id
        FROM subscription_payments sp
        LEFT JOIN company_subscriptions cs ON cs.subscription_id = sp.subscription_id
@@ -124,9 +110,9 @@ export async function GET(
        FROM users u
        LEFT JOIN user_roles ur ON ur.user_id = u.id
        WHERE u.company_id = $1::uuid AND u.status = 'active'
-       ORDER BY 
-         CASE WHEN ur.role = 'admin' THEN 1 
-              WHEN ur.role = 'manager' THEN 2 
+       ORDER BY
+         CASE WHEN ur.role = 'admin' THEN 1
+              WHEN ur.role = 'manager' THEN 2
               ELSE 3 END,
          u.created_at ASC
        LIMIT 1`,
@@ -149,9 +135,9 @@ export async function GET(
       invoiceNumber: generateInvoiceNumber(paymentId, paymentDate),
       invoiceDate: paymentDate,
       dueDate: null, // Already paid
-      
+
       seller: getSellerFromEnv(),
-      
+
       buyer: {
         companyName: company.name,
         legalName: company.legal_company_name || null,
@@ -166,7 +152,7 @@ export async function GET(
           country: company.country,
         } : null,
       },
-      
+
       subscription: {
         subscriptionId: payment.subscription_id || '',
         planId: payment.plan_id || null,
@@ -176,7 +162,7 @@ export async function GET(
         startDate: payment.start_time ? new Date(payment.start_time) : null,
         nextBillingDate: payment.next_billing_time ? new Date(payment.next_billing_time) : null,
       },
-      
+
       payment: {
         paymentId: paymentId,
         amount: amount,
@@ -186,7 +172,7 @@ export async function GET(
         methodDetails: methodDetails,
         paidAt: paymentDate,
       },
-      
+
       lineItems: [
         {
           description: getPlanName(payment.plan_id),
@@ -196,15 +182,15 @@ export async function GET(
           total: amount,
         },
       ],
-      
+
       subtotal: amount,
       tax: 0, // Add GST calculation if needed
       taxRate: 0,
       total: amount,
       currency: currency,
       currencySymbol: getCurrencySymbol(currency),
-      status: payment.status === 'captured' || payment.status === 'success' ? 'paid' : 
-              payment.status === 'failed' ? 'failed' : 
+      status: payment.status === 'captured' || payment.status === 'success' ? 'paid' :
+              payment.status === 'failed' ? 'failed' :
               payment.status === 'refunded' ? 'refunded' : 'pending',
     }
 

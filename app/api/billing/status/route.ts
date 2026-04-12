@@ -197,6 +197,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       billing: {
+        companyId, // Add companyId for frontend PDF generation
         status: billingStatus,
         billingStatus,
         trialDaysRemaining,
@@ -205,7 +206,7 @@ export async function GET(request: NextRequest) {
         isTrialExpired,
         nextBillingDate,
         currentEnd,
-        cancelAtCycleEnd: cancelAtCycleEnd,
+        cancelAtCycleEnd: hasActiveSubscription ? (subscription?.cancelAtCycleEnd || false) : false,
         hasActiveSubscription,
         currency: effectiveIsIndia ? 'INR' : 'USD',
         walletBalance,
