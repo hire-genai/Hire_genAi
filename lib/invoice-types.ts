@@ -150,7 +150,7 @@ export function parsePaymentMethod(rawData: any): PaymentDetails['methodDetails'
   }
 
   const method = rawData.method || rawData.paymentMethod || null
-
+  
   if (method === 'card' || rawData.card) {
     return {
       type: 'card',
@@ -159,27 +159,28 @@ export function parsePaymentMethod(rawData: any): PaymentDetails['methodDetails'
       cardType: rawData.card?.type || rawData.cardType || null,
     }
   }
-
+  
   if (method === 'upi' || rawData.vpa) {
     return {
       type: 'upi',
       vpa: rawData.vpa || null,
     }
   }
-
+  
   if (method === 'netbanking' || rawData.bank) {
     return {
       type: 'netbanking',
       bank: rawData.bank || null,
     }
   }
-
+  
   if (method === 'wallet' || rawData.wallet) {
     return {
       type: 'wallet',
       wallet: rawData.wallet || null,
     }
   }
+  
 
   return { type: 'unknown' }
 }

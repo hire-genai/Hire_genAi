@@ -136,6 +136,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   const [companyInfo, setCompanyInfo] = useState<any>(null)
   const [isTogglingAutoRecharge, setIsTogglingAutoRecharge] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [downloadingInvoice, setDownloadingInvoice] = useState<string | null>(null)
 
   useEffect(() => {
     if (companyId) {
@@ -356,114 +357,64 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   }
 
   const handleDownloadReceipt = async (payment: any) => {
+    const paymentId = payment.paymentId
+    
+    if (!paymentId) {
+      setToastMessage('Error: Payment ID not found')
+      setTimeout(() => setToastMessage(null), 3000)
+      return
+    }
+
+    setDownloadingInvoice(paymentId)
+    
     try {
-      console.log('[BillingContent] Downloading PDF invoice for payment:', payment.paymentId)
-      
-      // Get company ID from multiple sources
-      let companyId = null
-      
-      // Try from billingData first
-      if (billingData?.companyId) {
-        companyId = billingData.companyId
-        console.log('[BillingContent] Found companyId from billingData:', companyId)
-      }
-      // Try from companyInfo (which is set from payment history API)
-      else if (companyInfo?.id) {
-        companyId = companyInfo.id
-        console.log('[BillingContent] Found companyId from companyInfo:', companyId)
-      }
-      // Try from cookie as fallback
-      else {
-        const cookies = document.cookie.split(';')
-        const companyCookie = cookies.find(c => c.trim().startsWith('company_id='))
-        if (companyCookie) {
-          companyId = companyCookie.split('=')[1]
-          console.log('[BillingContent] Found companyId from cookie:', companyId)
-        }
-      }
-
-      if (!companyId) {
-        console.error('[BillingContent] No company ID found for PDF generation. Available sources:', {
-          billingDataCompanyId: billingData?.companyId,
-          companyInfoId: companyInfo?.id,
-          cookieExists: document.cookie.includes('company_id=')
-        })
-        // Fallback to HTML receipt
-        const receiptHtml = generatePaymentReceiptHtml(payment)
-        const blob = new Blob([receiptHtml], { type: 'text/html' })
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        const dateStr = new Date(payment.paymentDate).toISOString().split('T')[0]
-        const paymentShortId = payment.paymentId.replace(/^pay_/, '').slice(-8)
-        link.download = `receipt-${dateStr}-${paymentShortId}.html`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-        return
-      }
-
-      // Call new PDF generation API
-      const response = await fetch('/api/invoice/generate-pdf', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          paymentId: payment.paymentId,
-          companyId: companyId
-        })
+      // Call the PDF generation API with companyId
+      const response = await fetch(`/api/invoice/generate-pdf?paymentId=${encodeURIComponent(paymentId)}&companyId=${encodeURIComponent(companyId)}`, {
+        method: 'GET',
+        credentials: 'include',
       })
 
       if (!response.ok) {
-        console.error('[BillingContent] PDF generation failed:', response.status)
-        // Fallback to HTML receipt
-        const receiptHtml = generatePaymentReceiptHtml(payment)
-        const blob = new Blob([receiptHtml], { type: 'text/html' })
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        const dateStr = new Date(payment.paymentDate).toISOString().split('T')[0]
-        const paymentShortId = payment.paymentId.replace(/^pay_/, '').slice(-8)
-        link.download = `receipt-${dateStr}-${paymentShortId}.html`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-        return
+        const errorData = await response.json().catch(() => ({ error: 'Failed to generate PDF' }))
+        throw new Error(errorData.error || 'Failed to generate PDF')
       }
 
-      // Get PDF blob and download
-      const pdfBlob = await response.blob()
-      const url = window.URL.createObjectURL(pdfBlob)
-      const link = document.createElement('a')
-      link.href = url
-      const dateStr = new Date(payment.paymentDate).toISOString().split('T')[0]
-      const paymentShortId = payment.paymentId.replace(/^pay_/, '').slice(-8)
-      link.download = `invoice-${dateStr}-${paymentShortId}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-
-      console.log('[BillingContent] PDF invoice downloaded successfully')
-
-    } catch (error) {
-      console.error('[BillingContent] Error downloading PDF invoice:', error)
-      // Fallback to HTML receipt
-      const receiptHtml = generatePaymentReceiptHtml(payment)
-      const blob = new Blob([receiptHtml], { type: 'text/html' })
+      // Get the PDF blob
+      const blob = await response.blob()
+      
+      // Create download link
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      const dateStr = new Date(payment.paymentDate).toISOString().split('T')[0]
-      const paymentShortId = payment.paymentId.replace(/^pay_/, '').slice(-8)
-      link.download = `receipt-${dateStr}-${paymentShortId}.html`
+      
+      // Get filename from Content-Disposition header or generate one
+      const contentDisposition = response.headers.get('Content-Disposition')
+      let filename = `invoice_${paymentId}.pdf` 
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/)
+        if (filenameMatch) {
+          filename = filenameMatch[1]
+        }
+      }
+      
+      link.download = filename
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
+      
+      setToastMessage('Invoice downloaded successfully!')
+      setTimeout(() => setToastMessage(null), 3000)
+      
+    } catch (error: any) {
+      console.error('[BillingContent] PDF download error:', error)
+      
+      // Show proper error message
+      const errorMessage = error.message || 'Failed to generate PDF invoice'
+      setToastMessage(errorMessage)
+      setTimeout(() => setToastMessage(null), 5000)
+    } finally {
+      setDownloadingInvoice(null)
     }
   }
 

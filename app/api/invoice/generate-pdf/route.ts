@@ -1,11 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
+import { generateInvoiceHTML } from '@/lib/invoice-template'
 import { InvoiceData, getSellerFromEnv, generateInvoiceNumber, parsePaymentMethod, getPlanName, getBillingCycle, getCurrencySymbol } from '@/lib/invoice-types'
+
+/**
+ * GET /api/invoice/generate-pdf
+ * 
+ * Generates a PDF invoice for a specific payment using query parameters
+ * Uses Puppeteer to convert HTML template to high-quality PDF
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const paymentId = searchParams.get('paymentId')
+    const companyId = searchParams.get('companyId')
+
+    if (!paymentId || !companyId) {
+      return NextResponse.json(
+        { error: 'Payment ID and Company ID are required' },
+        { status: 400 }
+      )
+    }
+
+    // Fetch invoice data
+    const invoiceData = await getInvoiceData(paymentId, companyId)
+    
+    if (!invoiceData) {
+      return NextResponse.json(
+        { error: 'Invoice not found or unauthorized' },
+        { status: 404 }
+      )
+    }
+
+    // Generate PDF
+    const pdfBuffer = await generatePDF(invoiceData)
+
+    // Return PDF with proper headers
+    return new NextResponse(Buffer.from(pdfBuffer), {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="invoice-${invoiceData.invoiceNumber}.pdf"`,
+        'Content-Length': pdfBuffer.length.toString(),
+      },
+    })
+
+  } catch (error: any) {
+    console.error('[Invoice PDF] Error:', error)
+    return NextResponse.json(
+      { error: error.message || 'Failed to generate PDF' },
+      { status: 500 }
+    )
+  }
+}
 
 /**
  * POST /api/invoice/generate-pdf
  * 
- * Generates a PDF invoice for a specific payment
+ * Generates a PDF invoice for a specific payment using request body
  * Uses Puppeteer to convert HTML template to high-quality PDF
  */
 export async function POST(request: NextRequest) {
@@ -34,7 +85,7 @@ export async function POST(request: NextRequest) {
     const pdfBuffer = await generatePDF(invoiceData)
 
     // Return PDF with proper headers
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(Buffer.from(pdfBuffer), {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `inline; filename="invoice-${invoiceData.invoiceNumber}.pdf"`,
@@ -270,5 +321,3 @@ async function generatePDF(invoiceData: InvoiceData): Promise<Buffer> {
     }
   }
 }
-
-import { generateInvoiceHTML } from '@/lib/invoice-template'
