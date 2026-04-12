@@ -1143,8 +1143,8 @@ CREATE TABLE company_billing (
   
   -- Auto-recharge settings
   auto_recharge_enabled   BOOLEAN NOT NULL DEFAULT FALSE,
-  auto_recharge_amount    NUMERIC(12,2) DEFAULT 100.00,
-  auto_recharge_threshold NUMERIC(12,2) DEFAULT 10.00,
+  auto_recharge_amount    NUMERIC(12,2) DEFAULT 2000.00,
+  auto_recharge_threshold NUMERIC(12,2) DEFAULT 100.00,
   
   -- Trial tracking (7-day free trial)
   -- trial_ends_at is calculated as company.created_at + 7 days
@@ -1162,54 +1162,11 @@ CREATE TABLE company_billing (
 
 CREATE INDEX idx_company_billing_company_id ON company_billing (company_id);
 CREATE INDEX idx_company_billing_status ON company_billing (status);
+CREATE INDEX idx_company_billing_trial_ends_at ON company_billing (trial_ends_at);
 
 
 -- ---------------------------------------------------------------------------
--- 11e. payment_transactions
--- WHY: All payment records (Razorpay/PayPal) for audit trail and verification.
---      Links to company_billing for wallet updates.
--- USED BY: /api/payment/verify, billing reports
--- ---------------------------------------------------------------------------
-CREATE TABLE payment_transactions (
-  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  company_id              UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  
-  -- Payment provider info
-  provider                TEXT NOT NULL,                  -- 'razorpay' or 'paypal'
-  provider_order_id       TEXT,                           -- Razorpay order_id or PayPal order_id
-  provider_payment_id     TEXT,                           -- Razorpay payment_id or PayPal capture_id
-  provider_signature      TEXT,                           -- For verification
-  
-  -- Amount details
-  amount                  NUMERIC(12,2) NOT NULL,         -- Amount in base currency (INR/USD)
-  currency                TEXT NOT NULL DEFAULT 'INR',
-  amount_in_paise         INTEGER,                        -- For Razorpay (amount * 100)
-  
-  -- Status
-  status                  TEXT NOT NULL DEFAULT 'pending', -- pending, completed, failed, refunded
-  
-  -- Metadata
-  description             TEXT,
-  notes                   JSONB,
-  
-  -- Timestamps
-  initiated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  completed_at            TIMESTAMPTZ,
-  failed_at               TIMESTAMPTZ,
-  failure_reason          TEXT,
-  
-  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_payment_transactions_company_id ON payment_transactions (company_id);
-CREATE INDEX idx_payment_transactions_provider ON payment_transactions (provider);
-CREATE INDEX idx_payment_transactions_status ON payment_transactions (status);
-CREATE INDEX idx_payment_transactions_provider_payment_id ON payment_transactions (provider_payment_id);
-
-
--- ---------------------------------------------------------------------------
--- 11f. subscription_payments
+-- 11e. subscription_payments
 -- WHY: Track subscription payments from various providers (Stripe, Razorpay, etc.)
 -- USED BY: billing system, payment verification
 -- ---------------------------------------------------------------------------
@@ -1390,6 +1347,7 @@ CREATE TABLE company_subscriptions (
   start_time        TIMESTAMPTZ,
   next_billing_time TIMESTAMPTZ,
   subscription_link VARCHAR(500),
+  cancel_at_cycle_end BOOLEAN DEFAULT FALSE,
   raw_data          JSONB,
   created_at        TIMESTAMPTZ DEFAULT NOW(),
   updated_at        TIMESTAMPTZ DEFAULT NOW(),
@@ -1397,10 +1355,14 @@ CREATE TABLE company_subscriptions (
   UNIQUE (company_id, provider)
 );
 
+COMMENT ON COLUMN company_subscriptions.cancel_at_cycle_end IS 'When true, subscription will be cancelled at the end of current billing cycle. User retains access until next_billing_time.';
+COMMENT ON COLUMN company_subscriptions.subscription_link IS 'Razorpay short_url for subscription management (e.g., https://rzp.io/rzp/XYZ123)';
+
 CREATE INDEX idx_company_subscriptions_company_id ON company_subscriptions (company_id);
 CREATE INDEX idx_company_subscriptions_provider ON company_subscriptions (provider);
 CREATE INDEX idx_company_subscriptions_status ON company_subscriptions (status);
 CREATE INDEX idx_company_subscriptions_subscription_link ON company_subscriptions (subscription_link);
+CREATE INDEX idx_company_subscriptions_cancel_at_cycle_end ON company_subscriptions (cancel_at_cycle_end) WHERE cancel_at_cycle_end = TRUE;
 
 
 -- ---------------------------------------------------------------------------
@@ -1412,6 +1374,7 @@ CREATE INDEX idx_company_subscriptions_subscription_link ON company_subscription
 CREATE TABLE subscription_payments (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   subscription_id VARCHAR(255),
+  company_id      UUID REFERENCES companies(id),
   provider        VARCHAR(50),
   payment_id      VARCHAR(255),
   amount          NUMERIC(10,2),
@@ -1424,7 +1387,10 @@ CREATE TABLE subscription_payments (
   UNIQUE (payment_id, provider)
 );
 
+COMMENT ON COLUMN subscription_payments.company_id IS 'Foreign key to companies table. Allows direct filtering of payments by company without JOIN.';
+
 CREATE INDEX idx_subscription_payments_subscription_id ON subscription_payments (subscription_id);
+CREATE INDEX idx_subscription_payments_company_id ON subscription_payments (company_id);
 CREATE INDEX idx_subscription_payments_provider ON subscription_payments (provider);
 CREATE INDEX idx_subscription_payments_status ON subscription_payments (status);
 
@@ -1578,7 +1544,6 @@ BEGIN
       'meeting_bookings',
       'email_templates',
       'company_billing',
-      'payment_transactions',
       'interviews',
       'job_interview_questions',
       'agency_client_connections',

@@ -1,4 +1,4 @@
-﻿import { InvoiceData, formatCurrency, formatDate } from './invoice-types'
+import { InvoiceData, formatCurrency, formatDate } from './invoice-types'
 
 /**
  * Generates premium HTML template for invoice PDF
