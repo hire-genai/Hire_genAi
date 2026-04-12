@@ -2703,12 +2703,28 @@ export class DatabaseService {
   }
 
   // Auto-recharge wallet
-  // IMPORTANT: Auto-recharge is DISABLED until real Razorpay payment integration is added.
-  // Wallet credits should ONLY be added after a verified Razorpay payment (via webhook or /api/payment/verify).
-  // The old code was simulating payment success and adding credits without real payment — this is a critical bug.
+  // Triggers Razorpay addon creation for wallet recharge when conditions are met
   static async autoRecharge(companyId: string) {
-    console.warn(`⚠️ [Auto-Recharge] Auto-recharge requested for company ${companyId} but is DISABLED. Wallet credits can only be added after a real Razorpay payment.`)
-    throw new Error('Insufficient wallet balance. Please recharge your wallet via the Payment page to continue.')
+    console.log(`🔄 [Auto-Recharge] Checking auto-recharge conditions for company: ${companyId}`)
+    
+    try {
+      const { checkAndAutoRecharge } = await import('./auto-recharge')
+      const result = await checkAndAutoRecharge(companyId)
+      
+      if (result.success && result.triggered) {
+        console.log(`✅ [Auto-Recharge] Auto-recharge addon created successfully: ${result.addonId}`)
+        return result
+      } else {
+        console.log(`ℹ️ [Auto-Recharge] ${result.message}`)
+        if (!result.success) {
+          throw new Error(result.message)
+        }
+        return result
+      }
+    } catch (error: any) {
+      console.error(`❌ [Auto-Recharge] Failed for company ${companyId}:`, error.message)
+      throw new Error(`Auto-recharge failed: ${error.message}`)
+    }
   }
 
   // Deduct from wallet
@@ -3473,10 +3489,11 @@ export class DatabaseService {
             console.log('🔄 [WALLET] Auto-recharge enabled, attempting recharge...')
             try {
               await this.autoRecharge(data.companyId)
-              console.log('✅ [WALLET] Auto-recharge successful!')
+              console.log('✅ [WALLET] Auto-recharge addon created successfully!')
+              // Note: Actual wallet credit happens via webhook when payment is captured
             } catch (rechargeError: any) {
-              console.log('❌ [WALLET] Auto-recharge failed:', rechargeError.message)
-              throw new Error('Insufficient wallet balance and auto-recharge failed')
+              console.log('❌ [WALLET] Auto-recharge failed (silently continuing):', rechargeError.message)
+              // Continue silently - don't block wallet deduction
             }
           } else {
             console.log('❌ [WALLET] Auto-recharge disabled, cannot proceed')
@@ -3884,10 +3901,11 @@ export class DatabaseService {
             console.log('🔄 [WALLET] Auto-recharge enabled, attempting recharge...')
             try {
               await this.autoRecharge(data.companyId)
-              console.log('✅ [WALLET] Auto-recharge successful!')
+              console.log('✅ [WALLET] Auto-recharge addon created successfully!')
+              // Note: Actual wallet credit happens via webhook when payment is captured
             } catch (rechargeError: any) {
-              console.log('❌ [WALLET] Auto-recharge failed:', rechargeError.message)
-              throw new Error('Insufficient wallet balance and auto-recharge failed')
+              console.log('❌ [WALLET] Auto-recharge failed (silently continuing):', rechargeError.message)
+              // Continue silently - don't block wallet deduction
             }
           } else {
             console.log('❌ [WALLET] Auto-recharge disabled, cannot proceed')
@@ -5038,6 +5056,7 @@ export class DatabaseService {
     currency: string
     status: string
     paymentTime?: Date
+    companyId?: string | null
     rawData?: any
   }) {
     if (!this.isDatabaseConfigured()) {
@@ -5047,8 +5066,8 @@ export class DatabaseService {
     const q = `
       INSERT INTO subscription_payments (
         subscription_id, provider, payment_id, amount, currency,
-        status, payment_time, raw_data
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        status, payment_time, company_id, raw_data
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       ON CONFLICT (payment_id, provider) DO UPDATE SET 
         raw_data = EXCLUDED.raw_data,
         updated_at = NOW()
@@ -5062,6 +5081,7 @@ export class DatabaseService {
       data.currency,
       data.status,
       data.paymentTime?.toISOString() || new Date().toISOString(),
+      data.companyId || null,
       data.rawData ? JSON.stringify(data.rawData) : null
     ]) as any[]
     return rows[0]

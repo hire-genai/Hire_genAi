@@ -34,6 +34,7 @@ import {
   Receipt
 } from "lucide-react"
 import SubscriptionCard, { BillingStatus, SubscriptionInfo } from "./SubscriptionCard"
+import AutoRechargeSettings from "./AutoRechargeSettings"
 import { useAuth } from '@/contexts/auth-context'
 import { StatCardGridLoader, TableLoader, CardLoader } from '@/components/ui/skeleton-loader'
 
@@ -282,90 +283,69 @@ export default function BillingContent({ companyId }: BillingContentProps) {
     }
   }
 
-  const generatePaymentReceiptHtml = (payment: any) => {
-    const paymentDate = new Date(payment.paymentDate).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric'
-    })
-    const amount = payment.amount?.toFixed(2) || '0.00'
-    const currency = payment.currency === 'INR' ? '₹' : '$'
+  
+  const [downloadingInvoice, setDownloadingInvoice] = useState<string | null>(null)
 
-    return `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Payment Receipt - ${payment.paymentId}</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 40px; color: #333; max-width: 600px; margin: 0 auto; }
-        .header { text-align: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 2px solid #059669; }
-        .logo { font-size: 28px; font-weight: bold; color: #059669; margin-bottom: 10px; }
-        .receipt-title { font-size: 20px; color: #374151; margin: 0; }
-        .receipt-info { margin-bottom: 30px; }
-        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e5e7eb; }
-        .info-label { color: #6b7280; }
-        .info-value { font-weight: 600; color: #374151; }
-        .amount-section { background: #f0fdf4; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0; }
-        .amount-label { color: #059669; font-size: 14px; margin-bottom: 5px; }
-        .amount-value { font-size: 32px; font-weight: bold; color: #059669; }
-        .status-badge { display: inline-block; background: #dcfce7; color: #166534; padding: 4px 12px; border-radius: 20px; font-size: 14px; font-weight: 500; }
-        .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 14px; }
-        @media print { body { margin: 0; padding: 20px; } }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <div class="logo">HireGenAI</div>
-        <h1 class="receipt-title">Payment Receipt</h1>
-    </div>
+  const handleDownloadReceipt = async (payment: any) => {
+    const paymentId = payment.paymentId
+    
+    if (!paymentId) {
+      setToastMessage('Error: Payment ID not found')
+      setTimeout(() => setToastMessage(null), 3000)
+      return
+    }
 
-    <div class="receipt-info">
-        <div class="info-row">
-            <span class="info-label">Receipt ID</span>
-            <span class="info-value">${payment.paymentId}</span>
-        </div>
-        <div class="info-row">
-            <span class="info-label">Payment Date</span>
-            <span class="info-value">${paymentDate}</span>
-        </div>
-        <div class="info-row">
-            <span class="info-label">Status</span>
-            <span class="info-value"><span class="status-badge">Paid</span></span>
-        </div>
-        ${companyInfo?.name ? `
-        <div class="info-row">
-            <span class="info-label">Company</span>
-            <span class="info-value">${companyInfo.name}</span>
-        </div>
-        ` : ''}
-    </div>
+    setDownloadingInvoice(paymentId)
+    
+    try {
+      // Call the PDF generation API with companyId
+      const response = await fetch(`/api/invoice/generate-pdf?paymentId=${encodeURIComponent(paymentId)}&companyId=${encodeURIComponent(companyId)}`, {
+        method: 'GET',
+        credentials: 'include',
+      })
 
-    <div class="amount-section">
-        <div class="amount-label">Amount Paid</div>
-        <div class="amount-value">${currency}${amount}</div>
-    </div>
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to generate PDF' }))
+        throw new Error(errorData.error || 'Failed to generate PDF')
+      }
 
-    <div class="footer">
-        <p>Thank you for your payment!</p>
-        <p>This is a computer-generated receipt. No signature required.</p>
-    </div>
-</body>
-</html>`
-  }
-
-  const handleDownloadReceipt = (payment: any) => {
-    const receiptHtml = generatePaymentReceiptHtml(payment)
-    const blob = new Blob([receiptHtml], { type: 'text/html' })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    const dateStr = new Date(payment.paymentDate).toISOString().split('T')[0]
-    link.download = `receipt-${dateStr}.html`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
+      // Get the PDF blob
+      const blob = await response.blob()
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      
+      // Get filename from Content-Disposition header or generate one
+      const contentDisposition = response.headers.get('Content-Disposition')
+      let filename = `invoice_${paymentId}.pdf`
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/)
+        if (filenameMatch) {
+          filename = filenameMatch[1]
+        }
+      }
+      
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
+      setToastMessage('Invoice downloaded successfully!')
+      setTimeout(() => setToastMessage(null), 3000)
+      
+    } catch (error: any) {
+      console.error('[BillingContent] PDF download error:', error)
+      
+      // Show proper error message
+      const errorMessage = error.message || 'Failed to generate PDF invoice'
+      setToastMessage(errorMessage)
+      setTimeout(() => setToastMessage(null), 5000)
+    } finally {
+      setDownloadingInvoice(null)
+    }
   }
 
 
@@ -587,6 +567,9 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             currentMonthSpent={billingData?.currentMonthSpent ?? 0}
             totalSpent={billingData?.totalSpent ?? 0}
           />
+
+          {/* Auto-Recharge Settings */}
+          <AutoRechargeSettings companyId={companyId} />
 
         </TabsContent>
 
@@ -1046,11 +1029,11 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                             const currency = payment.currency === 'INR' ? 'Rs' : '$'
                             const amount = payment.amount?.toLocaleString('en-IN') || '0'
                             
-                            // Generate invoice number
-                            const invoiceYear = paymentDate.getFullYear()
+                            // Generate invoice number matching PDF format (HG-YYMM-XXXXXX)
+                            const invoiceYear = String(paymentDate.getFullYear()).slice(-2)
                             const invoiceMonth = String(paymentDate.getMonth() + 1).padStart(2, '0')
-                            const invoiceNum = String((payments.length - payments.indexOf(payment)) || idx + 1).padStart(4, '0')
-                            const invoiceNumber = `INV-${invoiceYear}${invoiceMonth}${invoiceNum}`
+                            const shortPaymentIdForInvoice = payment.paymentId?.replace(/^pay_/, '').slice(-6).toUpperCase() || 'XXXXXX'
+                            const invoiceNumber = `HG-${invoiceYear}${invoiceMonth}-${shortPaymentIdForInvoice}`
                             
 
                             // Extract data using helper functions from enhanced rawData
@@ -1116,12 +1099,22 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => handleDownloadReceipt(payment)}
-                                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium text-slate-600 transition-all border-slate-200 bg-white hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 hover:scale-95"
+                                    disabled={downloadingInvoice === payment.paymentId}
+                                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium text-slate-600 transition-all border-slate-200 bg-white hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 hover:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M12 10v6m0 0l-3-3m3 3l3-3M4 4h16v16H4z"/>
-                                    </svg>
-                                    PDF
+                                    {downloadingInvoice === payment.paymentId ? (
+                                      <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <span>Generating...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M12 10v6m0 0l-3-3m3 3l3-3M4 4h16v16H4z"/>
+                                        </svg>
+                                        PDF
+                                      </>
+                                    )}
                                   </Button>
                                 </div>
                               </div>

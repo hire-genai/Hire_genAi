@@ -180,6 +180,27 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
           rawData: subscription
         })
 
+        // Extract and save customer_id and token_id for recurring payments
+        const customerId = subscription.customer_id
+        const tokenId = event.payload.payment?.entity?.token_id
+        
+        if (customerId || tokenId) {
+          console.log(`[Razorpay Webhook] Updating subscription with customer_id: ${customerId}, token_id: ${tokenId}`)
+          
+          await DatabaseService.query(`
+            UPDATE company_subscriptions 
+            SET 
+              customer_id = $2,
+              token_id = $3,
+              updated_at = NOW()
+            WHERE company_id = $1::uuid AND provider = 'razorpay' AND subscription_id = $4
+          `, [companyId, customerId || null, tokenId || null, subscriptionId])
+          
+          console.log(`[Razorpay Webhook] Saved payment tokens for subscription: ${subscriptionId}`)
+        } else {
+          console.warn(`[Razorpay Webhook] No customer_id or token_id found in subscription: ${subscriptionId}`)
+        }
+
         // Activate company billing
         await DatabaseService.activateCompanyFromSubscription(companyId)
         console.log(`[Razorpay Webhook] Company billing activated for: ${companyId}`)
@@ -199,6 +220,7 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
             currency: activationPayment.currency || 'INR',
             status: 'captured',
             paymentTime: new Date(),
+            companyId,
             rawData: activationPayment
           })
           console.log(`[Razorpay Webhook] Recorded first payment: ${activationPayment.id}`)
@@ -213,6 +235,7 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
             currency: 'INR',
             status: 'captured',
             paymentTime: currentStart || new Date(),
+            companyId,
             rawData: { subscription_id: subscriptionId, generated: true }
           })
           console.log(`[Razorpay Webhook] Generated first payment record: ${paymentId}`)
@@ -249,6 +272,27 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
           chargeAt || currentEnd || undefined
         )
 
+        // Extract and save customer_id and token_id for recurring payments
+        const chargedCustomerId = subscription.customer_id
+        const chargedTokenId = event.payload.payment?.entity?.token_id
+        
+        if (chargedCustomerId || chargedTokenId) {
+          console.log(`[Razorpay Webhook] Updating subscription with customer_id: ${chargedCustomerId}, token_id: ${chargedTokenId}`)
+          
+          await DatabaseService.query(`
+            UPDATE company_subscriptions 
+            SET 
+              customer_id = $2,
+              token_id = $3,
+              updated_at = NOW()
+            WHERE company_id = $1::uuid AND provider = 'razorpay' AND subscription_id = $4
+          `, [companyId, chargedCustomerId || null, chargedTokenId || null, subscriptionId])
+          
+          console.log(`[Razorpay Webhook] Saved payment tokens for subscription: ${subscriptionId}`)
+        } else {
+          console.warn(`[Razorpay Webhook] No customer_id or token_id found in subscription.charged: ${subscriptionId}`)
+        }
+
         // Ensure company_billing record exists and credit wallet
         await DatabaseService.query(
           `INSERT INTO company_billing (company_id, wallet_balance, status, created_at, updated_at)
@@ -277,6 +321,7 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
             currency: payment.currency || 'INR',
             status: 'captured',
             paymentTime: new Date(),
+            companyId,
             rawData: payment
           })
         }
@@ -530,9 +575,27 @@ async function handlePaymentEvent(event: any, eventType: string) {
       rawData: expandedPayment // Full expanded response
     }
 
-    // Step 4 — Pass enriched object to DatabaseService.recordSubscriptionPayment
+    // Step 4 — Ensure we have company_id (lookup if needed)
+    if (!companyId && subscriptionId) {
+      try {
+        const companyResult = await DatabaseService.query(`
+          SELECT company_id FROM company_subscriptions 
+          WHERE subscription_id = $1 
+          LIMIT 1
+        `, [subscriptionId])
+        
+        if (companyResult[0]?.company_id) {
+          companyId = companyResult[0].company_id
+        }
+      } catch (error) {
+        console.log('[Razorpay Webhook] Could not lookup company_id for subscription:', subscriptionId)
+      }
+    }
+
+    // Step 5 — Pass enriched object to DatabaseService.recordSubscriptionPayment
     await DatabaseService.recordSubscriptionPayment({
       subscriptionId: subscriptionId || 'unknown',
+      companyId: companyId || null,
       provider: 'razorpay',
       paymentId: enrichedPayment.paymentId,
       amount: enrichedPayment.amount,
@@ -543,6 +606,48 @@ async function handlePaymentEvent(event: any, eventType: string) {
     })
 
     console.log(`[Razorpay Webhook] Recorded comprehensive payment details: ${paymentId}`)
+
+    // ─── Handle Wallet Auto Recharge ───
+    if (description === 'Wallet Auto Recharge' && companyId && enrichedPayment.status === 'captured') {
+      try {
+        console.log(`[Razorpay Webhook] Processing wallet auto-recharge for company: ${companyId}, amount: Rs${enrichedPayment.amount}`)
+        
+        // Add amount to wallet_balance in company_billing table
+        const walletUpdateQuery = `
+          UPDATE company_billing 
+          SET 
+            wallet_balance = wallet_balance + $2,
+            updated_at = NOW()
+          WHERE company_id = $1::uuid
+          RETURNING wallet_balance
+        `
+        
+        const walletResult = await DatabaseService.query(walletUpdateQuery, [companyId, enrichedPayment.amount])
+        
+        if (walletResult.length > 0) {
+          const newBalance = parseFloat(walletResult[0].wallet_balance)
+          console.log(`[Razorpay Webhook] Wallet auto-recharge successful! New balance: Rs${newBalance}`)
+          
+          // Create ledger entry for the auto-recharge
+          await DatabaseService.addLedgerEntry({
+            companyId,
+            entryType: 'AUTO_RECHARGE',
+            description: `Wallet Auto Recharge - Payment ID: ${paymentId}`,
+            amount: enrichedPayment.amount,
+            balanceBefore: newBalance - enrichedPayment.amount,
+            balanceAfter: newBalance
+          })
+          
+          console.log(`[Razorpay Webhook] Auto-recharge ledger entry created for payment: ${paymentId}`)
+        } else {
+          console.error(`[Razorpay Webhook] Failed to update wallet balance for company: ${companyId}`)
+        }
+        
+      } catch (walletError: any) {
+        console.error(`[Razorpay Webhook] Error processing wallet auto-recharge:`, walletError)
+        // Don't fail the webhook - auto-recharge is supplementary
+      }
+    }
 
     return NextResponse.json({
       ok: true,
