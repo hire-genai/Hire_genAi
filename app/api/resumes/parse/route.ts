@@ -468,7 +468,7 @@ export async function POST(request: NextRequest) {
         await DatabaseService.recordCVParsingUsage({
           companyId: companyIdForBilling,
           jobId: jobIdForBilling,
-          candidateId: candidateId || undefined,
+          applicationId: applicationId || undefined,
           fileSizeKb: Math.round(file.size / 1024),
           parseSuccessful: true,
           successRate: parsed.skills && parsed.skills.length > 0 ? 95 : 80

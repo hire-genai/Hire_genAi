@@ -205,6 +205,22 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
         await DatabaseService.activateCompanyFromSubscription(companyId)
         console.log(`[Razorpay Webhook] Company billing activated for: ${companyId}`)
 
+        // Credit wallet on first subscription activation
+        await DatabaseService.query(
+          `INSERT INTO company_billing (company_id, wallet_balance, status, created_at, updated_at)
+           VALUES ($1::uuid, 10000, 'active', NOW(), NOW())
+           ON CONFLICT (company_id) DO UPDATE SET
+             wallet_balance = CASE 
+               WHEN company_billing.wallet_balance = 0 THEN 10000
+               ELSE company_billing.wallet_balance + 10000
+             END,
+             status = 'active',
+             updated_at = NOW()
+           WHERE company_id = $1::uuid`,
+          [companyId]
+        )
+        console.log(`[Razorpay Webhook] Credited ₹10,000 to wallet for subscription activation, company: ${companyId}`)
+
         // Record the first payment in subscription_payments table
         // For activated event, payment info might be in different locations
         const activationPayment = event.payload.payment?.entity

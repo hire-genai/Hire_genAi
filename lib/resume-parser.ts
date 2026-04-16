@@ -1,39 +1,40 @@
 import { generateText } from "ai"
 import { openai, createOpenAI } from "@ai-sdk/openai"
 
-// Direct require() at module level - simple and reliable
-// pdf-parse v2 exports PDFParse class; mammoth exports an object
-let PDFParseClass: any = null
+// Load pdf-parse and mammoth for document extraction
+let pdfParse: any = null
 let mammoth: any = null
 
-if (typeof window === 'undefined') {
-  try {
-    const pdfModule = require('pdf-parse')
-    // pdf-parse v2: named export PDFParse (class)
-    // pdf-parse v1: direct function export
-    if (typeof pdfModule?.PDFParse === 'function') {
-      PDFParseClass = pdfModule.PDFParse
-      console.log('✅ pdf-parse v2 loaded (PDFParse class)')
-    } else if (typeof pdfModule === 'function') {
-      PDFParseClass = pdfModule
-      console.log('✅ pdf-parse v1 loaded (direct function)')
-    } else if (typeof pdfModule?.default === 'function') {
-      PDFParseClass = pdfModule.default
-      console.log('✅ pdf-parse loaded (.default)')
-    } else {
-      console.error('❌ pdf-parse loaded but no callable export found. Keys:', Object.keys(pdfModule || {}))
+// Dynamic loading function to handle different environments
+async function loadLibraries() {
+  if (typeof window !== 'undefined') return // Skip in browser
+  
+  if (!pdfParse) {
+    try {
+      // Use pdf-parse v1.1.1 which is more stable in server environments
+      const { createRequire } = await import('module')
+      const require = createRequire(import.meta.url || __filename)
+      pdfParse = require('pdf-parse')
+      console.log('✅ pdf-parse v1.1.1 loaded successfully')
+    } catch (err: any) {
+      console.error('❌ Failed to load pdf-parse:', err.message)
     }
-  } catch (err: any) {
-    console.error('❌ Failed to load pdf-parse:', err.message)
-    console.error('   Run: npm install pdf-parse')
   }
 
-  try {
-    mammoth = require('mammoth')
-    console.log('✅ mammoth loaded')
-  } catch (err: any) {
-    console.error('❌ Failed to load mammoth:', err.message)
-    console.error('   Run: npm install mammoth')
+  if (!mammoth) {
+    try {
+      try {
+        mammoth = await import('mammoth')
+        console.log('✅ mammoth loaded via dynamic import')
+      } catch {
+        const { createRequire } = await import('module')
+        const require = createRequire(import.meta.url || __filename)
+        mammoth = require('mammoth')
+        console.log('✅ mammoth loaded via require')
+      }
+    } catch (err: any) {
+      console.error('❌ Failed to load mammoth:', err.message)
+    }
   }
 }
 
@@ -105,6 +106,8 @@ function isBinaryContent(text: string): boolean {
  * Extract text from PDF or DOCX buffer
  */
 async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
+  // Ensure libraries are loaded
+  await loadLibraries()
   const type = (mimeType || "").toLowerCase()
   
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
@@ -118,48 +121,26 @@ async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
   let extractionMethod = "unknown"
   
   try {
-    // PDF extraction
-    if (type.includes("pdf") || type.includes("application/pdf")) {
+    // PDF extraction using pdf-parse v1.1.1
+    if (type.includes("pdf")) {
       extractionMethod = "pdf-parse"
       
-      if (!PDFParseClass) {
+      if (!pdfParse) {
         throw new Error("pdf-parse library not loaded. Install it with: npm install pdf-parse")
       }
 
-      console.log('🔧 Using pdf-parse, PDFParseClass type:', typeof PDFParseClass)
+      console.log('🔧 Using pdf-parse v1.1.1 for PDF extraction...')
       
-      let data: any
+      // Use pdf-parse v1.1.1 (function-based API)
+      const data = await pdfParse(buffer)
+      rawText = data.text.trim()
       
-      // pdf-parse v2: class-based API (PDFParse is a class)
-      // pdf-parse v1: function-based API (pdfParse is a function)
-      const isV2 = PDFParseClass.toString().startsWith('class')
-      
-      if (isV2) {
-        const parser = new PDFParseClass({ data: buffer })
-        const result = await parser.getText()
-        // v2 getText() returns { pages, text, total }
-        data = {
-          text: result?.text || '',
-          numpages: result?.total || 0,
-          info: {},
-        }
-        if (typeof parser.destroy === 'function') {
-          await parser.destroy()
-        }
-      } else {
-        // v1: pdfParse(buffer) returns { text, numpages, info, ... }
-        data = await PDFParseClass(buffer)
-      }
-      
-      console.log('📊 PDF Parse Result:')
-      console.log('   numpages:', data?.numpages)
-      console.log('   info:', JSON.stringify(data?.info))
-      console.log('   text length:', data?.text?.length)
-      
-      rawText = (data?.text || "").trim()
+      console.log('📊 PDF Extraction Result:')
+      console.log('   pages:', data.numpages || 'unknown')
+      console.log('   text length:', rawText.length)
       
       if (!rawText || rawText.length < 20) {
-        console.warn(`⚠️ PDF extraction returned only ${rawText.length} chars. Pages: ${data?.numpages || 0}. May be image-based or corrupted.`)
+        console.warn(`⚠️ PDF extraction returned only ${rawText.length} chars. May be image-based or corrupted.`)
       }
     }
     // DOCX/DOC extraction
@@ -228,6 +209,20 @@ async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
     console.error('   MIME Type:', type)
     console.error('   Error:', error instanceof Error ? error.message : error)
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    
+    // For PDFs, try fallback to plain text extraction as last resort
+    if (type.includes("pdf") && extractionMethod === "pdf-parse") {
+      console.log('🔄 Attempting fallback: plain text extraction for PDF...')
+      try {
+        const fallbackText = buffer.toString("utf8").trim()
+        if (fallbackText && !isBinaryContent(fallbackText)) {
+          console.log('✅ Fallback extraction successful, length:', fallbackText.length)
+          return cleanText(fallbackText)
+        }
+      } catch (fallbackError) {
+        console.error('❌ Fallback extraction also failed:', fallbackError)
+      }
+    }
     
     // DO NOT fall back to buffer.toString() for binary files - that causes the bug!
     throw new Error(

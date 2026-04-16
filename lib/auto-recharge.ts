@@ -68,9 +68,9 @@ export async function checkAndAutoRecharge(companyId: string): Promise<{
       }
     }
 
-    // ─── 4. Fetch customer_id and token_id from company_subscriptions ───
+    // ─── 4. Fetch customer_id, token_id, and subscriber_email from company_subscriptions ───
     const subscriptionQuery = `
-      SELECT customer_id, token_id, subscription_id
+      SELECT customer_id, token_id, subscription_id, subscriber_email
       FROM company_subscriptions 
       WHERE company_id = $1::uuid 
         AND status = 'active'
@@ -88,7 +88,12 @@ export async function checkAndAutoRecharge(companyId: string): Promise<{
       }
     }
 
-    const { customer_id: customerId, token_id: tokenId, subscription_id: subscriptionId } = subscriptionResult[0]
+    const { 
+      customer_id: customerId, 
+      token_id: tokenId, 
+      subscription_id: subscriptionId,
+      subscriber_email 
+    } = subscriptionResult[0]
     
     if (!tokenId) {
       console.warn(`[Auto-Recharge] No token found for company ${companyId}`)
@@ -157,13 +162,79 @@ export async function checkAndAutoRecharge(companyId: string): Promise<{
 
     console.log(`[Auto-Recharge] Order created successfully:`, orderData.id)
 
-    // ─── 7. Create Recurring Payment ───
+    // 7. Fetch customer details from Razorpay API and company email as fallback
+    let customerEmail = subscriber_email || ''
+    let customerContact = '9999999999' // Default fallback
+
+    // First, try to get company email from database as fallback
+    if (!customerEmail) {
+      try {
+        const companyEmailQuery = `
+          SELECT u.email 
+          FROM users u 
+          WHERE u.company_id = $1::uuid 
+          ORDER BY u.created_at ASC 
+          LIMIT 1
+        `
+        const companyEmailResult = await DatabaseService.query(companyEmailQuery, [companyId])
+        if (companyEmailResult.length > 0 && companyEmailResult[0].email) {
+          customerEmail = companyEmailResult[0].email
+          console.log(`[Auto-Recharge] Using company user email as fallback: ${customerEmail}`)
+        }
+      } catch (err) {
+        console.warn(`[Auto-Recharge] Failed to fetch company email:`, err)
+      }
+    }
+
+    try {
+      console.log(`[Auto-Recharge] Fetching customer details for: ${customerId}`)
+      const customerResponse = await fetch(
+        `https://api.razorpay.com/v1/customers/${customerId}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${authHeader}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+
+      if (customerResponse.ok) {
+        const customerData = await customerResponse.json()
+        console.log(`[Auto-Recharge] Customer details fetched:`, {
+          email: customerData.email,
+          contact: customerData.contact
+        })
+        
+        // Use Razorpay customer data if available (prefer non-empty values)
+        if (customerData.email) customerEmail = customerData.email
+        if (customerData.contact) customerContact = customerData.contact
+      } else {
+        console.warn(`[Auto-Recharge] Failed to fetch customer details, using fallbacks`)
+      }
+    } catch (error) {
+      console.warn(`[Auto-Recharge] Error fetching customer details:`, error)
+    }
+
+    // Validate email - Razorpay requires a valid email for recurring payments
+    if (!customerEmail) {
+      console.error(`[Auto-Recharge] No email found for customer. Cannot create recurring payment.`)
+      return {
+        success: false,
+        triggered: true,
+        message: 'No email found for customer - cannot create recurring payment'
+      }
+    }
+
+    console.log(`[Auto-Recharge] Using email: ${customerEmail}, contact: ${customerContact}`)
+
+    // 8. Create Recurring Payment with proper customer details
     const paymentPayload = {
       customer_id: customerId,
       token: tokenId,
       order_id: orderData.id,
-      email: '', // Will be filled from customer data if available
-      contact: '', // Will be filled from customer data if available
+      email: customerEmail,
+      contact: customerContact,
       amount: Math.round(autoRechargeAmount * 100),
       currency: 'INR'
     }

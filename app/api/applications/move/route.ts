@@ -71,7 +71,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Rejection reason is required' }, { status: 400 })
     }
 
-    const changedByValue: string | null = changedByEmail || changedBy || null
+    // Convert email to user ID if needed
+    let changedByValue: string | null = changedBy || null
+    
+    if (changedByEmail && !changedBy) {
+      // Look up user ID by email
+      try {
+        const userRows = await DatabaseService.query(
+          `SELECT id FROM users WHERE email = $1 LIMIT 1`,
+          [changedByEmail]
+        ) as any[]
+        
+        if (userRows && userRows.length > 0) {
+          changedByValue = userRows[0].id
+        } else {
+          console.warn('User not found for email:', changedByEmail)
+          changedByValue = null
+        }
+      } catch (error) {
+        console.error('Error looking up user by email:', error)
+        changedByValue = null
+      }
+    }
 
     // Get current stage, candidate_id, and company_id
     const currentRows = await DatabaseService.query(

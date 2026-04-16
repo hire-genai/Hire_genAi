@@ -500,7 +500,7 @@ CREATE TABLE job_postings (
   responsibilities            TEXT[],                -- array of responsibility strings
   required_skills             TEXT[],
   preferred_skills            TEXT[],
-  experience_years            INT,
+  experience_years            TEXT,
   required_education          TEXT,
   certifications_required     TEXT,
   languages_required          TEXT,

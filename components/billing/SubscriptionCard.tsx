@@ -147,9 +147,12 @@ export default function SubscriptionCard({
         name: 'HireGenAI',
         description: `${planType === 'monthly' ? 'Monthly' : 'Yearly'} Subscription`,
         handler: function () {
-          // Payment successful - trigger billing data refresh
+          // Payment successful - wait for webhook to process before refetching
           setIsCreatingSubscription(false)
-          window.dispatchEvent(new CustomEvent('subscription-updated'))
+          // Add delay to allow webhook to update database (typically 1-2 seconds)
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('subscription-updated'))
+          }, 2000)
         },
         prefill: {
           email: userEmail || ''
@@ -453,14 +456,14 @@ export default function SubscriptionCard({
               <div className="flex gap-3">
                 <Button 
                   onClick={handleUpgrade}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-[20px_7px] py-[7px_20px] font-semibold text-[0.8rem] transition-all"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-[20px_7px] py-[7px_20px] font-semibold text-[0.8rem] transition-all text-center"
                 >
                   Upgrade to Pro
                 </Button>
                 <Button 
                   variant="outline"
                   onClick={handleContinueTrial}
-                  className="border-2 border-emerald-600 text-emerald-700 hover:bg-emerald-50 rounded-full px-[20px_7px] py-[7px_20px] font-semibold text-[0.8rem]"
+                  className="border-2 border-emerald-600 text-emerald-700 hover:bg-emerald-50 rounded-full px-[20px_7px] py-[7px_20px] font-semibold text-[0.8rem] text-center"
                 >
                   Continue trial
                 </Button>
