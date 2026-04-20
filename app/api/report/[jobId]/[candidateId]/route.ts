@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
+import { validateUUID } from '@/lib/utils'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,6 +18,14 @@ export async function GET(
 
     if (!jobId || !candidateId) {
       return NextResponse.json({ error: 'jobId and candidateId are required' }, { status: 400 })
+    }
+
+    // Validate UUID format
+    try {
+      validateUUID(jobId, 'jobId')
+      validateUUID(candidateId, 'candidateId')
+    } catch (error: any) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
     // Fetch application with candidate + job + interview details
@@ -96,7 +105,7 @@ export async function GET(
     const historyResult = await DatabaseService.query(
       `SELECT ash.from_stage, ash.to_stage, ash.remarks, ash.created_at, u.full_name AS changed_by_name
        FROM application_stage_history ash
-       LEFT JOIN users u ON ash.changed_by = u.email
+       LEFT JOIN users u ON ash.changed_by = u.id
        WHERE ash.application_id = $1::uuid
        ORDER BY ash.created_at DESC`,
       [app.application_id]

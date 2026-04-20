@@ -34,6 +34,8 @@ import {
   Receipt
 } from "lucide-react"
 import SubscriptionCard, { BillingStatus, SubscriptionInfo } from "./SubscriptionCard"
+import AutoRechargeSettings from "./AutoRechargeSettings"
+import SavedCardSettings from "./SavedCardSettings"
 import { useAuth } from '@/contexts/auth-context'
 import { StatCardGridLoader, TableLoader, CardLoader } from '@/components/ui/skeleton-loader'
 
@@ -158,9 +160,61 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
   // Listen for subscription updates (from SubscriptionCard actions)
   useEffect(() => {
-    const handleSubscriptionUpdate = () => {
-      console.log('[BillingContent] Subscription updated, refetching data...')
-      loadBillingData()
+    const handleSubscriptionUpdate = async () => {
+      console.log('[BillingContent] Subscription updated, waiting for webhook processing...')
+      
+      // Poll for subscription status change (webhook processing)
+      let attempts = 0
+      const maxAttempts = 10
+      const pollInterval = 500 // 500ms between polls
+      
+      const pollForUpdate = async () => {
+        try {
+          const res = await fetch(`/api/billing/status?companyId=${companyId}&country=US`)
+          const data = await res.json()
+          
+          // Check if subscription status changed from trial/pending to active
+          if (data.ok && data.subscription) {
+            const currentStatus = data.subscription.status
+            console.log(`[BillingContent] Current subscription status: ${currentStatus}`)
+            
+            // If status is active or subscription exists, webhook has processed
+            if (currentStatus === 'active' || currentStatus === 'paid') {
+              console.log('[BillingContent] Subscription activated, loading full billing data...')
+              await loadBillingData()
+              return true
+            }
+          }
+          
+          // Check if wallet was credited (for subscription.charged event)
+          if (data.ok && data.billing && data.billing.walletBalance > 0) {
+            console.log(`[BillingContent] Wallet updated to ${data.billing.walletBalance}, loading full billing data...`)
+            await loadBillingData()
+            return true
+          }
+        } catch (error) {
+          console.log('[BillingContent] Poll error (will retry):', error)
+        }
+        
+        return false
+      }
+      
+      // Poll until update detected or max attempts reached
+      while (attempts < maxAttempts) {
+        const updated = await pollForUpdate()
+        if (updated) break
+        
+        attempts++
+        if (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, pollInterval))
+        }
+      }
+      
+      // Final load regardless of poll result
+      if (attempts >= maxAttempts) {
+        console.log('[BillingContent] Max poll attempts reached, loading data anyway...')
+        await loadBillingData()
+      }
     }
 
     window.addEventListener('subscription-updated', handleSubscriptionUpdate)
@@ -637,6 +691,12 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             currentMonthSpent={billingData?.currentMonthSpent ?? 0}
             totalSpent={billingData?.totalSpent ?? 0}
           />
+
+          {/* Saved Card for Auto-Recharge */}
+          <SavedCardSettings companyId={companyId} />
+
+          {/* Auto-Recharge Settings */}
+          <AutoRechargeSettings companyId={companyId} />
 
         </TabsContent>
 
