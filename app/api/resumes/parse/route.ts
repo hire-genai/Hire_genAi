@@ -405,6 +405,82 @@ export async function POST(request: NextRequest) {
                     } catch (setStatusErr) {
                       console.warn('[Resume Parse] Could not set qualified status:', setStatusErr)
                     }
+
+                    // Auto Schedule Interview Logic - Only if candidate is qualified
+                    if (evaluation?.overall?.qualified === true && applicationId && candidateId) {
+                      try {
+                        console.log('🔄 [Auto Interview] Candidate is qualified, checking if auto schedule is enabled...')
+                        
+                        // Check if job has auto_schedule_interview enabled
+                        const jobQuery = `
+                          SELECT jp.auto_schedule_interview, jp.title, jp.company_id 
+                          FROM applications a
+                          JOIN job_postings jp ON a.job_id = jp.id
+                          WHERE a.id = $1::uuid
+                        `
+                        const jobResult = await DatabaseService.query(jobQuery, [applicationId]) as any[]
+                        
+                        if (jobResult.length > 0 && jobResult[0].auto_schedule_interview === true) {
+                          console.log('✅ [Auto Interview] Auto schedule interview enabled for job:', jobResult[0].title)
+                          
+                          // Get candidate details for email
+                          const candidateQuery = `
+                            SELECT full_name, email FROM candidates WHERE id = $1::uuid
+                          `
+                          const candidateResult = await DatabaseService.query(candidateQuery, [candidateId]) as any[]
+                          
+                          if (candidateResult.length > 0) {
+                            const candidateEmail = candidateResult[0].email
+                            const candidateName = candidateResult[0].full_name
+                            const jobTitle = jobResult[0].title
+                            
+                            console.log('📧 [Auto Interview] Sending interview email to qualified candidate:', candidateEmail)
+                            
+                            // Get base URL for interview send API
+                            const protocol = request.headers.get('x-forwarded-proto') || 'https'
+                            const host = request.headers.get('host') || 'localhost:3000'
+                            const baseUrl = `${protocol}://${host}`
+                            
+                            // Send interview email using existing API
+                            const interviewResponse = await fetch(`${baseUrl}/api/interview/send`, {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({
+                                to: candidateEmail,
+                                candidateName: candidateName,
+                                position: jobTitle,
+                                interviewId: applicationId,
+                                preview: false
+                              })
+                            })
+                            
+                            if (interviewResponse.ok) {
+                              // Move application from screening to ai_interview stage
+                              await DatabaseService.query(
+                                `UPDATE applications SET current_stage = 'ai_interview' WHERE id = $1::uuid`,
+                                [applicationId]
+                              )
+                              
+                              console.log('✅ [Auto Interview] Interview scheduled successfully for:', candidateEmail)
+                              console.log('📈 [Auto Interview] Application moved to ai_interview stage')
+                            } else {
+                              const errorText = await interviewResponse.text()
+                              console.error('❌ [Auto Interview] Failed to send interview email:', errorText)
+                            }
+                          }
+                        } else {
+                          console.log('⏭️ [Auto Interview] Auto schedule interview disabled for this job')
+                        }
+                      } catch (autoErr: any) {
+                        console.error('❌ [Auto Interview] Auto interview scheduling failed:', autoErr?.message)
+                        // Don't fail the main resume parsing
+                      }
+                    } else if (evaluation?.overall?.qualified !== true) {
+                      console.log('❌ [Auto Interview] Candidate not qualified for auto interview (score < 60)')
+                    }
+
                   } catch (saveErr) {
                     console.warn('[Resume Parse] Failed to save auto-evaluation:', saveErr)
                   }

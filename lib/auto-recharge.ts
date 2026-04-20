@@ -57,17 +57,19 @@ import { randomUUID } from 'crypto'
  * for more reliable auto-recharge.
  * 
  * @param companyId - The company UUID to check and potentially auto-recharge
+ * @param force - Optional parameter for testing purposes
  * @returns Object with success status and details
  */
 // Cooldown period to prevent duplicate recharges (in milliseconds)
 const RECHARGE_COOLDOWN_MS = 5 * 60 * 1000 // 5 minutes
 
-export async function checkAndAutoRecharge(companyId: string): Promise<{
+export async function checkAndAutoRecharge(companyId: string, force = false): Promise<{
   success: boolean
   triggered: boolean
   message: string
   paymentId?: string
   amount?: number
+  walletBalance?: number
 }> {
   const idempotencyKey = randomUUID()
   
@@ -108,13 +110,17 @@ export async function checkAndAutoRecharge(companyId: string): Promise<{
       }
     }
 
-    // ─── 3. Check if wallet balance is above threshold ───
-    if (walletBalance >= autoRechargeThreshold) {
+    // ─── 3. Check if wallet balance is above threshold (bypass if force=true) ───
+    if (!force && walletBalance >= autoRechargeThreshold) {
       return {
         success: true,
         triggered: false,
         message: `Wallet balance (${walletBalance}) is above threshold (${autoRechargeThreshold})`
       }
+    }
+
+    if (force) {
+      console.log(`[Auto-Recharge] Force mode enabled - bypassing threshold check (balance: ${walletBalance}, threshold: ${autoRechargeThreshold})`)
     }
 
     // ─── 4. Idempotency check - prevent duplicate recharges ───
@@ -202,8 +208,8 @@ export async function checkAndAutoRecharge(companyId: string): Promise<{
     }
 
     // ─── 6. Get Razorpay credentials ───
-    const keyId = process.env.RAZORPAY_KEY_ID?.trim()
-    const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim()
+    const keyId = process.env.RAZORPAY_KEY_ID
+    const keySecret = process.env.RAZORPAY_KEY_SECRET
 
     if (!keyId || !keySecret) {
       console.error('[Auto-Recharge] Razorpay credentials not configured')
@@ -214,10 +220,30 @@ export async function checkAndAutoRecharge(companyId: string): Promise<{
       }
     }
 
-    // Log credentials for debugging (masked)
-    console.log(`[Auto-Recharge] Using credentials - Key ID: ${keyId.substring(0, 10)}..., Key Secret length: ${keySecret.length}`)
+    // Validate credentials format
+    if (!keyId.startsWith('rzp_test_') && !keyId.startsWith('rzp_live_')) {
+      console.error('[Auto-Recharge] Invalid Razorpay Key ID format - should start with rzp_test_ or rzp_live_:', keyId)
+      return {
+        success: false,
+        triggered: false,
+        message: 'Invalid Razorpay credentials format'
+      }
+    }
 
-    const authHeader = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
+    console.log(`[Auto-Recharge] Credentials validation passed - Key ID length: ${keyId.length}, Secret length: ${keySecret.length}`)
+
+    // Log credentials for debugging (masked)
+    console.log(`[Auto-Recharge] Using credentials - Key ID: ${keyId.substring(0, 15)}..., Key Secret length: ${keySecret.length}`)
+
+    // Create auth header with proper encoding
+    const credentialsString = `${keyId}:${keySecret}`
+    const authHeader = Buffer.from(credentialsString).toString('base64')
+    console.log(`[Auto-Recharge] Auth header created, length: ${authHeader.length}`)
+
+    // Skip test API call - credentials are working since subscription flow works
+    console.log('[Auto-Recharge] Skipping credentials test - subscription flow works, proceeding directly to payment')
+
+    // Amount is already in INR (from database), convert to paise for Razorpay
     const amountInPaise = Math.round(autoRechargeAmount * 100)
 
     // ─── 7. Get customer email (required for payment receipt) ───
@@ -276,12 +302,13 @@ export async function checkAndAutoRecharge(companyId: string): Promise<{
       idempotencyKey
     })
 
-    // ─── 8. Create direct payment using saved token with retry logic ───
+    // ─── 8. Create direct token payment (no order required) ───
     const paymentPayload: Record<string, any> = {
       amount: amountInPaise,
       currency: 'INR',
       customer_id: customerId,
       token: tokenId,
+      recurring: 1,
       description: 'Wallet Auto Recharge',
       notes: {
         company_id: companyId,
@@ -308,8 +335,81 @@ export async function checkAndAutoRecharge(companyId: string): Promise<{
       try {
         console.log(`[Auto-Recharge] Payment attempt ${attempt}/${MAX_RETRIES} for company ${companyId}`)
 
+        console.log(`[Auto-Recharge] API Request Details:`, {
+          url: 'https://api.razorpay.com/v1/payments/create/recurring',
+          amount: amountInPaise,
+          currency: 'INR',
+          customer_id: customerId,
+          token: tokenId.substring(0, 10) + '...',
+          recurring: 1,
+          idempotencyKey: idempotencyKey
+        })
+
+        // Log auth header info for debugging
+        console.log(`[Auto-Recharge] Auth header info:`, {
+          keyIdPrefix: keyId.substring(0, 15),
+          authHeaderLength: authHeader.length,
+          authHeaderPrefix: authHeader.substring(0, 20)
+        })
+
+        // Step 1: Order banao
+        const orderResponse = await fetch('https://api.razorpay.com/v1/orders', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${authHeader}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            amount: amountInPaise,
+            currency: 'INR',
+            payment_capture: true,
+            receipt: `ar_${Date.now()}` 
+          })
+        })
+        
+        if (!orderResponse.ok) {
+          const orderError = await orderResponse.json()
+          console.error('[Auto-Recharge] Failed to create order:', orderError)
+          throw new Error(`Failed to create order: ${orderError.error?.description || 'Order creation failed'}`)
+        }
+        
+        const orderData = await orderResponse.json()
+        console.log(`[Auto-Recharge] Created order: ${orderData.id}`)
+
+        // Step 2: Payment karo
+        const paymentPayload = {
+          amount: amountInPaise,
+          currency: 'INR',
+          email: customerEmail,       // Required
+          contact: customerContact,   // Required
+          order_id: orderData.id,     // Required
+          customer_id: customerId,
+          token: tokenId,
+          recurring: 1,
+          description: 'Wallet Auto Recharge',
+          notes: {
+            company_id: companyId,
+            type: 'auto_recharge'
+          }
+        }
+
+        // Debug log - print final payload without sensitive data
+        console.log('[Auto-Recharge] Final payment payload:', {
+          amount: paymentPayload.amount,
+          currency: paymentPayload.currency,
+          email: paymentPayload.email ? '***@***.***' : 'not_set',
+          contact: paymentPayload.contact ? '***' : 'not_set',
+          order_id: paymentPayload.order_id,
+          customer_id: paymentPayload.customer_id,
+          token: paymentPayload.token ? paymentPayload.token.substring(0, 10) + '...' : 'undefined',
+          recurring: paymentPayload.recurring,
+          description: paymentPayload.description,
+          notes: paymentPayload.notes
+        })
+
+        // Step 3: Endpoint change karo
         const paymentResponse = await fetch(
-          'https://api.razorpay.com/v1/payments/create/recurring',
+          'https://api.razorpay.com/v1/payments/create/recurring',  // Yeh karo
           {
             method: 'POST',
             headers: {
@@ -322,6 +422,30 @@ export async function checkAndAutoRecharge(companyId: string): Promise<{
         )
 
         const paymentData = await paymentResponse.json()
+
+        console.log(`[Auto-Recharge] API Response:`, {
+          status: paymentResponse.status,
+          ok: paymentResponse.ok,
+          statusText: paymentResponse.statusText,
+          data: paymentData
+        })
+
+        // Log full error details if failed
+        if (!paymentResponse.ok) {
+          console.error('[Auto-Recharge] Payment API failed with details:', {
+            url: 'https://api.razorpay.com/v1/payments/create/recurring',
+            method: 'POST',
+            status: paymentResponse.status,
+            statusText: paymentResponse.statusText,
+            headers: {
+              'Authorization': `Basic ${authHeader.substring(0, 20)}...`,
+              'Content-Type': 'application/json',
+              'X-Razorpay-Idempotency-Key': idempotencyKey
+            },
+            requestBody: { ...paymentPayload, token: '***' },
+            response: paymentData
+          })
+        }
 
         if (paymentResponse.ok) {
           // ✅ Success - Payment created
