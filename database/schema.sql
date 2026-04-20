@@ -1143,8 +1143,8 @@ CREATE TABLE company_billing (
   
   -- Auto-recharge settings
   auto_recharge_enabled   BOOLEAN NOT NULL DEFAULT FALSE,
-  auto_recharge_amount    NUMERIC(12,2) DEFAULT 2000.00,
-  auto_recharge_threshold NUMERIC(12,2) DEFAULT 100.00,
+  auto_recharge_amount    NUMERIC(12,2) DEFAULT 2.00,
+  auto_recharge_threshold NUMERIC(12,2) DEFAULT 50.00,
   
   -- Trial tracking (7-day free trial)
   -- trial_ends_at is calculated as company.created_at + 7 days
@@ -1349,6 +1349,17 @@ CREATE TABLE company_subscriptions (
   subscription_link VARCHAR(500),
   cancel_at_cycle_end BOOLEAN DEFAULT FALSE,
   raw_data          JSONB,
+  -- Subscription token (from subscription payments)
+  customer_id       VARCHAR(255),
+  token_id          VARCHAR(255),
+  -- Dedicated auto-recharge token (separate from subscription)
+  auto_recharge_token_id      VARCHAR(255),
+  auto_recharge_customer_id   VARCHAR(255),
+  auto_recharge_card_last4    VARCHAR(4),
+  auto_recharge_card_network  VARCHAR(50),
+  auto_recharge_card_type     VARCHAR(50),
+  auto_recharge_card_issuer   VARCHAR(100),
+  auto_recharge_token_created_at TIMESTAMPTZ,
   created_at        TIMESTAMPTZ DEFAULT NOW(),
   updated_at        TIMESTAMPTZ DEFAULT NOW(),
   
@@ -1357,12 +1368,18 @@ CREATE TABLE company_subscriptions (
 
 COMMENT ON COLUMN company_subscriptions.cancel_at_cycle_end IS 'When true, subscription will be cancelled at the end of current billing cycle. User retains access until next_billing_time.';
 COMMENT ON COLUMN company_subscriptions.subscription_link IS 'Razorpay short_url for subscription management (e.g., https://rzp.io/rzp/XYZ123)';
+COMMENT ON COLUMN company_subscriptions.auto_recharge_token_id IS 'Razorpay token ID for auto-recharge payments (separate from subscription token)';
+COMMENT ON COLUMN company_subscriptions.auto_recharge_customer_id IS 'Razorpay customer ID associated with auto-recharge token';
+COMMENT ON COLUMN company_subscriptions.auto_recharge_card_last4 IS 'Last 4 digits of saved card for auto-recharge';
 
 CREATE INDEX idx_company_subscriptions_company_id ON company_subscriptions (company_id);
 CREATE INDEX idx_company_subscriptions_provider ON company_subscriptions (provider);
 CREATE INDEX idx_company_subscriptions_status ON company_subscriptions (status);
 CREATE INDEX idx_company_subscriptions_subscription_link ON company_subscriptions (subscription_link);
 CREATE INDEX idx_company_subscriptions_cancel_at_cycle_end ON company_subscriptions (cancel_at_cycle_end) WHERE cancel_at_cycle_end = TRUE;
+CREATE INDEX idx_company_subscriptions_customer_id ON company_subscriptions (customer_id);
+CREATE INDEX idx_company_subscriptions_token_id ON company_subscriptions (token_id);
+CREATE INDEX idx_company_subscriptions_auto_recharge_token ON company_subscriptions (auto_recharge_token_id) WHERE auto_recharge_token_id IS NOT NULL;
 
 
 -- ---------------------------------------------------------------------------

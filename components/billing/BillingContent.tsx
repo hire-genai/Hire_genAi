@@ -35,6 +35,7 @@ import {
 } from "lucide-react"
 import SubscriptionCard, { BillingStatus, SubscriptionInfo } from "./SubscriptionCard"
 import AutoRechargeSettings from "./AutoRechargeSettings"
+import SavedCardSettings from "./SavedCardSettings"
 import { useAuth } from '@/contexts/auth-context'
 import { StatCardGridLoader, TableLoader, CardLoader } from '@/components/ui/skeleton-loader'
 
@@ -690,6 +691,9 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             currentMonthSpent={billingData?.currentMonthSpent ?? 0}
             totalSpent={billingData?.totalSpent ?? 0}
           />
+
+          {/* Saved Card for Auto-Recharge */}
+          <SavedCardSettings companyId={companyId} />
 
           {/* Auto-Recharge Settings */}
           <AutoRechargeSettings companyId={companyId} />

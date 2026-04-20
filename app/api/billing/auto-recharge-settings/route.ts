@@ -58,8 +58,8 @@ export async function GET(request: NextRequest) {
         ok: true,
         settings: {
           auto_recharge_enabled: false,
-          auto_recharge_amount: 2000.00,
-          auto_recharge_threshold: 100.00
+          auto_recharge_amount: 2.00,
+          auto_recharge_threshold: 50.00
         }
       })
     }
@@ -70,8 +70,8 @@ export async function GET(request: NextRequest) {
       ok: true,
       settings: {
         auto_recharge_enabled: settings.auto_recharge_enabled || false,
-        auto_recharge_amount: parseFloat(settings.auto_recharge_amount) || 2000.00,
-        auto_recharge_threshold: parseFloat(settings.auto_recharge_threshold) || 100.00
+        auto_recharge_amount: parseFloat(settings.auto_recharge_amount) || 2.00,
+        auto_recharge_threshold: parseFloat(settings.auto_recharge_threshold) || 50.00
       }
     })
 
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
  * POST /api/billing/auto-recharge-settings
  * 
  * Updates auto-recharge settings for the authenticated company.
- * Validates that auto_recharge_amount minimum is 2000.
+ * Validates that auto_recharge_amount minimum is 2.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -133,9 +133,9 @@ export async function POST(request: NextRequest) {
 
     if (auto_recharge_amount !== undefined) {
       const amount = parseFloat(auto_recharge_amount)
-      if (isNaN(amount) || amount < 2000) {
+      if (isNaN(amount) || amount < 2) {
         return NextResponse.json(
-          { error: 'auto_recharge_amount must be at least 2000' },
+          { error: 'auto_recharge_amount must be at least 2' },
           { status: 400 }
         )
       }

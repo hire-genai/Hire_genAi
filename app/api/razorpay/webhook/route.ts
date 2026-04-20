@@ -505,6 +505,81 @@ async function handlePaymentEvent(event: any, eventType: string) {
     }
   }
 
+  // ─── Handle Card Authorization for Auto-Recharge ───
+  // Check if this is a card authorization payment (purpose: card_authorization)
+  const isCardAuthorization = payment.notes?.purpose === 'card_authorization' || 
+                               payment.notes?.type === 'auto_recharge_setup'
+  
+  if (isCardAuthorization && companyId && status === 'captured') {
+    try {
+      console.log(`[Razorpay Webhook] Processing card authorization for auto-recharge, company: ${companyId}`)
+      
+      // Fetch expanded payment to get token and card details
+      const keyId = process.env.RAZORPAY_KEY_ID?.trim()
+      const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim()
+      
+      if (keyId && keySecret) {
+        const authHeader = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
+        const expandedResponse = await fetch(
+          `https://api.razorpay.com/v1/payments/${paymentId}?expand[]=card&expand[]=token`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Basic ${authHeader}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+        
+        if (expandedResponse.ok) {
+          const expandedPayment = await expandedResponse.json()
+          const tokenId = expandedPayment.token_id
+          const customerId = expandedPayment.customer_id
+          const cardInfo = expandedPayment.card || {}
+          
+          if (tokenId) {
+            console.log(`[Razorpay Webhook] Saving auto-recharge token: ${tokenId} for company: ${companyId}`)
+            
+            // Save auto-recharge token to company_subscriptions
+            await DatabaseService.query(`
+              UPDATE company_subscriptions 
+              SET 
+                auto_recharge_token_id = $2,
+                auto_recharge_customer_id = $3,
+                auto_recharge_card_last4 = $4,
+                auto_recharge_card_network = $5,
+                auto_recharge_card_type = $6,
+                auto_recharge_card_issuer = $7,
+                auto_recharge_token_created_at = NOW(),
+                updated_at = NOW()
+              WHERE company_id = $1::uuid AND provider = 'razorpay'
+            `, [
+              companyId,
+              tokenId,
+              customerId || null,
+              cardInfo.last4 || null,
+              cardInfo.network || null,
+              cardInfo.type || null,
+              cardInfo.issuer || null
+            ])
+            
+            console.log(`[Razorpay Webhook] Auto-recharge card saved successfully for company: ${companyId}`)
+          }
+        }
+      }
+      
+      return NextResponse.json({
+        ok: true,
+        message: 'Card authorization processed for auto-recharge',
+        companyId,
+        paymentId
+      })
+    } catch (cardAuthError: any) {
+      console.error('[Razorpay Webhook] Error processing card authorization:', cardAuthError)
+      // Don't fail the webhook
+    }
+  }
+
   // Only process payments that belong to a company subscription
   if (!companyId) {
     console.log(`[Razorpay Webhook] Payment ${paymentId} does not belong to any company subscription`)
@@ -514,8 +589,8 @@ async function handlePaymentEvent(event: any, eventType: string) {
   try {
     // Step 1 — Fetch expanded payment from Razorpay API
     let expandedPayment = payment // Fallback to webhook payment object
-    const keyId = process.env.RAZORPAY_KEY_ID
-    const keySecret = process.env.RAZORPAY_KEY_SECRET
+    const keyId = process.env.RAZORPAY_KEY_ID?.trim()
+    const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim()
     
     if (keyId && keySecret) {
       try {
@@ -624,9 +699,22 @@ async function handlePaymentEvent(event: any, eventType: string) {
     console.log(`[Razorpay Webhook] Recorded comprehensive payment details: ${paymentId}`)
 
     // ─── Handle Wallet Auto Recharge ───
-    if (description === 'Wallet Auto Recharge' && companyId && enrichedPayment.status === 'captured') {
+    // Check both description and notes.type for auto-recharge identification
+    const isAutoRecharge = description === 'Wallet Auto Recharge' || 
+                           payment.notes?.type === 'auto_recharge'
+    
+    if (isAutoRecharge && companyId && enrichedPayment.status === 'captured') {
       try {
         console.log(`[Razorpay Webhook] Processing wallet auto-recharge for company: ${companyId}, amount: Rs${enrichedPayment.amount}`)
+        
+        // Get current wallet balance before update
+        const currentBalanceResult = await DatabaseService.query(
+          `SELECT wallet_balance FROM company_billing WHERE company_id = $1::uuid`,
+          [companyId]
+        )
+        const walletBalanceBefore = currentBalanceResult.length > 0 
+          ? parseFloat(currentBalanceResult[0].wallet_balance) 
+          : 0
         
         // Add amount to wallet_balance in company_billing table
         const walletUpdateQuery = `
@@ -644,17 +732,51 @@ async function handlePaymentEvent(event: any, eventType: string) {
           const newBalance = parseFloat(walletResult[0].wallet_balance)
           console.log(`[Razorpay Webhook] Wallet auto-recharge successful! New balance: Rs${newBalance}`)
           
+          // Update auto_recharge_transactions table with captured status
+          await DatabaseService.query(`
+            UPDATE auto_recharge_transactions 
+            SET 
+              status = 'captured',
+              wallet_balance_after = $2,
+              method = $3,
+              card_last4 = $4,
+              card_network = $5,
+              card_type = $6,
+              raw_data = $7::jsonb,
+              updated_at = NOW()
+            WHERE payment_id = $1
+          `, [
+            paymentId,
+            newBalance,
+            enrichedPayment.method || null,
+            enrichedPayment.card?.last4 || null,
+            enrichedPayment.card?.network || null,
+            enrichedPayment.card?.type || null,
+            JSON.stringify(enrichedPayment.rawData || {})
+          ])
+          
           // Create ledger entry for the auto-recharge
           await DatabaseService.addLedgerEntry({
             companyId,
             entryType: 'AUTO_RECHARGE',
             description: `Wallet Auto Recharge - Payment ID: ${paymentId}`,
             amount: enrichedPayment.amount,
-            balanceBefore: newBalance - enrichedPayment.amount,
+            balanceBefore: walletBalanceBefore,
             balanceAfter: newBalance
           })
           
           console.log(`[Razorpay Webhook] Auto-recharge ledger entry created for payment: ${paymentId}`)
+          
+          // Restore any jobs/interviews that were on hold due to low balance
+          try {
+            const restoredJobsCount = await DatabaseService.restoreJobsAfterRecharge(companyId)
+            const restoredInterviewsCount = await DatabaseService.restoreInterviewsAfterRecharge(companyId)
+            if (restoredJobsCount > 0 || restoredInterviewsCount > 0) {
+              console.log(`[Razorpay Webhook] Restored ${restoredJobsCount} jobs and ${restoredInterviewsCount} interviews after auto-recharge`)
+            }
+          } catch (restoreError: any) {
+            console.error('[Razorpay Webhook] Failed to restore jobs/interviews:', restoreError.message)
+          }
         } else {
           console.error(`[Razorpay Webhook] Failed to update wallet balance for company: ${companyId}`)
         }
@@ -662,6 +784,36 @@ async function handlePaymentEvent(event: any, eventType: string) {
       } catch (walletError: any) {
         console.error(`[Razorpay Webhook] Error processing wallet auto-recharge:`, walletError)
         // Don't fail the webhook - auto-recharge is supplementary
+      }
+    }
+    
+    // Handle failed auto-recharge payments
+    if (isAutoRecharge && companyId && enrichedPayment.status === 'failed') {
+      try {
+        console.log(`[Razorpay Webhook] Auto-recharge payment failed for company: ${companyId}, payment: ${paymentId}`)
+        
+        // Update auto_recharge_transactions table with failed status
+        await DatabaseService.query(`
+          UPDATE auto_recharge_transactions 
+          SET 
+            status = 'failed',
+            error_code = $2,
+            error_description = $3,
+            error_reason = $4,
+            raw_data = $5::jsonb,
+            updated_at = NOW()
+          WHERE payment_id = $1
+        `, [
+          paymentId,
+          payment.error_code || null,
+          payment.error_description || null,
+          payment.error_reason || null,
+          JSON.stringify(enrichedPayment.rawData || {})
+        ])
+        
+        console.log(`[Razorpay Webhook] Recorded failed auto-recharge: ${paymentId}`)
+      } catch (failError: any) {
+        console.error(`[Razorpay Webhook] Error recording failed auto-recharge:`, failError)
       }
     }
 
