@@ -136,9 +136,7 @@
   }
 
   html {
-    height: 100%;
-    width: 100%;
-    overflow-x: hidden;
+    overflow-y: scroll;
   }
   
   body {
@@ -149,10 +147,6 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
   
-  /* Prevent Radix UI from adding scroll lock styles */
-  body[data-scroll-locked] {
-    overflow: hidden;
-  }
   
   * {
     box-sizing: border-box;
