@@ -163,7 +163,7 @@ export default function TalentPoolPage() {
   const [selectedJD, setSelectedJD] = useState('')
   const [emailSubject, setEmailSubject] = useState('')
   const [emailBody, setEmailBody] = useState('')
-  const [viewAsRole, setViewAsRole] = useState<UserRole>('recruiter')
+  const [viewAsRole, setViewAsRole] = useState<UserRole>((user?.role as UserRole) || 'recruiter')
   const [viewAsRecruiter, setViewAsRecruiter] = useState('all')
   const [showAddCandidateDialog, setShowAddCandidateDialog] = useState(false)
   const [showCandidateDetailsDialog, setShowCandidateDetailsDialog] = useState(false)
@@ -206,12 +206,19 @@ export default function TalentPoolPage() {
     }
   }, [company?.id])
 
+  // Initialize viewAsRole from user role
+  useEffect(() => {
+    if (user?.role) {
+      setViewAsRole(user.role as UserRole)
+    }
+  }, [user?.role])
+
   useEffect(() => {
     fetchTalentPool()
   }, [fetchTalentPool])
 
-  // Permission check - only recruiters can modify
-  const canModify = viewAsRole === 'recruiter'
+  // Permission check - recruiters, managers, and directors can modify
+  const canModify = viewAsRole === 'recruiter' || viewAsRole === 'manager' || viewAsRole === 'director'
 
   // Use fetched data or empty arrays
   const talentPoolEntries = poolData?.entries || []
@@ -253,7 +260,7 @@ export default function TalentPoolPage() {
           <h1 className="text-xl font-bold text-gray-900">Talent Pool</h1>
           <p className="text-xs text-gray-600 mt-0.5">Manage and engage with potential candidates</p>
         </div>
-        <div className="flex gap-2 items-center flex-wrap">
+        <div className="flex gap-3 items-center flex-wrap">
           {/* View As Filter */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-gray-700 whitespace-nowrap">View as:</span>
@@ -268,29 +275,22 @@ export default function TalentPoolPage() {
               </SelectContent>
             </Select>
             <div className="w-[130px]">
-              {viewAsRole === 'recruiter' && (
-                <Select value={viewAsRecruiter} onValueChange={setViewAsRecruiter}>
-                  <SelectTrigger className="h-8 w-[130px] text-xs">
-                    <SelectValue placeholder="All Recruiters" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Recruiters</SelectItem>
-                    {recruiters.map(r => (
-                      <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              <Select value={viewAsRecruiter} onValueChange={setViewAsRecruiter}>
+                <SelectTrigger className="h-8 w-[130px] text-xs">
+                  <SelectValue placeholder="All Recruiters" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Recruiters</SelectItem>
+                  {recruiters.map(r => (
+                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-          {!canModify && (
-            <Badge variant="secondary" className="text-xs">View Only</Badge>
-          )}
           <Button 
             className="gap-2 w-full sm:w-auto" 
             size="sm"
-            disabled={!canModify}
-            title={!canModify ? 'View-only mode: Only recruiters can add candidates' : 'Add candidate to pool'}
             onClick={() => setShowAddCandidateDialog(true)}
           >
             <Plus className="h-3 w-3" />

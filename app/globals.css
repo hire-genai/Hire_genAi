@@ -147,6 +147,12 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
   
+  /* Prevent Radix UI from adding padding-right when scroll is locked */
+  body[data-scroll-locked] {
+    padding-right: 0 !important;
+    margin-right: 0 !important;
+  }
+  
   
   * {
     box-sizing: border-box;

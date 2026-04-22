@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { Card } from '@/components/ui/card'
 
 interface SkeletonProps {
   className?: string
@@ -218,5 +219,175 @@ export function TalentPoolTableLoader({ rows = 8 }: { rows?: number }) {
         </div>
       ))}
     </div>
+  )
+}
+
+export function DelegationTableLoader({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="w-full">
+      {/* Header */}
+      <div className="flex gap-4 px-6 py-3 bg-gray-50 border-b items-center">
+        <Skeleton className="h-4 w-16" />
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-4 w-20" />
+        <Skeleton className="h-4 w-16" />
+        <Skeleton className="h-4 w-16" />
+      </div>
+      {/* Rows */}
+      {Array.from({ length: rows }).map((_, rowIdx) => (
+        <div key={rowIdx} className="flex gap-4 px-6 py-4 border-b items-center">
+          {/* Type */}
+          <div className="flex items-center gap-2 w-16">
+            <Skeleton className="w-4 h-4 rounded" />
+            <Skeleton className="h-4 w-12" />
+          </div>
+          {/* Item */}
+          <Skeleton className="h-4 w-28" />
+          {/* Delegated By */}
+          <Skeleton className="h-4 w-24" />
+          {/* Delegated To */}
+          <Skeleton className="h-4 w-32" />
+          {/* Duration */}
+          <div className="w-28">
+            <Skeleton className="h-4 w-20 mb-1" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+          {/* Reason */}
+          <Skeleton className="h-4 w-20" />
+          {/* Status */}
+          <Skeleton className="h-5 w-16 rounded-full" />
+          {/* Actions */}
+          <Skeleton className="h-8 w-12 rounded" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function SupportTableLoader({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="w-full">
+      {/* Header */}
+      <div className="flex gap-4 px-6 py-3 bg-gray-50 border-b items-center">
+        <Skeleton className="h-4 w-12" />
+        <Skeleton className="h-4 w-16" />
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-4 w-16" />
+        <Skeleton className="h-4 w-16" />
+        <Skeleton className="h-4 w-20" />
+        <Skeleton className="h-4 w-16" />
+      </div>
+      {/* Rows */}
+      {Array.from({ length: rows }).map((_, rowIdx) => (
+        <div key={rowIdx} className="flex gap-4 px-6 py-4 border-b items-center">
+          {/* ID */}
+          <Skeleton className="h-4 w-12" />
+          {/* Type */}
+          <div className="flex items-center gap-2 w-16">
+            <Skeleton className="w-4 h-4 rounded" />
+            <Skeleton className="h-4 w-12" />
+          </div>
+          {/* Title */}
+          <div className="w-32">
+            <Skeleton className="h-4 w-28 mb-1" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          {/* Priority */}
+          <Skeleton className="h-5 w-16 rounded-full" />
+          {/* Status */}
+          <Skeleton className="h-5 w-20 rounded-full" />
+          {/* Date */}
+          <Skeleton className="h-4 w-20" />
+          {/* Action */}
+          <Skeleton className="h-8 w-12 rounded" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function JobsBucketGridLoader({ count = 6 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+      {Array.from({ length: count }).map((_, i) => (
+        <Card key={i} className="p-2">
+          <div className="flex flex-col items-center text-center gap-1">
+            <Skeleton className="w-7 h-7 rounded-full" />
+            <div>
+              <Skeleton className="h-6 w-8 mb-1" />
+              <Skeleton className="h-3 w-12" />
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+export function JobsCardLoader() {
+  return (
+    <Card className="p-3 md:p-4">
+      <div className="space-y-3">
+        {/* Job Header */}
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+          <div className="flex-1">
+            <div className="flex items-start gap-2 mb-2">
+              <Skeleton className="w-8 h-8 md:w-10 md:h-10 rounded-lg" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <Skeleton className="h-5 w-32" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </div>
+                <Skeleton className="h-4 w-24 mb-1" />
+                <Skeleton className="h-3 w-32" />
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap gap-2 md:gap-3">
+              <div className="flex items-center gap-1">
+                <Skeleton className="h-3 w-3" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+              <div className="flex items-center gap-1">
+                <Skeleton className="h-3 w-3" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+              <div className="flex items-center gap-1">
+                <Skeleton className="h-3 w-3" />
+                <Skeleton className="h-3 w-12" />
+              </div>
+            </div>
+
+            {/* Auto Schedule Interview Skeleton */}
+            <div className="flex items-center gap-2 mt-2 px-3 py-1.5 rounded-lg border w-fit">
+              <Skeleton className="h-3 w-3" />
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-4 w-8 rounded" />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Skeleton className="h-8 w-16 rounded" />
+            <Skeleton className="h-8 w-12 rounded" />
+          </div>
+        </div>
+
+        {/* Application Stages Skeleton */}
+        <div className="border-t pt-4">
+          <Skeleton className="h-4 w-32 mb-3" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="text-center p-2 bg-gray-50 rounded-lg">
+                <Skeleton className="h-6 w-8 mx-auto mb-1" />
+                <Skeleton className="h-3 w-16 mx-auto" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Card>
   )
 }

@@ -169,11 +169,22 @@ export default function AutoRechargeSettings({ companyId }: AutoRechargeSettings
   return (
     <Card className="border rounded-lg shadow-sm">
       <CardHeader>
-        <div className="flex items-center gap-2">
-          <Shield className="h-5 w-5 text-emerald-600" />
-          <CardTitle className="text-lg">Auto-Recharge Settings</CardTitle>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-emerald-600" />
+            <CardTitle className="text-lg">Auto-Recharge Settings</CardTitle>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={settings.auto_recharge_enabled}
+              disabled={saving || loading}
+              onCheckedChange={handleToggleEnabled}
+            />
+            {saving && (
+              <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+            )}
+          </div>
         </div>
-        <CardDescription>Configure automatic wallet recharge preferences</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Feedback Message */}
@@ -192,25 +203,6 @@ export default function AutoRechargeSettings({ companyId }: AutoRechargeSettings
           </div>
         )}
 
-        {/* Enable/Disable Toggle */}
-        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-          <div className="flex-1">
-            <Label className="text-sm font-medium">Enable Auto-Recharge</Label>
-            <p className="text-xs text-gray-600 mt-1">
-              Automatically recharge your wallet when balance is low
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch
-              checked={settings.auto_recharge_enabled}
-              disabled={saving}
-              onCheckedChange={handleToggleEnabled}
-            />
-            {saving && (
-              <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-            )}
-          </div>
-        </div>
 
         {/* Settings Form */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -224,7 +216,7 @@ export default function AutoRechargeSettings({ companyId }: AutoRechargeSettings
               type="number"
               min="2000"
               step="100"
-              value={settings.auto_recharge_amount}
+              value={settings.auto_recharge_amount || ''}
               onChange={(e) => handleAmountChange(e.target.value)}
               onBlur={handleAmountBlur}
               disabled={saving || !settings.auto_recharge_enabled}
@@ -249,7 +241,7 @@ export default function AutoRechargeSettings({ companyId }: AutoRechargeSettings
               type="number"
               min="1"
               step="10"
-              value={settings.auto_recharge_threshold}
+              value={settings.auto_recharge_threshold || ''}
               onChange={(e) => handleThresholdChange(e.target.value)}
               onBlur={handleThresholdBlur}
               disabled={saving || !settings.auto_recharge_enabled}
@@ -265,22 +257,6 @@ export default function AutoRechargeSettings({ companyId }: AutoRechargeSettings
           </div>
         </div>
 
-        {/* Status Badge */}
-        <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-          <div className="flex items-center gap-2">
-            <Settings className="h-4 w-4 text-blue-600" />
-            <span className="text-sm font-medium text-blue-800">Current Status</span>
-          </div>
-          <Badge 
-            className={`${
-              settings.auto_recharge_enabled 
-                ? 'bg-green-100 text-green-800 border-green-200' 
-                : 'bg-gray-100 text-gray-800 border-gray-200'
-            }`}
-          >
-            {settings.auto_recharge_enabled ? 'Active' : 'Disabled'}
-          </Badge>
-        </div>
 
         {/* Info Box */}
         {settings.auto_recharge_enabled && (

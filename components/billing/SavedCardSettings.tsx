@@ -288,7 +288,7 @@ export default function SavedCardSettings({ companyId }: SavedCardSettingsProps)
         </div>
         <CardDescription>Manage your saved card for auto-recharge</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4">
         {/* Feedback Message */}
         {feedback && (
           <div className={`flex items-center gap-2 p-3 rounded-lg ${
@@ -309,31 +309,25 @@ export default function SavedCardSettings({ companyId }: SavedCardSettingsProps)
         {hasSavedCard && card ? (
           <div className="space-y-4">
             {/* Card Visual */}
-            <div className="relative bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-5 text-white shadow-lg max-w-sm">
-              <div className="flex justify-between items-start mb-8">
+            <div className="relative bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 text-white shadow-lg max-w-sm">
+              <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-2">
-                  <CreditCard className={`h-8 w-8 ${getCardIcon(card.network)}`} />
+                  <CreditCard className={`h-6 w-6 ${getCardIcon(card.network)}`} />
                   <span className="text-sm font-medium opacity-80">
                     {card.network || 'Card'}
                   </span>
                 </div>
-                <Badge className="bg-emerald-500 text-white border-0">
-                  Saved
-                </Badge>
+                <Badge className="bg-emerald-500 text-white border-0">Saved</Badge>
               </div>
               
-              <div className="mb-4">
-                <p className="text-xl tracking-widest font-mono">
-                  •••• •••• •••• {card.last4 || '****'}
-                </p>
-              </div>
+              <p className="text-base tracking-widest font-mono mb-3">
+                •••• •••• •••• {card.last4 || '****'}
+              </p>
               
               <div className="flex justify-between items-end">
                 <div>
                   <p className="text-xs opacity-60 uppercase">Card Type</p>
-                  <p className="text-sm font-medium capitalize">
-                    {card.type || 'Credit/Debit'}
-                  </p>
+                  <p className="text-sm font-medium capitalize">{card.type || 'Credit/Debit'}</p>
                 </div>
                 {card.issuer && (
                   <div className="text-right">
@@ -344,13 +338,14 @@ export default function SavedCardSettings({ companyId }: SavedCardSettingsProps)
               </div>
             </div>
 
-            {/* Auto-Recharge Toggle */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div className="flex-1">
-                <Label className="text-sm font-medium">Enable Auto-Recharge</Label>
-                <p className="text-xs text-gray-600 mt-1">
-                  Automatically recharge wallet when balance is low
-                </p>
+            {/* Auto-Recharge Toggle with Status */}
+            <div className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium">Auto-Recharge</span>
+                <Badge className={`${autoRechargeEnabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                  {autoRechargeEnabled ? 'Enabled' : 'Disabled'}
+                </Badge>
               </div>
               <div className="flex items-center gap-2">
                 <Switch
@@ -358,28 +353,10 @@ export default function SavedCardSettings({ companyId }: SavedCardSettingsProps)
                   disabled={togglingAutoRecharge}
                   onCheckedChange={handleToggleAutoRecharge}
                 />
-                {togglingAutoRecharge && (
-                  <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                )}
+                {togglingAutoRecharge && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
               </div>
             </div>
 
-            {/* Status Badge */}
-            <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-medium text-blue-800">Auto-Recharge Status</span>
-              </div>
-              <Badge 
-                className={`${
-                  autoRechargeEnabled 
-                    ? 'bg-green-100 text-green-800 border-green-200' 
-                    : 'bg-gray-100 text-gray-800 border-gray-200'
-                }`}
-              >
-                {autoRechargeEnabled ? 'Enabled' : 'Disabled'}
-              </Badge>
-            </div>
 
             {/* Remove Card Button */}
             <Button
@@ -399,16 +376,17 @@ export default function SavedCardSettings({ companyId }: SavedCardSettingsProps)
         ) : (
           /* No Card - Add Card UI */
           <div className="space-y-4">
-            <div className="flex flex-col items-center justify-center py-8 px-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-              <CreditCard className="h-12 w-12 text-gray-400 mb-3" />
-              <h3 className="text-lg font-medium text-gray-900 mb-1">No Card Saved</h3>
-              <p className="text-sm text-gray-600 text-center mb-4">
-                Add a card to enable automatic wallet recharge when your balance is low
+            <div className="flex flex-col items-center justify-center py-5 px-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+              <CreditCard className="h-8 w-8 text-gray-400 mb-2" />
+              <h3 className="text-sm font-medium text-gray-900 mb-1">No Card Saved</h3>
+              <p className="text-xs text-gray-600 text-center mb-3">
+                Add a card to enable automatic wallet recharge
               </p>
               <Button
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
                 onClick={handleAddCard}
                 disabled={addingCard}
+                size="sm"
               >
                 {addingCard ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -420,15 +398,15 @@ export default function SavedCardSettings({ companyId }: SavedCardSettingsProps)
             </div>
 
             {/* Info Box */}
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
               <div className="flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
+                <AlertCircle className="h-3 w-3 text-amber-600 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-amber-800">How it works</p>
+                  <p className="text-xs font-medium text-amber-800">How it works</p>
                   <ul className="text-xs text-amber-700 mt-1 space-y-1 list-disc list-inside">
-                    <li>A small authorization charge of ₹1 will be made to verify your card</li>
-                    <li>Your card will be saved securely for future auto-recharge payments</li>
-                    <li>You can remove your card at any time</li>
+                    <li>₹1 authorization charge to verify card</li>
+                    <li>Card saved securely for auto-recharge</li>
+                    <li>Remove card anytime</li>
                   </ul>
                 </div>
               </div>
