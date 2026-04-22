@@ -12,6 +12,8 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url)
     const search = url.searchParams.get("search") || ""
     const status = url.searchParams.get("status") || "all"
+    const startDate = url.searchParams.get("startDate") || ""
+    const endDate = url.searchParams.get("endDate") || ""
 
     let whereClause = "WHERE 1=1"
     const params: any[] = []
@@ -29,6 +31,18 @@ export async function GET(req: NextRequest) {
       paramIdx++
     }
 
+    if (startDate) {
+      whereClause += ` AND c.created_at >= $${paramIdx}::timestamptz` 
+      params.push(startDate + " 00:00:00")
+      paramIdx++
+    }
+
+    if (endDate) {
+      whereClause += ` AND c.created_at <= $${paramIdx}::timestamptz` 
+      params.push(endDate + " 23:59:59")
+      paramIdx++
+    }
+
     const rows = await DatabaseService.query(
       `SELECT
         c.id,
@@ -39,8 +53,8 @@ export async function GET(req: NextRequest) {
         COALESCE(cb.current_month_spent, 0) as month_spent,
         COALESCE(cb.total_spent, 0) as total_spent,
         COALESCE(u.user_count, 0) as user_count,
-        s.plan_name as subscription_plan,
-        s.status as subscription_status
+        cs.plan_id as subscription_plan,
+        cs.status as subscription_status
        FROM companies c
        LEFT JOIN company_billing cb ON cb.company_id = c.id
        LEFT JOIN (
@@ -48,7 +62,7 @@ export async function GET(req: NextRequest) {
         FROM users
         GROUP BY company_id
        ) u ON u.company_id = c.id
-       LEFT JOIN subscriptions s ON s.company_id = c.id
+       LEFT JOIN company_subscriptions cs ON cs.company_id = c.id
        ${whereClause}
        ORDER BY c.created_at DESC`,
       params

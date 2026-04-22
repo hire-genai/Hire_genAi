@@ -7,7 +7,7 @@ interface SkeletonProps {
 
 export function Skeleton({ className }: SkeletonProps) {
   return (
-    <div className={cn('animate-pulse bg-gray-200 rounded', className)} />
+    <div className={cn('animate-pulse bg-slate-700 rounded', className)} />
   )
 }
 
@@ -40,9 +40,9 @@ interface TableLoaderProps {
 
 export function TableLoader({ rows = 5, columns = 6 }: TableLoaderProps) {
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+    <div className="bg-slate-900 border border-slate-800 rounded-lg shadow-sm overflow-hidden">
       {/* Header */}
-      <div className="flex gap-4 px-6 py-3 bg-gray-50 border-b">
+      <div className="flex gap-4 px-6 py-3 bg-slate-800 border-b border-slate-700">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-4 w-24" />
         <Skeleton className="h-4 w-24" />
@@ -71,7 +71,7 @@ export function TableLoader({ rows = 5, columns = 6 }: TableLoaderProps) {
 
 export function CardLoader() {
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-2">
+    <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-sm p-2">
       <div className="flex items-start justify-between mb-2">
         <div className="flex-1 min-w-0">
           <Skeleton className="h-3 w-20 mb-1" />
@@ -131,7 +131,7 @@ export function ErrorState({ message, onRetry }: ErrorStateProps) {
 // Bucket card loader - matches the candidate page bucket cards with stats
 export function BucketCardLoader() {
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-3 md:p-4">
+    <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-sm p-3 md:p-4">
       <div className="space-y-2 md:space-y-3">
         {/* Header with Count */}
         <div className="flex items-start justify-between">
@@ -142,7 +142,7 @@ export function BucketCardLoader() {
           <Skeleton className="h-8 w-8 rounded" />
         </div>
         {/* Stats section */}
-        <div className="pt-2 md:pt-3 border-t border-gray-200 space-y-1 md:space-y-2">
+        <div className="pt-2 md:pt-3 border-t border-slate-700 space-y-1 md:space-y-2">
           <div className="flex justify-between items-center">
             <Skeleton className="h-3 w-16" />
             <Skeleton className="h-3 w-6" />
@@ -169,7 +169,14 @@ export function StatCardGridLoader({ count = 6 }: { count?: number }) {
   return (
     <div className={`grid ${gridCols} gap-2`}>
       {Array.from({ length: count }).map((_, i) => (
-        count === 7 ? <BucketCardLoader key={i} /> : <CardLoader key={i} />
+        <div key={i} className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
+          <div className="flex justify-between items-center">
+            <div className="h-3 w-24 bg-slate-700 animate-pulse rounded" />
+            <div className="h-4 w-4 bg-slate-700 animate-pulse rounded" />
+          </div>
+          <div className="h-8 w-32 bg-slate-700 animate-pulse rounded" />
+          <div className="h-3 w-20 bg-slate-700 animate-pulse rounded" />
+        </div>
       ))}
     </div>
   )
@@ -179,7 +186,7 @@ export function TalentPoolTableLoader({ rows = 8 }: { rows?: number }) {
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="flex gap-4 p-3 bg-gray-50 border-b items-center">
+      <div className="flex gap-4 p-3 bg-slate-800 border-b border-slate-700 items-center">
         <Skeleton className="w-4 h-4 rounded" />
         <Skeleton className="h-4 w-28" />
         <Skeleton className="h-4 w-24" />
@@ -226,7 +233,7 @@ export function DelegationTableLoader({ rows = 6 }: { rows?: number }) {
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="flex gap-4 px-6 py-3 bg-gray-50 border-b items-center">
+      <div className="flex gap-4 px-6 py-3 bg-slate-800 border-b border-slate-700 items-center">
         <Skeleton className="h-4 w-16" />
         <Skeleton className="h-4 w-24" />
         <Skeleton className="h-4 w-28" />
@@ -271,7 +278,7 @@ export function SupportTableLoader({ rows = 6 }: { rows?: number }) {
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="flex gap-4 px-6 py-3 bg-gray-50 border-b items-center">
+      <div className="flex gap-4 px-6 py-3 bg-slate-800 border-b border-slate-700 items-center">
         <Skeleton className="h-4 w-12" />
         <Skeleton className="h-4 w-16" />
         <Skeleton className="h-4 w-24" />
@@ -313,7 +320,7 @@ export function JobsBucketGridLoader({ count = 6 }: { count?: number }) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
       {Array.from({ length: count }).map((_, i) => (
-        <Card key={i} className="p-2">
+        <Card key={i} className="bg-slate-800 border-slate-700 p-2">
           <div className="flex flex-col items-center text-center gap-1">
             <Skeleton className="w-7 h-7 rounded-full" />
             <div>
@@ -329,7 +336,7 @@ export function JobsBucketGridLoader({ count = 6 }: { count?: number }) {
 
 export function JobsCardLoader() {
   return (
-    <Card className="p-3 md:p-4">
+    <Card className="bg-slate-900 border-slate-800 p-3 md:p-4">
       <div className="space-y-3">
         {/* Job Header */}
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
@@ -380,7 +387,7 @@ export function JobsCardLoader() {
           <Skeleton className="h-4 w-32 mb-3" />
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="text-center p-2 bg-gray-50 rounded-lg">
+              <div key={i} className="text-center p-2 bg-slate-800 rounded-lg">
                 <Skeleton className="h-6 w-8 mx-auto mb-1" />
                 <Skeleton className="h-3 w-16 mx-auto" />
               </div>

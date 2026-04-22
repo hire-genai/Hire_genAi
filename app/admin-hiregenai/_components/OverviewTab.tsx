@@ -17,6 +17,7 @@ import {
 } from "recharts"
 import { TrendingUp, TrendingDown, AlertCircle, CheckCircle2, Briefcase, DollarSign, Loader2, Calendar } from "lucide-react"
 import DashboardDateFilter from "@/components/filters/DashboardDateFilter"
+import { Skeleton, StatCardGridLoader, ErrorState } from '@/components/ui/skeleton-loader'
 
 interface KPIs {
   totalRevenue: number
@@ -43,7 +44,11 @@ interface Alert {
   createdAt: string
 }
 
-export default function OverviewTab() {
+interface OverviewTabProps {
+  onReady: (fetchFn: (start: string, end: string) => void) => void
+}
+
+export default function OverviewTab({ onReady }: OverviewTabProps) {
   const [loading, setLoading] = useState(true)
   const [kpis, setKpis] = useState<KPIs>({ totalRevenue: 0, monthRevenue: 0, revenueChange: 0, totalExpenses: 0, netProfit: 0, profitMarginPercent: 20 })
   const [trend, setTrend] = useState<TrendItem[]>([])
@@ -67,17 +72,46 @@ export default function OverviewTab() {
     }
   }, [])
 
+  useEffect(() => {
+    onReady(fetchData)
+  }, [fetchData, onReady])
+
   return (
     <div className="space-y-4">
-      {/* Date Filter - Always Visible */}
-      <div className="flex justify-end">
-        <DashboardDateFilter onApply={fetchData} defaultPreset="last90Days" />
-      </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-          <span className="ml-3 text-slate-400">Loading overview data...</span>
+        <div className="space-y-6">
+          {/* KPI Cards Skeleton */}
+          <StatCardGridLoader count={4} />
+          
+          {/* Charts Skeleton */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="bg-slate-900 border-slate-800 p-6">
+              <Skeleton className="h-6 w-40 mb-4" />
+              <div className="h-64 bg-slate-800 rounded animate-pulse" />
+            </Card>
+            <Card className="bg-slate-900 border-slate-800 p-6">
+              <Skeleton className="h-6 w-40 mb-4" />
+              <div className="h-64 bg-slate-800 rounded animate-pulse" />
+            </Card>
+          </div>
+          
+          {/* Alerts Skeleton */}
+          <Card className="bg-slate-900 border-slate-800 p-6">
+            <Skeleton className="h-6 w-32 mb-4" />
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 p-3 bg-slate-800 rounded-lg">
+                  <Skeleton className="w-8 h-8 rounded-full" />
+                  <div className="flex-1">
+                    <Skeleton className="h-4 w-48 mb-2" />
+                    <Skeleton className="h-3 w-64" />
+                  </div>
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                </div>
+              ))}
+            </div>
+          </Card>
         </div>
       ) : (
         <>

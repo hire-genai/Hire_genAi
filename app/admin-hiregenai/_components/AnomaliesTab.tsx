@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { AlertCircle, CheckCircle2, Loader2, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Skeleton, StatCardGridLoader, TalentPoolTableLoader } from '@/components/ui/skeleton-loader'
 
 interface Alert {
   id: string
@@ -73,9 +74,42 @@ export default function AnomaliesTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-        <span className="ml-3 text-slate-400">Loading anomalies...</span>
+      <div className="space-y-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+          {/* Header Skeleton */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-5 bg-slate-700 animate-pulse rounded" />
+              <div className="h-5 w-48 bg-slate-700 animate-pulse rounded" />
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 bg-slate-700 animate-pulse rounded-full" />
+                <div className="h-3 w-16 bg-slate-700 animate-pulse rounded" />
+              </div>
+              <div className="h-8 w-20 bg-slate-700 animate-pulse rounded-lg" />
+            </div>
+          </div>
+          <div className="h-3 w-56 bg-slate-700 animate-pulse rounded mb-6" />
+
+          {/* Alert Items Skeleton */}
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-start gap-3 p-4 bg-slate-800 rounded-lg border border-slate-700">
+                <div className="h-5 w-5 bg-slate-700 animate-pulse rounded flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                    <div className="h-4 w-40 bg-slate-700 animate-pulse rounded" />
+                    <div className="h-5 w-14 bg-slate-700 animate-pulse rounded-full" />
+                    <div className="h-5 w-20 bg-slate-700 animate-pulse rounded-full" />
+                  </div>
+                  <div className="h-4 w-80 bg-slate-700 animate-pulse rounded mb-2" />
+                  <div className="h-3 w-32 bg-slate-700 animate-pulse rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
