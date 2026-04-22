@@ -84,8 +84,7 @@ export default function LoginPage() {
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "Failed to send OTP")
       }
-      toast({ title: "OTP sent", description: "Check console for OTP in development" })
-      setStep("otp")
+            setStep("otp")
       setCountdown(30)
     } catch (err: any) {
       toast({ title: "Login error", description: err?.message || "Failed to send OTP", variant: "destructive" })
@@ -164,11 +163,7 @@ export default function LoginPage() {
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "Failed to send OTP")
       }
-      toast({ 
-        title: "Demo OTP sent", 
-        description: "Check console for OTP in development mode" 
-      })
-      setDemoStep("otp")
+            setDemoStep("otp")
       setDemoCountdown(30)
     } catch (err: any) {
       toast({ 
