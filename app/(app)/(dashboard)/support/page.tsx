@@ -475,8 +475,8 @@ export default function SupportPage() {
       {/* Loading State */}
       {loading && (
         <>
-          <StatCardGridLoader count={4} />
-          <SupportTableLoader rows={6} />
+          <StatCardGridLoader count={4} theme="light" />
+          <SupportTableLoader rows={6} theme="light" />
         </>
       )}
 

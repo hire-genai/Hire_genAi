@@ -275,8 +275,8 @@ export default function DelegationPage() {
       {/* Loading State */}
       {loading && (
         <>
-          <StatCardGridLoader count={3} />
-          <DelegationTableLoader rows={6} />
+          <StatCardGridLoader count={3} theme="light" />
+          <DelegationTableLoader rows={6} theme="light" />
         </>
       )}
 

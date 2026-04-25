@@ -82,32 +82,32 @@ export default function OverviewTab({ onReady }: OverviewTabProps) {
       {loading ? (
         <div className="space-y-6">
           {/* KPI Cards Skeleton */}
-          <StatCardGridLoader count={4} />
+          <StatCardGridLoader count={4} theme="dark" />
           
           {/* Charts Skeleton */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="bg-slate-900 border-slate-800 p-6">
-              <Skeleton className="h-6 w-40 mb-4" />
+              <Skeleton className="h-6 w-40 mb-4" theme="dark" />
               <div className="h-64 bg-slate-800 rounded animate-pulse" />
             </Card>
             <Card className="bg-slate-900 border-slate-800 p-6">
-              <Skeleton className="h-6 w-40 mb-4" />
+              <Skeleton className="h-6 w-40 mb-4" theme="dark" />
               <div className="h-64 bg-slate-800 rounded animate-pulse" />
             </Card>
           </div>
           
           {/* Alerts Skeleton */}
           <Card className="bg-slate-900 border-slate-800 p-6">
-            <Skeleton className="h-6 w-32 mb-4" />
+            <Skeleton className="h-6 w-32 mb-4" theme="dark" />
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-3 p-3 bg-slate-800 rounded-lg">
-                  <Skeleton className="w-8 h-8 rounded-full" />
+                  <Skeleton className="w-8 h-8 rounded-full" theme="dark" />
                   <div className="flex-1">
-                    <Skeleton className="h-4 w-48 mb-2" />
-                    <Skeleton className="h-3 w-64" />
+                    <Skeleton className="h-4 w-48 mb-2" theme="dark" />
+                    <Skeleton className="h-3 w-64" theme="dark" />
                   </div>
-                  <Skeleton className="h-6 w-16 rounded-full" />
+                  <Skeleton className="h-6 w-16 rounded-full" theme="dark" />
                 </div>
               ))}
             </div>

@@ -87,10 +87,10 @@ export default function BillingTab({ onReady }: BillingTabProps) {
           {/* Ledger Table Skeleton */}
           <Card className="bg-slate-900 border-slate-800">
             <CardHeader>
-              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-6 w-40" theme="dark" />
             </CardHeader>
             <CardContent>
-              <TalentPoolTableLoader rows={10} />
+              <TalentPoolTableLoader rows={10} theme="dark" />
             </CardContent>
           </Card>
         </div>
