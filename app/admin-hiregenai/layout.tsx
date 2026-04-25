@@ -87,12 +87,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen h-screen bg-slate-950 overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-slate-950">
       {/* Desktop Sidebar */}
-      <div
-        className={`hidden md:flex ${
-          sidebarOpen ? "w-64" : "w-20"
-        } bg-slate-900 border-r border-slate-800 transition-all duration-300 flex-col flex-shrink-0 h-screen sticky top-0`}
+      <aside
+        className={`hidden md:flex fixed left-0 top-0 ${
+          sidebarOpen ? "w-56" : "w-16"
+        } bg-slate-900 border-r border-slate-800 transition-all duration-300 flex-col flex-shrink-0 h-screen overflow-y-auto z-10`}
       >
         {/* Logo */}
         <div className="p-4 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
@@ -115,7 +115,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </div>
 
         {/* Nav Items - Scrollable */}
-        <nav className="flex-1 px-3 py-3 space-y-1.5 overflow-y-auto scrollbar-hide">
+        <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto scrollbar-hide">
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = currentTab === item.id
@@ -126,7 +126,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 onClick={() => {
                   router.push(`/admin-hiregenai/${item.id}`)
                 }}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-all font-medium ${
+                className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg transition-all font-medium ${
                   isActive
                     ? "bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg shadow-emerald-600/50 border border-emerald-400"
                     : "text-slate-400 hover:bg-slate-800 hover:text-emerald-400 border border-transparent"
@@ -142,7 +142,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </nav>
 
         {/* Footer - Always visible at bottom */}
-        <div className="px-3 py-3 border-t border-slate-800 flex-shrink-0">
+        <div className="px-2 py-2 border-t border-slate-800 flex-shrink-0">
           <Button
             variant="outline"
             size="sm"
@@ -153,7 +153,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             {sidebarOpen && "Logout"}
           </Button>
         </div>
-      </div>
+      </aside>
 
       {/* Mobile Sidebar Overlay */}
       {mobileMenuOpen && (
@@ -228,7 +228,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen max-h-screen overflow-y-auto overflow-x-hidden">
+      <main className={`flex-1 h-screen overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400 transition-all duration-300 ${
+        sidebarOpen ? "md:ml-56" : "md:ml-16"
+      }`}>
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between p-4 border-b border-slate-800 bg-slate-900">
           <div className="flex items-center gap-2">
@@ -248,7 +250,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </div>
 
         <div className="p-4 md:p-8">{children}</div>
-      </div>
+      </main>
     </div>
   )
 }

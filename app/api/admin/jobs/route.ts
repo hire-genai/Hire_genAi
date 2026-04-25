@@ -13,6 +13,8 @@ export async function GET(req: NextRequest) {
     const search = url.searchParams.get("search") || ""
     const companyId = url.searchParams.get("companyId") || "all"
     const format = url.searchParams.get("format") || "json"
+    const startDate = url.searchParams.get("startDate") || ""
+    const endDate = url.searchParams.get("endDate") || ""
 
     let whereClause = "WHERE 1=1"
     const params: any[] = []
@@ -27,6 +29,18 @@ export async function GET(req: NextRequest) {
     if (companyId !== "all") {
       whereClause += ` AND jp.company_id = $${paramIdx}::uuid`
       params.push(companyId)
+      paramIdx++
+    }
+
+    if (startDate) {
+      whereClause += ` AND jp.created_at >= $${paramIdx}::timestamptz` 
+      params.push(startDate + " 00:00:00")
+      paramIdx++
+    }
+
+    if (endDate) {
+      whereClause += ` AND jp.created_at <= $${paramIdx}::timestamptz` 
+      params.push(endDate + " 23:59:59")
       paramIdx++
     }
 

@@ -302,8 +302,8 @@ export default function TalentPoolPage() {
       {/* Loading State */}
       {loading && (
         <>
-          <StatCardGridLoader count={6} />
-          <TalentPoolTableLoader rows={6} />
+          <StatCardGridLoader count={6} theme="light" />
+          <TalentPoolTableLoader rows={6} theme="light" />
         </>
       )}
 

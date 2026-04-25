@@ -13,6 +13,7 @@ import {
 import { Loader2, MessageCircle, ArrowRight, ArrowLeft, Eye, AlertCircle, Lightbulb, MessageSquare, Clock, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState, useCallback } from "react"
+import { StatCardGridLoader, SupportTableLoader } from '@/components/ui/skeleton-loader'
 
 interface SupportStats {
   open: number
@@ -173,9 +174,81 @@ export default function SupportCentreContent({
       <Card className="bg-slate-900 border-slate-800">
         <CardContent className="pt-4">
           {loadingSupport ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
-              <span className="ml-2 text-slate-400">Loading...</span>
+            <div className="space-y-4">
+              {/* Action Card Skeleton */}
+              <div className="flex items-center justify-between p-4 bg-slate-800 rounded-lg border border-slate-700">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-500/20 rounded-lg">
+                    <div className="h-5 w-5 bg-slate-700 animate-pulse rounded" />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-4 w-48 bg-slate-700 animate-pulse rounded" />
+                    <div className="h-3 w-56 bg-slate-700 animate-pulse rounded" />
+                  </div>
+                </div>
+                <div className="h-8 w-24 bg-slate-700 animate-pulse rounded" />
+              </div>
+
+              {/* Stats Grid Skeleton */}
+              <div className="grid grid-cols-4 gap-2 sm:gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="bg-slate-800/50 rounded-lg p-2 sm:p-3 border border-slate-700">
+                    <div className="flex items-center gap-2">
+                      <div className="h-4 w-4 bg-slate-700 animate-pulse rounded" />
+                      <div className="h-6 w-8 bg-slate-700 animate-pulse rounded" />
+                    </div>
+                    <div className="h-3 w-12 bg-slate-700 animate-pulse rounded mt-1" />
+                  </div>
+                ))}
+              </div>
+
+              {/* Filter Header Skeleton */}
+              <div className="flex items-center justify-between">
+                <div className="h-4 w-32 bg-slate-700 animate-pulse rounded" />
+                <div className="h-8 w-32 bg-slate-700 animate-pulse rounded" />
+              </div>
+
+              {/* Tickets Table Skeleton */}
+              <div className="overflow-x-auto rounded-lg border border-slate-700">
+                <table className="w-full">
+                  <thead className="bg-slate-800 border-b border-slate-700">
+                    <tr>
+                      {['ID', 'Type', 'Title', 'Priority', 'Status', 'Date', 'Action'].map((header) => (
+                        <th key={header} className="px-4 py-3">
+                          <div className="h-3 w-16 bg-slate-700 animate-pulse rounded" />
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <tr key={i}>
+                        <td className="px-4 py-3">
+                          <div className="h-4 w-12 bg-slate-700 animate-pulse rounded" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-4 w-16 bg-slate-700 animate-pulse rounded" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-4 w-32 bg-slate-700 animate-pulse rounded" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-5 w-14 bg-slate-700 animate-pulse rounded-full" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-5 w-16 bg-slate-700 animate-pulse rounded-full" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-4 w-20 bg-slate-700 animate-pulse rounded" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-8 w-16 bg-slate-700 animate-pulse rounded" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">

@@ -437,11 +437,11 @@ export default function JobsPage() {
 			{/* Loading State */}
 			{isLoading && (
 				<>
-					<JobsBucketGridLoader count={6} />
+					<JobsBucketGridLoader count={6} theme="light" />
 					<div className="space-y-3">
-						<JobsCardLoader />
-						<JobsCardLoader />
-						<JobsCardLoader />
+						<JobsCardLoader theme="light" />
+						<JobsCardLoader theme="light" />
+						<JobsCardLoader theme="light" />
 					</div>
 				</>
 			)}

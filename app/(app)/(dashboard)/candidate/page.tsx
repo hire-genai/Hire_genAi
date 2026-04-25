@@ -84,9 +84,8 @@ export default function CandidatesPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [hoveredDate, setHoveredDate] = useState<Date | null>(null)
   const [viewAsRole, setViewAsRole] = useState<UserRole>('recruiter')
-  const [viewAsUserId, setViewAsUserId] = useState('')
-  const [allUsers, setAllUsers] = useState<{id: string, name: string, role: string}[]>([])
-  const [filteredUsers, setFilteredUsers] = useState<{id: string, name: string, role: string}[]>([])
+  const [viewAsRecruiter, setViewAsRecruiter] = useState('')
+  const [recruiters, setRecruiters] = useState<{id: string, name: string}[]>([])
 
   // Data state from API
   const [bucketData, setBucketData] = useState(defaultBucketData)
@@ -187,28 +186,8 @@ export default function CandidatesPage() {
         selectedDateFilter
       })
       
-      // Use viewAsUserId for filtering data by specific user
-      const selectedUserId = viewAsUserId  // No fallback - if empty, show no data
-      
-      // If no user selected, return empty data immediately - don't call API
-      if (!selectedUserId) {
-        setBucketData(prev => ({
-          screening: { ...prev.screening, count: 0 },
-          interview: { ...prev.interview, count: 0 },
-          hiringManager: { ...prev.hiringManager, count: 0 },
-          offer: { ...prev.offer, count: 0 },
-          hired: { ...prev.hired, count: 0 },
-          rejected: { ...prev.rejected, count: 0 },
-          all: { ...prev.all, count: 0 }
-        }))
-        setApplicationsData(defaultApplicationsData)
-        setBucketStats(defaultBucketStats)
-        setIsLoading(false)
-        return
-      }
-      
-      const apiUrl = `/api/candidates?companyId=${company.id}&userId=${selectedUserId}&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`
-      console.log('DEBUG - Candidates API URL:', apiUrl, { viewAsUserId, selectedUserId })
+      const apiUrl = `/api/candidates?companyId=${company.id}${user?.id ? `&userId=${user.id}` : ''}&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`
+      console.log('DEBUG - Candidates API URL:', apiUrl)
       
       const res = await fetch(apiUrl)
       const data = await res.json()
@@ -234,46 +213,23 @@ export default function CandidatesPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [company?.id, getDateRange, viewAsUserId, user?.id])
+  }, [company?.id, getDateRange])
 
-  // Fetch all company users with their roles
+  // Fetch company users for the recruiter dropdown
   useEffect(() => {
     if (!company?.id) return
     fetch(`/api/settings/users?companyId=${encodeURIComponent(company.id)}`)
       .then(res => res.json())
       .then(data => {
-        const users = (data?.users || []).map((u: any) => ({ id: u.id, name: u.name, role: u.role || 'recruiter' }))
-        setAllUsers(users)
-        // Default to current logged-in user
-        if (user?.id) {
-          setViewAsUserId(user.id)
-        }
+        const users = (data?.users || []).map((u: any) => ({ id: u.id, name: u.name }))
+        setRecruiters(users)
+        // Default to current logged-in user if found, else first user
+        const currentUser = users.find((u: any) => u.id === user?.id)
+        if (currentUser) setViewAsRecruiter(currentUser.id)
+        else if (users.length > 0) setViewAsRecruiter(users[0].id)
       })
       .catch(() => {})
   }, [company?.id, user?.id])
-  
-  // Filter users based on selected View as role
-  useEffect(() => {
-    const usersForRole = allUsers.filter(u => u.role === viewAsRole)
-    setFilteredUsers(usersForRole)
-    if (!usersForRole.find(u => u.id === viewAsUserId)) {
-      // Set to first user of that role, or empty if none exist
-      setViewAsUserId(usersForRole.length > 0 ? usersForRole[0].id : '')
-    }
-  }, [viewAsRole, allUsers])
-  
-  // Initialize viewAsRole and viewAsUserId from user data (once only)
-  useEffect(() => {
-    if (user?.role) {
-      setViewAsRole(user.role as UserRole)
-      setViewAsUserId(user.id || '')
-    }
-  }, [user?.id])
-  
-  // Refetch data when user selection changes
-  useEffect(() => {
-    fetchCandidates()
-  }, [viewAsUserId, fetchCandidates])
   
   // Initial fetch only - no automatic refetching
   useEffect(() => {
@@ -540,154 +496,6 @@ export default function CandidatesPage() {
   const handleViewCandidate = (candidate: any) => {
     setSelectedCandidate(candidate)
     setDialogOpen(true)
-  }
-
-  const handleExport = () => {
-    // Get the current filtered data for the active bucket
-    const data = applicationsData[activeBucket] || []
-    const filteredData = applyFilters(data)
-    
-    if (filteredData.length === 0) {
-      alert('No data to export')
-      return
-    }
-
-    // Define CSV headers based on active bucket
-    let headers: string[] = []
-    switch (activeBucket) {
-      case 'screening':
-        headers = ['Name', 'Email', 'Phone', 'Position', 'Applied Date', 'Source', 'Screening Score', 'Screening Status']
-        break
-      case 'interview':
-        headers = ['Name', 'Email', 'Phone', 'Position', 'CV Score', 'Interview Score', 'Interview Status', 'Interview Result', 'Comments']
-        break
-      case 'hiringManager':
-        headers = ['Name', 'Email', 'Phone', 'Position', 'Hiring Manager', 'Days with HM', 'HM Status', 'Comments']
-        break
-      case 'offer':
-        headers = ['Name', 'Email', 'Phone', 'Position', 'Offer Amount', 'Offer Status', 'Comments']
-        break
-      case 'hired':
-        headers = ['Name', 'Email', 'Phone', 'Position', 'Hire Date', 'Start Date', 'Hire Status', 'Comments']
-        break
-      case 'rejected':
-        headers = ['Name', 'Email', 'Phone', 'Position', 'Rejection Stage', 'Rejection Reason']
-        break
-      default:
-        headers = ['Name', 'Email', 'Phone', 'Position', 'Applied Date', 'Status', 'Source']
-    }
-
-    // Convert data to CSV rows
-    const csvRows = [headers.join(',')]
-    
-    filteredData.forEach((application: any) => {
-      let row: string[] = []
-      
-      switch (activeBucket) {
-        case 'screening':
-          row = [
-            `"${application.name || ''}"`,
-            `"${application.email || ''}"`,
-            `"${application.phone || ''}"`,
-            `"${application.position || ''}"`,
-            `"${application.appliedDate || ''}"`,
-            `"${application.source || ''}"`,
-            `"${application.screeningScore || ''}"`,
-            `"${application.screeningStatus || ''}"`
-          ]
-          break
-        case 'interview':
-          row = [
-            `"${application.name || ''}"`,
-            `"${application.email || ''}"`,
-            `"${application.phone || ''}"`,
-            `"${application.position || ''}"`,
-            `"${application.cvScore || ''}"`,
-            `"${application.interviewScore || ''}"`,
-            `"${application.interviewStatus || ''}"`,
-            `"${application.interviewResult || ''}"`,
-            `"${(application.comments || '').replace(/"/g, '""')}"`
-          ]
-          break
-        case 'hiringManager':
-          row = [
-            `"${application.name || ''}"`,
-            `"${application.email || ''}"`,
-            `"${application.phone || ''}"`,
-            `"${application.position || ''}"`,
-            `"${application.hiringManager || ''}"`,
-            `"${application.daysWithHM || ''}"`,
-            `"${application.hmStatus || ''}"`,
-            `"${(application.comments || '').replace(/"/g, '""')}"`
-          ]
-          break
-        case 'offer':
-          row = [
-            `"${application.name || ''}"`,
-            `"${application.email || ''}"`,
-            `"${application.phone || ''}"`,
-            `"${application.position || ''}"`,
-            `"${application.offerAmount || ''}"`,
-            `"${application.offerStatus || ''}"`,
-            `"${(application.comments || '').replace(/"/g, '""')}"`
-          ]
-          break
-        case 'hired':
-          row = [
-            `"${application.name || ''}"`,
-            `"${application.email || ''}"`,
-            `"${application.phone || ''}"`,
-            `"${application.position || ''}"`,
-            `"${application.hireDate || ''}"`,
-            `"${application.startDate || ''}"`,
-            `"${application.hireStatus || ''}"`,
-            `"${(application.comments || '').replace(/"/g, '""')}"`
-          ]
-          break
-        case 'rejected':
-          row = [
-            `"${application.name || ''}"`,
-            `"${application.email || ''}"`,
-            `"${application.phone || ''}"`,
-            `"${application.position || ''}"`,
-            `"${application.rejectionStage || ''}"`,
-            `"${application.rejectionReason || ''}"`
-          ]
-          break
-        default:
-          row = [
-            `"${application.name || ''}"`,
-            `"${application.email || ''}"`,
-            `"${application.phone || ''}"`,
-            `"${application.position || ''}"`,
-            `"${application.appliedDate || ''}"`,
-            `"${application.status || ''}"`,
-            `"${application.source || ''}"`
-          ]
-      }
-      
-      csvRows.push(row.join(','))
-    })
-
-    // Create CSV content
-    const csvContent = csvRows.join('\n')
-    
-    // Create blob and download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    
-    // Generate filename with date and bucket name
-    const date = new Date().toISOString().split('T')[0]
-    const bucketName = activeBucket.charAt(0).toUpperCase() + activeBucket.slice(1)
-    const filename = `candidates_${bucketName}_${date}.csv`
-    
-    link.setAttribute('href', url)
-    link.setAttribute('download', filename)
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
   }
 
   const renderTableHeaders = () => {
@@ -996,63 +804,39 @@ export default function CandidatesPage() {
             <p className="text-xs text-gray-600 mt-0.5">Manage candidate applications across all stages</p>
           </div>
           <div className="flex gap-2 items-center flex-wrap">
-            {/* View As Filter - Only for Manager/Director */}
-            {(user?.role === 'manager' || user?.role === 'director') && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-700 whitespace-nowrap">View as:</span>
-                <Select value={viewAsRole} onValueChange={(v) => setViewAsRole(v as UserRole)}>
+            {/* View As Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-gray-700 whitespace-nowrap">View as:</span>
+              <Select value={viewAsRole} onValueChange={(v) => setViewAsRole(v as UserRole)}>
+                <SelectTrigger className="h-10 w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recruiter">Recruiter</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="director">Director</SelectItem>
+                </SelectContent>
+              </Select>
+              {viewAsRole === 'recruiter' && (
+                <Select value={viewAsRecruiter} onValueChange={setViewAsRecruiter}>
                   <SelectTrigger className="h-10 w-[140px]">
-                    <SelectValue />
+                    <SelectValue placeholder="All Recruiters" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="recruiter">Recruiter</SelectItem>
-                    <SelectItem value="manager">Manager</SelectItem>
-                    <SelectItem value="director">Director</SelectItem>
+                    {recruiters.map(r => (
+                      <SelectItem key={r.id} value={r.id}>{r.id === user?.id ? `${r.name} (You)` : r.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                {/* User dropdown - filtered by selected View as role */}
-                <Select value={viewAsUserId} onValueChange={setViewAsUserId}>
-                  <SelectTrigger className="h-10 w-[140px]">
-                    <SelectValue placeholder="Select User" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredUsers.length === 0 ? (
-                      <SelectItem value="no-user" disabled>
-                        No {viewAsRole}s found
-                      </SelectItem>
-                    ) : (
-                      filteredUsers.map(u => (
-                        <SelectItem key={u.id} value={u.id}>
-                          {u.id === user?.id ? `${u.name} (You)` : u.name}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+              )}
+            </div>
+            {!canModify && (
+              <Badge variant="secondary" className="text-xs">View Only</Badge>
             )}
-            
-            {/* For Recruiters - Show fixed role and user display */}
-            {user?.role === 'recruiter' && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-700 whitespace-nowrap">View as:</span>
-                <div className="h-10 px-3 py-2 border rounded-md bg-gray-50 text-sm flex items-center w-[140px]">
-                  Recruiter
-                </div>
-                <div className="h-10 px-3 py-2 border rounded-md bg-gray-50 text-sm flex items-center w-[140px]">
-                  {allUsers.find(u => u.id === user.id)?.name || 'You'}
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="gap-1 bg-transparent"
-                  onClick={handleExport}
-                >
-                  <Download className="h-3 w-3" />
-                  Export
-                </Button>
-              </div>
-            )}
+            <Button variant="outline" size="sm" className="gap-1 bg-transparent">
+              <Download className="h-3 w-3" />
+              Export
+            </Button>
           </div>
         </div>
       </div>
@@ -1095,7 +879,14 @@ export default function CandidatesPage() {
               </SelectContent>
             </Select>
           </div>
-                    <div className="relative">
+          <input
+            type="text"
+            placeholder="Skills"
+            value={skillFilter}
+            onChange={(e) => setSkillFilter(e.target.value)}
+            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500 min-w-[100px]"
+          />
+          <div className="relative">
             <Button 
               variant="outline" 
               size="sm"
