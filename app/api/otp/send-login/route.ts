@@ -7,14 +7,13 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, demo } = await req.json()
+    const { email } = await req.json()
     
     if (!email || !email.includes('@')) {
       return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
     }
 
     const normEmail = String(email).trim().toLowerCase()
-    const isDemoMode = Boolean(demo)
 
     // Check if database is configured
     if (!DatabaseService.isDatabaseConfigured()) {
@@ -36,88 +35,34 @@ export async function POST(req: NextRequest) {
         await OtpEmailService.sendLoginOtp({
           email: normEmail,
           otp,
-          isDemo: isDemoMode,
         });
         console.log(`✅ Mock login OTP sent via email to: ${normEmail}`);
       } catch (emailError) {
         console.error('❌ Failed to send mock OTP email:', emailError);
         // Fallback to console log
         console.log('\n' + '='.repeat(50))
-        console.log(`🔐 MOCK OTP GENERATED FOR ${isDemoMode ? 'DEMO' : 'REGULAR'} LOGIN`)
+        console.log('🔐 MOCK OTP GENERATED FOR LOGIN')
         console.log('='.repeat(50))
         console.log(`📧 Email: ${normEmail}`)
         console.log(`🔢 OTP: ${otp}`)
-        console.log(`🎯 Purpose: ${isDemoMode ? 'demo-login' : 'login'}`)
+        console.log('🎯 Purpose: login')
         console.log('='.repeat(50) + '\n')
       }
 
       return NextResponse.json({ 
         ok: true, 
-        message: `${isDemoMode ? 'Demo' : 'Login'} OTP sent successfully (using mock service)`,
+        message: 'Login OTP sent successfully (using mock service)',
         otp: process.env.NODE_ENV === 'development' ? otp : undefined,
         debug: { 
           usingMockService: true, 
           email: normEmail, 
-          purpose: isDemoMode ? 'demo-login' : 'login',
-          userId: user.id,
-          isDemoMode
+          purpose: 'login',
+          userId: user.id
         }
       })
     }
 
     // Use database service
-    if (isDemoMode) {
-      // For demo mode, we don't need to check if user exists
-      // We'll create them in the demo company during verification
-      
-      // Clean up any existing challenges for this email to prevent conflicts
-      try {
-        await DatabaseService.cleanupExpiredChallenges(normEmail);
-      } catch (cleanupError) {
-        console.log("Note: Could not cleanup old challenges, continuing...");
-      }
-      
-      // Create OTP challenge for demo login
-      const { challenge, code } = await DatabaseService.createOtpChallenge(
-        normEmail, 
-        'login', 
-        'user', 
-        undefined // No specific user ID for demo mode
-      )
-
-      // Send OTP via email for demo login
-      try {
-        await OtpEmailService.sendLoginOtp({
-          email: normEmail,
-          otp: code,
-          isDemo: true,
-        });
-        console.log(`✅ Demo login OTP sent via email to: ${normEmail}`);
-      } catch (emailError) {
-        console.error('❌ Failed to send demo OTP email:', emailError);
-        // Fallback to console log
-        console.log('\n' + '='.repeat(50))
-        console.log('🔐 DEMO OTP GENERATED')
-        console.log('='.repeat(50))
-        console.log(`📧 Email: ${normEmail}`)
-        console.log(`🔢 OTP: ${code}`)
-        console.log(`🎯 Purpose: demo-login`)
-        console.log('='.repeat(50) + '\n')
-      }
-
-      return NextResponse.json({ 
-        ok: true, 
-        message: 'Demo OTP sent successfully',
-        otp: process.env.NODE_ENV === 'development' ? code : undefined,
-        debug: { 
-          usingDatabase: true, 
-          email: normEmail, 
-          purpose: 'demo-login',
-          challengeId: challenge.id,
-          isDemoMode: true
-        }
-      })
-    } else {
       // Regular login mode - try to find user by email domain first, then fallback to direct email lookup
       let user = await DatabaseService.findUserByEmailAndCompanyDomain(normEmail)
       
@@ -175,7 +120,6 @@ export async function POST(req: NextRequest) {
         await OtpEmailService.sendLoginOtp({
           email: normEmail,
           otp: code,
-          isDemo: false,
         });
         console.log(`✅ Regular login OTP sent via email to: ${normEmail}`);
       } catch (emailError) {
@@ -199,11 +143,9 @@ export async function POST(req: NextRequest) {
           email: normEmail, 
           purpose: 'login',
           challengeId: challenge.id,
-          userId: user.id,
-          isDemoMode: false
+          userId: user.id
         }
       })
-    }
   } catch (error: any) {
     console.error('Error sending login OTP:', error)
     return NextResponse.json({ 

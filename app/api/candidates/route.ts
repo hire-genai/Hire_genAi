@@ -259,6 +259,7 @@ export async function GET(req: NextRequest) {
         interviewScore: app.interview_score != null && app.interview_score !== '' ? `${Math.round(parseFloat(app.interview_score))}/100` : 'N/A',
         interviewStatus: app.interview_status || 'Not Scheduled',
         interviewResult: app.interview_recommendation || 'Pending',
+        interviewScoreValue: app.interview_score != null && app.interview_score !== '' ? parseFloat(app.interview_score) : null,
         hmStatus: app.hm_status || 'Waiting for HM feedback',
         hmRating: app.hm_rating || '',
         hmFeedback: app.hm_feedback || '',
@@ -447,8 +448,8 @@ async function getInterviewStats(companyId: string, userId: string | null) {
   const result = await DatabaseService.query(`
     SELECT 
       COUNT(*) AS total,
-      COUNT(*) FILTER (WHERE i.interview_recommendation IN ('Strongly Recommend', 'Recommend')) AS qualified,
-      COUNT(*) FILTER (WHERE i.interview_recommendation IN ('Reject', 'On Hold')) AS unqualified
+      COUNT(*) FILTER (WHERE i.interview_score >= 60) AS qualified,
+      COUNT(*) FILTER (WHERE i.interview_score < 60 AND i.interview_score IS NOT NULL) AS unqualified
     FROM applications a
     JOIN job_postings j ON a.job_id = j.id
     LEFT JOIN interviews i ON i.application_id = a.id

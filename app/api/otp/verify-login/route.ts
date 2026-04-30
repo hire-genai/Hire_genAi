@@ -6,14 +6,13 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, otp, demo } = await req.json()
+    const { email, otp } = await req.json()
     
     if (!email || !otp) {
       return NextResponse.json({ error: 'Email and OTP are required' }, { status: 400 })
     }
 
     const normEmail = String(email).trim().toLowerCase()
-    const isDemoMode = Boolean(demo)
 
     // Check if database is configured
     if (!DatabaseService.isDatabaseConfigured()) {
@@ -68,55 +67,6 @@ export async function POST(req: NextRequest) {
 
     // Use database service
     await DatabaseService.verifyOtpChallenge(normEmail, otp, 'login')
-
-    if (isDemoMode) {
-      // Demo mode: Add user to demo company
-      const { user, company, isNewUser } = await DatabaseService.addUserToDemoCompany(normEmail)
-
-      // Create session for demo user
-      const { session, refreshToken } = await DatabaseService.createSession('user', user.id)
-
-      // Fetch role for demo user
-      let demoUserRole: string | undefined
-      try {
-        const roleRows = await DatabaseService.query(
-          `SELECT role FROM user_roles WHERE user_id = $1::uuid ORDER BY granted_at DESC LIMIT 1`,
-          [user.id]
-        ) as any[]
-        demoUserRole = roleRows[0]?.role
-      } catch (e) {
-        console.log('Could not fetch demo user role:', e)
-      }
-
-      console.log(`🎯 Demo login successful for ${normEmail} - ${isNewUser ? 'New' : 'Existing'} user in demo company`)
-
-      return NextResponse.json({
-        ok: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          full_name: user.full_name,
-          status: user.status,
-          role: demoUserRole,
-        },
-        company: {
-          id: company.id,
-          name: company.name,
-          status: company.status,
-          verified: company.verified,
-        },
-        session: {
-          id: session.id,
-          refreshToken,
-          expiresAt: session.expires_at,
-        },
-        debug: {
-          isDemoMode: true,
-          isNewUser,
-          demoCompany: company.name
-        }
-      })
-    } else {
       // Regular login mode - try to find user by email domain first, then fallback to direct email lookup
       let user = await DatabaseService.findUserByEmailAndCompanyDomain(normEmail)
       
@@ -189,11 +139,7 @@ export async function POST(req: NextRequest) {
           refreshToken,
           expiresAt: session.expires_at,
         },
-        debug: {
-          isDemoMode: false
-        }
       })
-    }
   } catch (error: any) {
     console.error('Error verifying login OTP:', error)
     return NextResponse.json({ 

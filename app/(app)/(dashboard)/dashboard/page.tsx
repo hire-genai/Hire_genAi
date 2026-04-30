@@ -236,7 +236,7 @@ const getStatusBadge = (status: string) => {
 
   export default function DashboardPage() {
   const { company, user } = useAuth()
-  const [selectedRole, setSelectedRole] = useState<UserRole>('recruiter')
+  const [selectedRole, setSelectedRole] = useState<UserRole | ''>('')
   const [selectedRecruiter, setSelectedRecruiter] = useState('all')
   const [selectedDateFilter, setSelectedDateFilter] = useState('last90Days')
   const [customStartDate, setCustomStartDate] = useState('')
@@ -354,15 +354,13 @@ const getStatusBadge = (status: string) => {
   // Derive effective role directly (avoids null→value layout shift)
   const effectiveUserRole = userRole || (user?.role as UserRole | null)
 
-  // Set user role from auth context and restrict view
+  // Set user role from auth context and initialize selectedRole
   useEffect(() => {
     if (user?.role) {
       const role = user.role as UserRole
       setUserRole(role)
-      // If user is recruiter, lock them to recruiter view only
-      if (role === 'recruiter') {
-        setSelectedRole('recruiter')
-      }
+      // Initialize selectedRole to user's actual role
+      setSelectedRole(role)
     }
   }, [user])
 

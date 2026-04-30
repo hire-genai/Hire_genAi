@@ -83,7 +83,7 @@ export default function CandidatesPage() {
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [hoveredDate, setHoveredDate] = useState<Date | null>(null)
-  const [viewAsRole, setViewAsRole] = useState<UserRole>('recruiter')
+  const [viewAsRole, setViewAsRole] = useState<UserRole | ''>('')
   const [viewAsRecruiter, setViewAsRecruiter] = useState('')
   const [recruiters, setRecruiters] = useState<{id: string, name: string}[]>([])
 
@@ -215,13 +215,20 @@ export default function CandidatesPage() {
     }
   }, [company?.id, getDateRange])
 
+  // Initialize viewAsRole from logged-in user's role
+  useEffect(() => {
+    if (user?.role) {
+      setViewAsRole(user.role as UserRole)
+    }
+  }, [user?.role])
+
   // Fetch company users for the recruiter dropdown
   useEffect(() => {
     if (!company?.id) return
-    fetch(`/api/settings/users?companyId=${encodeURIComponent(company.id)}`)
+    fetch(`/api/settings/users?companyId=${company.id}`)
       .then(res => res.json())
       .then(data => {
-        const users = (data?.users || []).map((u: any) => ({ id: u.id, name: u.name }))
+        const users = data.users || []
         setRecruiters(users)
         // Default to current logged-in user if found, else first user
         const currentUser = users.find((u: any) => u.id === user?.id)
@@ -586,7 +593,26 @@ export default function CandidatesPage() {
 
   const renderTableRows = () => {
     const data = applicationsData[activeBucket] || []
-    const filteredData = applyFilters(data)
+    let filteredData = applyFilters(data)
+    
+    // Sort interview bucket: 'Maybe' at top, then others
+    if (activeBucket === 'interview') {
+      filteredData = filteredData.sort((a: any, b: any) => {
+        const aResult = a.interviewResult || ''
+        const bResult = b.interviewResult || ''
+        
+        // Priority: Maybe > Recommend > Strongly Recommend > Reject > Pending
+        const getPriority = (result: string) => {
+          if (result === 'Maybe') return 0
+          if (result === 'Recommend') return 1
+          if (result === 'Strongly Recommend') return 2
+          if (result === 'Reject') return 3
+          return 4 // Pending
+        }
+        
+        return getPriority(aResult) - getPriority(bResult)
+      })
+    }
     
     return filteredData.map((application: any, index: number) => (
       <tr key={index} className="hover:bg-gray-50 transition-colors border-b">
@@ -678,9 +704,11 @@ export default function CandidatesPage() {
             </td>
             <td className="px-6 py-4">
               <Badge className={
-                application?.interviewResult === 'Qualified' ? 'bg-green-100 text-green-800' : 
-                application?.interviewResult === 'Pending' ? 'bg-amber-100 text-amber-800' : 
-                'bg-gray-100 text-gray-800'
+                application?.interviewResult === 'Strongly Recommend' ? 'bg-purple-600 text-white font-bold' : 
+                application?.interviewResult === 'Recommend' ? 'bg-blue-600 text-white font-semibold' : 
+                application?.interviewResult === 'Maybe' ? 'bg-orange-500 text-white font-medium' : 
+                application?.interviewResult === 'Reject' ? 'bg-red-600 text-white font-medium' : 
+                'bg-amber-100 text-amber-800'
               }>
                 {application?.interviewResult}
               </Badge>
