@@ -83,7 +83,7 @@ export default function CandidatesPage() {
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [hoveredDate, setHoveredDate] = useState<Date | null>(null)
-  const [viewAsRole, setViewAsRole] = useState<UserRole>('recruiter')
+  const [viewAsRole, setViewAsRole] = useState<UserRole | ''>('')
   const [viewAsRecruiter, setViewAsRecruiter] = useState('')
   const [recruiters, setRecruiters] = useState<{id: string, name: string}[]>([])
 
@@ -215,13 +215,20 @@ export default function CandidatesPage() {
     }
   }, [company?.id, getDateRange])
 
+  // Initialize viewAsRole from logged-in user's role
+  useEffect(() => {
+    if (user?.role) {
+      setViewAsRole(user.role as UserRole)
+    }
+  }, [user?.role])
+
   // Fetch company users for the recruiter dropdown
   useEffect(() => {
     if (!company?.id) return
-    fetch(`/api/settings/users?companyId=${encodeURIComponent(company.id)}`)
+    fetch(`/api/settings/users?companyId=${company.id}`)
       .then(res => res.json())
       .then(data => {
-        const users = (data?.users || []).map((u: any) => ({ id: u.id, name: u.name }))
+        const users = data.users || []
         setRecruiters(users)
         // Default to current logged-in user if found, else first user
         const currentUser = users.find((u: any) => u.id === user?.id)

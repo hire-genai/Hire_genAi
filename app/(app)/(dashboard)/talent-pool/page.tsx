@@ -163,7 +163,7 @@ export default function TalentPoolPage() {
   const [selectedJD, setSelectedJD] = useState('')
   const [emailSubject, setEmailSubject] = useState('')
   const [emailBody, setEmailBody] = useState('')
-  const [viewAsRole, setViewAsRole] = useState<UserRole>((user?.role as UserRole) || 'recruiter')
+  const [viewAsRole, setViewAsRole] = useState<UserRole | ''>('')
   const [viewAsRecruiter, setViewAsRecruiter] = useState('all')
   const [showAddCandidateDialog, setShowAddCandidateDialog] = useState(false)
   const [showCandidateDetailsDialog, setShowCandidateDetailsDialog] = useState(false)
