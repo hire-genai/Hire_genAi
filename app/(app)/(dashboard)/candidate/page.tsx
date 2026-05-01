@@ -858,9 +858,6 @@ export default function CandidatesPage() {
                 </Select>
               )}
             </div>
-            {!canModify && (
-              <Badge variant="secondary" className="text-xs">View Only</Badge>
-            )}
             <Button variant="outline" size="sm" className="gap-1 bg-transparent">
               <Download className="h-3 w-3" />
               Export
