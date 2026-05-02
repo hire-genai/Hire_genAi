@@ -1540,15 +1540,13 @@ ${questions?.[0]?.criteria?.join(", ") || "Communication, Technical skills, Cult
       <InstructionModal />
       <EndWarningDialog />
       <div className="h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col overflow-hidden">
-                
-        
-        {/* Main Content - Teams Layout */}
-        <main className="flex items-start justify-between gap-4 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 h-full">
-          {/* Main Video - Left Side */}
-          <div className="flex-1 h-full">
-            <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-black h-full aspect-video">
+        {/* Main Content - Mobile-friendly video call layout */}
+        <main className="relative w-full h-full flex flex-col md:flex-row p-0 md:px-6 md:py-4">
+          {/* Main Video - Full screen on mobile */}
+          <div className="relative w-full h-full flex-1">
+            <div className="relative w-full h-full md:rounded-2xl md:shadow-2xl overflow-hidden bg-black">
               <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 to-black">
-                <video ref={userVideoRef} className={`block w-full h-full object-cover object-center transition-opacity duration-300 ${camOn ? "opacity-100" : "opacity-30"}`} style={{ transform: "scaleX(-1)" }} muted playsInline autoPlay />
+                <video ref={userVideoRef} className={`w-full h-full object-cover object-center transition-opacity duration-300 ${camOn ? "opacity-100" : "opacity-30"}`} style={{ transform: "scaleX(-1)" }} muted playsInline autoPlay />
                 {!camOn && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
                     <div className="h-20 w-20 rounded-full bg-slate-700 flex items-center justify-center mb-4">
@@ -1560,9 +1558,9 @@ ${questions?.[0]?.criteria?.join(", ") || "Communication, Technical skills, Cult
               </div>
 
               {/* Avatar PIP */}
-              <div className="absolute right-2 bottom-2 sm:right-4 sm:bottom-6 md:right-6 md:bottom-8">
-                <div className="relative rounded-2xl overflow-hidden border-2 border-emerald-500/40 shadow-2xl bg-black/80 backdrop-blur-md">
-                  <video ref={avatarVideoRef} src="https://storage.googleapis.com/ai_recruiter_bucket_prod/assets/videos/olivia_character_no_audio.mp4" className="w-[80px] h-[45px] sm:w-[110px] sm:h-[62px] md:w-[150px] md:h-[84px] object-cover" muted playsInline preload="auto" onEnded={() => { if (avatarVideoRef.current) { avatarVideoRef.current.currentTime = 3; avatarVideoRef.current.play() } }} />
+              <div className="absolute right-3 bottom-24 sm:right-4 sm:bottom-6 md:right-6 md:bottom-8">
+                <div className="relative rounded-2xl overflow-hidden border-2 border-emerald-500/40 shadow-xl bg-black/80 backdrop-blur-md">
+                  <video ref={avatarVideoRef} src="https://storage.googleapis.com/ai_recruiter_bucket_prod/assets/videos/olivia_character_no_audio.mp4" className="w-[120px] h-[68px] sm:w-[130px] sm:h-[74px] md:w-[150px] md:h-[84px] object-cover" muted playsInline preload="auto" onEnded={() => { if (avatarVideoRef.current) { avatarVideoRef.current.currentTime = 3; avatarVideoRef.current.play() } }} />
                   <audio ref={agentAudioRef} className="hidden" />
                   <div className="absolute left-2 bottom-2 text-[9px] md:text-xs font-semibold text-emerald-300 drop-shadow-lg">Olivia</div>
                   {agentReady && (
@@ -1593,13 +1591,45 @@ ${questions?.[0]?.criteria?.join(", ") || "Communication, Technical skills, Cult
                   </div>
                 )}
               </div>
+
+              {/* Bottom Call Controls - Mobile UX */}
+              <div className="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 md:gap-4 bg-black/40 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-full z-50">
+                <Button 
+                  onClick={toggleMic}
+                  className={`rounded-full p-2 md:p-2.5 transition-all duration-200 hover:scale-110 ${
+                    micOn 
+                      ? "bg-gray-700 hover:bg-gray-600" 
+                      : "bg-red-600 hover:bg-red-700"
+                  }`}
+                >
+                  {micOn ? <Mic className="h-5 w-5 text-white" /> : <MicOff className="h-5 w-5 text-white" />}
+                </Button>
+
+                <Button 
+                  onClick={toggleCam}
+                  className={`rounded-full p-2 md:p-2.5 transition-all duration-200 hover:scale-110 ${
+                    camOn 
+                      ? "bg-gray-700 hover:bg-gray-600" 
+                      : "bg-red-600 hover:bg-red-700"
+                  }`}
+                >
+                  {camOn ? <VideoIcon className="h-5 w-5 text-white" /> : <VideoOff className="h-5 w-5 text-white" />}
+                </Button>
+
+                <Button 
+                  onClick={handleEndClick}
+                  className="rounded-full bg-red-600 hover:bg-red-700 p-2 md:p-2.5 transition-all duration-200 hover:scale-110"
+                >
+                  <PhoneOff className="h-5 w-5 text-white" />
+                </Button>
+              </div>
             </div>
           </div>
 
-          {/* Live Interview Card - Right Side */}
-          <div className="w-[280px] flex-shrink-0">
-            <div className="bg-[#0b1220]/80 backdrop-blur-xl rounded-2xl shadow-lg shadow-blue-500/10 border border-white/10 p-4 h-full">
-              {/* Header with LIVE indicator and controls */}
+          {/* Live Interview Card - Right Side (hidden on mobile) */}
+          <div className="hidden md:flex w-[280px] flex-shrink-0 p-0 md:px-4 md:py-3">
+            <div className="bg-[#0b1220]/80 backdrop-blur-xl rounded-2xl shadow-lg shadow-blue-500/10 border border-white/10 p-4 h-full w-full">
+              {/* Header with LIVE indicator */}
               <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
                 <div className="flex items-center gap-2">
                   <div className="relative">
@@ -1607,39 +1637,6 @@ ${questions?.[0]?.criteria?.join(", ") || "Communication, Technical skills, Cult
                     <div className="absolute inset-0 h-2.5 w-2.5 rounded-full bg-red-500 animate-ping opacity-75"></div>
                   </div>
                   <p className="text-sm text-white font-semibold tracking-wide">LIVE INTERVIEW</p>
-                </div>
-                
-                {/* Control Buttons - Now in header */}
-                <div className="flex items-center gap-2">
-                  <Button 
-                    size="icon" 
-                    className={`w-8 h-8 rounded-full transition-all duration-200 hover:scale-105 ${
-                      micOn 
-                        ? "bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 hover:border-green-500/40" 
-                        : "bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 hover:border-red-500/40"
-                    }`} 
-                    onClick={toggleMic}
-                  >
-                    {micOn ? <Mic className="h-3 w-3 text-green-400" /> : <MicOff className="h-3 w-3 text-red-400" />}
-                  </Button>
-                  <Button 
-                    size="icon" 
-                    className={`w-8 h-8 rounded-full transition-all duration-200 hover:scale-105 ${
-                      camOn 
-                        ? "bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 hover:border-green-500/40" 
-                        : "bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 hover:border-red-500/40"
-                    }`} 
-                    onClick={toggleCam}
-                  >
-                    {camOn ? <VideoIcon className="h-3 w-3 text-green-400" /> : <VideoOff className="h-3 w-3 text-red-400" />}
-                  </Button>
-                  <Button 
-                    size="icon" 
-                    className="w-8 h-8 rounded-full bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 hover:border-red-500/40 transition-all duration-200 hover:scale-105" 
-                    onClick={handleEndClick}
-                  >
-                    <PhoneOff className="h-3 w-3 text-red-400" />
-                  </Button>
                 </div>
               </div>
               
