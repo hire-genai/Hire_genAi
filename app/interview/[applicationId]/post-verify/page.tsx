@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useRef, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { Camera, Check, Loader2, RefreshCw, AlertCircle, User, MoveVertical, Sun, Focus } from "lucide-react"
+import { Camera, Check, Loader2, RefreshCw, AlertCircle, User, MoveVertical, Sun, Focus, X } from "lucide-react"
 import * as faceapi from 'face-api.js'
 
 export default function PostInterviewVerifyPage() {
@@ -23,6 +23,7 @@ export default function PostInterviewVerifyPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [countdown, setCountdown] = useState<number | null>(null)
+  const [showBackWarning, setShowBackWarning] = useState(false)
   
   // Face detection state
   const [faceStatus, setFaceStatus] = useState<'loading' | 'no_face' | 'too_far' | 'not_centered' | 'poor_lighting' | 'blurry' | 'ready'>('loading')
@@ -184,6 +185,21 @@ export default function PostInterviewVerifyPage() {
     return () => clearInterval(interval)
   }, [isCameraOpen, isCameraReady, capturedPhoto, modelsLoaded, detectFace])
 
+  // Prevent browser back navigation
+  useEffect(() => {
+    const preventBack = () => {
+      window.history.pushState(null, '', window.location.href)
+      setShowBackWarning(true)
+    }
+    
+    window.history.pushState(null, '', window.location.href)
+    window.addEventListener('popstate', preventBack)
+    
+    return () => {
+      window.removeEventListener('popstate', preventBack)
+    }
+  }, [])
+
   // Start camera on mount
   useEffect(() => {
     startCamera()
@@ -337,37 +353,74 @@ export default function PostInterviewVerifyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-start justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="w-full max-w-xl mx-auto py-2 sm:py-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+      {/* Back Navigation Warning Modal */}
+      {showBackWarning && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 border border-red-500/40 rounded-xl shadow-2xl max-w-sm w-full mx-4 p-5">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="h-10 w-10 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="h-5 w-5 text-red-400" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-base font-semibold text-white mb-1">Interview Completed</h2>
+                <p className="text-sm text-slate-300">You cannot go back to the interview page.</p>
+              </div>
+              <button 
+                onClick={() => setShowBackWarning(false)}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4">
+              <p className="text-xs text-red-200">
+                The interview has been completed. Please complete the photo verification to continue.
+              </p>
+            </div>
+
+            <Button
+              onClick={() => setShowBackWarning(false)}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-9 text-sm"
+            >
+              OK, Continue
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="w-full max-w-md mx-auto">
         {/* Interview Completed Message */}
-        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 sm:p-6 mb-4 sm:mb-6 text-center backdrop-blur-sm">
-          <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-full bg-emerald-500 flex items-center justify-center">
-              <Check className="h-8 w-8 text-white" />
+        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3 mb-3 text-center backdrop-blur-sm">
+          <div className="flex justify-center mb-2">
+            <div className="h-10 w-10 rounded-full bg-emerald-500 flex items-center justify-center">
+              <Check className="h-5 w-5 text-white" />
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-emerald-400 mb-2">Your interview has been completed.</h1>
-          <p className="text-slate-400">Please take a final verification photo to complete the process.</p>
+          <h1 className="text-sm font-semibold text-emerald-400 mb-0.5">Interview Completed</h1>
+          <p className="text-slate-400 text-xs">Take a final verification photo to continue</p>
         </div>
 
         {/* Photo Capture Card */}
-        <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-4 sm:p-6 shadow-2xl">
-          <div className="text-center mb-4 sm:mb-6">
-            <div className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-emerald-500/20 mb-3 sm:mb-4">
-              <Camera className="h-6 w-6 sm:h-7 sm:w-7 text-emerald-400" />
+        <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-xl p-4 shadow-xl">
+          <div className="text-center mb-4">
+            <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-emerald-500/20 mb-2">
+              <Camera className="h-5 w-5 text-emerald-400" />
             </div>
-            <h2 className="text-lg sm:text-xl font-semibold text-white">Final Photo Verification</h2>
-            <p className="text-slate-400 text-xs sm:text-sm mt-1">Take a clear photo of your face</p>
+            <h2 className="text-base font-semibold text-white">Photo Verification</h2>
+            <p className="text-slate-400 text-xs mt-1">Position your face in the circle</p>
           </div>
 
           {/* Camera / Photo Display */}
-          <div className="relative aspect-[4/3] bg-slate-800 rounded-xl overflow-hidden mb-3 sm:mb-6 flex items-center justify-center">
-            <div className={`relative w-[180px] h-[225px] sm:w-[240px] sm:h-[300px] rounded-full overflow-hidden ring-4 bg-slate-800 ${
+          <div className="relative bg-slate-800 rounded-xl overflow-hidden mb-4 flex items-center justify-center py-6">
+            <div className={`relative w-48 h-64 overflow-hidden ring-4 bg-slate-800 ${
               capturedPhoto ? 'ring-emerald-500' :
               faceStatus === 'ready' ? 'ring-emerald-500' :
               faceStatus === 'loading' ? 'ring-slate-500' :
               'ring-red-500'
-            }`}>
+            }`}
+            style={{ borderRadius: '50% / 45%' }}>
               {!capturedPhoto ? (
                 <>
                   <div
@@ -425,8 +478,8 @@ export default function PostInterviewVerifyPage() {
 
           {/* Face status feedback */}
           {isCameraReady && !capturedPhoto && (
-            <div className="mt-3 mb-4 flex justify-center">
-              <div className={`text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-2 max-w-[95%] ${
+            <div className="mb-3 flex justify-center">
+              <div className={`text-white text-xs px-3 py-1 rounded-full flex items-center gap-1.5 ${
                 faceStatus === 'ready' ? 'bg-emerald-500' :
                 faceStatus === 'loading' ? 'bg-slate-600' :
                 'bg-red-500'
@@ -481,27 +534,27 @@ export default function PostInterviewVerifyPage() {
 
           {/* Error Message */}
           {error && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center gap-2 text-red-400">
-              <AlertCircle className="h-5 w-5 flex-shrink-0" />
-              <span className="text-sm">{error}</span>
+            <div className="mb-3 p-2.5 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center gap-2 text-red-400">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <span className="text-xs">{error}</span>
             </div>
           )}
 
           {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 mt-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             {!capturedPhoto ? (
               <Button
                 onClick={capturePhoto}
                 disabled={!isCameraReady || countdown !== null || faceStatus !== 'ready'}
-                className="w-full sm:flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-12 text-lg disabled:opacity-50"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-10 text-sm disabled:opacity-50"
               >
                 {countdown !== null ? (
                   <span>Capturing...</span>
                 ) : faceStatus !== 'ready' ? (
-                  <span className="text-sm">Position your face correctly</span>
+                  <span className="text-xs">Position your face correctly</span>
                 ) : (
                   <>
-                    <Camera className="h-5 w-5 mr-2" />
+                    <Camera className="h-4 w-4 mr-2" />
                     Capture Photo
                   </>
                 )}
@@ -511,25 +564,25 @@ export default function PostInterviewVerifyPage() {
                 <Button
                   onClick={retakePhoto}
                   variant="outline"
-                  className="w-full sm:flex-1 border-slate-600 text-slate-300 hover:bg-slate-700 h-12"
+                  className="w-full sm:flex-1 border-slate-600 text-slate-300 hover:bg-slate-700 h-10 text-sm"
                   disabled={saving}
                 >
-                  <RefreshCw className="h-5 w-5 mr-2" />
+                  <RefreshCw className="h-4 w-4 mr-2" />
                   Retake
                 </Button>
                 <Button
                   onClick={savePhotoAndContinue}
                   disabled={saving}
-                  className="w-full sm:flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-12"
+                  className="w-full sm:flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-10 text-sm"
                 >
                   {saving ? (
                     <>
-                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Saving...
                     </>
                   ) : (
                     <>
-                      <Check className="h-5 w-5 mr-2" />
+                      <Check className="h-4 w-4 mr-2" />
                       Save & Continue
                     </>
                   )}
@@ -540,8 +593,8 @@ export default function PostInterviewVerifyPage() {
         </div>
 
         {/* Security Note */}
-        <p className="text-center text-slate-500 text-xs mt-4">
-          🔒 Your photo is securely stored for verification purposes only
+        <p className="text-center text-slate-500 text-xs mt-3">
+          🔒 Securely stored for verification only
         </p>
       </div>
     </div>
