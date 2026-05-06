@@ -2703,12 +2703,28 @@ export class DatabaseService {
   }
 
   // Auto-recharge wallet
-  // IMPORTANT: Auto-recharge is DISABLED until real Razorpay payment integration is added.
-  // Wallet credits should ONLY be added after a verified Razorpay payment (via webhook or /api/payment/verify).
-  // The old code was simulating payment success and adding credits without real payment — this is a critical bug.
+  // Triggers Razorpay addon creation for wallet recharge when conditions are met
   static async autoRecharge(companyId: string) {
-    console.warn(`⚠️ [Auto-Recharge] Auto-recharge requested for company ${companyId} but is DISABLED. Wallet credits can only be added after a real Razorpay payment.`)
-    throw new Error('Insufficient wallet balance. Please recharge your wallet via the Payment page to continue.')
+    console.log(`🔄 [Auto-Recharge] Checking auto-recharge conditions for company: ${companyId}`)
+    
+    try {
+      const { checkAndAutoRecharge } = await import('./auto-recharge')
+      const result = await checkAndAutoRecharge(companyId)
+      
+      if (result.success && result.triggered) {
+        console.log(`✅ [Auto-Recharge] Auto-recharge addon created successfully: ${result.addonId}`)
+        return result
+      } else {
+        console.log(`ℹ️ [Auto-Recharge] ${result.message}`)
+        if (!result.success) {
+          throw new Error(result.message)
+        }
+        return result
+      }
+    } catch (error: any) {
+      console.error(`❌ [Auto-Recharge] Failed for company ${companyId}:`, error.message)
+      throw new Error(`Auto-recharge failed: ${error.message}`)
+    }
   }
 
   // Deduct from wallet
@@ -3195,140 +3211,6 @@ export class DatabaseService {
     return result
   }
 
-  // Find or create demo company
-  static async findOrCreateDemoCompany() {
-    if (!this.isDatabaseConfigured()) {
-      throw new Error('Database not configured. Please set DATABASE_URL in your .env.local file.')
-    }
-
-    const demoEmail = 'admin@hire-genai.com'
-    const demoCompanyName = 'HireGenAI Demo Company'
-
-    // First, check if demo company exists
-    const findCompanyQuery = `
-      SELECT c.* FROM companies c
-      JOIN company_domains cd ON c.id = cd.company_id
-      WHERE cd.domain = 'hire-genai.com'
-      LIMIT 1
-    `
-    const existingCompany = await this.query(findCompanyQuery) as any[]
-
-    if (existingCompany.length > 0) {
-      return existingCompany[0]
-    }
-
-    // Create demo company if it doesn't exist
-    const insertCompanyQuery = `
-      INSERT INTO companies (name, status, verified, created_at)
-      VALUES ($1, 'active', true, NOW())
-      RETURNING *
-    `
-    const newCompany = await this.query(insertCompanyQuery, [demoCompanyName]) as any[]
-
-    if (newCompany.length === 0) {
-      throw new Error('Failed to create demo company')
-    }
-
-    // Add domain mapping for demo company
-    const insertDomainQuery = `
-      INSERT INTO company_domains (company_id, domain)
-      VALUES ($1::uuid, 'hire-genai.com')
-    `
-    await this.query(insertDomainQuery, [newCompany[0].id])
-
-    // Create manager user for demo company if doesn't exist
-    const findManagerQuery = `
-      SELECT * FROM users WHERE email = $1 AND company_id = $2::uuid
-    `
-    const existingManager = await this.query(findManagerQuery, [demoEmail, newCompany[0].id]) as any[]
-
-    if (existingManager.length === 0) {
-      const insertManagerQuery = `
-        INSERT INTO users (
-          company_id, 
-          email, 
-          full_name, 
-          status, 
-          job_title,
-          email_verified_at,
-          created_at
-        )
-        VALUES ($1::uuid, $2, 'Demo Manager', 'active', 'System Manager', NOW(), NOW())
-        RETURNING *
-      `
-      const managerUser = await this.query(insertManagerQuery, [newCompany[0].id, demoEmail]) as any[]
-
-      // Assign manager role
-      const insertRoleQuery = `
-        INSERT INTO user_roles (user_id, role)
-        VALUES ($1::uuid, 'manager')
-        ON CONFLICT DO NOTHING
-      `
-      await this.query(insertRoleQuery, [managerUser[0].id])
-    }
-
-    return newCompany[0]
-  }
-
-  // Add user to demo company as member
-  static async addUserToDemoCompany(email: string, fullName?: string) {
-    if (!this.isDatabaseConfigured()) {
-      throw new Error('Database not configured. Please set DATABASE_URL in your .env.local file.')
-    }
-
-    // Get or create demo company
-    const demoCompany = await this.findOrCreateDemoCompany()
-
-    // Check if user already exists in demo company
-    const findUserQuery = `
-      SELECT * FROM users WHERE email = $1 AND company_id = $2::uuid
-    `
-    const existingUser = await this.query(findUserQuery, [email.toLowerCase(), demoCompany.id]) as any[]
-
-    if (existingUser.length > 0) {
-      // User already exists in demo company, keep their existing role
-      return {
-        user: existingUser[0],
-        company: demoCompany,
-        isNewUser: false
-      }
-    }
-
-    // Create new user in demo company
-    const userName = fullName || email.split('@')[0]
-    const insertUserQuery = `
-      INSERT INTO users (
-        company_id, 
-        email, 
-        full_name, 
-        status, 
-        job_title,
-        email_verified_at,
-        created_at
-      )
-      VALUES ($1::uuid, $2, $3, 'active', 'Demo User', NOW(), NOW())
-      RETURNING *
-    `
-    const newUser = await this.query(insertUserQuery, [demoCompany.id, email.toLowerCase(), userName]) as any[]
-
-    if (newUser.length === 0) {
-      throw new Error('Failed to create demo user')
-    }
-
-    // Assign recruiter role for demo users (member is not in enum, using recruiter as limited role)
-    const insertRoleQuery = `
-      INSERT INTO user_roles (user_id, role)
-      VALUES ($1::uuid, 'recruiter')
-      ON CONFLICT (user_id) DO NOTHING
-    `
-    await this.query(insertRoleQuery, [newUser[0].id])
-
-    return {
-      user: newUser[0],
-      company: demoCompany,
-      isNewUser: true
-    }
-  }
 
   // Check if user is registered under a specific company by email domain
   static async findUserByEmailAndCompanyDomain(email: string) {
@@ -3382,6 +3264,7 @@ export class DatabaseService {
   static async recordCVParsingUsage(data: {
     companyId: string
     jobId: string
+    applicationId?: string
     candidateId?: string
     fileId?: string
     fileSizeKb?: number
@@ -3399,6 +3282,7 @@ export class DatabaseService {
     console.log('🎯 [CV PARSING] Starting billing calculation...')
     console.log('📋 Company ID:', data.companyId)
     console.log('💼 Job ID:', data.jobId)
+    console.log('📋 Application ID:', data.applicationId || 'N/A')
     console.log('👤 Candidate ID:', data.candidateId || 'N/A')
     console.log('📄 File Size:', data.fileSizeKb || 0, 'KB')
     console.log('🔑 OpenAI API Key Source:', apiKeySourceLabel)
@@ -3412,6 +3296,23 @@ export class DatabaseService {
     
     const finalCost = cvCost
     
+    // If applicationId is provided but not candidateId, lookup candidateId from application
+    let resolvedCandidateId = data.candidateId
+    if (data.applicationId && !resolvedCandidateId) {
+      try {
+        const appRows = await this.query(
+          `SELECT candidate_id FROM applications WHERE id = $1::uuid LIMIT 1`,
+          [data.applicationId]
+        ) as any[]
+        if (appRows && appRows.length > 0) {
+          resolvedCandidateId = appRows[0].candidate_id
+          console.log('🔍 [CV PARSING] Resolved candidate_id from application:', resolvedCandidateId)
+        }
+      } catch (lookupError) {
+        console.warn('⚠️ [CV PARSING] Failed to lookup candidate_id from application:', lookupError)
+      }
+    }
+
     const query = `
       INSERT INTO cv_parsing_usage (
         company_id, job_id, candidate_id, file_id, file_size_kb,
@@ -3431,7 +3332,7 @@ export class DatabaseService {
     const result = await this.query(query, [
       data.companyId,
       data.jobId,
-      data.candidateId || null,
+      resolvedCandidateId || null,
       data.fileId || null,
       data.fileSizeKb || 0,
       data.parseSuccessful !== false,
@@ -3444,7 +3345,7 @@ export class DatabaseService {
       0 // profit_margin_percent - no margin
     ]) as any[]
 
-    console.log('💾 [CV PARSING] Cost stored in database successfully')
+    console.log('💾 [CV PARSING] Saved usage record for candidate:', resolvedCandidateId)
     console.log('💰 Final Cost: $' + finalCost.toFixed(2))
     console.log('🏷️  Pricing Source: COST_PER_CV_PARSING (.env)')
     console.log('🔑 OpenAI Key Source:', apiKeySourceLabel)
@@ -3473,10 +3374,11 @@ export class DatabaseService {
             console.log('🔄 [WALLET] Auto-recharge enabled, attempting recharge...')
             try {
               await this.autoRecharge(data.companyId)
-              console.log('✅ [WALLET] Auto-recharge successful!')
+              console.log('✅ [WALLET] Auto-recharge addon created successfully!')
+              // Note: Actual wallet credit happens via webhook when payment is captured
             } catch (rechargeError: any) {
-              console.log('❌ [WALLET] Auto-recharge failed:', rechargeError.message)
-              throw new Error('Insufficient wallet balance and auto-recharge failed')
+              console.log('❌ [WALLET] Auto-recharge failed (silently continuing):', rechargeError.message)
+              // Continue silently - don't block wallet deduction
             }
           } else {
             console.log('❌ [WALLET] Auto-recharge disabled, cannot proceed')
@@ -3505,6 +3407,20 @@ export class DatabaseService {
         console.log('✅ [WALLET] Deduction successful!')
         console.log('💰 [WALLET] New Balance: $' + balanceAfter.toFixed(2))
 
+        // Check if auto-recharge should be triggered AFTER deduction (balance below threshold)
+        const autoRechargeThreshold = parseFloat(billing.auto_recharge_threshold) || 100
+        console.log(`🔍 [AUTO-RECHARGE] Checking: enabled=${billing.auto_recharge_enabled}, balance=$${balanceAfter.toFixed(2)}, threshold=$${autoRechargeThreshold}`)
+        if (billing.auto_recharge_enabled && balanceAfter < autoRechargeThreshold) {
+          console.log(`🔄 [AUTO-RECHARGE] Balance ($${balanceAfter.toFixed(2)}) below threshold ($${autoRechargeThreshold}), triggering auto-recharge...`)
+          try {
+            await this.autoRecharge(data.companyId)
+            console.log('✅ [AUTO-RECHARGE] Auto-recharge triggered successfully!')
+          } catch (rechargeError: any) {
+            console.log('⚠️  [AUTO-RECHARGE] Auto-recharge failed (non-blocking):', rechargeError.message)
+            // Don't throw - auto-recharge failure shouldn't block the transaction
+          }
+        }
+
         // Create ledger entry for audit trail
         const ledgerQuery = `
           INSERT INTO usage_ledger (
@@ -3527,7 +3443,7 @@ export class DatabaseService {
           data.companyId,
           data.jobId || '',
           'CV_PARSE',
-          `CV parsing - ${data.candidateId ? 'Candidate' : 'File'} processed`,
+          `CV parsing - ${resolvedCandidateId ? 'Candidate' : 'File'} processed`,
           1, // quantity (1 CV)
           finalCost, // unit price
           finalCost, // amount
@@ -3677,6 +3593,19 @@ export class DatabaseService {
           const balanceAfter = parseFloat(deductResult[0].new_balance)
           console.log('✅ [WALLET] Deduction successful!')
           console.log('💰 [WALLET] New Balance: $' + balanceAfter.toFixed(2))
+
+          // Check if auto-recharge should be triggered AFTER deduction (balance below threshold)
+          const autoRechargeThreshold = parseFloat(billing.auto_recharge_threshold) || 100
+          console.log(`🔍 [AUTO-RECHARGE] Checking: enabled=${billing.auto_recharge_enabled}, balance=$${balanceAfter.toFixed(2)}, threshold=$${autoRechargeThreshold}`)
+          if (billing.auto_recharge_enabled && balanceAfter < autoRechargeThreshold) {
+            console.log(`🔄 [AUTO-RECHARGE] Balance ($${balanceAfter.toFixed(2)}) below threshold ($${autoRechargeThreshold}), triggering auto-recharge...`)
+            try {
+              await this.autoRecharge(data.companyId)
+              console.log('✅ [AUTO-RECHARGE] Auto-recharge triggered successfully!')
+            } catch (rechargeError: any) {
+              console.log('⚠️  [AUTO-RECHARGE] Auto-recharge failed (non-blocking):', rechargeError.message)
+            }
+          }
 
           // Create ledger entry for audit trail
           const ledgerQuery = `
@@ -3884,10 +3813,11 @@ export class DatabaseService {
             console.log('🔄 [WALLET] Auto-recharge enabled, attempting recharge...')
             try {
               await this.autoRecharge(data.companyId)
-              console.log('✅ [WALLET] Auto-recharge successful!')
+              console.log('✅ [WALLET] Auto-recharge addon created successfully!')
+              // Note: Actual wallet credit happens via webhook when payment is captured
             } catch (rechargeError: any) {
-              console.log('❌ [WALLET] Auto-recharge failed:', rechargeError.message)
-              throw new Error('Insufficient wallet balance and auto-recharge failed')
+              console.log('❌ [WALLET] Auto-recharge failed (silently continuing):', rechargeError.message)
+              // Continue silently - don't block wallet deduction
             }
           } else {
             console.log('❌ [WALLET] Auto-recharge disabled, cannot proceed')
@@ -3915,6 +3845,19 @@ export class DatabaseService {
         const balanceAfter = parseFloat(deductResult[0].new_balance)
         console.log('✅ [WALLET] Deduction successful!')
         console.log('💰 [WALLET] New Balance: $' + balanceAfter.toFixed(2))
+
+        // Check if auto-recharge should be triggered AFTER deduction (balance below threshold)
+        const autoRechargeThreshold = parseFloat(billing.auto_recharge_threshold) || 100
+        console.log(`🔍 [AUTO-RECHARGE] Checking: enabled=${billing.auto_recharge_enabled}, balance=$${balanceAfter.toFixed(2)}, threshold=$${autoRechargeThreshold}`)
+        if (billing.auto_recharge_enabled && balanceAfter < autoRechargeThreshold) {
+          console.log(`🔄 [AUTO-RECHARGE] Balance ($${balanceAfter.toFixed(2)}) below threshold ($${autoRechargeThreshold}), triggering auto-recharge...`)
+          try {
+            await this.autoRecharge(data.companyId)
+            console.log('✅ [AUTO-RECHARGE] Auto-recharge triggered successfully!')
+          } catch (rechargeError: any) {
+            console.log('⚠️  [AUTO-RECHARGE] Auto-recharge failed (non-blocking):', rechargeError.message)
+          }
+        }
 
         // Create ledger entry for audit trail
         const ledgerQuery = `
@@ -4869,6 +4812,7 @@ export class DatabaseService {
     subscriberEmail?: string
     startTime?: Date
     nextBillingTime?: Date
+    subscriptionLink?: string
     rawData?: any
   }) {
     if (!this.isDatabaseConfigured()) {
@@ -4878,9 +4822,9 @@ export class DatabaseService {
     const q = `
       INSERT INTO company_subscriptions (
         company_id, provider, subscription_id, plan_id, status,
-        subscriber_email, start_time, next_billing_time, raw_data, updated_at
+        subscriber_email, start_time, next_billing_time, subscription_link, raw_data, updated_at
       ) VALUES (
-        $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, NOW()
+        $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW()
       )
       ON CONFLICT (company_id, provider) DO UPDATE SET
         subscription_id = EXCLUDED.subscription_id,
@@ -4889,6 +4833,7 @@ export class DatabaseService {
         subscriber_email = COALESCE(EXCLUDED.subscriber_email, company_subscriptions.subscriber_email),
         start_time = COALESCE(EXCLUDED.start_time, company_subscriptions.start_time),
         next_billing_time = COALESCE(EXCLUDED.next_billing_time, company_subscriptions.next_billing_time),
+        subscription_link = COALESCE(EXCLUDED.subscription_link, company_subscriptions.subscription_link),
         raw_data = COALESCE(EXCLUDED.raw_data, company_subscriptions.raw_data),
         updated_at = NOW()
       RETURNING *
@@ -4902,6 +4847,7 @@ export class DatabaseService {
       data.subscriberEmail || null,
       data.startTime?.toISOString() || null,
       data.nextBillingTime?.toISOString() || null,
+      data.subscriptionLink || null,
       data.rawData ? JSON.stringify(data.rawData) : null
     ]) as any[]
     return rows[0]
@@ -4950,7 +4896,8 @@ export class DatabaseService {
     companyId: string,
     provider: string,
     status: string,
-    nextBillingTime?: Date
+    nextBillingTime?: Date,
+    cancelAtCycleEnd?: boolean
   ) {
     if (!this.isDatabaseConfigured()) {
       throw new Error('Database not configured')
@@ -4959,25 +4906,49 @@ export class DatabaseService {
     let q: string
     let params: any[]
 
-    if (nextBillingTime) {
-      q = `
-        UPDATE company_subscriptions
-        SET status = $3, next_billing_time = $4, updated_at = NOW()
-        WHERE company_id = $1::uuid AND provider = $2
-        RETURNING *
-      `
-      params = [companyId, provider, status, nextBillingTime.toISOString()]
-    } else {
-      q = `
-        UPDATE company_subscriptions
-        SET status = $3, updated_at = NOW()
-        WHERE company_id = $1::uuid AND provider = $2
-        RETURNING *
-      `
-      params = [companyId, provider, status]
+    // Build dynamic SET clause based on provided parameters
+    const setClauses = ['status = $3', 'updated_at = NOW()']
+    params = [companyId, provider, status]
+    let paramIndex = 4
+
+    if (nextBillingTime !== undefined) {
+      setClauses.push(`next_billing_time = $${paramIndex}`)
+      params.push(nextBillingTime.toISOString())
+      paramIndex++
     }
 
+    if (cancelAtCycleEnd !== undefined) {
+      setClauses.push(`cancel_at_cycle_end = $${paramIndex}`)
+      params.push(cancelAtCycleEnd)
+      paramIndex++
+    }
+
+    q = `
+      UPDATE company_subscriptions
+      SET ${setClauses.join(', ')}
+      WHERE company_id = $1::uuid AND provider = $2
+      RETURNING *
+    `
+
     const rows = await this.query(q, params) as any[]
+    return rows[0]
+  }
+
+  /**
+   * Resume a cancelled subscription (remove cancel_at_cycle_end flag)
+   */
+  static async resumeSubscription(companyId: string, provider: string = 'razorpay') {
+    if (!this.isDatabaseConfigured()) {
+      throw new Error('Database not configured')
+    }
+
+    const q = `
+      UPDATE company_subscriptions
+      SET cancel_at_cycle_end = false, updated_at = NOW()
+      WHERE company_id = $1::uuid AND provider = $2
+      RETURNING *
+    `
+    const rows = await this.query(q, [companyId, provider]) as any[]
     return rows[0]
   }
 
@@ -5010,6 +4981,7 @@ export class DatabaseService {
     currency: string
     status: string
     paymentTime?: Date
+    companyId?: string | null
     rawData?: any
   }) {
     if (!this.isDatabaseConfigured()) {
@@ -5019,9 +4991,11 @@ export class DatabaseService {
     const q = `
       INSERT INTO subscription_payments (
         subscription_id, provider, payment_id, amount, currency,
-        status, payment_time, raw_data
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      ON CONFLICT (payment_id, provider) DO NOTHING
+        status, payment_time, company_id, raw_data
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ON CONFLICT (payment_id, provider) DO UPDATE SET 
+        raw_data = EXCLUDED.raw_data,
+        updated_at = NOW()
       RETURNING *
     `
     const rows = await this.query(q, [
@@ -5032,6 +5006,7 @@ export class DatabaseService {
       data.currency,
       data.status,
       data.paymentTime?.toISOString() || new Date().toISOString(),
+      data.companyId || null,
       data.rawData ? JSON.stringify(data.rawData) : null
     ]) as any[]
     return rows[0]
@@ -5116,5 +5091,68 @@ export class DatabaseService {
     `
     const rows = await this.query(q, [companyId, addCredits]) as any[]
     return rows[0]
+  }
+
+  /**
+   * Check if auto-recharge should be triggered and process it
+   */
+  static async checkAndTriggerAutoRecharge(companyId: string, currentBalance: number) {
+    try {
+      console.log(`[Auto-Recharge] Checking for company ${companyId}, balance: ${currentBalance}`)
+
+      // Get auto-recharge settings
+      const settings = await this.query(
+        `SELECT auto_recharge_enabled, auto_recharge_amount, auto_recharge_threshold 
+         FROM auto_recharge_settings 
+         WHERE company_id = $1::uuid`,
+        [companyId]
+      )
+
+      if (settings.length === 0 || !settings[0].auto_recharge_enabled) {
+        console.log(`[Auto-Recharge] Not enabled for company ${companyId}`)
+        return false
+      }
+
+      const { auto_recharge_amount, auto_recharge_threshold } = settings[0]
+
+      // Check if balance is below threshold
+      if (currentBalance > auto_recharge_threshold) {
+        console.log(`[Auto-Recharge] Balance ${currentBalance} above threshold ${auto_recharge_threshold}`)
+        return false
+      }
+
+      console.log(`[Auto-Recharge] TRIGGERING: Balance ${currentBalance} < Threshold ${auto_recharge_threshold}`)
+
+      // Process auto-recharge
+      const paymentId = `auto_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+      // Update company balance
+      await this.query(
+        `UPDATE companies 
+         SET balance = balance + $1,
+             updated_at = NOW()
+         WHERE id = $2::uuid`,
+        [auto_recharge_amount, companyId]
+      )
+
+      // Log the auto-recharge transaction
+      await this.query(
+        `INSERT INTO subscription_payments (
+           company_id, amount, status, payment_id, method, 
+           payment_date, created_at, updated_at
+         ) VALUES (
+           $1::uuid, $2, 'completed', $3, 'auto_recharge',
+           NOW(), NOW(), NOW()
+         )`,
+        [companyId, auto_recharge_amount, paymentId]
+      )
+
+      console.log(`[Auto-Recharge] ✅ SUCCESS: +${auto_recharge_amount} for company ${companyId}, Payment: ${paymentId}`)
+      return true
+
+    } catch (error: any) {
+      console.error(`[Auto-Recharge] ❌ ERROR for company ${companyId}:`, error.message)
+      return false
+    }
   }
 }

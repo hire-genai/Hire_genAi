@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Search, Loader2 } from "lucide-react"
 import DashboardDateFilter from "@/components/filters/DashboardDateFilter"
+import { Skeleton, StatCardGridLoader, TalentPoolTableLoader } from '@/components/ui/skeleton-loader'
 
 interface Company {
   id: string
@@ -19,19 +20,28 @@ interface Company {
   createdAt: string
 }
 
-export default function CompaniesTab() {
+interface CompaniesTabProps {
+  onReady?: (fetchFn: (start: string, end: string) => void) => void
+}
+
+export default function CompaniesTab({ onReady }: CompaniesTabProps) {
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
   const [companies, setCompanies] = useState<Company[]>([])
 
-  const fetchCompanies = useCallback(async (searchTerm: string, startDate?: string, endDate?: string) => {
+  // Refs to track latest values without recreating fetchCompanies
+  const searchRef = useRef(search)
+
+  useEffect(() => { searchRef.current = search }, [search])
+
+  const fetchCompanies = useCallback(async (startDate?: string, endDate?: string) => {
     setLoading(true)
     try {
-      let url = `/api/admin/companies-list?search=${encodeURIComponent(searchTerm)}`
-      if (startDate && endDate) {
-        url += `&startDate=${startDate}&endDate=${endDate}`
-      }
-      const res = await fetch(url)
+      const params = new URLSearchParams()
+      if (searchRef.current) params.set("search", searchRef.current)
+      if (startDate) params.set("startDate", startDate)
+      if (endDate) params.set("endDate", endDate)
+      const res = await fetch(`/api/admin/companies-list?${params.toString()}`)
       if (!res.ok) throw new Error("Failed to load")
       const data = await res.json()
       if (data.ok) {
@@ -42,11 +52,23 @@ export default function CompaniesTab() {
     } finally {
       setLoading(false)
     }
+  }, []) // empty deps - never recreated
+
+  // Initial load only
+  useEffect(() => {
+    fetchCompanies()
   }, [])
 
-  const handleDateRangeApply = (startDate: string, endDate: string) => {
-    fetchCompanies(search, startDate, endDate)
-  }
+  // Re-fetch on search with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => fetchCompanies(), 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // Register stable function with parent - only once
+  useEffect(() => {
+    if (onReady) onReady(fetchCompanies)
+  }, [])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -70,26 +92,81 @@ export default function CompaniesTab() {
 
   return (
     <div className="space-y-4">
-      {/* Header Row with Search and Date Filter */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="w-full sm:w-80 relative">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-          <Input
-            placeholder="Search companies..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 bg-slate-800 border-slate-700 text-white placeholder-slate-500"
-          />
-        </div>
-        <div className="flex-shrink-0">
-          <DashboardDateFilter onApply={handleDateRangeApply} defaultPreset="last90Days" />
-        </div>
+      {/* Search Bar */}
+      <div className="w-full sm:w-80 relative">
+        <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+        <Input
+          placeholder="Search companies..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-10 bg-slate-800 border-slate-700 text-white placeholder-slate-500"
+        />
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-          <span className="ml-3 text-slate-400">Loading companies...</span>
+        <div className="space-y-4">
+          {/* Search Bar Skeleton */}
+          <div className="w-full sm:w-80">
+            <div className="relative">
+              <div className="absolute left-3 top-3 h-4 w-4 bg-slate-700 animate-pulse rounded" />
+              <div className="pl-10 h-10 w-full bg-slate-700 animate-pulse rounded-lg" />
+            </div>
+          </div>
+
+          {/* Companies Table Card Skeleton */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+            <div className="h-3 w-32 bg-slate-700 animate-pulse rounded mb-4" />
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-700">
+                    <th className="text-left py-3 px-4">
+                      <div className="h-4 w-20 bg-slate-700 animate-pulse rounded" />
+                    </th>
+                    <th className="text-left py-3 px-4">
+                      <div className="h-4 w-16 bg-slate-700 animate-pulse rounded" />
+                    </th>
+                    <th className="text-center py-3 px-4">
+                      <div className="h-4 w-16 bg-slate-700 animate-pulse rounded" />
+                    </th>
+                    <th className="text-right py-3 px-4">
+                      <div className="h-4 w-28 bg-slate-700 animate-pulse rounded" />
+                    </th>
+                    <th className="text-right py-3 px-4">
+                      <div className="h-4 w-24 bg-slate-700 animate-pulse rounded" />
+                    </th>
+                    <th className="text-right py-3 px-4">
+                      <div className="h-4 w-20 bg-slate-700 animate-pulse rounded" />
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <tr key={i} className="border-b border-slate-800">
+                      <td className="py-3 px-4">
+                        <div className="h-4 w-32 bg-slate-700 animate-pulse rounded" />
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="h-6 w-16 bg-slate-700 animate-pulse rounded-full" />
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="h-4 w-8 bg-slate-700 animate-pulse rounded mx-auto" />
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="h-4 w-20 bg-slate-700 animate-pulse rounded ml-auto" />
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="h-4 w-16 bg-slate-700 animate-pulse rounded ml-auto" />
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="h-4 w-16 bg-slate-700 animate-pulse rounded ml-auto" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       ) : (
       <Card className="bg-slate-900 border-slate-800">

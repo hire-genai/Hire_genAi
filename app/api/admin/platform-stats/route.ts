@@ -13,69 +13,59 @@ export async function GET(req: NextRequest) {
     const startDate = url.searchParams.get("startDate") || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
     const endDate = url.searchParams.get("endDate") || new Date().toISOString()
 
-    // Total revenue (sum of all usage costs charged to companies)
+    // Total revenue (sum of all usage costs charged to companies within date range)
     const revenueRows = await DatabaseService.query(
       `SELECT
         COALESCE(SUM(cost), 0) as total
        FROM (
-        SELECT cost FROM cv_parsing_usage
+        SELECT cost, created_at FROM cv_parsing_usage WHERE created_at >= $1 AND created_at <= $2
         UNION ALL
-        SELECT cost FROM question_generation_usage
+        SELECT cost, created_at FROM question_generation_usage WHERE created_at >= $1 AND created_at <= $2
         UNION ALL
-        SELECT cost FROM video_interview_usage
-       ) all_usage`
+        SELECT cost, created_at FROM video_interview_usage WHERE created_at >= $1 AND created_at <= $2
+       ) all_usage`,
+      [startDate + " 00:00:00", endDate + " 23:59:59"]
     )
     const totalRevenue = parseFloat((revenueRows[0] as any)?.total || "0")
 
-    // This month revenue
-    const monthStart = new Date()
-    monthStart.setDate(1)
-    monthStart.setHours(0, 0, 0, 0)
+    // Revenue in selected date range (this is now the "current" period)
+    const monthRevenue = totalRevenue
 
-    const monthRevenueRows = await DatabaseService.query(
-      `SELECT
-        COALESCE(SUM(cost), 0) as total
-       FROM (
-        SELECT cost, created_at FROM cv_parsing_usage WHERE created_at >= $1
-        UNION ALL
-        SELECT cost, created_at FROM question_generation_usage WHERE created_at >= $1
-        UNION ALL
-        SELECT cost, created_at FROM video_interview_usage WHERE created_at >= $1
-       ) month_usage`,
-      [monthStart.toISOString()]
-    )
-    const monthRevenue = parseFloat((monthRevenueRows[0] as any)?.total || "0")
-
-    // Last month revenue for comparison
-    const lastMonthStart = new Date(monthStart)
-    lastMonthStart.setMonth(lastMonthStart.getMonth() - 1)
+    // Previous period revenue for comparison (same duration before the selected date range)
+    const startDateObj = new Date(startDate)
+    const endDateObj = new Date(endDate)
+    const durationMs = endDateObj.getTime() - startDateObj.getTime()
+    
+    const prevStartDate = new Date(startDateObj.getTime() - durationMs)
+    const prevEndDate = new Date(endDateObj.getTime() - durationMs)
 
     const lastMonthRevenueRows = await DatabaseService.query(
       `SELECT
         COALESCE(SUM(cost), 0) as total
        FROM (
-        SELECT cost, created_at FROM cv_parsing_usage WHERE created_at >= $1 AND created_at < $2
+        SELECT cost, created_at FROM cv_parsing_usage WHERE created_at >= $1 AND created_at <= $2
         UNION ALL
-        SELECT cost, created_at FROM question_generation_usage WHERE created_at >= $1 AND created_at < $2
+        SELECT cost, created_at FROM question_generation_usage WHERE created_at >= $1 AND created_at <= $2
         UNION ALL
-        SELECT cost, created_at FROM video_interview_usage WHERE created_at >= $1 AND created_at < $2
-       ) last_month_usage`,
-      [lastMonthStart.toISOString(), monthStart.toISOString()]
+        SELECT cost, created_at FROM video_interview_usage WHERE created_at >= $1 AND created_at <= $2
+       ) previous_period_usage`,
+      [prevStartDate.toISOString().slice(0, 10) + " 00:00:00", prevEndDate.toISOString().slice(0, 10) + " 23:59:59"]
     )
     const lastMonthRevenue = parseFloat((lastMonthRevenueRows[0] as any)?.total || "0")
     const revenueChange = lastMonthRevenue > 0 ? ((monthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 0
 
-    // Total expenses (OpenAI base costs)
+    // Total expenses (OpenAI base costs within date range)
     const expenseRows = await DatabaseService.query(
       `SELECT
         COALESCE(SUM(base_cost), 0) as total
        FROM (
-        SELECT COALESCE(openai_base_cost, cost * 0.7) as base_cost FROM cv_parsing_usage
+        SELECT COALESCE(openai_base_cost, cost * 0.7) as base_cost, created_at FROM cv_parsing_usage WHERE created_at >= $1 AND created_at <= $2
         UNION ALL
-        SELECT cost as base_cost FROM question_generation_usage
+        SELECT cost as base_cost, created_at FROM question_generation_usage WHERE created_at >= $1 AND created_at <= $2
         UNION ALL
-        SELECT COALESCE(openai_base_cost, cost * 0.7) as base_cost FROM video_interview_usage
-       ) all_expenses`
+        SELECT COALESCE(openai_base_cost, cost * 0.7) as base_cost, created_at FROM video_interview_usage WHERE created_at >= $1 AND created_at <= $2
+       ) all_expenses`,
+      [startDate + " 00:00:00", endDate + " 23:59:59"]
     )
     const totalExpenses = parseFloat((expenseRows[0] as any)?.total || "0")
 
@@ -123,15 +113,16 @@ export async function GET(req: NextRequest) {
       profit: parseFloat(r.revenue || "0") - parseFloat(r.expenses || "0"),
     }))
 
-    // Active alerts
+    // Active alerts within date range
     let alerts: any[] = []
     try {
       const alertRows = await DatabaseService.query(
         `SELECT id, alert_type, severity, title, description, created_at
          FROM admin_alerts
-         WHERE status = 'active'
+         WHERE status = 'active' AND created_at >= $1 AND created_at <= $2
          ORDER BY created_at DESC
-         LIMIT 10`
+         LIMIT 10`,
+        [startDate + " 00:00:00", endDate + " 23:59:59"]
       )
       alerts = alertRows as any[]
     } catch { /* table may not exist yet */ }

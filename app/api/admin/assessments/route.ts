@@ -13,21 +13,20 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status") || "all"
     const limit = parseInt(searchParams.get("limit") || "100")
 
-    // Updated query to work with recruitment_assessments schema
+    // Updated query to work with assessments schema
     let sql = `
       SELECT 
         id,
-        name,
-        email,
-        company,
-        phone,
+        contact_name,
+        contact_email,
+        contact_company,
+        contact_phone,
         answers,
-        efficiency_score,
+        score,
         created_at,
-        ip_address,
-        user_agent
+        updated_at
       FROM assessments
-      WHERE name IS NOT NULL AND email IS NOT NULL
+      WHERE contact_name IS NOT NULL AND contact_email IS NOT NULL
     `
     const params: any[] = []
 
@@ -36,14 +35,14 @@ export async function GET(req: NextRequest) {
 
     const assessments = await DatabaseService.query(sql, params)
 
-    // Get stats (simplified for recruitment_assessments schema)
+    // Get stats (simplified for assessments schema)
     const statsResult = await DatabaseService.query(`
       SELECT 
         COUNT(*) as total,
-        COUNT(*) FILTER (WHERE efficiency_score IS NOT NULL) as completed,
+        COUNT(*) FILTER (WHERE score IS NOT NULL) as completed,
         COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE) as completed_today
       FROM assessments
-      WHERE name IS NOT NULL AND email IS NOT NULL
+      WHERE contact_name IS NOT NULL AND contact_email IS NOT NULL
     `)
     const stats = statsResult[0] as any
 
@@ -51,17 +50,15 @@ export async function GET(req: NextRequest) {
       success: true,
       assessments: (assessments as any[]).map(a => ({
         id: a.id,
-        contactName: a.name,
-        contactEmail: a.email,
-        contactCompany: a.company,
-        contactPhone: a.phone,
+        contactName: a.contact_name,
+        contactEmail: a.contact_email,
+        contactCompany: a.contact_company,
+        contactPhone: a.contact_phone,
         answers: a.answers,
-        score: a.efficiency_score,
+        score: a.score,
         createdAt: a.created_at,
-        ipAddress: a.ip_address,
-        userAgent: a.user_agent,
         // Add status field for UI compatibility (derive from whether score exists)
-        status: a.efficiency_score !== null ? 'completed' : 'partial'
+        status: a.score !== null ? 'completed' : 'partial'
       })),
       stats: {
         total: parseInt(stats.total || "0"),

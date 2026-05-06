@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Lightbulb, Loader2, ArrowRight, MessageCircle } from "lucide-react"
 import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
+import { Skeleton, StatCardGridLoader, TalentPoolTableLoader } from '@/components/ui/skeleton-loader'
 
 interface Ticket {
   id: string
@@ -93,9 +94,49 @@ export default function ProductFeedbackPage() {
       <Card className="bg-slate-900 border-slate-800">
         <CardContent className="pt-4">
           {loadingSupport ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
-              <span className="ml-2 text-slate-400">Loading...</span>
+            <div className="space-y-4">
+              {/* Action Card Skeleton */}
+              <div className="flex items-center justify-between p-4 bg-slate-800 rounded-lg border border-slate-700">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-500/20 rounded-lg">
+                    <div className="h-5 w-5 bg-slate-700 animate-pulse rounded" />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-4 w-48 bg-slate-700 animate-pulse rounded" />
+                    <div className="h-3 w-56 bg-slate-700 animate-pulse rounded" />
+                  </div>
+                </div>
+                <div className="h-8 w-28 bg-slate-700 animate-pulse rounded" />
+              </div>
+
+              {/* Stats Grid Skeleton */}
+              <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="bg-slate-800/50 rounded-lg p-2 sm:p-3 border border-slate-700">
+                    <div className="h-6 w-8 bg-slate-700 animate-pulse rounded" />
+                    <div className="h-3 w-20 bg-slate-700 animate-pulse rounded mt-1" />
+                  </div>
+                ))}
+              </div>
+
+              {/* Feedback Items Skeleton */}
+              <div className="mt-6">
+                <div className="h-4 w-24 bg-slate-700 animate-pulse rounded mb-3" />
+                <div className="space-y-2">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-slate-800 rounded-lg border border-slate-700">
+                      <div className="flex-1 min-w-0">
+                        <div className="h-4 w-48 bg-slate-700 animate-pulse rounded mb-1" />
+                        <div className="h-3 w-40 bg-slate-700 animate-pulse rounded" />
+                      </div>
+                      <div className="flex items-center gap-2 ml-2">
+                        <div className="h-5 w-16 bg-slate-700 animate-pulse rounded-full" />
+                        <div className="h-8 w-16 bg-slate-700 animate-pulse rounded" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">

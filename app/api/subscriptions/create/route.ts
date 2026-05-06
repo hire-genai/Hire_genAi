@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
 
     console.log('[Subscription Create] Razorpay subscription created:', razorpayData.id)
 
-    // ─── 7. Store subscription in database ───
+    // ─── 7. Store subscription in database (including short_url for Manage Plan) ───
     await DatabaseService.upsertSubscription({
       companyId,
       provider: 'razorpay',
@@ -142,6 +142,7 @@ export async function POST(request: NextRequest) {
       planId: planId,
       status: razorpayData.status || 'created',
       subscriberEmail: email || undefined,
+      subscriptionLink: razorpayData.short_url || undefined,
       rawData: razorpayData
     })
 

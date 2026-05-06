@@ -9,12 +9,18 @@ export const dynamic = 'force-dynamic'
  * POST /api/subscriptions/cancel
  * 
  * Cancels the active Razorpay subscription for the authenticated company.
- * The subscription will remain active until the end of the current billing period.
+ * By default, cancels at cycle end (user keeps access until billing period ends).
  * 
  * Request body (optional):
  * {
  *   cancelAtCycleEnd: boolean (default: true) - If true, cancels at end of current cycle
  * }
+ * 
+ * IMPORTANT: When cancelAtCycleEnd is true:
+ * - Razorpay subscription status remains 'active' until cycle end
+ * - We set cancel_at_cycle_end = true in our database
+ * - User keeps Pro access until current_end date
+ * - After current_end, status becomes 'expired'
  */
 export async function POST(request: NextRequest) {
   try {
@@ -46,12 +52,16 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── 2. Parse request body ───
+    // Default to true - cancel at cycle end (not immediate)
     let cancelAtCycleEnd = true
     try {
       const body = await request.json()
-      cancelAtCycleEnd = body.cancelAtCycleEnd !== false
+      // Only set to false if explicitly passed as false
+      if (body.cancelAtCycleEnd === false) {
+        cancelAtCycleEnd = false
+      }
     } catch {
-      // Use default if no body
+      // Use default (true) if no body
     }
 
     // ─── 3. Get existing subscription ───
@@ -61,6 +71,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'No subscription found' },
         { status: 404 }
+      )
+    }
+
+    // Check if already scheduled for cancellation
+    if (subscription.cancel_at_cycle_end === true) {
+      return NextResponse.json(
+        { error: 'Subscription is already scheduled for cancellation' },
+        { status: 400 }
       )
     }
 
@@ -90,7 +108,7 @@ export async function POST(request: NextRequest) {
       cancel_at_cycle_end: cancelAtCycleEnd ? 1 : 0
     }
 
-    console.log(`[Subscription Cancel] Cancelling subscription: ${subscription.subscription_id}`)
+    console.log(`[Subscription Cancel] Cancelling subscription: ${subscription.subscription_id}, cancelAtCycleEnd: ${cancelAtCycleEnd}`)
 
     const razorpayResponse = await fetch(
       `https://api.razorpay.com/v1/subscriptions/${subscription.subscription_id}/cancel`,
@@ -114,14 +132,40 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('[Subscription Cancel] Razorpay subscription cancelled:', razorpayData.status)
+    console.log('[Subscription Cancel] Razorpay response:', {
+      status: razorpayData.status,
+      current_end: razorpayData.current_end,
+      ended_at: razorpayData.ended_at
+    })
 
     // ─── 6. Update local database ───
-    await DatabaseService.updateSubscriptionStatus(
-      companyId,
-      'razorpay',
-      razorpayData.status || 'cancelled'
-    )
+    // IMPORTANT: When cancel_at_cycle_end is true:
+    // - Keep status as 'active' (user still has access)
+    // - Set cancel_at_cycle_end = true
+    // - Store current_end as the expiry date
+    const currentEnd = razorpayData.current_end 
+      ? new Date(razorpayData.current_end * 1000) 
+      : (subscription.next_billing_time ? new Date(subscription.next_billing_time) : undefined)
+
+    if (cancelAtCycleEnd) {
+      // Schedule cancellation - keep active until cycle end
+      await DatabaseService.updateSubscriptionStatus(
+        companyId,
+        'razorpay',
+        'active', // Keep as active - derived status will show 'cancelled'
+        currentEnd,
+        true // cancel_at_cycle_end = true
+      )
+    } else {
+      // Immediate cancellation
+      await DatabaseService.updateSubscriptionStatus(
+        companyId,
+        'razorpay',
+        'cancelled',
+        currentEnd,
+        false
+      )
+    }
 
     // ─── 7. Return result ───
     return NextResponse.json({
@@ -131,7 +175,9 @@ export async function POST(request: NextRequest) {
         : 'Subscription cancelled immediately',
       subscription: {
         id: subscription.subscription_id,
-        status: razorpayData.status,
+        status: cancelAtCycleEnd ? 'active' : 'cancelled',
+        cancelAtCycleEnd: cancelAtCycleEnd,
+        currentEnd: currentEnd?.toISOString() || null,
         endedAt: razorpayData.ended_at 
           ? new Date(razorpayData.ended_at * 1000).toISOString() 
           : null

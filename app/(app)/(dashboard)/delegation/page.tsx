@@ -23,9 +23,9 @@ import {
   AlertCircle,
   CheckCircle,
   Search,
-  Loader2,
-  RefreshCw
+  Loader2
 } from 'lucide-react'
+import { StatCardGridLoader, DelegationTableLoader, ErrorState } from '@/components/ui/skeleton-loader'
 
 type DelegationType = 'job' | 'application'
 type DelegationStatus = 'active' | 'expired' | 'revoked'
@@ -40,8 +40,8 @@ export default function DelegationPage() {
   const [myJobs, setMyJobs] = useState<any[]>([])
   const [myApplications, setMyApplications] = useState<any[]>([])
   const [stats, setStats] = useState({ active: 0, jobsDelegated: 0, applicationsDelegated: 0 })
-  const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // UI state
@@ -67,7 +67,7 @@ export default function DelegationPage() {
   // Fetch all delegation data from API
   const fetchDelegations = useCallback(async () => {
     if (!company?.id || !user?.id) return
-    setIsLoading(true)
+    setLoading(true)
     setError(null)
     try {
       const res = await fetch(`/api/delegations?companyId=${company.id}&userId=${user.id}`)
@@ -84,7 +84,7 @@ export default function DelegationPage() {
       console.error('Failed to fetch delegations:', err)
       setError(err.message || 'Failed to load delegation data')
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }, [company?.id, user?.id])
 
@@ -255,17 +255,7 @@ export default function DelegationPage() {
     } catch { return dateStr }
   }
 
-  if (isLoading) {
-    return (
-      <div className="p-6 flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-blue-600" />
-          <p className="text-sm text-gray-500">Loading delegation data...</p>
-        </div>
-      </div>
-    )
-  }
-
+  
   return (
     <div className="p-6 space-y-6 w-full">
       {/* Header */}
@@ -276,27 +266,26 @@ export default function DelegationPage() {
             Delegate job openings and pending applications to other recruiters during absences
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={fetchDelegations} className="gap-2">
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
-          <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Create Delegation
-          </Button>
-        </div>
+        <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Create Delegation
+        </Button>
       </div>
 
-      {/* Error Banner */}
-      {error && (
-        <Card className="p-4 bg-red-50 border-red-200">
-          <p className="text-sm text-red-700">{error}</p>
-        </Card>
+      {/* Loading State */}
+      {loading && (
+        <>
+          <StatCardGridLoader count={3} theme="light" />
+          <DelegationTableLoader rows={6} theme="light" />
+        </>
       )}
 
+      {/* Error State */}
+      {!loading && error && <ErrorState message={error} onRetry={fetchDelegations} />}
+
       {/* Stats Cards */}
-      <div className="grid grid-cols-3 gap-2 md:gap-4">
+      {!loading && !error && (
+        <div className="grid grid-cols-3 gap-2 md:gap-4">
         <Card className="p-2 md:p-4">
           <div className="flex flex-col md:flex-row items-center gap-1 md:gap-3">
             <div className="p-1.5 md:p-2 bg-green-100 rounded-lg">
@@ -331,6 +320,7 @@ export default function DelegationPage() {
           </div>
         </Card>
       </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 border-b whitespace-nowrap overflow-x-auto">
@@ -338,7 +328,7 @@ export default function DelegationPage() {
           onClick={() => setActiveTab('active')}
           className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'active'
-              ? 'border-b-2 border-blue-600 text-blue-600'
+              ? 'border-b-2 border-emerald-600 text-emerald-600'
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
@@ -348,7 +338,7 @@ export default function DelegationPage() {
           onClick={() => setActiveTab('audit')}
           className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'audit'
-              ? 'border-b-2 border-blue-600 text-blue-600'
+              ? 'border-b-2 border-emerald-600 text-emerald-600'
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
@@ -357,6 +347,7 @@ export default function DelegationPage() {
       </div>
 
       {/* Filters */}
+      {!loading && !error && (
       <Card className="p-3">
         {activeTab === 'active' && (
           <div className="flex flex-wrap items-center gap-2">
@@ -408,9 +399,10 @@ export default function DelegationPage() {
           </div>
         )}
       </Card>
+      )}
 
       {/* Delegations Tab */}
-      {activeTab === 'active' && (
+      {activeTab === 'active' && !loading && !error && (
         <Card>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -490,14 +482,14 @@ export default function DelegationPage() {
       )}
 
       {/* Audit Log Tab */}
-      {activeTab === 'audit' && (
+      {activeTab === 'audit' && !loading && !error && (
         <Card>
-          <div className="p-4 bg-blue-50 border-b border-blue-200">
-            <h3 className="font-semibold text-sm text-blue-900 flex items-center gap-2">
+          <div className="p-4 bg-emerald-50 border-b border-emerald-200">
+            <h3 className="font-semibold text-sm text-emerald-900 flex items-center gap-2">
               <AlertCircle className="h-4 w-4" />
               Delegation Audit Trail
             </h3>
-            <p className="text-xs text-blue-700 mt-1">
+            <p className="text-xs text-emerald-700 mt-1">
               Complete history of all delegation actions including who, when, and why
             </p>
           </div>

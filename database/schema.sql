@@ -500,7 +500,7 @@ CREATE TABLE job_postings (
   responsibilities            TEXT[],                -- array of responsibility strings
   required_skills             TEXT[],
   preferred_skills            TEXT[],
-  experience_years            INT,
+  experience_years            TEXT,
   required_education          TEXT,
   certifications_required     TEXT,
   languages_required          TEXT,
@@ -1068,33 +1068,15 @@ CREATE INDEX idx_ticket_comments_created_at ON ticket_comments (created_at);
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
--- 11a. subscriptions
--- WHY: Tracks company subscription plans shown in settings (Payment tab).
---      Every company has at most one active subscription.
--- USED BY: /settings (payment section), middleware (feature gating)
--- ---------------------------------------------------------------------------
-CREATE TABLE subscriptions (
-  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  plan_name       TEXT NOT NULL,                     -- Free, Professional, Enterprise
-  status          subscription_status NOT NULL DEFAULT 'active',
-  current_period_start TIMESTAMPTZ,
-  current_period_end   TIMESTAMPTZ,
-  cancel_at       TIMESTAMPTZ,
-  external_id     TEXT,                              -- Stripe subscription ID
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_subscriptions_company_id ON subscriptions (company_id);
-CREATE INDEX idx_subscriptions_status ON subscriptions (status);
+-- REMOVED: subscriptions table (not used in code)
+-- All subscription data now stored in company_subscriptions table below
 
 
 -- ---------------------------------------------------------------------------
--- 11b. payment_methods
+-- 11c. payment_methods (SAVED PAYMENT METHODS)
 -- WHY: Stores saved payment methods for a company (settings → payment tab).
 --      Only stores tokenized references, never raw card numbers.
--- USED BY: /settings (payment section)
+-- USED BY: /settings (payment section), future payment updates
 -- ---------------------------------------------------------------------------
 CREATE TABLE payment_methods (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -1161,8 +1143,8 @@ CREATE TABLE company_billing (
   
   -- Auto-recharge settings
   auto_recharge_enabled   BOOLEAN NOT NULL DEFAULT FALSE,
-  auto_recharge_amount    NUMERIC(12,2) DEFAULT 100.00,
-  auto_recharge_threshold NUMERIC(12,2) DEFAULT 10.00,
+  auto_recharge_amount    NUMERIC(12,2) DEFAULT 2.00,
+  auto_recharge_threshold NUMERIC(12,2) DEFAULT 50.00,
   
   -- Trial tracking (7-day free trial)
   -- trial_ends_at is calculated as company.created_at + 7 days
@@ -1180,54 +1162,11 @@ CREATE TABLE company_billing (
 
 CREATE INDEX idx_company_billing_company_id ON company_billing (company_id);
 CREATE INDEX idx_company_billing_status ON company_billing (status);
+CREATE INDEX idx_company_billing_trial_ends_at ON company_billing (trial_ends_at);
 
 
 -- ---------------------------------------------------------------------------
--- 11e. payment_transactions
--- WHY: All payment records (Razorpay/PayPal) for audit trail and verification.
---      Links to company_billing for wallet updates.
--- USED BY: /api/payment/verify, billing reports
--- ---------------------------------------------------------------------------
-CREATE TABLE payment_transactions (
-  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  company_id              UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  
-  -- Payment provider info
-  provider                TEXT NOT NULL,                  -- 'razorpay' or 'paypal'
-  provider_order_id       TEXT,                           -- Razorpay order_id or PayPal order_id
-  provider_payment_id     TEXT,                           -- Razorpay payment_id or PayPal capture_id
-  provider_signature      TEXT,                           -- For verification
-  
-  -- Amount details
-  amount                  NUMERIC(12,2) NOT NULL,         -- Amount in base currency (INR/USD)
-  currency                TEXT NOT NULL DEFAULT 'INR',
-  amount_in_paise         INTEGER,                        -- For Razorpay (amount * 100)
-  
-  -- Status
-  status                  TEXT NOT NULL DEFAULT 'pending', -- pending, completed, failed, refunded
-  
-  -- Metadata
-  description             TEXT,
-  notes                   JSONB,
-  
-  -- Timestamps
-  initiated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  completed_at            TIMESTAMPTZ,
-  failed_at               TIMESTAMPTZ,
-  failure_reason          TEXT,
-  
-  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_payment_transactions_company_id ON payment_transactions (company_id);
-CREATE INDEX idx_payment_transactions_provider ON payment_transactions (provider);
-CREATE INDEX idx_payment_transactions_status ON payment_transactions (status);
-CREATE INDEX idx_payment_transactions_provider_payment_id ON payment_transactions (provider_payment_id);
-
-
--- ---------------------------------------------------------------------------
--- 11f. subscription_payments
+-- 11e. subscription_payments
 -- WHY: Track subscription payments from various providers (Stripe, Razorpay, etc.)
 -- USED BY: billing system, payment verification
 -- ---------------------------------------------------------------------------
@@ -1392,9 +1331,10 @@ CREATE UNIQUE INDEX agency_client_connections_pkey ON agency_client_connections 
 
 
 -- ---------------------------------------------------------------------------
--- 11k. company_subscriptions
--- WHY: Tracks external subscription integrations (PayPal, etc.)
--- USED BY: /api/webhooks, subscription management
+-- 11a. company_subscriptions (MAIN SUBSCRIPTION TABLE)
+-- WHY: Tracks all subscription data for companies (Razorpay, Stripe, etc.)
+--      This is the primary table for subscription management.
+-- USED BY: All subscription APIs, webhooks, billing system
 -- ---------------------------------------------------------------------------
 CREATE TABLE company_subscriptions (
   id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -1406,26 +1346,52 @@ CREATE TABLE company_subscriptions (
   subscriber_email  VARCHAR(255),
   start_time        TIMESTAMPTZ,
   next_billing_time TIMESTAMPTZ,
+  subscription_link VARCHAR(500),
+  cancel_at_cycle_end BOOLEAN DEFAULT FALSE,
   raw_data          JSONB,
+  -- Subscription token (from subscription payments)
+  customer_id       VARCHAR(255),
+  token_id          VARCHAR(255),
+  -- Dedicated auto-recharge token (separate from subscription)
+  auto_recharge_token_id      VARCHAR(255),
+  auto_recharge_customer_id   VARCHAR(255),
+  auto_recharge_card_last4    VARCHAR(4),
+  auto_recharge_card_network  VARCHAR(50),
+  auto_recharge_card_type     VARCHAR(50),
+  auto_recharge_card_issuer   VARCHAR(100),
+  auto_recharge_token_created_at TIMESTAMPTZ,
   created_at        TIMESTAMPTZ DEFAULT NOW(),
   updated_at        TIMESTAMPTZ DEFAULT NOW(),
   
   UNIQUE (company_id, provider)
 );
 
+COMMENT ON COLUMN company_subscriptions.cancel_at_cycle_end IS 'When true, subscription will be cancelled at the end of current billing cycle. User retains access until next_billing_time.';
+COMMENT ON COLUMN company_subscriptions.subscription_link IS 'Razorpay short_url for subscription management (e.g., https://rzp.io/rzp/XYZ123)';
+COMMENT ON COLUMN company_subscriptions.auto_recharge_token_id IS 'Razorpay token ID for auto-recharge payments (separate from subscription token)';
+COMMENT ON COLUMN company_subscriptions.auto_recharge_customer_id IS 'Razorpay customer ID associated with auto-recharge token';
+COMMENT ON COLUMN company_subscriptions.auto_recharge_card_last4 IS 'Last 4 digits of saved card for auto-recharge';
+
 CREATE INDEX idx_company_subscriptions_company_id ON company_subscriptions (company_id);
 CREATE INDEX idx_company_subscriptions_provider ON company_subscriptions (provider);
 CREATE INDEX idx_company_subscriptions_status ON company_subscriptions (status);
+CREATE INDEX idx_company_subscriptions_subscription_link ON company_subscriptions (subscription_link);
+CREATE INDEX idx_company_subscriptions_cancel_at_cycle_end ON company_subscriptions (cancel_at_cycle_end) WHERE cancel_at_cycle_end = TRUE;
+CREATE INDEX idx_company_subscriptions_customer_id ON company_subscriptions (customer_id);
+CREATE INDEX idx_company_subscriptions_token_id ON company_subscriptions (token_id);
+CREATE INDEX idx_company_subscriptions_auto_recharge_token ON company_subscriptions (auto_recharge_token_id) WHERE auto_recharge_token_id IS NOT NULL;
 
 
 -- ---------------------------------------------------------------------------
--- 11l. subscription_payments
--- WHY: Tracks individual payments for subscriptions
--- USED BY: /api/webhooks/paypal, payment reconciliation
+-- 11b. subscription_payments (PAYMENT HISTORY)
+-- WHY: Tracks individual payment transactions for subscriptions
+--      Stores payment history, amounts, and provider responses.
+-- USED BY: Webhooks, billing reports, payment verification
 -- ---------------------------------------------------------------------------
 CREATE TABLE subscription_payments (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   subscription_id VARCHAR(255),
+  company_id      UUID REFERENCES companies(id),
   provider        VARCHAR(50),
   payment_id      VARCHAR(255),
   amount          NUMERIC(10,2),
@@ -1438,7 +1404,10 @@ CREATE TABLE subscription_payments (
   UNIQUE (payment_id, provider)
 );
 
+COMMENT ON COLUMN subscription_payments.company_id IS 'Foreign key to companies table. Allows direct filtering of payments by company without JOIN.';
+
 CREATE INDEX idx_subscription_payments_subscription_id ON subscription_payments (subscription_id);
+CREATE INDEX idx_subscription_payments_company_id ON subscription_payments (company_id);
 CREATE INDEX idx_subscription_payments_provider ON subscription_payments (provider);
 CREATE INDEX idx_subscription_payments_status ON subscription_payments (status);
 
@@ -1592,7 +1561,6 @@ BEGIN
       'meeting_bookings',
       'email_templates',
       'company_billing',
-      'payment_transactions',
       'interviews',
       'job_interview_questions',
       'agency_client_connections',

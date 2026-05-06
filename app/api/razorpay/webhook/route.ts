@@ -8,22 +8,14 @@ export const dynamic = 'force-dynamic'
 /**
  * POST /api/razorpay/webhook
  * 
- * Razorpay sends webhook events here after payment completion.
- * This endpoint handles:
+ * Razorpay sends webhook events here for subscription management.
+ * This endpoint handles ONLY subscription events:
  * 
- * PAYMENT EVENTS (existing wallet recharge flow):
- * - payment.captured - Direct payment captured
- * - payment_link.paid - Payment link completed
- * 
- * SUBSCRIPTION EVENTS (new subscription flow):
- * - subscription.activated - Subscription started
- * - subscription.charged - Recurring payment successful
- * - subscription.completed - Subscription ended normally
- * - subscription.cancelled - Subscription cancelled
- * - subscription.pending - Subscription pending activation
- * - subscription.halted - Subscription halted due to payment failure
- * - subscription.paused - Subscription paused
- * - subscription.resumed - Subscription resumed
+ * - subscription.activated - Subscription started, update status to active
+ * - subscription.charged - Recurring payment successful, update next_billing_time
+ * - subscription.halted - Payment failed, update status to halted
+ * - subscription.cancelled - Subscription cancelled, update status to cancelled
+ * - subscription.completed - Subscription ended normally, update status to completed
  * 
  * All events:
  * 1. Verify webhook signature using RAZORPAY_WEBHOOK_SECRET
@@ -71,197 +63,32 @@ export async function POST(request: NextRequest) {
     await DatabaseService.logWebhookEvent({
       provider: 'razorpay',
       eventType: eventType,
-      eventId: event.payload?.payment?.entity?.id || event.payload?.subscription?.entity?.id,
+      eventId: event.payload?.subscription?.entity?.id,
       rawData: event
     })
 
-    // ─── SUBSCRIPTION EVENTS ───
+    // ─── HANDLE RELEVANT EVENTS ───
     if (eventType.startsWith('subscription.')) {
       return await handleSubscriptionEvent(event, eventType)
     }
 
-    // ─── PAYMENT EVENTS (existing flow) ───
-    // Handle payment.captured (from SDK orders) and payment_link.paid (from payment links)
-    if (eventType === 'payment.captured' || eventType === 'payment_link.paid') {
-      const payment = event.payload.payment?.entity
-      
-      if (!payment) {
-        console.error('[Razorpay Webhook] No payment entity in payload')
-        return NextResponse.json({ ok: true, message: 'No payment entity' })
-      }
-
-      const paymentId = payment.id                         // razorpay payment id
-      const orderId = payment.order_id || null              // may be null for payment links
-      const amountInPaise = payment.amount                  // amount in paise
-      const amountInRupees = amountInPaise / 100            // convert to INR
-      const currency = payment.currency || 'INR'
-      const paymentEmail = payment.email || ''
-      const paymentNotes = payment.notes || {}
-
-      console.log(`[Razorpay Webhook] Payment: ${paymentId}, Amount: ₹${amountInRupees}, Email: ${paymentEmail}`)
-      console.log(`[Razorpay Webhook] Notes:`, paymentNotes)
-
-      // ─── 3. Idempotency check - skip if already processed ───
-      const existingPayment = await DatabaseService.query(
-        `SELECT id FROM payment_transactions WHERE provider_payment_id = $1`,
-        [paymentId]
-      )
-
-      if (existingPayment.length > 0) {
-        console.log(`[Razorpay Webhook] Payment already processed (idempotent skip): ${paymentId}`)
-        return NextResponse.json({ ok: true, message: 'Already processed' })
-      }
-
-      // ─── 4. Find company by email or notes ───
-      let companyId = paymentNotes.company_id || paymentNotes.companyId || null
-
-      // If no companyId in notes, try to find by email
-      if (!companyId && paymentEmail) {
-        console.log(`[Razorpay Webhook] Looking up company by email: ${paymentEmail}`)
-        const userResult = await DatabaseService.query(
-          `SELECT c.id as company_id 
-           FROM users u 
-           JOIN companies c ON c.id = u.company_id 
-           WHERE u.email = $1 
-           LIMIT 1`,
-          [paymentEmail]
-        )
-
-        if (userResult.length > 0) {
-          companyId = userResult[0].company_id
-          console.log(`[Razorpay Webhook] Found company by email: ${companyId}`)
-        }
-      }
-
-      if (!companyId) {
-        console.error(`[Razorpay Webhook] Could not determine company for payment: ${paymentId}, email: ${paymentEmail}`)
-        // Still return 200 — we don't want Razorpay to keep retrying
-        // Log it so we can manually credit later
-        return NextResponse.json({ 
-          ok: false, 
-          error: 'Company not found',
-          paymentId,
-          email: paymentEmail,
-          amount: amountInRupees
-        })
-      }
-
-      // ─── 5. Record payment and update wallet (reuse existing verify logic) ───
-      await DatabaseService.query('BEGIN')
-
-      try {
-        // Record the payment transaction
-        const paymentRecord = await DatabaseService.query(
-          `INSERT INTO payment_transactions (
-            company_id, provider, provider_order_id, provider_payment_id, 
-            amount, currency, amount_in_paise, 
-            status, description, notes, completed_at
-          ) VALUES (
-            $1::uuid, 'razorpay', $2, $3, $4, $5, $6, 'completed', $7, $8, NOW()
-          ) RETURNING id`,
-          [
-            companyId,
-            orderId,
-            paymentId,
-            amountInRupees,
-            currency,
-            amountInPaise,
-            `Wallet recharge via Razorpay Payment Link (webhook)`,
-            JSON.stringify({ email: paymentEmail, source: 'webhook', event: eventType })
-          ]
-        )
-
-        const transactionId = paymentRecord[0]?.id
-
-        // Add credits to wallet - CRITICAL: This must succeed for payment to be valid
-        let newBalance = 0
-        
-        try {
-          // Try using the DB function first
-          const walletResult = await DatabaseService.query(
-            `SELECT add_wallet_credits($1::uuid, $2, $3::uuid) as new_balance`,
-            [companyId, amountInRupees, transactionId]
-          )
-          newBalance = parseFloat(walletResult[0]?.new_balance || '0')
-          console.log(`[Razorpay Webhook] add_wallet_credits returned: ${newBalance}`)
-        } catch (funcError: any) {
-          console.warn(`[Razorpay Webhook] add_wallet_credits function failed, using fallback:`, funcError.message)
-          newBalance = NaN // Force fallback
-        }
-
-        // Fallback: manual update if function doesn't exist or failed
-        if (isNaN(newBalance) || newBalance === 0) {
-          console.log(`[Razorpay Webhook] Using manual wallet update fallback`)
-          
-          // Ensure company_billing record exists
-          await DatabaseService.query(
-            `INSERT INTO company_billing (company_id, wallet_balance, status, created_at, updated_at)
-             VALUES ($1::uuid, 0, 'trial', NOW(), NOW())
-             ON CONFLICT (company_id) DO NOTHING`,
-            [companyId]
-          )
-
-          // Update wallet balance - CRITICAL: wallet_balance = wallet_balance + amount
-          const updateResult = await DatabaseService.query(
-            `UPDATE company_billing 
-             SET wallet_balance = wallet_balance + $2,
-                 status = 'active',
-                 updated_at = NOW()
-             WHERE company_id = $1::uuid
-             RETURNING wallet_balance`,
-            [companyId, amountInRupees]
-          )
-
-          newBalance = parseFloat(updateResult[0]?.wallet_balance || '0')
-          console.log(`[Razorpay Webhook] Manual update result - new balance: ${newBalance}`)
-          
-          // Verify the update actually happened
-          if (updateResult.length === 0) {
-            throw new Error('Failed to update wallet balance - no rows affected')
-          }
-        }
-
-        await DatabaseService.query('COMMIT')
-
-        console.log(`[Razorpay Webhook] ✅ Success! Company: ${companyId}, Credited: ₹${amountInRupees}, New Balance: ₹${newBalance}`)
-
-        // Restore jobs and interviews that were put on hold due to trial expiry
-        try {
-          const restoredJobsCount = await DatabaseService.restoreJobsAfterRecharge(companyId)
-          const restoredInterviewsCount = await DatabaseService.restoreInterviewsAfterRecharge(companyId)
-          if (restoredJobsCount > 0 || restoredInterviewsCount > 0) {
-            console.log(`[Razorpay Webhook] Restored ${restoredJobsCount} jobs and ${restoredInterviewsCount} interviews after recharge`)
-          }
-        } catch (restoreError: any) {
-          console.error('[Razorpay Webhook] Failed to restore jobs/interviews after recharge:', restoreError.message)
-          // Don't fail the payment if restoration fails
-        }
-
-        return NextResponse.json({
-          ok: true,
-          message: 'Payment processed',
-          companyId,
-          amountCredited: amountInRupees,
-          newBalance,
-          transactionId
-        })
-
-      } catch (dbError: any) {
-        await DatabaseService.query('ROLLBACK')
-        console.error(`[Razorpay Webhook] DB Error:`, dbError)
-        throw dbError
-      }
-
-    } else {
-      // Other event types — acknowledge but don't process
-      console.log(`[Razorpay Webhook] Ignoring event type: ${eventType}`)
-      return NextResponse.json({ ok: true, message: `Event ${eventType} acknowledged` })
+    // Handle payment events for complete payment details
+    if (eventType.startsWith('payment.')) {
+      return await handlePaymentEvent(event, eventType)
     }
+
+    // Handle invoice events
+    if (eventType.startsWith('invoice.')) {
+      return await handleInvoiceEvent(event, eventType)
+    }
+
+    // All other events are ignored
+    console.log(`[Razorpay Webhook] Ignoring event: ${eventType}`)
+    return NextResponse.json({ ok: true, message: `Event ${eventType} acknowledged but not processed` })
 
   } catch (error: any) {
     console.error('[Razorpay Webhook] Error:', error)
     // Return 200 even on error to prevent Razorpay from retrying
-    // (failed payments are logged and can be investigated)
     return NextResponse.json(
       { ok: false, error: error.message || 'Webhook processing failed' },
       { status: 200 }
@@ -285,6 +112,7 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
   const status = subscription.status
   const customerId = subscription.customer_id
   const notes = subscription.notes || {}
+  const shortUrl = subscription.short_url || null
   const currentStart = subscription.current_start ? new Date(subscription.current_start * 1000) : null
   const currentEnd = subscription.current_end ? new Date(subscription.current_end * 1000) : null
   const chargeAt = subscription.charge_at ? new Date(subscription.charge_at * 1000) : null
@@ -348,11 +176,86 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
           subscriberEmail,
           startTime: currentStart || new Date(),
           nextBillingTime: chargeAt || currentEnd || undefined,
+          subscriptionLink: shortUrl || undefined,
           rawData: subscription
         })
 
+        // Extract and save customer_id and token_id for recurring payments
+        const customerId = subscription.customer_id
+        const tokenId = event.payload.payment?.entity?.token_id
+        
+        if (customerId || tokenId) {
+          console.log(`[Razorpay Webhook] Updating subscription with customer_id: ${customerId}, token_id: ${tokenId}`)
+          
+          await DatabaseService.query(`
+            UPDATE company_subscriptions 
+            SET 
+              customer_id = $2,
+              token_id = $3,
+              updated_at = NOW()
+            WHERE company_id = $1::uuid AND provider = 'razorpay' AND subscription_id = $4
+          `, [companyId, customerId || null, tokenId || null, subscriptionId])
+          
+          console.log(`[Razorpay Webhook] Saved payment tokens for subscription: ${subscriptionId}`)
+        } else {
+          console.warn(`[Razorpay Webhook] No customer_id or token_id found in subscription: ${subscriptionId}`)
+        }
+
         // Activate company billing
         await DatabaseService.activateCompanyFromSubscription(companyId)
+        console.log(`[Razorpay Webhook] Company billing activated for: ${companyId}`)
+
+        // Credit wallet on first subscription activation
+        await DatabaseService.query(
+          `INSERT INTO company_billing (company_id, wallet_balance, status, created_at, updated_at)
+           VALUES ($1::uuid, 10000, 'active', NOW(), NOW())
+           ON CONFLICT (company_id) DO UPDATE SET
+             wallet_balance = CASE 
+               WHEN company_billing.wallet_balance = 0 THEN 10000
+               ELSE company_billing.wallet_balance + 10000
+             END,
+             status = 'active',
+             updated_at = NOW()
+           WHERE company_id = $1::uuid`,
+          [companyId]
+        )
+        console.log(`[Razorpay Webhook] Credited ₹10,000 to wallet for subscription activation, company: ${companyId}`)
+
+        // Record the first payment in subscription_payments table
+        // For activated event, payment info might be in different locations
+        const activationPayment = event.payload.payment?.entity
+        const paidAmount = subscription.paid_count > 0 ? (subscription.plan?.item?.amount || 1000000) : 0
+        
+        if (activationPayment) {
+          // Payment entity exists in webhook payload
+          await DatabaseService.recordSubscriptionPayment({
+            subscriptionId,
+            provider: 'razorpay',
+            paymentId: activationPayment.id,
+            amount: activationPayment.amount / 100,
+            currency: activationPayment.currency || 'INR',
+            status: 'captured',
+            paymentTime: new Date(),
+            companyId,
+            rawData: activationPayment
+          })
+          console.log(`[Razorpay Webhook] Recorded first payment: ${activationPayment.id}`)
+        } else if (paidAmount > 0) {
+          // No payment entity, but subscription is paid - create payment record from subscription data
+          const paymentId = `sub_payment_${subscriptionId}_${Date.now()}`
+          await DatabaseService.recordSubscriptionPayment({
+            subscriptionId,
+            provider: 'razorpay',
+            paymentId,
+            amount: paidAmount / 100,
+            currency: 'INR',
+            status: 'captured',
+            paymentTime: currentStart || new Date(),
+            companyId,
+            rawData: { subscription_id: subscriptionId, generated: true }
+          })
+          console.log(`[Razorpay Webhook] Generated first payment record: ${paymentId}`)
+        }
 
         // Restore any jobs/interviews that were on hold
         try {
@@ -385,6 +288,44 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
           chargeAt || currentEnd || undefined
         )
 
+        // Extract and save customer_id and token_id for recurring payments
+        const chargedCustomerId = subscription.customer_id
+        const chargedTokenId = event.payload.payment?.entity?.token_id
+        
+        if (chargedCustomerId || chargedTokenId) {
+          console.log(`[Razorpay Webhook] Updating subscription with customer_id: ${chargedCustomerId}, token_id: ${chargedTokenId}`)
+          
+          await DatabaseService.query(`
+            UPDATE company_subscriptions 
+            SET 
+              customer_id = $2,
+              token_id = $3,
+              updated_at = NOW()
+            WHERE company_id = $1::uuid AND provider = 'razorpay' AND subscription_id = $4
+          `, [companyId, chargedCustomerId || null, chargedTokenId || null, subscriptionId])
+          
+          console.log(`[Razorpay Webhook] Saved payment tokens for subscription: ${subscriptionId}`)
+        } else {
+          console.warn(`[Razorpay Webhook] No customer_id or token_id found in subscription.charged: ${subscriptionId}`)
+        }
+
+        // Ensure company_billing record exists and credit wallet
+        await DatabaseService.query(
+          `INSERT INTO company_billing (company_id, wallet_balance, status, created_at, updated_at)
+           VALUES ($1::uuid, 0, 'active', NOW(), NOW())
+           ON CONFLICT (company_id) DO NOTHING`,
+          [companyId]
+        )
+        await DatabaseService.query(
+          `UPDATE company_billing 
+           SET wallet_balance = wallet_balance + 10000,
+               status = 'active',
+               updated_at = NOW()
+           WHERE company_id = $1::uuid`,
+          [companyId]
+        )
+        console.log(`[Razorpay Webhook] Credited ₹10,000 to wallet for subscription payment, company: ${companyId}`)
+
         // Record the payment if payment entity exists
         const payment = event.payload.payment?.entity
         if (payment) {
@@ -396,6 +337,7 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
             currency: payment.currency || 'INR',
             status: 'captured',
             paymentTime: new Date(),
+            companyId,
             rawData: payment
           })
         }
@@ -421,6 +363,7 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
           planId,
           status: 'pending',
           subscriberEmail,
+          subscriptionLink: shortUrl || undefined,
           rawData: subscription
         })
 
@@ -515,4 +458,401 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
       { status: 200 }
     )
   }
+}
+
+/**
+ * Handle Razorpay payment webhook events
+ * Captures complete payment details including method, auth type, bank, wallet info
+ */
+async function handlePaymentEvent(event: any, eventType: string) {
+  const payment = event.payload.payment?.entity
+  
+  if (!payment) {
+    console.error('[Razorpay Webhook] No payment entity in payload')
+    return NextResponse.json({ ok: true, message: 'No payment entity' })
+  }
+
+  const paymentId = payment.id
+  const amount = payment.amount / 100 // Convert paise to rupees
+  const currency = payment.currency || 'INR'
+  const status = payment.status
+  const method = payment.method
+  const description = payment.description || ''
+  
+  console.log(`[Razorpay Webhook] Payment: ${paymentId}, Amount: Rs${amount}, Method: ${method}, Status: ${status}`)
+
+  // Find associated subscription from payment notes or description
+  let subscriptionId = payment.notes?.subscription_id || payment.notes?.subscriptionId || null
+  let companyId = payment.notes?.company_id || payment.notes?.companyId || null
+  
+  // Try to extract subscription info from description
+  if (!subscriptionId && description) {
+    const subMatch = description.match(/sub_(.+)/)
+    if (subMatch) {
+      subscriptionId = subMatch[1]
+    }
+  }
+  
+  // If we have subscriptionId but no companyId, fetch from subscription
+  if (subscriptionId && !companyId) {
+    try {
+      const subResult = await DatabaseService.getSubscriptionByProviderId(subscriptionId, 'razorpay')
+      if (subResult) {
+        companyId = subResult.company_id
+      }
+    } catch (error) {
+      console.log('[Razorpay Webhook] Could not find subscription for payment:', subscriptionId)
+    }
+  }
+
+  // ─── Handle Card Authorization for Auto-Recharge ───
+  // Check if this is a card authorization payment (purpose: card_authorization)
+  const isCardAuthorization = payment.notes?.purpose === 'card_authorization' || 
+                               payment.notes?.type === 'auto_recharge_setup'
+  
+  if (isCardAuthorization && companyId && status === 'captured') {
+    try {
+      console.log(`[Razorpay Webhook] Processing card authorization for auto-recharge, company: ${companyId}`)
+      
+      // Fetch expanded payment to get token and card details
+      const keyId = process.env.RAZORPAY_KEY_ID?.trim()
+      const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim()
+      
+      if (keyId && keySecret) {
+        const authHeader = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
+        const expandedResponse = await fetch(
+          `https://api.razorpay.com/v1/payments/${paymentId}?expand[]=card&expand[]=token`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Basic ${authHeader}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+        
+        if (expandedResponse.ok) {
+          const expandedPayment = await expandedResponse.json()
+          const tokenId = expandedPayment.token_id
+          const customerId = expandedPayment.customer_id
+          const cardInfo = expandedPayment.card || {}
+          
+          if (tokenId) {
+            console.log(`[Razorpay Webhook] Saving auto-recharge token: ${tokenId} for company: ${companyId}`)
+            
+            // Save auto-recharge token to company_subscriptions
+            await DatabaseService.query(`
+              UPDATE company_subscriptions 
+              SET 
+                auto_recharge_token_id = $2,
+                auto_recharge_customer_id = $3,
+                auto_recharge_card_last4 = $4,
+                auto_recharge_card_network = $5,
+                auto_recharge_card_type = $6,
+                auto_recharge_card_issuer = $7,
+                auto_recharge_token_created_at = NOW(),
+                updated_at = NOW()
+              WHERE company_id = $1::uuid AND provider = 'razorpay'
+            `, [
+              companyId,
+              tokenId,
+              customerId || null,
+              cardInfo.last4 || null,
+              cardInfo.network || null,
+              cardInfo.type || null,
+              cardInfo.issuer || null
+            ])
+            
+            console.log(`[Razorpay Webhook] Auto-recharge card saved successfully for company: ${companyId}`)
+          }
+        }
+      }
+      
+      return NextResponse.json({
+        ok: true,
+        message: 'Card authorization processed for auto-recharge',
+        companyId,
+        paymentId
+      })
+    } catch (cardAuthError: any) {
+      console.error('[Razorpay Webhook] Error processing card authorization:', cardAuthError)
+      // Don't fail the webhook
+    }
+  }
+
+  // Only process payments that belong to a company subscription
+  if (!companyId) {
+    console.log(`[Razorpay Webhook] Payment ${paymentId} does not belong to any company subscription`)
+    return NextResponse.json({ ok: true, message: 'Payment not associated with company subscription' })
+  }
+
+  try {
+    // Step 1 — Fetch expanded payment from Razorpay API
+    let expandedPayment = payment // Fallback to webhook payment object
+    const keyId = process.env.RAZORPAY_KEY_ID?.trim()
+    const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim()
+    
+    if (keyId && keySecret) {
+      try {
+        const authHeader = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
+        const expandedResponse = await fetch(
+          `https://api.razorpay.com/v1/payments/${paymentId}?expand[]=card&expand[]=token`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Basic ${authHeader}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+        
+        if (expandedResponse.ok) {
+          expandedPayment = await expandedResponse.json()
+          console.log(`[Razorpay Webhook] Fetched expanded payment data for: ${paymentId}`)
+        } else {
+          console.log(`[Razorpay Webhook] Failed to fetch expanded payment, using webhook data: ${paymentId}`)
+        }
+      } catch (fetchError: any) {
+        console.log(`[Razorpay Webhook] Error fetching expanded payment, using webhook data: ${fetchError.message}`)
+      }
+    }
+
+    // Step 2 — Derive auth_type if missing
+    let authType = expandedPayment.auth_type || null
+    if (!authType && expandedPayment.token_id && expandedPayment.customer_id && keyId && keySecret) {
+      try {
+        const authHeader = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
+        const tokenResponse = await fetch(
+          `https://api.razorpay.com/v1/customers/${expandedPayment.customer_id}/tokens/${expandedPayment.token_id}`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Basic ${authHeader}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+        
+        if (tokenResponse.ok) {
+          const tokenData = await tokenResponse.json()
+          authType = tokenData.recurring_details?.auth_type || null
+          console.log(`[Razorpay Webhook] Derived auth_type from token: ${authType}`)
+        }
+      } catch (tokenError: any) {
+        console.log(`[Razorpay Webhook] Error fetching token for auth_type: ${tokenError.message}`)
+      }
+    }
+
+    // Step 3 — Build enriched payment object inline
+    const enrichedPayment = {
+      paymentId: expandedPayment.id || paymentId,
+      amount: (expandedPayment.amount || 0) / 100,
+      currency: expandedPayment.currency || 'INR',
+      status: expandedPayment.status || status,
+      method: expandedPayment.method || method,
+      authType: authType,
+      bank: expandedPayment.bank || null,
+      wallet: expandedPayment.wallet || null,
+      vpa: expandedPayment.vpa || null,
+      email: expandedPayment.email || null,
+      contact: expandedPayment.contact || null,
+      card: expandedPayment.card ? {
+        network: expandedPayment.card.network || null,
+        type: expandedPayment.card.type || null,
+        last4: expandedPayment.card.last4 || null,
+        issuer: expandedPayment.card.issuer || null
+      } : null,
+      createdAt: expandedPayment.created_at ? new Date(expandedPayment.created_at * 1000) : new Date(),
+      rawData: expandedPayment // Full expanded response
+    }
+
+    // Step 4 — Ensure we have company_id (lookup if needed)
+    if (!companyId && subscriptionId) {
+      try {
+        const companyResult = await DatabaseService.query(`
+          SELECT company_id FROM company_subscriptions 
+          WHERE subscription_id = $1 
+          LIMIT 1
+        `, [subscriptionId])
+        
+        if (companyResult[0]?.company_id) {
+          companyId = companyResult[0].company_id
+        }
+      } catch (error) {
+        console.log('[Razorpay Webhook] Could not lookup company_id for subscription:', subscriptionId)
+      }
+    }
+
+    // Step 5 — Pass enriched object to DatabaseService.recordSubscriptionPayment
+    await DatabaseService.recordSubscriptionPayment({
+      subscriptionId: subscriptionId || 'unknown',
+      companyId: companyId || null,
+      provider: 'razorpay',
+      paymentId: enrichedPayment.paymentId,
+      amount: enrichedPayment.amount,
+      currency: enrichedPayment.currency,
+      status: enrichedPayment.status === 'captured' ? 'captured' : enrichedPayment.status,
+      paymentTime: enrichedPayment.createdAt,
+      rawData: enrichedPayment // Store enriched payment details
+    })
+
+    console.log(`[Razorpay Webhook] Recorded comprehensive payment details: ${paymentId}`)
+
+    // ─── Handle Wallet Auto Recharge ───
+    // Check both description and notes.type for auto-recharge identification
+    const isAutoRecharge = description === 'Wallet Auto Recharge' || 
+                           payment.notes?.type === 'auto_recharge'
+    
+    if (isAutoRecharge && companyId && enrichedPayment.status === 'captured') {
+      try {
+        console.log(`[Razorpay Webhook] Processing wallet auto-recharge for company: ${companyId}, amount: Rs${enrichedPayment.amount}`)
+        
+        // Get current wallet balance before update
+        const currentBalanceResult = await DatabaseService.query(
+          `SELECT wallet_balance FROM company_billing WHERE company_id = $1::uuid`,
+          [companyId]
+        )
+        const walletBalanceBefore = currentBalanceResult.length > 0 
+          ? parseFloat(currentBalanceResult[0].wallet_balance) 
+          : 0
+        
+        // Add amount to wallet_balance in company_billing table
+        const walletUpdateQuery = `
+          UPDATE company_billing 
+          SET 
+            wallet_balance = wallet_balance + $2,
+            updated_at = NOW()
+          WHERE company_id = $1::uuid
+          RETURNING wallet_balance
+        `
+        
+        const walletResult = await DatabaseService.query(walletUpdateQuery, [companyId, enrichedPayment.amount])
+        
+        if (walletResult.length > 0) {
+          const newBalance = parseFloat(walletResult[0].wallet_balance)
+          console.log(`[Razorpay Webhook] Wallet auto-recharge successful! New balance: Rs${newBalance}`)
+          
+          // Update auto_recharge_transactions table with captured status
+          await DatabaseService.query(`
+            UPDATE auto_recharge_transactions 
+            SET 
+              status = 'captured',
+              wallet_balance_after = $2,
+              method = $3,
+              card_last4 = $4,
+              card_network = $5,
+              card_type = $6,
+              raw_data = $7::jsonb,
+              updated_at = NOW()
+            WHERE payment_id = $1
+          `, [
+            paymentId,
+            newBalance,
+            enrichedPayment.method || null,
+            enrichedPayment.card?.last4 || null,
+            enrichedPayment.card?.network || null,
+            enrichedPayment.card?.type || null,
+            JSON.stringify(enrichedPayment.rawData || {})
+          ])
+          
+          // Create ledger entry for the auto-recharge
+          await DatabaseService.addLedgerEntry({
+            companyId,
+            entryType: 'AUTO_RECHARGE',
+            description: `Wallet Auto Recharge - Payment ID: ${paymentId}`,
+            amount: enrichedPayment.amount,
+            balanceBefore: walletBalanceBefore,
+            balanceAfter: newBalance
+          })
+          
+          console.log(`[Razorpay Webhook] Auto-recharge ledger entry created for payment: ${paymentId}`)
+          
+          // Restore any jobs/interviews that were on hold due to low balance
+          try {
+            const restoredJobsCount = await DatabaseService.restoreJobsAfterRecharge(companyId)
+            const restoredInterviewsCount = await DatabaseService.restoreInterviewsAfterRecharge(companyId)
+            if (restoredJobsCount > 0 || restoredInterviewsCount > 0) {
+              console.log(`[Razorpay Webhook] Restored ${restoredJobsCount} jobs and ${restoredInterviewsCount} interviews after auto-recharge`)
+            }
+          } catch (restoreError: any) {
+            console.error('[Razorpay Webhook] Failed to restore jobs/interviews:', restoreError.message)
+          }
+        } else {
+          console.error(`[Razorpay Webhook] Failed to update wallet balance for company: ${companyId}`)
+        }
+        
+      } catch (walletError: any) {
+        console.error(`[Razorpay Webhook] Error processing wallet auto-recharge:`, walletError)
+        // Don't fail the webhook - auto-recharge is supplementary
+      }
+    }
+    
+    // Handle failed auto-recharge payments
+    if (isAutoRecharge && companyId && enrichedPayment.status === 'failed') {
+      try {
+        console.log(`[Razorpay Webhook] Auto-recharge payment failed for company: ${companyId}, payment: ${paymentId}`)
+        
+        // Update auto_recharge_transactions table with failed status
+        await DatabaseService.query(`
+          UPDATE auto_recharge_transactions 
+          SET 
+            status = 'failed',
+            error_code = $2,
+            error_description = $3,
+            error_reason = $4,
+            raw_data = $5::jsonb,
+            updated_at = NOW()
+          WHERE payment_id = $1
+        `, [
+          paymentId,
+          payment.error_code || null,
+          payment.error_description || null,
+          payment.error_reason || null,
+          JSON.stringify(enrichedPayment.rawData || {})
+        ])
+        
+        console.log(`[Razorpay Webhook] Recorded failed auto-recharge: ${paymentId}`)
+      } catch (failError: any) {
+        console.error(`[Razorpay Webhook] Error recording failed auto-recharge:`, failError)
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      message: 'Payment details recorded',
+      paymentId,
+      companyId,
+      method,
+      amount
+    })
+
+  } catch (error: any) {
+    console.error('[Razorpay Webhook] Error recording payment:', error)
+    return NextResponse.json(
+      { ok: false, error: error.message || 'Failed to record payment' },
+      { status: 200 } // Return 200 to prevent retries
+    )
+  }
+}
+
+/**
+ * Handle Razorpay invoice webhook events
+ */
+async function handleInvoiceEvent(event: any, eventType: string) {
+  const invoice = event.payload.invoice?.entity
+  
+  if (!invoice) {
+    console.error('[Razorpay Webhook] No invoice entity in payload')
+    return NextResponse.json({ ok: true, message: 'No invoice entity' })
+  }
+
+  console.log(`[Razorpay Webhook] Invoice: ${invoice.id}, Type: ${eventType}`)
+  
+  // Invoice events are logged but not processed separately
+  // Payment details are captured in payment events
+  return NextResponse.json({ 
+    ok: true, 
+    message: 'Invoice event acknowledged',
+    invoiceId: invoice.id 
+  })
 }

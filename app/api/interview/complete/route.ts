@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     } else if (overallScore >= 60) {
       recommendation = 'Recommend'
     } else if (overallScore >= 40) {
-      recommendation = 'On Hold'
+      recommendation = 'Maybe'
     } else {
       recommendation = 'Reject'
     }
@@ -131,6 +131,8 @@ export async function POST(request: NextRequest) {
     const uniqueGaps = Array.from(new Set(areasForImprovement)).slice(0, 5)
 
     // Check technical cutoff (50% threshold for Technical Skills)
+    // Note: Qualification logic is based on overall score >= 60
+    // Optional enhancement: Add technical cutoff (technicalAvg >= 50) for stricter qualification
     const technicalAvg = criterionAverages['Technical Skills'] || 0
     const technicalCutoff = {
       threshold: 50,

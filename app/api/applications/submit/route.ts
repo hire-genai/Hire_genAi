@@ -226,6 +226,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
+
     console.log(`✅ Application submitted: candidate=${candidateId}, job=${jobId}, app=${applicationId}`)
 
     return NextResponse.json({

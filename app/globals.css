@@ -136,8 +136,6 @@
   }
 
   html {
-    height: 100%;
-    width: 100%;
     overflow-x: hidden;
   }
   
@@ -149,10 +147,12 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
   
-  /* Prevent Radix UI from adding scroll lock styles */
+  /* Prevent Radix UI from adding padding-right when scroll is locked */
   body[data-scroll-locked] {
-    overflow: hidden;
+    padding-right: 0 !important;
+    margin-right: 0 !important;
   }
+  
   
   * {
     box-sizing: border-box;
@@ -490,4 +490,9 @@
   .card-sub {
     margin-top: 6px;
   }
+}
+
+/* Simple dropdown fix to prevent layout shifts */
+[data-radix-select-content] {
+  z-index: 50;
 }

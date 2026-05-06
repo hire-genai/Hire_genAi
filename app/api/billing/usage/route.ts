@@ -21,8 +21,7 @@ export async function GET(request: NextRequest) {
     const cvQuery = `
       SELECT 
         COUNT(*) as cv_count,
-        COALESCE(SUM(cost), 0) as total_cost,
-        COALESCE(SUM(tokens_used), 0) as total_tokens
+        COALESCE(SUM(cost), 0) as total_cost
       FROM cv_parsing_usage
       WHERE company_id = $1::uuid
         AND created_at >= $2
@@ -37,8 +36,7 @@ export async function GET(request: NextRequest) {
     const questionQuery = `
       SELECT 
         COALESCE(SUM(question_count), 0) as question_count,
-        COALESCE(SUM(cost), 0) as total_cost,
-        COALESCE(SUM(total_tokens), 0) as total_tokens
+        COALESCE(SUM(cost), 0) as total_cost
       FROM question_generation_usage
       WHERE company_id = $1::uuid
         AND created_at >= $2
@@ -51,8 +49,7 @@ export async function GET(request: NextRequest) {
       SELECT 
         COUNT(*) as interview_count,
         COALESCE(SUM(duration_minutes), 0) as total_minutes,
-        COALESCE(SUM(cost), 0) as total_cost,
-        COALESCE(SUM(tokens_used), 0) as total_tokens
+        COALESCE(SUM(cost), 0) as total_cost
       FROM video_interview_usage
       WHERE company_id = $1::uuid
         AND created_at >= $2
@@ -120,9 +117,9 @@ export async function GET(request: NextRequest) {
       DatabaseService.query(jobUsageQuery, [companyId, start, end])
     ])
 
-    const cv = cvResult[0] || { cv_count: 0, total_cost: 0, total_tokens: 0 }
-    const questions = questionResult[0] || { question_count: 0, total_cost: 0, total_tokens: 0 }
-    const video = videoResult[0] || { interview_count: 0, total_minutes: 0, total_cost: 0, total_tokens: 0 }
+    const cv = cvResult[0] || { cv_count: 0, total_cost: 0 }
+    const questions = questionResult[0] || { question_count: 0, total_cost: 0 }
+    const video = videoResult[0] || { interview_count: 0, total_minutes: 0, total_cost: 0 }
 
     // Get pricing from config
     const pricing = getBillingPrices()
@@ -136,8 +133,7 @@ export async function GET(request: NextRequest) {
         questionCount: parseInt(questions.question_count) || 0,
         video: parseFloat(video.total_cost) || 0,
         interviewCount: parseInt(video.interview_count) || 0,
-        videoMinutes: parseFloat(video.total_minutes) || 0,
-        tokenCount: (parseInt(cv.total_tokens) || 0) + (parseInt(questions.total_tokens) || 0) + (parseInt(video.total_tokens) || 0)
+        videoMinutes: parseFloat(video.total_minutes) || 0
       },
       // All jobs for dropdown (regardless of usage)
       allJobs: allJobsResult.map((job: any) => ({

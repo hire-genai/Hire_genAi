@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle2, AlertCircle, Loader2, XCircle } from "lucide-react"
+import { CardLoader } from '@/components/ui/skeleton-loader'
 
 interface SettingsData {
   settings: Record<string, string>
@@ -79,9 +80,68 @@ export default function SettingsTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-        <span className="ml-3 text-slate-400">Loading settings...</span>
+      <div className="space-y-4">
+        {/* Profit Margin Card Skeleton */}
+        <Card className="bg-slate-900 border-slate-800">
+          <div className="p-6 space-y-4">
+            <div className="space-y-2">
+              <div className="h-5 w-32 bg-slate-700 animate-pulse rounded" />
+              <div className="h-3 w-48 bg-slate-700 animate-pulse rounded" />
+            </div>
+            <div className="space-y-3">
+              <div className="h-4 w-24 bg-slate-700 animate-pulse rounded" />
+              <div className="flex gap-2">
+                <div className="h-10 w-24 bg-slate-700 animate-pulse rounded" />
+                <div className="h-8 w-16 bg-slate-700 animate-pulse rounded" />
+              </div>
+              <div className="h-3 w-64 bg-slate-700 animate-pulse rounded" />
+            </div>
+          </div>
+        </Card>
+        
+        {/* OpenAI Status Card Skeleton */}
+        <Card className="bg-slate-900 border-slate-800">
+          <div className="p-6 space-y-4">
+            <div className="space-y-2">
+              <div className="h-5 w-32 bg-slate-700 animate-pulse rounded" />
+              <div className="h-3 w-40 bg-slate-700 animate-pulse rounded" />
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-slate-800 rounded-lg border border-slate-700">
+              <div className="h-6 w-6 bg-slate-700 animate-pulse rounded" />
+              <div className="space-y-2 flex-1">
+                <div className="h-4 w-32 bg-slate-700 animate-pulse rounded" />
+                <div className="h-3 w-48 bg-slate-700 animate-pulse rounded" />
+              </div>
+              <div className="h-6 w-16 bg-slate-700 animate-pulse rounded" />
+            </div>
+          </div>
+        </Card>
+        
+        {/* Feature Toggles Card Skeleton */}
+        <Card className="bg-slate-900 border-slate-800">
+          <div className="p-6 space-y-4">
+            <div className="space-y-2">
+              <div className="h-5 w-32 bg-slate-700 animate-pulse rounded" />
+              <div className="h-3 w-44 bg-slate-700 animate-pulse rounded" />
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-slate-800 rounded-lg border border-slate-700">
+                <div className="space-y-2">
+                  <div className="h-4 w-32 bg-slate-700 animate-pulse rounded" />
+                  <div className="h-3 w-40 bg-slate-700 animate-pulse rounded" />
+                </div>
+                <div className="h-8 w-20 bg-slate-700 animate-pulse rounded" />
+              </div>
+              <div className="flex items-center justify-between p-3 bg-slate-800 rounded-lg border border-slate-700">
+                <div className="space-y-2">
+                  <div className="h-4 w-32 bg-slate-700 animate-pulse rounded" />
+                  <div className="h-3 w-40 bg-slate-700 animate-pulse rounded" />
+                </div>
+                <div className="h-8 w-20 bg-slate-700 animate-pulse rounded" />
+              </div>
+            </div>
+          </div>
+        </Card>
       </div>
     )
   }

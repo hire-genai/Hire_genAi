@@ -30,10 +30,43 @@ import {
   Settings as SettingsIcon,
   Shield,
   Loader2,
-  Filter
+  Filter,
+  Receipt
 } from "lucide-react"
-import SubscriptionCard, { BillingStatus } from "./SubscriptionCard"
+import SubscriptionCard, { BillingStatus, SubscriptionInfo } from "./SubscriptionCard"
+import AutoRechargeSettings from "./AutoRechargeSettings"
+import SavedCardSettings from "./SavedCardSettings"
 import { useAuth } from '@/contexts/auth-context'
+import { StatCardGridLoader, TableLoader, CardLoader } from '@/components/ui/skeleton-loader'
+
+// Helper functions for payment data processing
+function normalizeMethod(method: string | null | undefined): string {
+  // Return actual method from database without hardcoding
+  return method || "-"
+}
+
+function getProviderLabel(raw: any): string {
+  if (!raw) return "-"
+  
+  return raw.bank || 
+         raw.wallet || 
+         raw.vpa || 
+         raw.card?.network || 
+         "-"
+}
+
+function formatPaymentDate(date: string | Date): string {
+  if (!date) return "-"
+  
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return "-"
+  
+  return d.toLocaleDateString("en-IN", { 
+    day: "2-digit", 
+    month: "short", 
+    year: "numeric" 
+  })
+}
 
 interface BillingContentProps {
   companyId: string
@@ -44,7 +77,9 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [billingData, setBillingData] = useState<any>(null)
+  const [subscriptionData, setSubscriptionData] = useState<SubscriptionInfo | null>(null)
   const [usageData, setUsageData] = useState<any>(null)
+  const [loadingUsage, setLoadingUsage] = useState(false)
   const [currentTab, setCurrentTab] = useState<string>("overview")
   // Handle payment cancel → redirect to settings payment tab
   const handlePaymentCancel = () => {
@@ -73,10 +108,8 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   // Formatted upgrade amount based on pricing page logic
   const upgradeDisplayAmount = currency === 'INR' ? '₹10,000' : '$100'
 
-  // Settings
+  // Auto-Recharge
   const [autoRecharge, setAutoRecharge] = useState(false)
-  const [monthlyCapEnabled, setMonthlyCapEnabled] = useState(false)
-  const [monthlyCapAmount, setMonthlyCapAmount] = useState("1000")
 
   // Filters for Usage Tab
   const [usageDateRange, setUsageDateRange] = useState<string>("30")
@@ -98,20 +131,101 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   const [overviewEndDate, setOverviewEndDate] = useState<Date>(new Date())
   const [overviewData, setOverviewData] = useState<any>(null)
 
-  // Invoice generation
-  const [invoiceStartDate, setInvoiceStartDate] = useState<string>("")
-  const [invoiceEndDate, setInvoiceEndDate] = useState<string>("")
-  const [isGeneratingInvoice, setIsGeneratingInvoice] = useState<boolean>(false)
+  // Payment history
+  const [payments, setPayments] = useState<any[]>([])
+  const [loadingPayments, setLoadingPayments] = useState(false)
+  const [paymentMonthFilter, setPaymentMonthFilter] = useState<string>("all")
+  const [companyInfo, setCompanyInfo] = useState<any>(null)
+  const [isTogglingAutoRecharge, setIsTogglingAutoRecharge] = useState(false)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [downloadingInvoice, setDownloadingInvoice] = useState<string | null>(null)
 
   useEffect(() => {
     if (companyId) {
       loadBillingData()
+    }
+  }, [companyId])
+
+  useEffect(() => {
+    if (companyId && billingData) {
       loadUsageData()
+    }
+  }, [companyId, billingData])
+
+  useEffect(() => {
+    if (currentTab === 'invoices' && companyId) {
+      loadPaymentHistory()
+    }
+  }, [currentTab, companyId])
+
+  // Listen for subscription updates (from SubscriptionCard actions)
+  useEffect(() => {
+    const handleSubscriptionUpdate = async () => {
+      console.log('[BillingContent] Subscription updated, waiting for webhook processing...')
+      
+      // Poll for subscription status change (webhook processing)
+      let attempts = 0
+      const maxAttempts = 10
+      const pollInterval = 500 // 500ms between polls
+      
+      const pollForUpdate = async () => {
+        try {
+          const res = await fetch(`/api/billing/status?companyId=${companyId}&country=US`)
+          const data = await res.json()
+          
+          // Check if subscription status changed from trial/pending to active
+          if (data.ok && data.subscription) {
+            const currentStatus = data.subscription.status
+            console.log(`[BillingContent] Current subscription status: ${currentStatus}`)
+            
+            // If status is active or subscription exists, webhook has processed
+            if (currentStatus === 'active' || currentStatus === 'paid') {
+              console.log('[BillingContent] Subscription activated, loading full billing data...')
+              await loadBillingData()
+              return true
+            }
+          }
+          
+          // Check if wallet was credited (for subscription.charged event)
+          if (data.ok && data.billing && data.billing.walletBalance > 0) {
+            console.log(`[BillingContent] Wallet updated to ${data.billing.walletBalance}, loading full billing data...`)
+            await loadBillingData()
+            return true
+          }
+        } catch (error) {
+          console.log('[BillingContent] Poll error (will retry):', error)
+        }
+        
+        return false
+      }
+      
+      // Poll until update detected or max attempts reached
+      while (attempts < maxAttempts) {
+        const updated = await pollForUpdate()
+        if (updated) break
+        
+        attempts++
+        if (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, pollInterval))
+        }
+      }
+      
+      // Final load regardless of poll result
+      if (attempts >= maxAttempts) {
+        console.log('[BillingContent] Max poll attempts reached, loading data anyway...')
+        await loadBillingData()
+      }
+    }
+
+    window.addEventListener('subscription-updated', handleSubscriptionUpdate)
+    return () => {
+      window.removeEventListener('subscription-updated', handleSubscriptionUpdate)
     }
   }, [companyId])
 
   const loadBillingData = async () => {
     try {
+      setLoading(true)
       // Detect country for billing status calculation
       let countryCode = 'US'
       try {
@@ -129,15 +243,31 @@ export default function BillingContent({ companyId }: BillingContentProps) {
       if (data.ok) {
         setBillingData(data.billing)
         setAutoRecharge(data.billing.autoRechargeEnabled)
+        // Store subscription info for SubscriptionCard
+        if (data.subscription) {
+          setSubscriptionData({
+            id: data.subscription.id,
+            status: data.subscription.status || 'unknown',
+            planId: data.subscription.planId,
+            nextBillingDate: data.subscription.nextBillingDate,
+            currentEnd: data.subscription.currentEnd,
+            cancelAtCycleEnd: data.subscription.cancelAtCycleEnd,
+            subscriberEmail: data.subscription.subscriberEmail
+          })
+        } else {
+          setSubscriptionData(null)
+        }
       }
     } catch (error) {
       console.error('Failed to load billing data:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
   const loadUsageData = async (startOverride?: Date, endOverride?: Date, jobFilterOverride?: string) => {
     try {
-      setLoading(true)
+      setLoadingUsage(true)
       const startToUse = startOverride || usageStartDate
       const endToUse = endOverride || usageEndDate
       const jobFilterToUse = jobFilterOverride !== undefined ? jobFilterOverride : usageJobFilter
@@ -163,7 +293,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
     } catch (error) {
       console.error('Failed to load usage data:', error)
     } finally {
-      setLoading(false)
+      setLoadingUsage(false)
     }
   }
 
@@ -186,209 +316,204 @@ export default function BillingContent({ companyId }: BillingContentProps) {
     }
   }
 
-  const updateSettings = async () => {
+
+  const loadPaymentHistory = async () => {
+    if (!companyId) return
+    
     try {
-      const res = await fetch('/api/billing/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          autoRechargeEnabled: autoRecharge,
-          monthlySpendCap: monthlyCapEnabled ? parseFloat(monthlyCapAmount) : null
-        })
-      })
+      setLoadingPayments(true)
+      const res = await fetch(`/api/billing/invoices?companyId=${companyId}`)
       const data = await res.json()
-      if (data.ok) {
-        alert('Billing settings updated successfully')
-        loadBillingData()
-      } else {
-        alert(data.error || 'Failed to update settings')
-      }
-    } catch (error: any) {
-      alert(error.message || 'Failed to update settings')
-    }
-  }
-
-  const handleGenerateInvoice = async () => {
-    if (!invoiceStartDate || !invoiceEndDate) {
-      alert('Please select both start and end dates')
-      return
-    }
-
-    setIsGeneratingInvoice(true)
-    try {
-      const response = await fetch('/api/billing/generate-invoice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          startDate: invoiceStartDate,
-          endDate: invoiceEndDate
-        })
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to generate invoice')
-      }
-
-      const data = await response.json()
-      const invoice = data.invoice
-
-      // Generate HTML invoice
-      const invoiceHtml = generateInvoiceHtml(invoice)
       
-      // Create and download HTML file
-      const blob = new Blob([invoiceHtml], { type: 'text/html' })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `invoice-${invoiceStartDate}-to-${invoiceEndDate}.html`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-
-      alert('Invoice downloaded successfully! Open the HTML file and print to PDF if needed.')
-    } catch (error: any) {
-      console.error('Invoice generation error:', error)
-      alert(error.message || 'Failed to generate invoice')
+      if (data.ok) {
+        console.log('[BillingContent] Payments received:', data.payments?.length || 0, data.payments)
+        setPayments(data.payments || [])
+        setCompanyInfo(data.company || null)
+      }
+    } catch (error) {
+      console.error('Failed to load payment history:', error)
     } finally {
-      setIsGeneratingInvoice(false)
+      setLoadingPayments(false)
     }
   }
 
-  const generateInvoiceHtml = (invoice: any) => {
+  const generatePaymentReceiptHtml = (payment: any) => {
+    // Fallback HTML receipt generation (kept for emergency fallback)
+    const paymentDate = new Date(payment.paymentDate).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    })
+    const amount = payment.amount?.toFixed(2) || '0.00'
+    const currency = payment.currency === 'INR' ? 'Rs.' : '$'
+
     return `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Invoice ${invoice.invoiceNumber}</title>
+    <title>Payment Receipt - ${payment.paymentId}</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #333; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #e5e7eb; padding-bottom: 20px; }
-        .logo { font-size: 24px; font-weight: bold; color: #059669; }
-        .invoice-info { text-align: right; }
-        .invoice-info h1 { margin: 0; color: #374151; }
-        .invoice-info p { margin: 5px 0; color: #6b7280; }
-        .company-info { margin-bottom: 30px; }
-        .company-info h3 { margin: 0 0 10px 0; color: #374151; }
-        .company-info p { margin: 2px 0; color: #6b7280; }
-        .table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-        .table th, .table td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
-        .table th { background-color: #f9fafb; font-weight: 600; color: #374151; }
-        .table .amount { text-align: right; }
-        .summary { margin-top: 20px; }
-        .summary-row { display: flex; justify-content: space-between; padding: 8px 0; }
-        .summary-row.total { font-weight: bold; font-size: 18px; border-top: 2px solid #e5e7eb; padding-top: 15px; margin-top: 15px; }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 40px; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 2px solid #059669; }
+        .logo { font-size: 28px; font-weight: bold; color: #059669; margin-bottom: 10px; }
+        .receipt-title { font-size: 20px; color: #374151; margin: 0; }
+        .receipt-info { margin-bottom: 30px; }
+        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e5e7eb; }
+        .info-label { color: #6b7280; }
+        .info-value { font-weight: 600; color: #374151; }
+        .amount-section { background: #f0fdf4; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0; }
+        .amount-label { color: #059669; font-size: 14px; margin-bottom: 5px; }
+        .amount-value { font-size: 32px; font-weight: bold; color: #059669; }
+        .status-badge { display: inline-block; background: #dcfce7; color: #166534; padding: 4px 12px; border-radius: 20px; font-size: 14px; font-weight: 500; }
         .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 14px; }
-        @media print { body { margin: 0; } }
+        @media print { body { margin: 0; padding: 20px; } }
     </style>
 </head>
 <body>
     <div class="header">
         <div class="logo">HireGenAI</div>
-        <div class="invoice-info">
-            <h1>INVOICE</h1>
-            <p><strong>Invoice #:</strong> ${invoice.invoiceNumber}</p>
-            <p><strong>Date:</strong> ${invoice.invoiceDate}</p>
-            <p><strong>Period:</strong> ${invoice.startDate} to ${invoice.endDate}</p>
-        </div>
+        <h1 class="receipt-title">Payment Receipt (Fallback)</h1>
     </div>
 
-    <div class="company-info">
-        <h3>Bill To:</h3>
-        <p><strong>${invoice.company.name || 'Company'}</strong></p>
-        ${invoice.company.legal_company_name ? `<p>${invoice.company.legal_company_name}</p>` : ''}
-        ${invoice.company.tax_id_ein ? `<p>Tax ID: ${invoice.company.tax_id_ein}</p>` : ''}
-        ${invoice.company.phone_number ? `<p>Phone: ${invoice.company.phone_number}</p>` : ''}
-        ${invoice.company.website_url ? `<p>Website: ${invoice.company.website_url}</p>` : ''}
+    <div class="receipt-info">
+        <div class="info-row">
+            <span class="info-label">Receipt ID</span>
+            <span class="info-value">${payment.paymentId}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Payment Date</span>
+            <span class="info-value">${paymentDate}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Status</span>
+            <span class="info-value"><span class="status-badge">Paid</span></span>
+        </div>
+        ${companyInfo?.name ? `
+        <div class="info-row">
+            <span class="info-label">Company</span>
+            <span class="info-value">${companyInfo.name}</span>
+        </div>
+        ` : ''}
     </div>
 
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Service</th>
-                <th>Quantity</th>
-                <th>Unit Price</th>
-                <th class="amount">Amount</th>
-            </tr>
-        </thead>
-        <tbody>
-            ${invoice.itemizedUsage.map((item: any) => `
-                <tr>
-                    <td>${item.date}</td>
-                    <td>${item.service}</td>
-                    <td>${item.quantity}</td>
-                    <td>₹${item.unitPrice.toFixed(2)}</td>
-                    <td class="amount">₹${item.amount.toFixed(2)}</td>
-                </tr>
-            `).join('')}
-        </tbody>
-    </table>
-
-    <div class="summary">
-        <div class="summary-row">
-            <span>CV Parsing:</span>
-            <span>₹${invoice.totals.cvParsing.toFixed(2)}</span>
-        </div>
-        <div class="summary-row">
-            <span>Question Generation:</span>
-            <span>₹${invoice.totals.questionGeneration.toFixed(2)}</span>
-        </div>
-        <div class="summary-row">
-            <span>Video Interviews:</span>
-            <span>₹${invoice.totals.videoInterviews.toFixed(2)}</span>
-        </div>
-        <div class="summary-row total">
-            <span>Total Amount:</span>
-            <span>₹${invoice.totals.total.toFixed(2)}</span>
-        </div>
+    <div class="amount-section">
+        <div class="amount-label">Amount Paid</div>
+        <div class="amount-value">${currency}${amount}</div>
     </div>
 
     <div class="footer">
-        <p>Thank you for using HireGenAI!</p>
-        <p>This is a computer-generated invoice. No signature required.</p>
+        <p>Thank you for your payment!</p>
+        <p>This is a computer-generated receipt (fallback). No signature required.</p>
     </div>
 </body>
 </html>`
   }
 
-  const saveBillingSettings = async (autoRechargeEnabled: boolean) => {
+  const handleDownloadReceipt = async (payment: any) => {
+    const paymentId = payment.paymentId
+    
+    if (!paymentId) {
+      setToastMessage('Error: Payment ID not found')
+      setTimeout(() => setToastMessage(null), 3000)
+      return
+    }
+
+    setDownloadingInvoice(paymentId)
+    
     try {
-      const res = await fetch('/api/billing/settings', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          companyId,
-          autoRechargeEnabled,
-        }),
+      // Call the PDF generation API with companyId
+      const response = await fetch(`/api/invoice/generate-pdf?paymentId=${encodeURIComponent(paymentId)}&companyId=${encodeURIComponent(companyId)}`, {
+        method: 'GET',
+        credentials: 'include',
       })
-      
-      const data = await res.json()
-      if (!data.ok) {
-        console.error('Failed to save billing settings:', data.error)
-        // Revert the local state if save failed
-        setAutoRecharge(!autoRechargeEnabled)
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to generate PDF' }))
+        throw new Error(errorData.error || 'Failed to generate PDF')
       }
-    } catch (error) {
-      console.error('Failed to save billing settings:', error)
-      // Revert the local state if save failed
-      setAutoRecharge(!autoRechargeEnabled)
+
+      // Get the PDF blob
+      const blob = await response.blob()
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      
+      // Get filename from Content-Disposition header or generate one
+      const contentDisposition = response.headers.get('Content-Disposition')
+      let filename = `invoice_${paymentId}.pdf` 
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/)
+        if (filenameMatch) {
+          filename = filenameMatch[1]
+        }
+      }
+      
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
+      setToastMessage('Invoice downloaded successfully!')
+      setTimeout(() => setToastMessage(null), 3000)
+      
+    } catch (error: any) {
+      console.error('[BillingContent] PDF download error:', error)
+      
+      // Show proper error message
+      const errorMessage = error.message || 'Failed to generate PDF invoice'
+      setToastMessage(errorMessage)
+      setTimeout(() => setToastMessage(null), 5000)
+    } finally {
+      setDownloadingInvoice(null)
     }
   }
 
+
   if (loading && !billingData) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading billing information...</p>
+      <div className="space-y-4">
+        {/* Skeleton for Tabs */}
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-2">
+          <div className="flex gap-2">
+            <div className="flex-1 h-10 bg-gray-200 rounded animate-pulse" />
+            <div className="flex-1 h-10 bg-gray-200 rounded animate-pulse" />
+            <div className="flex-1 h-10 bg-gray-200 rounded animate-pulse" />
+          </div>
         </div>
+
+        {/* Skeleton for Overview Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <CardLoader />
+          <CardLoader />
+          <CardLoader />
+        </div>
+
+        {/* Skeleton for Subscription Card */}
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="h-4 w-32 bg-gray-200 rounded animate-pulse mb-2" />
+                <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
+              </div>
+              <div className="h-8 w-8 bg-gray-200 rounded animate-pulse" />
+            </div>
+            <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-2" />
+            <div className="h-4 w-full bg-gray-200 rounded animate-pulse mb-4" />
+            <div className="h-2 w-full bg-gray-200 rounded animate-pulse mb-2" />
+            <div className="flex gap-4">
+              <div className="h-10 w-32 bg-gray-200 rounded-full animate-pulse" />
+              <div className="h-10 w-32 bg-gray-200 rounded-full animate-pulse" />
+            </div>
+          </div>
+        </div>
+
+        {/* Skeleton for Usage Table */}
+        <TableLoader rows={4} columns={5} />
       </div>
     )
   }
@@ -415,18 +540,17 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative">
 
       <Tabs 
         value={currentTab} 
         onValueChange={setCurrentTab}
         className="space-y-3"
       >
-        <TabsList className="grid w-full grid-cols-4 bg-gray-100">
+        <TabsList className="grid w-full grid-cols-3 bg-gray-100">
           <TabsTrigger value="overview" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Overview</TabsTrigger>
           <TabsTrigger value="usage" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Usage</TabsTrigger>
           <TabsTrigger value="invoices" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Invoices</TabsTrigger>
-          <TabsTrigger value="settings" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Settings</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -495,14 +619,52 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             {/* Auto-Recharge Card */}
             <Card className="border rounded-lg shadow-sm">
               <CardContent className="p-3">
-                <div className="flex items-start justify-between mb-2">
+                <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <p className="text-sm text-muted-foreground font-medium mb-1">Auto-Recharge</p>
-                    <p className="text-2xl font-semibold">
-                      {billingData?.autoRechargeEnabled ? 'ON' : 'OFF'}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {billingData?.autoRechargeEnabled ? 'Auto recharge active' : 'Manual top-up'}
+                    <p className="text-sm text-muted-foreground font-medium mb-3">Auto-Recharge</p>
+                    <div className="flex items-center gap-2">
+                      <Switch 
+                        checked={autoRecharge}
+                        disabled={isTogglingAutoRecharge}
+                        onCheckedChange={async (checked) => {
+                          setIsTogglingAutoRecharge(true)
+                          const previousState = autoRecharge
+                          setAutoRecharge(checked)
+                          
+                          try {
+                            const res = await fetch('/api/billing/settings', {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                companyId,
+                                autoRechargeEnabled: checked
+                              })
+                            })
+                            
+                            const data = await res.json()
+                            if (!data.ok) {
+                              setAutoRecharge(previousState)
+                              setToastMessage(`Error: ${data.error || 'Failed to update auto-recharge'}`)
+                              setTimeout(() => setToastMessage(null), 3000)
+                            } else {
+                              setToastMessage(`Auto-recharge ${checked ? 'enabled' : 'disabled'}`)
+                              setTimeout(() => setToastMessage(null), 3000)
+                            }
+                          } catch (error: any) {
+                            setAutoRecharge(previousState)
+                            setToastMessage('Error: Failed to update auto-recharge')
+                            setTimeout(() => setToastMessage(null), 3000)
+                          } finally {
+                            setIsTogglingAutoRecharge(false)
+                          }
+                        }}
+                      />
+                      {isTogglingAutoRecharge && (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {autoRecharge ? 'Auto recharge active' : 'Manual top-up'}
                     </p>
                   </div>
                   <div className="ml-3">
@@ -521,15 +683,20 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             planName="Pro Plan"
             nextBillingDate={billingData?.nextBillingDate}
             autoRenewal={billingData?.autoRechargeEnabled ?? true}
-            walletBalance={billingData?.walletBalance ?? 0}
-            lowBalanceThreshold={billingData?.lowBalanceThreshold ?? 200}
             currency={billingData?.currency ?? 'INR'}
             companyId={companyId}
             userEmail={user?.email}
-            onPaymentSuccess={() => loadBillingData()}
-            onPaymentCancel={handlePaymentCancel}
-            onManagePlan={() => setCurrentTab('settings')}
+            subscription={subscriptionData}
+            walletBalance={billingData?.walletBalance ?? 0}
+            currentMonthSpent={billingData?.currentMonthSpent ?? 0}
+            totalSpent={billingData?.totalSpent ?? 0}
           />
+
+          {/* Saved Card for Auto-Recharge */}
+          <SavedCardSettings companyId={companyId} />
+
+          {/* Auto-Recharge Settings */}
+          <AutoRechargeSettings companyId={companyId} />
 
         </TabsContent>
 
@@ -789,236 +956,304 @@ export default function BillingContent({ companyId }: BillingContentProps) {
           </Card>
         </TabsContent>
 
-        {/* Invoices Tab */}
-        <TabsContent value="invoices" className="space-y-4">
-          <Card className="py-2 pt-4">
-            <CardHeader className="pb-2 px-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <FileText className="h-5 w-5" />
-                    Generate Invoice
-                  </CardTitle>
-                  <CardDescription className="text-sm">Create and download invoices for specific date ranges</CardDescription>
-                </div>
-                <Button
-                  onClick={handleGenerateInvoice}
-                  disabled={!invoiceStartDate || !invoiceEndDate || isGeneratingInvoice}
-                  className="flex items-center gap-2"
-                  size="sm"
-                >
-                  {isGeneratingInvoice ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-4 w-4" />
-                      Generate & Download
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <div className="space-y-4">
-                {/* Date Range Selection */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label htmlFor="start-date">Start Date</Label>
-                    <Input
-                      id="start-date"
-                      type="date"
-                      value={invoiceStartDate}
-                      onChange={(e) => setInvoiceStartDate(e.target.value)}
-                      className="h-9"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="end-date">End Date</Label>
-                    <Input
-                      id="end-date"
-                      type="date"
-                      value={invoiceEndDate}
-                      onChange={(e) => setInvoiceEndDate(e.target.value)}
-                      className="h-9"
-                    />
-                  </div>
-                </div>
-
-                {/* Quick Date Range Buttons */}
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const today = new Date()
-                      const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1)
-                      const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0)
-                      setInvoiceStartDate(lastMonth.toISOString().split('T')[0])
-                      setInvoiceEndDate(lastMonthEnd.toISOString().split('T')[0])
-                    }}
-                  >
-                    Last Month
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const today = new Date()
-                      const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-                      setInvoiceStartDate(thisMonth.toISOString().split('T')[0])
-                      setInvoiceEndDate(today.toISOString().split('T')[0])
-                    }}
-                  >
-                    This Month
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const today = new Date()
-                      const last30Days = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
-                      setInvoiceStartDate(last30Days.toISOString().split('T')[0])
-                      setInvoiceEndDate(today.toISOString().split('T')[0])
-                    }}
-                  >
-                    Last 30 Days
-                  </Button>
-                </div>
-
-                {/* Preview Section */}
-                {invoiceStartDate && invoiceEndDate && (
-                  <div className="border rounded-lg p-3 bg-gray-50">
-                    <h4 className="font-medium mb-2 text-sm">Invoice Preview ({invoiceStartDate} to {invoiceEndDate})</h4>
-                    <div className="space-y-1 text-xs">
-                      <div className="flex justify-between">
-                        <span>CV Parsing:</span>
-                        <span>₹{((billingData?.usageCounts?.cvParsed || 0) * parseFloat(usageData?.pricing?.cvParsingCost || "2")).toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Question Generation:</span>
-                        <span>₹{(((billingData?.usageCounts?.questionsGenerated || 0) / 10) * parseFloat(usageData?.pricing?.questionGenerationCost || "0.5")).toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Video Interviews:</span>
-                        <span>₹{((billingData?.usageCounts?.videoInterviews || 0) * parseFloat(usageData?.pricing?.videoInterviewCost || "10")).toFixed(2)}</span>
-                      </div>
-                      <hr className="my-1" />
-                      <div className="flex justify-between font-semibold">
-                        <span>Total:</span>
-                        <span>₹{billingData?.totalSpent?.toFixed(2) || '0.00'}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Settings Tab */}
-        <TabsContent value="settings" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <SettingsIcon className="h-5 w-5" />
-                Billing Settings
-              </CardTitle>
-              <CardDescription>Configure auto-recharge and spending limits</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex-1">
-                  <Label htmlFor="auto-recharge" className="text-base font-medium">Auto-Recharge</Label>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Automatically add funds to your wallet when balance is low
-                  </p>
-                </div>
-                <Switch 
-                  id="auto-recharge"
-                  checked={autoRecharge} 
-                  onCheckedChange={(checked) => {
-                    setAutoRecharge(checked)
-                    saveBillingSettings(checked)
+        {/* Payment History Tab */}
+        <TabsContent value="invoices" className="space-y-6">
+          {/* Header with Filter Dropdown */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-2xl font-bold tracking-tight text-slate-800 truncate">Payment History</h2>
+              <p className="text-slate-500 text-sm mt-1">Invoices & receipts · Powered by Razorpay</p>
+            </div>
+            <div className="w-[180px] flex-shrink-0">
+              <div className="relative">
+                {/* Hidden native select for functionality */}
+                <select 
+                  ref={(el) => {
+                    if (el && !el.dataset.initialized) {
+                      el.dataset.initialized = 'true'
+                      el.addEventListener('change', (e) => {
+                        setPaymentMonthFilter((e.target as HTMLSelectElement).value)
+                      })
+                    }
+                    // Update value when state changes
+                    if (el && el.value !== paymentMonthFilter) {
+                      el.value = paymentMonthFilter
+                    }
                   }}
-                />
-              </div>
-
-              <div className="space-y-3 p-3 border rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <Label htmlFor="monthly-cap" className="text-base font-medium">Monthly Spend Cap</Label>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Set a maximum monthly spending limit
-                    </p>
-                  </div>
-                  <Switch 
-                    id="monthly-cap"
-                    checked={monthlyCapEnabled} 
-                    onCheckedChange={setMonthlyCapEnabled}
-                  />
+                  defaultValue={paymentMonthFilter}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  tabIndex={0}
+                >
+                  <option value="all">All time</option>
+                  {(() => {
+                    const months = new Set<string>()
+                    payments.forEach(p => {
+                      const d = new Date(p.paymentDate)
+                      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+                      months.add(key)
+                    })
+                    return Array.from(months).sort().reverse().map(month => {
+                      const [year, monthNum] = month.split('-')
+                      const date = new Date(parseInt(year), parseInt(monthNum) - 1, 1)
+                      const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                      return <option key={month} value={month}>{label}</option>
+                    })
+                  })()}
+                </select>
+                
+                {/* Custom styled UI */}
+                <div className="w-full bg-white border border-slate-200 rounded-xl shadow-sm px-3 py-2 text-sm flex items-center justify-between cursor-pointer hover:border-blue-300 hover:shadow-md transition-all duration-200">
+                  <span className="text-slate-700 truncate">
+                    {paymentMonthFilter === 'all' 
+                      ? 'All time' 
+                      : (() => {
+                          const [year, monthNum] = paymentMonthFilter.split('-')
+                          const date = new Date(parseInt(year), parseInt(monthNum) - 1, 1)
+                          return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                        })()
+                    }
+                  </span>
+                  <svg className="w-4 h-4 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/>
+                  </svg>
                 </div>
-                {monthlyCapEnabled && (
-                  <div className="pt-4">
-                    <Label htmlFor="cap-amount">Monthly Cap Amount (₹)</Label>
-                    <Input
-                      id="cap-amount"
-                      type="number"
-                      value={monthlyCapAmount}
-                      onChange={(e) => setMonthlyCapAmount(e.target.value)}
-                      placeholder="1000.00"
-                      className="mt-2"
-                    />
-                  </div>
-                )}
               </div>
+            </div>
+          </div>
 
-              {/* Pricing Info */}
-              <Card className="border-dashed">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" />
-                    Current Pricing
-                  </CardTitle>
-                  <CardDescription>Per-feature pricing from configuration</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    <div className="p-2 bg-blue-50 rounded-lg text-center">
-                      <p className="text-xs text-blue-600 font-medium">CV Parsing</p>
-                      <p className="text-lg font-bold text-blue-900">₹{usageData?.pricing?.cvParsingCost || '2'}</p>
-                      <p className="text-xs text-blue-500">per CV</p>
+          {/* Financial Summary Cards */}
+          {(() => {
+            const totalRecharged = payments.reduce((sum, p) => sum + (p.amount || 0), 0)
+            const lastPayment = payments.length > 0 ? payments[0] : null
+            const walletBalance = billingData?.walletBalance || 0
+            
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md transition-all">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">Total Recharge</p>
+                      <p className="text-3xl font-extrabold text-slate-800 mt-2">₹{totalRecharged.toLocaleString('en-IN')}</p>
                     </div>
-                    <div className="p-2 bg-green-50 rounded-lg text-center">
-                      <p className="text-xs text-green-600 font-medium">Questions</p>
-                      <p className="text-lg font-bold text-green-900">₹{usageData?.pricing?.questionGenerationCost || '0.5'}</p>
-                      <p className="text-xs text-green-500">per question</p>
-                    </div>
-                    <div className="p-2 bg-purple-50 rounded-lg text-center">
-                      <p className="text-xs text-purple-600 font-medium">Video Interview</p>
-                      <p className="text-lg font-bold text-purple-900">₹{usageData?.pricing?.videoInterviewCost || '10'}</p>
-                      <p className="text-xs text-purple-500">per interview</p>
-                    </div>
-                    <div className="p-2 bg-amber-50 rounded-lg text-center">
-                      <p className="text-xs text-amber-600 font-medium">AI Evaluation</p>
-                      <p className="text-lg font-bold text-amber-900">₹{usageData?.pricing?.aiEvaluationCost || '1'}</p>
-                      <p className="text-xs text-amber-500">per evaluation</p>
+                    <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                      </svg>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-
-              <div className="flex justify-end pt-4">
-                <Button onClick={updateSettings}>
-                  Save Settings
-                </Button>
+                </div>
+                <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md transition-all">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">Current Balance</p>
+                      <p className="text-3xl font-extrabold text-emerald-700 mt-2">₹{walletBalance.toLocaleString('en-IN')}</p>
+                    </div>
+                    <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M3 10h18M6 14h6m-6 4h12M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"/>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md transition-all">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">Last Recharge</p>
+                      {lastPayment ? (
+                        <>
+                          <p className="text-2xl font-bold text-slate-800 mt-2">₹{lastPayment.amount?.toLocaleString('en-IN')}</p>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {new Date(lastPayment.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-2xl font-bold text-slate-300 mt-2">₹0</p>
+                      )}
+                    </div>
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            )
+          })()}
+
+          {/* Invoices List */}
+          {(() => {
+            // Filter payments by selected month
+            const filteredPayments = paymentMonthFilter === 'all' 
+              ? payments 
+              : payments.filter(p => {
+                  const d = new Date(p.paymentDate)
+                  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+                  return key === paymentMonthFilter
+                })
+
+            // Group by month using paymentDate field (consistent with backend)
+            const grouped: Record<string, any[]> = {}
+            filteredPayments.forEach((payment, idx) => {
+              const date = new Date(payment.paymentDate)
+              const monthKey = date.toLocaleDateString("en-IN", { month: "long", year: "numeric" })
+              if (!grouped[monthKey]) grouped[monthKey] = []
+              payment._index = idx
+              grouped[monthKey].push(payment)
+            })
+
+            const sortedMonths = Object.keys(grouped).sort((a, b) => {
+              const dateA = new Date(grouped[a][0].paymentDate)
+              const dateB = new Date(grouped[b][0].paymentDate)
+              return dateB.getTime() - dateA.getTime()
+            })
+
+            if (loadingPayments) {
+              return (
+                <div className="flex justify-center py-16 bg-white/40 rounded-3xl">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 border-3 border-slate-200 border-t-indigo-500 rounded-full animate-spin"></div>
+                    <span className="text-slate-500 text-sm">Fetching premium invoice data...</span>
+                  </div>
+                </div>
+              )
+            }
+
+            if (filteredPayments.length === 0) {
+              return (
+                <div className="bg-white rounded-2xl p-12 text-center shadow-sm border border-slate-100">
+                  <div className="text-slate-400 flex flex-col items-center gap-3">
+                    <svg className="w-12 h-12 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <p className="font-medium">No invoices for this period</p>
+                    <p className="text-xs">Select another month from filter</p>
+                  </div>
+                </div>
+              )
+            }
+
+            return (
+              <div className="overflow-x-auto">
+                <div className="space-y-7 min-w-full">
+                  {sortedMonths.map(monthKey => {
+                    const monthPayments = grouped[monthKey]
+                    return (
+                      <div key={monthKey}>
+                        {/* Month Header */}
+                        <div className="flex items-center gap-2 mb-3 px-1">
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">{monthKey}</h3>
+                          <div className="h-px flex-1 bg-gradient-to-r from-slate-200 to-transparent"></div>
+                          <span className="text-[10px] font-medium text-slate-400 bg-white px-2 py-0.5 rounded-full shadow-sm">
+                            {monthPayments.length} receipt{monthPayments.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        
+                        {/* Invoice Cards */}
+                        <div className="space-y-3">
+                          {monthPayments.map((payment: any, idx: number) => {
+                            const paymentDate = new Date(payment.paymentDate)
+                            const currency = payment.currency === 'INR' ? 'Rs' : '$'
+                            const amount = payment.amount?.toLocaleString('en-IN') || '0'
+                            
+                            // Generate invoice number
+                            const invoiceYear = paymentDate.getFullYear()
+                            const invoiceMonth = String(paymentDate.getMonth() + 1).padStart(2, '0')
+                            const invoiceNum = String((payments.length - payments.indexOf(payment)) || idx + 1).padStart(4, '0')
+                            const invoiceNumber = `INV-${invoiceYear}${invoiceMonth}${invoiceNum}`
+                            
+
+                            // Extract data using helper functions from enhanced rawData
+                            const raw = payment.rawData || {}
+                            const method = normalizeMethod(raw.method || payment.method)
+                            const provider = getProviderLabel(raw)
+                            const authType = raw.authType || raw.auth_type || null
+                            const cardNetwork = raw.card?.network || null
+                            const email = raw.email || "-"
+                            const contact = raw.contact || "-"
+                            const formattedDate = formatPaymentDate(payment.paymentDate)
+                            const shortPaymentId = payment.paymentId?.length > 14 
+                              ? payment.paymentId.slice(0, 12) + '...' 
+                              : payment.paymentId || 'N/A'
+
+                            return (
+                              <div 
+                                key={payment.id || idx}
+                                className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 px-5 bg-white rounded-2xl border border-slate-100 shadow-sm transition-all duration-200 hover:bg-gray-50 hover:shadow-md hover:-translate-y-0.5"
+                              >
+                                {/* LEFT: Icon + Invoice ID + Paid Badge */}
+                                <div className="flex items-center gap-3 min-w-[180px] w-full sm:w-auto">
+                                  <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                    </svg>
+                                  </div>
+                                  <div className="flex flex-col min-w-0">
+                                    <div className="flex items-center flex-wrap gap-2">
+                                      <span className="font-semibold text-slate-800 text-sm truncate">{invoiceNumber}</span>
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full mr-1"></span>
+                                        Paid
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {/* MIDDLE: Date + Payment Method + Auth Type */}
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 text-slate-700 text-sm bg-slate-50 px-3 py-1.5 rounded-full">
+                                    <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                    </svg>
+                                    <span className="font-medium text-xs">{formattedDate}</span>
+                                  </div>
+                                  <div className="bg-blue-50 rounded-full px-3 py-1.5 text-xs font-medium text-blue-700">
+                                    {method}
+                                  </div>
+                                  {method === "Auto Debit (eMandate)" && authType && (
+                                    <div className="bg-green-50 rounded-full px-3 py-1.5 text-xs font-medium text-green-700">
+                                      {authType}
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* RIGHT: Amount + Download Button */}
+                                <div className="flex items-center justify-between sm:justify-end gap-4 min-w-[160px] w-full sm:w-auto">
+                                  <div className="text-right">
+                                    <div className="text-xl font-extrabold text-slate-800 tracking-tight">Rs{amount}</div>
+                                  </div>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleDownloadReceipt(payment)}
+                                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium text-slate-600 transition-all border-slate-200 bg-white hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 hover:scale-95"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M12 10v6m0 0l-3-3m3 3l3-3M4 4h16v16H4z"/>
+                                    </svg>
+                                    PDF
+                                  </Button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
         </TabsContent>
       </Tabs>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-4 right-4 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <p className="text-sm font-medium">{toastMessage}</p>
+        </div>
+      )}
     </div>
   )
 }

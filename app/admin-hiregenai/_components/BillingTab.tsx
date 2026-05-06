@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Loader2 } from "lucide-react"
 import DashboardDateFilter from "@/components/filters/DashboardDateFilter"
+import { Skeleton, StatCardGridLoader, TalentPoolTableLoader } from '@/components/ui/skeleton-loader'
 
 interface UsageSummary {
   cvParsing: { count: number; totalCost: number; totalTokens: number }
@@ -24,7 +25,11 @@ interface LedgerEntry {
   createdAt: string
 }
 
-export default function BillingTab() {
+interface BillingTabProps {
+  onReady: (fetchFn: (start: string, end: string) => void) => void
+}
+
+export default function BillingTab({ onReady }: BillingTabProps) {
   const [loading, setLoading] = useState(true)
   const [summary, setSummary] = useState<UsageSummary>({
     cvParsing: { count: 0, totalCost: 0, totalTokens: 0 },
@@ -50,17 +55,44 @@ export default function BillingTab() {
     }
   }, [])
 
+  useEffect(() => {
+    onReady(fetchData)
+  }, [fetchData, onReady])
+
   return (
     <div className="space-y-4">
-      {/* Date Filter - Always Visible */}
-      <div className="flex justify-end">
-        <DashboardDateFilter onApply={fetchData} defaultPreset="last90Days" />
-      </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-          <span className="ml-3 text-slate-400">Loading billing data...</span>
+        <div className="space-y-6">
+          {/* Usage Summary Cards Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Card key={i} className="bg-slate-900 border-slate-800">
+                <CardHeader className="pb-2">
+                  <Skeleton className="h-5 w-32" />
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <Skeleton className="h-8 w-24" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-4 w-36" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          
+          {/* Ledger Table Skeleton */}
+          <Card className="bg-slate-900 border-slate-800">
+            <CardHeader>
+              <Skeleton className="h-6 w-40" theme="dark" />
+            </CardHeader>
+            <CardContent>
+              <TalentPoolTableLoader rows={10} theme="dark" />
+            </CardContent>
+          </Card>
         </div>
       ) : (
         <>

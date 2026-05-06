@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
+import { CardLoader, Skeleton } from '@/components/ui/skeleton-loader'
 import {
   Select,
   SelectContent,
@@ -554,8 +555,119 @@ export default function SettingsPage() {
           {activeTab === 'company' && (
             <>
               {loadingCompany ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                <div className="space-y-4">
+                  {/* Company Information Card Skeleton */}
+                  <Card className="sr-card">
+                    <CardHeader className="text-center">
+                      <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                        <Building2 className="w-5 h-5 text-emerald-600" />
+                      </div>
+                      <Skeleton className="h-8 w-48 mx-auto mb-2" />
+                      <Skeleton className="h-4 w-64 mx-auto" />
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-32" />
+                          <Skeleton className="h-10 w-full" />
+                        </div>
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="h-10 w-full" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-32" />
+                          <Skeleton className="h-10 w-full" />
+                        </div>
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-20" />
+                          <Skeleton className="h-10 w-full" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-40" />
+                        <Skeleton className="h-24 w-full" />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Contact Information Card Skeleton */}
+                  <Card className="sr-card">
+                    <CardHeader className="text-center">
+                      <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                        <MapPin className="w-5 h-5 text-emerald-600" />
+                      </div>
+                      <Skeleton className="h-8 w-48 mx-auto mb-2" />
+                      <Skeleton className="h-4 w-40 mx-auto" />
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-10 w-full" />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-16" />
+                          <Skeleton className="h-10 w-full" />
+                        </div>
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-32" />
+                          <Skeleton className="h-10 w-full" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-28" />
+                          <Skeleton className="h-10 w-full" />
+                        </div>
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-20" />
+                          <Skeleton className="h-10 w-full" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-10 w-full" />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Legal Information Card Skeleton */}
+                  <Card className="sr-card">
+                    <CardHeader className="text-center">
+                      <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+                        <FileText className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <Skeleton className="h-8 w-40 mx-auto mb-2" />
+                      <Skeleton className="h-4 w-56 mx-auto" />
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-40" />
+                        <Skeleton className="h-10 w-full" />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="h-10 w-full" />
+                        </div>
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-48" />
+                          <Skeleton className="h-10 w-full" />
+                        </div>
+                      </div>
+                      <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                        <Skeleton className="h-4 w-80" />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Save Button Skeleton */}
+                  <div className="flex justify-end">
+                    <Skeleton className="h-10 w-40" />
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -802,8 +914,49 @@ export default function SettingsPage() {
               </div>
 
               {loadingUsers ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Added</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <tr key={index}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-3">
+                              <Skeleton className="w-8 h-8 rounded-full" />
+                              <Skeleton className="h-4 w-24" />
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <Skeleton className="h-4 w-32" />
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <Skeleton className="h-6 w-16 rounded-full" />
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <Skeleton className="h-6 w-16 rounded-full" />
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <Skeleton className="h-4 w-20" />
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex gap-2">
+                              <Skeleton className="h-8 w-8 rounded" />
+                              <Skeleton className="h-8 w-8 rounded" />
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               ) : teamUsers.length === 0 ? (
                 <div className="text-center py-12">

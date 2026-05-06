@@ -24,7 +24,6 @@ import {
   Menu
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useMobileMenu } from './mobile-menu-context'
 import { useAuth } from '@/contexts/auth-context'
@@ -34,9 +33,9 @@ const navigationItems = [
     title: 'MAIN',
     items: [
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-      { name: 'Applications', href: '/candidate', icon: Users, badge: 12 },
+      { name: 'Applications', href: '/candidate', icon: Users },
       { name: 'Job Postings', href: '/jobs', icon: Briefcase },
-      { name: 'Talent Pool', href: '/talent-pool', icon: Users, badge: 12 },
+      { name: 'Talent Pool', href: '/talent-pool', icon: Users },
     ],
   },
   {
@@ -140,9 +139,7 @@ export function DashboardSidebar() {
               <div className="flex-1 min-w-0">
                 <h4 className="font-semibold text-xs truncate leading-tight">{userName}</h4>
                 <p className="text-[10px] text-gray-500 truncate leading-tight">{userEmail}</p>
-                <Badge className="mt-1 bg-emerald-100 hover:bg-emerald-100 text-emerald-700 text-[10px] px-1 py-0.5 leading-tight">
-                  {userRole}
-                </Badge>
+                <p className="mt-1 text-emerald-700 text-[10px] font-medium">{userRole}</p>
               </div>
             </div>
           ) : (
@@ -183,11 +180,6 @@ export function DashboardSidebar() {
                         >
                           <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-600' : 'text-gray-400'}`} />
                           {showExpanded && <span className="ml-2 text-xs">{item.name}</span>}
-                          {showExpanded && item.badge && (
-                            <Badge className="ml-auto bg-emerald-100 text-emerald-700 text-[10px] px-1 py-0.5">
-                              {item.badge}
-                            </Badge>
-                          )}
                         </Button>
                       </Link>
                     )

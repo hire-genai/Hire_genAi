@@ -35,7 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useMobileMenu } from '@/components/dashboard/mobile-menu-context'
 import { JobPostingForm } from '@/components/dashboard/job-posting-form'
 import { useAuth } from '@/contexts/auth-context'
-import { CardLoader, ErrorState } from '@/components/ui/skeleton-loader'
+import { JobsBucketGridLoader, JobsCardLoader, ErrorState } from '@/components/ui/skeleton-loader'
 
 type JobStatusType = 'all' | 'open' | 'closed' | 'onhold' | 'cancelled' | 'draft'
 
@@ -100,6 +100,7 @@ export default function JobsPage() {
 	const [departmentFilter, setDepartmentFilter] = useState('all')
 	const [locationFilter, setLocationFilter] = useState('all')
 	const [recruiterFilter, setRecruiterFilter] = useState('all')
+	const [allUsers, setAllUsers] = useState<{id: string, name: string}[]>([])
 	const { setIsCollapsed } = useMobileMenu()
 	const [showJobPostingDialog, setShowJobPostingDialog] = useState(false)
 	const [jobFormInitialData, setJobFormInitialData] = useState<any>(null)
@@ -119,6 +120,19 @@ export default function JobsPage() {
 	// Permission check - all users can modify
 	const canModify = true
 
+	// Fetch all company users
+	const fetchUsers = useCallback(async () => {
+		if (!company?.id) return
+		try {
+			const response = await fetch(`/api/settings/users?companyId=${encodeURIComponent(company.id)}`)
+			const data = await response.json()
+			const users = (data?.users || []).map((u: any) => ({ id: u.id, name: u.name }))
+			setAllUsers(users)
+		} catch (err) {
+			console.error('Failed to fetch users:', err)
+		}
+	}, [company?.id])
+
 	// Fetch jobs from API
 	const fetchJobs = useCallback(async () => {
 		if (!company?.id) return
@@ -126,7 +140,16 @@ export default function JobsPage() {
 		setError(null)
 		
 		try {
-			const response = await fetch(`/api/jobs?companyId=${company.id}${user?.id ? `&userId=${user.id}` : ''}`)
+			// For Recruiter users: always pass their own ID
+			// For Manager/Director: pass selected recruiter ID or none for "All Recruiters"
+			let userId = ''
+			if (user?.role === 'recruiter') {
+				userId = user.id || ''
+			} else if (user?.role === 'manager' || user?.role === 'director') {
+				userId = recruiterFilter !== 'all' ? recruiterFilter : ''
+			}
+			
+			const response = await fetch(`/api/jobs?companyId=${company.id}${userId ? `&userId=${userId}` : ''}`)
 			const result = await response.json()
 			
 			if (!response.ok) {
@@ -189,7 +212,7 @@ export default function JobsPage() {
 		} finally {
 			setIsLoading(false)
 		}
-	}, [company?.id])
+	}, [company?.id, user?.role, user?.id, recruiterFilter])
 
 	// Check trial status and enforce/restore jobs based on trial status
 	const checkAndEnforceTrialExpiry = useCallback(async () => {
@@ -199,34 +222,25 @@ export default function JobsPage() {
 			const result = await response.json()
 			if (result.ok && result.billing?.isTrialExpired) {
 				// Trial expired - put jobs on hold
-				console.log('🔍 [Trial Check] Trial expired, enforcing hold on jobs/interviews')
+				console.log('?? [Trial Check] Trial expired, enforcing hold on jobs/interviews')
 				await fetch('/api/jobs/enforce-trial-expiry', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ companyId: company.id })
 				})
-				fetchJobs()
 			} else if (result.ok && !result.billing?.isTrialExpired) {
 				// Trial NOT expired - restore jobs that were on hold due to trial expiry
-				console.log('🔍 [Trial Check] Trial active, restoring jobs from trial expiry hold')
+				console.log('?? [Trial Check] Trial active, restoring jobs from trial expiry hold')
 				await fetch('/api/jobs/restore-from-trial-expiry', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ companyId: company.id })
 				})
-				fetchJobs()
 			}
 		} catch (error) {
 			console.error('Failed to check/enforce trial expiry:', error)
 		}
-	}, [company?.id, fetchJobs])
-
-	// Check trial expiry on page load
-	useEffect(() => {
-		if (company?.id) {
-			checkAndEnforceTrialExpiry()
-		}
-	}, [company?.id, checkAndEnforceTrialExpiry])
+	}, [company?.id])
 
 	// Check trial status before opening job form
 	const handlePostNewJob = async () => {
@@ -321,10 +335,23 @@ export default function JobsPage() {
 	}
 
 
-	// Fetch jobs on mount
+	// Fetch users on mount
 	useEffect(() => {
-		fetchJobs()
-	}, [fetchJobs])
+		fetchUsers()
+	}, [fetchUsers])
+	
+	// Fetch jobs on mount and when dependencies change
+	useEffect(() => {
+		if (company?.id) {
+			// First check trial status, then fetch jobs
+			checkAndEnforceTrialExpiry().then(() => {
+				fetchJobs()
+			}).catch(() => {
+				// Even if trial check fails, still fetch jobs
+				fetchJobs()
+			})
+		}
+	}, [company?.id, fetchJobs])
 
 	// Handle job posting dialog close - refresh data
 	const handleJobPostingClose = () => {
@@ -381,7 +408,6 @@ export default function JobsPage() {
 
 	const departments = [...new Set(jobs.map(job => job.department))]
 	const locations = [...new Set(jobs.map(job => job.location))]
-	const recruiters = [...new Set(jobs.map(job => job.recruiter))]
 
 	const openJobs = jobs.filter(job => job.status === 'open')
 	const totalApplicants = jobs.reduce((sum, job) => sum + job.applicants, 0)
@@ -408,7 +434,23 @@ export default function JobsPage() {
 				</Button>
 			</div>
 
+			{/* Loading State */}
+			{isLoading && (
+				<>
+					<JobsBucketGridLoader count={6} theme="light" />
+					<div className="space-y-3">
+						<JobsCardLoader theme="light" />
+						<JobsCardLoader theme="light" />
+						<JobsCardLoader theme="light" />
+					</div>
+				</>
+			)}
+
+			{/* Error State */}
+			{!isLoading && error && <ErrorState message={error} onRetry={fetchJobs} />}
+
 			{/* Filters and Search - Slim Design */}
+			{!isLoading && !error && (
 			<div className="bg-white rounded-lg border p-2">
 				<div className="flex flex-wrap items-center gap-2">
 					<div className="relative flex-1 min-w-[200px]">
@@ -449,20 +491,25 @@ export default function JobsPage() {
 							))}
 						</SelectContent>
 					</Select>
-					<Select
-						value={recruiterFilter}
-						onValueChange={(e) => setRecruiterFilter(e)}
-					>
-						<SelectTrigger className="w-[140px]">
-							<SelectValue placeholder="Select recruiter" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Recruiters</SelectItem>
-							{recruiters.map(rec => (
-								<SelectItem key={rec} value={rec}>{rec}</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+					{/* User dropdown - Only for Manager/Director users */}
+					{(user?.role === 'manager' || user?.role === 'director') && (
+						<Select
+							value={recruiterFilter}
+							onValueChange={(e) => setRecruiterFilter(e)}
+						>
+							<SelectTrigger className="w-[140px]">
+								<SelectValue placeholder="Select user" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Users</SelectItem>
+								{allUsers.map(u => (
+									<SelectItem key={u.id} value={u.id}>
+										{u.id === user?.id ? `${u.name} (You)` : u.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					)}
 					<Button 
 						variant="outline" 
 						size="sm"
@@ -470,15 +517,19 @@ export default function JobsPage() {
 							setSearchQuery('')
 							setDepartmentFilter('all')
 							setLocationFilter('all')
-							setRecruiterFilter('all')
+							if (user?.role === 'manager' || user?.role === 'director') {
+								setRecruiterFilter('all')
+							}
 						}}
 					>
 						Clear
 					</Button>
 				</div>
 			</div>
+			)}
 
 			{/* Status Buckets */}
+			{!isLoading && !error && (
 			<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
 				{(Object.keys(statusBuckets) as JobStatusType[]).map((status) => {
 					const data = statusBuckets[status]
@@ -507,18 +558,12 @@ export default function JobsPage() {
 					)
 				})}
 			</div>
+			)}
 
 			{/* Jobs List - Mobile Responsive */}
+			{!isLoading && !error && (
 			<div className="space-y-2 md:space-y-3">
-				{isLoading ? (
-					<div className="space-y-3">
-						<CardLoader />
-						<CardLoader />
-						<CardLoader />
-					</div>
-				) : error ? (
-					<ErrorState message={error} onRetry={fetchJobs} />
-				) : filteredJobs.length === 0 ? (
+				{filteredJobs.length === 0 ? (
 					<Card className="p-6 text-center">
 						<div className="text-gray-500">
 							<Briefcase className="h-10 w-10 mx-auto mb-3 opacity-50" />
@@ -723,6 +768,7 @@ export default function JobsPage() {
 					))
 				)}
 			</div>
+			)}
 
 			{/* Job Posting Dialog (create / prefilled view) */}
 			{showJobPostingDialog && (

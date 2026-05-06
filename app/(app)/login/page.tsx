@@ -10,23 +10,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import { RefreshCw } from "lucide-react"
 import Link from "next/link"
 
 export default function LoginPage() {
-  const [activeTab, setActiveTab] = useState<"demo" | "signin">("signin")
   const [step, setStep] = useState<"email" | "otp">("email")
-  const [demoStep, setDemoStep] = useState<"email" | "otp">("email")
   const [email, setEmail] = useState("")
-  const [demoEmail, setDemoEmail] = useState("")
   const [otp, setOtp] = useState("")
-  const [demoOtp, setDemoOtp] = useState("")
   const [loading, setLoading] = useState(false)
-  const [demoLoading, setDemoLoading] = useState(false)
   const [countdown, setCountdown] = useState(0)
-  const [demoCountdown, setDemoCountdown] = useState(0)
   const { setAuthSession, user, loading: authLoading } = useAuth() as any
   const router = useRouter()
   const { toast } = useToast()
@@ -64,12 +57,6 @@ export default function LoginPage() {
     }
   }, [countdown])
 
-  useEffect(() => {
-    if (demoCountdown > 0) {
-      const t = setTimeout(() => setDemoCountdown((c) => c - 1), 1000)
-      return () => clearTimeout(t)
-    }
-  }, [demoCountdown])
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -84,8 +71,7 @@ export default function LoginPage() {
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "Failed to send OTP")
       }
-      toast({ title: "OTP sent", description: "Check console for OTP in development" })
-      setStep("otp")
+            setStep("otp")
       setCountdown(30)
     } catch (err: any) {
       toast({ title: "Login error", description: err?.message || "Failed to send OTP", variant: "destructive" })
@@ -141,111 +127,6 @@ export default function LoginPage() {
     }
   }
 
-  const handleDemoSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!demoEmail || !demoEmail.includes('@')) {
-      toast({
-        title: "Invalid Email",
-        description: "Please enter a valid email address",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setDemoLoading(true)
-    try {
-      // For demo, we'll use a mock OTP service or the same endpoint
-      const res = await fetch("/api/otp/send-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: demoEmail, demo: true }),
-      })
-      const data = await res.json()
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || "Failed to send OTP")
-      }
-      toast({ 
-        title: "Demo OTP sent", 
-        description: "Check console for OTP in development mode" 
-      })
-      setDemoStep("otp")
-      setDemoCountdown(30)
-    } catch (err: any) {
-      toast({ 
-        title: "Demo OTP error", 
-        description: err?.message || "Failed to send demo OTP", 
-        variant: "destructive" 
-      })
-    } finally {
-      setDemoLoading(false)
-    }
-  }
-
-  const handleDemoVerify = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!demoOtp || demoOtp.length < 4) {
-      toast({
-        title: "Invalid OTP",
-        description: "Please enter the verification code",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setDemoLoading(true)
-    try {
-      // For demo, we can either verify the OTP or just proceed to dashboard
-      const res = await fetch("/api/otp/verify-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: demoEmail, otp: demoOtp, demo: true }),
-      })
-      const data = await res.json()
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || "Failed to verify demo OTP")
-      }
-      
-      // For demo mode, we might want to set a demo session
-      if (data.user && data.company) {
-        setAuthSession(data.user, data.company)
-      }
-      
-      toast({ 
-        title: "Demo access granted!", 
-        description: "Welcome to the HireGenAI demo" 
-      })
-      await Promise.resolve()
-      router.push(getPostLoginRedirect())
-    } catch (err: any) {
-      toast({ 
-        title: "Demo verification error", 
-        description: err?.message || "Failed to verify demo OTP", 
-        variant: "destructive" 
-      })
-    } finally {
-      setDemoLoading(false)
-    }
-  }
-
-  const handleDemoResend = async () => {
-    if (demoCountdown > 0) return
-    setDemoLoading(true)
-    try {
-      const res = await fetch("/api/otp/send-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: demoEmail, demo: true }),
-      })
-      const data = await res.json()
-      if (!res.ok || !data.ok) throw new Error(data.error || "Failed to resend demo OTP")
-      toast({ title: "Demo OTP resent", description: "Use the latest code" })
-      setDemoCountdown(30)
-    } catch (err: any) {
-      toast({ title: "Error", description: err?.message || "Failed to resend demo OTP", variant: "destructive" })
-    } finally {
-      setDemoLoading(false)
-    }
-  }
 
   if (authLoading) {
     return (
@@ -298,30 +179,11 @@ export default function LoginPage() {
             </CardTitle>
           </Link>
           <CardDescription className="text-slate-600">
-            Choose how you want to explore HireGenAI
+            Enter your email to receive a one-time password
           </CardDescription>
         </CardHeader>
 
         <CardContent className="px-4 pb-3">
-          {/* Tabs */}
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "demo" | "signin")} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6 bg-gray-100">
-              <TabsTrigger 
-                value="signin" 
-                className="text-sm font-medium data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=inactive]:text-gray-600 data-[state=inactive]:bg-transparent"
-              >
-                Sign In
-              </TabsTrigger>
-              <TabsTrigger 
-                value="demo" 
-                className="text-sm font-medium data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=inactive]:text-gray-600 data-[state=inactive]:bg-transparent"
-              >
-                Demo Sign In
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Sign In Tab */}
-            <TabsContent value="signin" className="mt-0">
               {step === "email" ? (
                 <form onSubmit={handleSendOtp} className="space-y-4">
                   <div className="space-y-2">
@@ -399,102 +261,6 @@ export default function LoginPage() {
                   </Button>
                 </form>
               )}
-            </TabsContent>
-
-            {/* Demo Sign In Tab */}
-            <TabsContent value="demo" className="mt-0">
-              {demoStep === "email" ? (
-                <>
-                  {/* Info Card */}
-                  <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-4 mb-6">
-                    <p className="font-semibold text-emerald-900 text-sm mb-1">Instant access to the product demo</p>
-                    <p className="text-emerald-800/80 text-sm">
-                      Use our shared demo credentials to explore the platform without creating an account.
-                    </p>
-                  </div>
-
-                  <form onSubmit={handleDemoSendOtp} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="demo-email" className="text-sm font-medium text-slate-700">Email</Label>
-                      <Input
-                        id="demo-email"
-                        type="email"
-                        value={demoEmail}
-                        onChange={(e) => setDemoEmail(e.target.value)}
-                        placeholder="you@example.com"
-                        className="h-11 border-emerald-200 focus:border-emerald-500 focus:ring-emerald-500"
-                        required
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
-                      disabled={demoLoading || !demoEmail}
-                    >
-                      {demoLoading ? (
-                        <>
-                          <RefreshCw className="animate-spin h-4 w-4 mr-2" />
-                          Sending OTP...
-                        </>
-                      ) : (
-                        "Send OTP"
-                      )}
-                    </Button>
-                  </form>
-                </>
-              ) : (
-                <form onSubmit={handleDemoVerify} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="demo-otp" className="text-sm font-medium text-slate-700">Enter Demo OTP</Label>
-                    <Input
-                      id="demo-otp"
-                      type="text"
-                      value={demoOtp}
-                      onChange={(e) => setDemoOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      placeholder="6-digit code"
-                      className="h-11 border-emerald-200 focus:border-emerald-500 focus:ring-emerald-500 text-center font-mono tracking-widest"
-                      maxLength={6}
-                      required
-                    />
-                    <p className="text-xs text-slate-500 text-center">
-                      Check your terminal for the demo OTP
-                    </p>
-                  </div>
-                  <Button 
-                    type="submit" 
-                    className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-medium" 
-                    disabled={demoLoading || demoOtp.length < 4}
-                  >
-                    {demoLoading ? (
-                      <>
-                        <RefreshCw className="animate-spin h-4 w-4 mr-2" />
-                        Verifying...
-                      </>
-                    ) : (
-                      "Continue to demo"
-                    )}
-                  </Button>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    className="w-full h-11" 
-                    onClick={handleDemoResend} 
-                    disabled={demoLoading || demoCountdown > 0}
-                  >
-                    {demoCountdown > 0 ? `Resend in ${demoCountdown}s` : "Resend Demo OTP"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="w-full text-slate-500 hover:text-slate-700"
-                    onClick={() => setDemoStep("email")}
-                  >
-                    ← Back to email
-                  </Button>
-                </form>
-              )}
-            </TabsContent>
-          </Tabs>
 
           <div className="text-center pt-4 border-t border-slate-200">
             <p className="text-sm text-slate-600">

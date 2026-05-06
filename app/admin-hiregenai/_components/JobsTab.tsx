@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Download, Search, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Skeleton, StatCardGridLoader, TalentPoolTableLoader } from '@/components/ui/skeleton-loader'
 
 interface Job {
   id: string
@@ -27,19 +28,32 @@ interface CompanyOption {
   name: string
 }
 
-export default function JobsTab() {
+interface JobsTabProps {
+  onReady?: (fetchFn: (start: string, end: string) => void) => void
+}
+
+export default function JobsTab({ onReady }: JobsTabProps) {
   const [selectedCompany, setSelectedCompany] = useState("all")
   const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(true)
   const [jobs, setJobs] = useState<Job[]>([])
   const [companies, setCompanies] = useState<CompanyOption[]>([])
 
-  const fetchJobs = useCallback(async () => {
+  // Refs to track latest values without recreating fetchJobs
+  const searchTermRef = useRef(searchTerm)
+  const selectedCompanyRef = useRef(selectedCompany)
+
+  useEffect(() => { searchTermRef.current = searchTerm }, [searchTerm])
+  useEffect(() => { selectedCompanyRef.current = selectedCompany }, [selectedCompany])
+
+  const fetchJobs = useCallback(async (startDate?: string, endDate?: string) => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
-      if (searchTerm) params.set("search", searchTerm)
-      if (selectedCompany !== "all") params.set("companyId", selectedCompany)
+      if (searchTermRef.current) params.set("search", searchTermRef.current)
+      if (selectedCompanyRef.current !== "all") params.set("companyId", selectedCompanyRef.current)
+      if (startDate) params.set("startDate", startDate)
+      if (endDate) params.set("endDate", endDate)
       const res = await fetch(`/api/admin/jobs?${params.toString()}`)
       if (!res.ok) throw new Error("Failed to load")
       const data = await res.json()
@@ -52,11 +66,28 @@ export default function JobsTab() {
     } finally {
       setLoading(false)
     }
-  }, [searchTerm, selectedCompany])
+  }, []) // empty deps - never recreated
 
+  // Initial load only
   useEffect(() => {
     fetchJobs()
-  }, [fetchJobs])
+  }, [])
+
+  // Re-fetch on company change
+  useEffect(() => {
+    fetchJobs()
+  }, [selectedCompany])
+
+  // Re-fetch on search with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => fetchJobs(), 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  // Register stable function with parent - only once
+  useEffect(() => {
+    if (onReady) onReady(fetchJobs)
+  }, [])
 
   const exportToCSV = async () => {
     try {
@@ -78,9 +109,55 @@ export default function JobsTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-        <span className="ml-3 text-slate-400">Loading jobs...</span>
+      <div className="space-y-4">
+        {/* Filters Card Skeleton */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+          <div className="h-5 w-16 bg-slate-700 animate-pulse rounded mb-5" /> {/* "Filters" label */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <div className="h-3 w-20 bg-slate-700 animate-pulse rounded" />
+              <div className="h-10 w-full bg-slate-700 animate-pulse rounded-lg" />
+            </div>
+            <div className="space-y-2">
+              <div className="h-3 w-16 bg-slate-700 animate-pulse rounded" />
+              <div className="h-10 w-full bg-slate-700 animate-pulse rounded-lg" />
+            </div>
+          </div>
+        </div>
+
+        {/* Jobs List Card Skeleton */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+          {/* Header row */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="space-y-1">
+              <div className="h-5 w-12 bg-slate-700 animate-pulse rounded" />
+              <div className="h-3 w-24 bg-slate-700 animate-pulse rounded" />
+            </div>
+            <div className="h-9 w-32 bg-slate-700 animate-pulse rounded-lg" /> {/* Export CSV */}
+          </div>
+
+          {/* Job item rows */}
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-3">
+              <div className="flex items-start justify-between mb-3">
+                <div className="space-y-2">
+                  <div className="h-5 w-40 bg-slate-700 animate-pulse rounded" />
+                  <div className="h-3 w-24 bg-slate-700 animate-pulse rounded" />
+                  <div className="h-3 w-56 bg-slate-700 animate-pulse rounded" />
+                </div>
+                <div className="h-6 w-14 bg-slate-700 animate-pulse rounded-full" /> {/* status badge */}
+              </div>
+              <div className="grid grid-cols-5 gap-4 mt-2">
+                {Array.from({ length: 5 }).map((_, j) => (
+                  <div key={j} className="space-y-1">
+                    <div className="h-3 w-16 bg-slate-700 animate-pulse rounded" />
+                    <div className="h-4 w-20 bg-slate-700 animate-pulse rounded" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

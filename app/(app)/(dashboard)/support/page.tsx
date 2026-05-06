@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { StatCardGridLoader, SupportTableLoader, ErrorState } from '@/components/ui/skeleton-loader'
 import {
   Dialog,
   DialogContent,
@@ -88,6 +89,7 @@ export default function SupportPage() {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [stats, setStats] = useState<TicketStats>({ open: 0, in_progress: 0, resolved: 0, total: 0 })
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const [formData, setFormData] = useState({
@@ -102,6 +104,7 @@ export default function SupportPage() {
   const fetchTickets = useCallback(async () => {
     try {
       setLoading(true)
+      setError(null)
       
       // Get companyId from localStorage
       let companyId = null
@@ -128,10 +131,12 @@ export default function SupportPage() {
         setStats(data.stats || { open: 0, in_progress: 0, resolved: 0, total: 0 })
       } else {
         console.error('Failed to fetch tickets:', data.error)
+        setError(data.error || 'Failed to fetch tickets')
         setTickets([])
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching tickets:', error)
+      setError(error.message || 'Failed to load tickets')
       setTickets([])
     } finally {
       setLoading(false)
@@ -427,7 +432,7 @@ export default function SupportPage() {
 
   const getStatusBadge = (status: TicketStatus) => {
     const variants: Record<TicketStatus, string> = {
-      open: 'bg-blue-100 text-blue-800',
+      open: 'bg-emerald-100 text-emerald-800',
       in_progress: 'bg-yellow-100 text-yellow-800',
       resolved: 'bg-green-100 text-green-800',
       closed: 'bg-gray-100 text-gray-800',
@@ -442,7 +447,7 @@ export default function SupportPage() {
   const getPriorityBadge = (priority: TicketPriority) => {
     const variants: Record<TicketPriority, string> = {
       low: 'bg-gray-100 text-gray-800',
-      medium: 'bg-blue-100 text-blue-800',
+      medium: 'bg-emerald-100 text-emerald-800',
       high: 'bg-orange-100 text-orange-800',
       urgent: 'bg-red-100 text-red-800',
     }
@@ -467,12 +472,24 @@ export default function SupportPage() {
         </Button>
       </div>
 
+      {/* Loading State */}
+      {loading && (
+        <>
+          <StatCardGridLoader count={4} theme="light" />
+          <SupportTableLoader rows={6} theme="light" />
+        </>
+      )}
+
+      {/* Error State */}
+      {!loading && error && <ErrorState message={error} onRetry={fetchTickets} />}
+
       {/* Stats Cards */}
+      {!loading && !error && (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="p-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Clock className="h-5 w-5 text-blue-600" />
+            <div className="p-2 bg-emerald-100 rounded-lg">
+              <Clock className="h-5 w-5 text-emerald-600" />
             </div>
             <div>
               <p className="text-sm text-gray-600">Open Tickets</p>
@@ -514,6 +531,7 @@ export default function SupportPage() {
           </div>
         </Card>
       </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 border-b">
@@ -521,7 +539,7 @@ export default function SupportPage() {
           onClick={() => setActiveTab('tickets')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'tickets'
-              ? 'border-blue-600 text-blue-600'
+              ? 'border-emerald-600 text-emerald-600'
               : 'border-transparent text-gray-600 hover:text-gray-900'
           }`}
         >
@@ -531,7 +549,7 @@ export default function SupportPage() {
           onClick={() => setActiveTab('feedback')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'feedback'
-              ? 'border-blue-600 text-blue-600'
+              ? 'border-emerald-600 text-emerald-600'
               : 'border-transparent text-gray-600 hover:text-gray-900'
           }`}
         >
@@ -540,6 +558,7 @@ export default function SupportPage() {
       </div>
 
       {/* Filters */}
+      {!loading && !error && (
       <Card className="p-3">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="w-full md:w-auto md:min-w-[300px] md:max-w-[400px]">
@@ -581,8 +600,10 @@ export default function SupportPage() {
           </div>
         </div>
       </Card>
+      )}
 
       {/* Tickets Table */}
+      {!loading && !error && (
       <Card>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -658,14 +679,7 @@ export default function SupportPage() {
             </tbody>
           </table>
 
-          {loading && (
-            <div className="text-center py-12 text-gray-500">
-              <div className="animate-spin h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-3"></div>
-              <p className="text-sm">Loading tickets...</p>
-            </div>
-          )}
-
-          {!loading && filteredTickets.length === 0 && (
+          {filteredTickets.length === 0 && (
             <div className="text-center py-12 text-gray-500">
               <HeadphonesIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
               <p className="text-sm">No tickets found</p>
@@ -680,6 +694,7 @@ export default function SupportPage() {
           )}
         </div>
       </Card>
+      )}
 
       {/* View Ticket Dialog */}
       <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
@@ -748,7 +763,7 @@ export default function SupportPage() {
                   {/* Initial Ticket Message */}
                   <div className="flex justify-end">
                     <div className="max-w-[75%]">
-                      <div className="bg-blue-500 text-white rounded-lg rounded-tr-none p-3 shadow-sm">
+                      <div className="bg-emerald-500 text-white rounded-lg rounded-tr-none p-3 shadow-sm">
                         <p className="text-sm mb-1">{selectedTicket.description}</p>
                         {selectedTicket.screenshot && (
                           <div className="mt-2 bg-white rounded-lg p-2">
@@ -787,7 +802,7 @@ export default function SupportPage() {
                             <div className={`rounded-lg p-3 shadow-sm ${
                               comment.role === 'support'
                                 ? 'bg-white border border-gray-200 rounded-tl-none'
-                                : 'bg-blue-500 text-white rounded-tr-none'
+                                : 'bg-emerald-500 text-white rounded-tr-none'
                             }`}>
                               {comment.message && (
                                 <p className={`text-sm ${comment.role === 'support' ? 'text-gray-800' : 'text-white'}`}>
@@ -816,7 +831,7 @@ export default function SupportPage() {
                               comment.role === 'support' ? 'justify-start' : 'justify-end'
                             }`}>
                               <span className={`text-xs font-medium ${
-                                comment.role === 'support' ? 'text-blue-600' : 'text-gray-500'
+                                comment.role === 'support' ? 'text-emerald-600' : 'text-gray-500'
                               }`}>
                                 {comment.author}
                               </span>
@@ -843,7 +858,7 @@ export default function SupportPage() {
                 <div className="border-t pt-3">
                   <Label className="text-xs text-gray-500 font-semibold mb-2 block">Add Your Reply</Label>
                   <textarea
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     rows={2}
                     placeholder="Type your response..."
                     value={newComment}

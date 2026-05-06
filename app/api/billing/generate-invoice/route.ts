@@ -1,13 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
+import { cookies } from 'next/headers'
 
+/**
+ * POST /api/billing/generate-invoice
+ * 
+ * Legacy endpoint - now redirects to the new invoice system
+ * Can generate usage-based invoices OR payment-specific invoices
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { companyId, startDate, endDate } = body
+    const { paymentId, companyId, startDate, endDate } = body
 
+    // If paymentId is provided, redirect to new invoice system
+    if (paymentId) {
+      if (!companyId) {
+        // Get company ID from session
+        const cookieStore = await cookies()
+        const sessionCompanyId = cookieStore.get('company_id')?.value
+        if (!sessionCompanyId) {
+          return NextResponse.json({ error: 'Company ID required for payment invoice' }, { status: 400 })
+        }
+        body.companyId = sessionCompanyId
+      }
+
+      // Call the new invoice API
+      const response = await fetch(`${request.nextUrl.origin}/api/invoice/${paymentId}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        return NextResponse.json(data, { status: response.status })
+      }
+
+      return NextResponse.json({
+        success: true,
+        invoice: data.invoice,
+        pdfUrl: `/api/invoice/generate-pdf`,
+        note: 'Use /api/invoice/generate-pdf with paymentId and companyId to generate PDF'
+      })
+    }
+
+    // Legacy usage-based invoice generation
     if (!companyId || !startDate || !endDate) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+      return NextResponse.json({ 
+        error: 'Missing required fields. Provide either paymentId for payment invoices, or companyId, startDate, endDate for usage invoices',
+        availableOptions: {
+          paymentInvoice: { paymentId: 'string', companyId: 'string (optional)' },
+          usageInvoice: { companyId: 'string', startDate: 'YYYY-MM-DD', endDate: 'YYYY-MM-DD' }
+        }
+      }, { status: 400 })
     }
 
     // Get company information
@@ -17,7 +59,7 @@ export async function POST(request: NextRequest) {
       WHERE id = $1::uuid
     `
     const companyResult = await DatabaseService.query(companyQuery, [companyId])
-    
+
     if (companyResult.length === 0) {
       return NextResponse.json({ error: 'Company not found' }, { status: 404 })
     }
@@ -26,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     // Get usage data for the date range
     const usageQuery = `
-      SELECT 
+      SELECT
         entry_type,
         description,
         quantity,
@@ -34,14 +76,14 @@ export async function POST(request: NextRequest) {
         amount,
         created_at,
         metadata
-      FROM usage_ledger 
-      WHERE company_id = $1::uuid 
-        AND created_at >= $2::date 
+      FROM usage_ledger
+      WHERE company_id = $1::uuid
+        AND created_at >= $2::date
         AND created_at <= $3::date + INTERVAL '1 day'
         AND amount > 0
       ORDER BY created_at DESC
     `
-    
+
     const usageResult = await DatabaseService.query(usageQuery, [companyId, startDate, endDate])
 
     // Calculate totals by service type
@@ -88,12 +130,15 @@ export async function POST(request: NextRequest) {
       totals,
       itemizedUsage,
       invoiceNumber: `INV-${Date.now()}`,
-      invoiceDate: new Date().toLocaleDateString('en-IN')
+      invoiceDate: new Date().toLocaleDateString('en-IN'),
+      type: 'usage_based',
+      note: 'This is a usage-based invoice. For payment invoices, use paymentId parameter.'
     }
 
     return NextResponse.json({
       success: true,
-      invoice: invoiceData
+      invoice: invoiceData,
+      note: 'Usage-based invoices are deprecated. Consider using payment-specific invoices with paymentId parameter.'
     })
 
   } catch (error: any) {
@@ -181,8 +226,8 @@ function generateInvoiceHtml(data: {
                     <td>${item.date}</td>
                     <td>${item.service}</td>
                     <td>${item.quantity}</td>
-                    <td>₹${item.unitPrice.toFixed(2)}</td>
-                    <td class="amount">₹${item.amount.toFixed(2)}</td>
+                    <td>Rs.${item.unitPrice.toFixed(2)}</td>
+                    <td class="amount">Rs.${item.amount.toFixed(2)}</td>
                 </tr>
             `).join('')}
         </tbody>
@@ -191,19 +236,19 @@ function generateInvoiceHtml(data: {
     <div class="summary">
         <div class="summary-row">
             <span>CV Parsing:</span>
-            <span>₹${totals.cvParsing.toFixed(2)}</span>
+            <span>Rs.${totals.cvParsing.toFixed(2)}</span>
         </div>
         <div class="summary-row">
             <span>Question Generation:</span>
-            <span>₹${totals.questionGeneration.toFixed(2)}</span>
+            <span>Rs.${totals.questionGeneration.toFixed(2)}</span>
         </div>
         <div class="summary-row">
             <span>Video Interviews:</span>
-            <span>₹${totals.videoInterviews.toFixed(2)}</span>
+            <span>Rs.${totals.videoInterviews.toFixed(2)}</span>
         </div>
         <div class="summary-row total">
             <span>Total Amount:</span>
-            <span>₹${totals.total.toFixed(2)}</span>
+            <span>Rs.${totals.total.toFixed(2)}</span>
         </div>
     </div>
 
