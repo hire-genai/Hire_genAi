@@ -16,7 +16,7 @@ export default function PostInterviewVerifyPage() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  
+
   const [isCameraOpen, setIsCameraOpen] = useState(false)
   const [isCameraReady, setIsCameraReady] = useState(false)
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null)
