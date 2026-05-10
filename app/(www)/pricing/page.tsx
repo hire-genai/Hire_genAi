@@ -313,7 +313,7 @@ export default function PricingPage() {
               <CardContent className="p-4">
                 <h3 className="font-semibold text-slate-800 mb-2">Is there a free trial?</h3>
                 <p className="text-slate-600">
-                  Yes, we offer a 14-day free trial for all plans. No credit card required to start your trial.
+                  Yes, we offer a 7-day free trial for all plans. No credit card required to start your trial.
                 </p>
               </CardContent>
             </Card>
