@@ -10,6 +10,13 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const companyId = searchParams.get('companyId')
+    const getTrialDays = searchParams.get('getTrialDays')
+
+    // Return trial days if requested (for demo-report page)
+    if (getTrialDays === 'true') {
+      const trialDays = parseInt(process.env.TRIAL_DAYS || '14')
+      return NextResponse.json({ trialDays })
+    }
 
     if (!companyId) {
       return NextResponse.json({ ok: false, error: 'companyId is required' }, { status: 400 })

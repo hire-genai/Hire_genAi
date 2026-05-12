@@ -40,7 +40,8 @@ export default function QuestionnaireResults() {
         setContactInfo(JSON.parse(storedContact))
       }
     }
-  }, [])
+
+    }, [])
 
   const getResultsText = () => {
     if (score >= 80) {
@@ -122,12 +123,12 @@ export default function QuestionnaireResults() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <h1 className="text-2xl font-bold">
+              <Link href="/" className="flex-shrink-0">
+                <h1 className="text-2xl font-bold cursor-pointer">
                   <span className="text-slate-800">Hire</span>
                   <span className="sr-text-gradient">GenAI</span>
                 </h1>
-              </div>
+              </Link>
               <nav className="hidden md:ml-10 md:flex md:space-x-8">
                 <Link
                   href="/demo-en"
@@ -151,17 +152,11 @@ export default function QuestionnaireResults() {
                   href="/about"
                   className="text-gray-700 hover:text-emerald-600 px-3 py-2 text-sm font-medium transition-colors"
                 >
-                  Solutions
-                </Link>
-                <Link
-                  href="/contact"
-                  className="text-gray-700 hover:text-emerald-600 px-3 py-2 text-sm font-medium transition-colors"
-                >
-                  Resources
+                  Company
                 </Link>
               </nav>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="hidden md:flex items-center space-x-4">
               <Link href={getAppUrl('/login')}>
                 <Button
                   variant="ghost"

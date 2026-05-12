@@ -27,24 +27,19 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    // Capture request metadata (matching parent project)
-    const clientIp = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || null
-    const userAgent = req.headers.get('user-agent') || null
-
-    // Insert assessment data into database (matching recruitment_assessments schema)
+    
+    // Insert assessment data into database (matching actual assessments schema)
     const insertQuery = `
       INSERT INTO assessments (
-        name,
-        email,
-        company,
-        phone,
+        contact_name,
+        contact_email,
+        contact_company,
+        contact_phone,
         answers,
-        efficiency_score,
-        ip_address,
-        user_agent,
+        score,
         created_at
       )
-      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7::inet, $8, NOW())
+      VALUES ($1, $2, $3, $4, $5::jsonb, $6, NOW())
       RETURNING id, created_at
     `
 
@@ -55,8 +50,6 @@ export async function POST(req: NextRequest) {
       phone ? String(phone).trim() : null,
       JSON.stringify(answers || {}), // Store answers exactly as received from frontend
       efficiencyScore ? Number(efficiencyScore) : null,
-      clientIp,
-      userAgent,
     ]
 
     const result = await DatabaseService.query(insertQuery, values) as any[]
