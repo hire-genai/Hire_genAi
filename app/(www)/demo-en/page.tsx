@@ -788,7 +788,7 @@ export default function DemoEnPage() {
               <div ref={basicInfoRef} style={{ marginBottom: 32 }}>
                 <h4 style={{ fontWeight: 600, fontSize: 18, borderBottom: "1px solid #e2e8f0", paddingBottom: 8, marginBottom: 16 }}>Basic Information</h4>
                 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div className="basic-info-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                   <div>
                     <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
                       Job Title <span style={{ color: "#ef4444" }}>*</span>
@@ -946,7 +946,7 @@ export default function DemoEnPage() {
                   />
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                <div className="basic-info-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                   <div>
                     <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
                       Required Skills <span style={{ color: "#ef4444" }}>*</span>
@@ -1043,7 +1043,7 @@ export default function DemoEnPage() {
 
                 <div style={{ marginBottom: 16 }}>
                   <label className="input-label">Evaluation Criteria</label>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+                  <div className="eval-criteria-container" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
                     {[
                       { name: "Technical Skills", selected: true },
                       { name: "Problem Solving", selected: true },
@@ -1085,7 +1085,7 @@ export default function DemoEnPage() {
                       { q: "How do you handle exceptions and error logging in your automation workflows?", difficulty: "Medium", marks: 15 },
                       { q: "What is your experience with Orchestrator and bot deployment in production?", difficulty: "Low", marks: 15 }
                     ].map((item, i) => (
-                      <div key={i} style={{ 
+                      <div key={i} className="question-item" style={{ 
                         display: "flex", 
                         alignItems: "center", 
                         gap: 12,
@@ -1102,23 +1102,25 @@ export default function DemoEnPage() {
                           disabled
                           style={{ background: "#fff", cursor: "not-allowed", flex: 1, fontSize: 13 }}
                         />
-                        <span style={{
-                          padding: "4px 10px",
-                          borderRadius: 4,
-                          fontSize: 11,
-                          fontWeight: 600,
-                          background: item.difficulty === "High" ? "#fef2f2" : item.difficulty === "Medium" ? "#fffbeb" : "#f0fdf4",
-                          color: item.difficulty === "High" ? "#dc2626" : item.difficulty === "Medium" ? "#d97706" : "#16a34a"
-                        }}>
-                          {item.difficulty}
-                        </span>
-                        <span style={{ fontSize: 12, color: "#64748b", minWidth: 50 }}>{item.marks} marks</span>
+                        <div className="question-item-meta">
+                          <span style={{
+                            padding: "4px 10px",
+                            borderRadius: 4,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            background: item.difficulty === "High" ? "#fef2f2" : item.difficulty === "Medium" ? "#fffbeb" : "#f0fdf4",
+                            color: item.difficulty === "High" ? "#dc2626" : item.difficulty === "Medium" ? "#d97706" : "#16a34a"
+                          }}>
+                            {item.difficulty}
+                          </span>
+                          <span style={{ fontSize: 12, color: "#64748b", minWidth: 50 }}>{item.marks} marks</span>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, background: "#eff6ff", borderRadius: 8, border: "1px solid #bfdbfe" }}>
+                <div className="auto-schedule-box" style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, background: "#eff6ff", borderRadius: 8, border: "1px solid #bfdbfe" }}>
                   <input type="checkbox" checked readOnly disabled style={{ width: 16, height: 16 }} />
                   <div>
                     <div style={{ fontWeight: 600, fontSize: 13, color: "#1e293b" }}>Auto Schedule Interview</div>
@@ -1132,7 +1134,7 @@ export default function DemoEnPage() {
               <div ref={visaRef} style={{ marginBottom: 32, scrollMarginTop: 100 }}>
                 <h4 style={{ fontWeight: 600, fontSize: 18, borderBottom: "1px solid #e2e8f0", paddingBottom: 8, marginBottom: 16 }}>Hiring Team & Planning</h4>
                 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+                <div className="basic-info-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
                   <div>
                     <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
                       Client Company Name <span style={{ color: "#ef4444" }}>*</span>
@@ -1244,7 +1246,7 @@ export default function DemoEnPage() {
                   <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 8 }}>
                     Target Sourcing Channels
                   </label>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+                  <div className="sourcing-channels-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
                     {[
                       { name: "LinkedIn", selected: true },
                       { name: "GitHub", selected: false },
@@ -1437,11 +1439,11 @@ export default function DemoEnPage() {
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div className="resume-photo-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                   {/* Resume Upload */}
                   <div>
                     <label className="input-label">Upload Resume *</label>
-                    <div style={{
+                    <div className="upload-box-container" style={{
                       border: "2px dashed #3b82f6",
                       borderRadius: 8,
                       padding: 16,
@@ -1474,7 +1476,7 @@ export default function DemoEnPage() {
                   {/* Photo Capture */}
                   <div>
                     <label className="input-label">Capture Photo *</label>
-                    <div style={{
+                    <div className="upload-box-container" style={{
                       border: "2px solid #10b981",
                       borderRadius: 8,
                       padding: 16,
@@ -1484,7 +1486,7 @@ export default function DemoEnPage() {
                     }}>
                       <div style={{ marginBottom: 8, fontSize: 20, color: "#10b981" }}>📸</div>
                       <div style={{ marginBottom: 8, color: "#64748b", fontSize: 12 }}>Photo captured</div>
-                      <div style={{
+                      <div className="photo-preview" style={{
                         width: 80,
                         height: 80,
                         margin: "0 auto",
@@ -1587,7 +1589,7 @@ export default function DemoEnPage() {
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+                <div className="additional-info-grid" style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
                   <div>
                     <label className="input-label">LinkedIn URL</label>
                     <input
@@ -1689,8 +1691,8 @@ export default function DemoEnPage() {
               position: 'absolute',
               top: '20px',
               right: '20px',
-              width: '200px',
-              height: '200px',
+              width: '140px',
+              height: '140px',
               borderRadius: '12px',
               overflow: 'hidden',
               backgroundColor: '#1e293b',
@@ -2570,6 +2572,7 @@ export default function DemoEnPage() {
           display: flex;
           gap: 16px;
           align-items: center;
+          justify-content: center;
           z-index: 10;
           flex-wrap: wrap;
           padding: 10px 16px;
@@ -2583,14 +2586,14 @@ export default function DemoEnPage() {
           gap: 12px;
         }
         .ctrl-btn {
-          width: 54px;
-          height: 54px;
-          border-radius: 16px;
+          width: 48px;
+          height: 48px;
+          border-radius: 14px;
           border: 1px solid rgba(148, 163, 184, 0.35);
           background: linear-gradient(160deg, rgba(248, 250, 252, 0.95) 0%, rgba(226, 232, 240, 0.85) 100%);
           color: #1f2937;
           cursor: pointer;
-          font-size: 20px;
+          font-size: 18px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -2917,6 +2920,67 @@ export default function DemoEnPage() {
           .main-video-container {
             aspect-ratio: 3 / 4;
           }
+          /* Interview Section - Tablet */
+          .avatar-video-container {
+            width: 120px !important;
+            height: 120px !important;
+            top: 16px !important;
+            right: 16px !important;
+          }
+        }
+        @media (max-width: 600px) {
+          /* Interview Section - Mobile */
+          .interview-container {
+            position: relative !important;
+          }
+          .main-video-container {
+            aspect-ratio: 9 / 16 !important;
+            min-height: 500px !important;
+          }
+          .avatar-video-container {
+            width: 100px !important;
+            height: 100px !important;
+            top: 12px !important;
+            right: 12px !important;
+            border: 2px solid #3b82f6 !important;
+          }
+          .control-bar {
+            bottom: 16px !important;
+            padding: 8px 12px !important;
+            gap: 12px !important;
+          }
+          .controls-wrapper {
+            gap: 10px !important;
+          }
+          .ctrl-btn {
+            width: 48px !important;
+            height: 48px !important;
+            font-size: 18px !important;
+          }
+          .ctrl-btn.primary,
+          .ctrl-btn.danger {
+            padding: 0 16px !important;
+            width: auto !important;
+            font-size: 13px !important;
+          }
+          .question-box {
+            margin-top: 8px !important;
+          }
+          .ai-message {
+            width: calc(100% - 24px) !important;
+            padding: 10px 12px !important;
+            font-size: 14px !important;
+            max-width: 100% !important;
+          }
+          .ai-avatar {
+            width: 36px !important;
+            height: 36px !important;
+            min-width: 36px !important;
+          }
+          .message-content {
+            font-size: 14px !important;
+            line-height: 1.4 !important;
+          }
         }
         /* Demo Notice Box - Desktop */
         .demo-notice-box {
@@ -3171,6 +3235,71 @@ export default function DemoEnPage() {
           /* Textarea - Mobile */
           textarea.form-input {
             font-size: 13px;
+          }
+        }
+        /* Interview Questions - Mobile */
+        @media (max-width: 768px) {
+          .question-item {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 8px !important;
+          }
+          .question-item input {
+            width: 100% !important;
+            font-size: 13px !important;
+          }
+          .question-item-meta {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            width: 100%;
+            justify-content: space-between;
+          }
+          /* Basic Information Grid - Mobile */
+          .basic-info-grid {
+            grid-template-columns: 1fr !important;
+          }
+          /* Evaluation Criteria - Mobile */
+          .eval-criteria-container {
+            gap: 6px !important;
+          }
+          .eval-criteria-container span {
+            font-size: 11px !important;
+            padding: 4px 10px !important;
+          }
+          /* Auto Schedule Box - Mobile */
+          .auto-schedule-box {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 8px !important;
+          }
+          .auto-schedule-box > div:last-child {
+            margin-left: 0 !important;
+          }
+          /* Sourcing Channels Grid - Mobile */
+          .sourcing-channels-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+          /* Resume & Photo Grid - Mobile */
+          .resume-photo-grid {
+            grid-template-columns: 1fr !important;
+          }
+          /* Resume/Photo Upload Boxes - Mobile */
+          .upload-box-container {
+            padding: 12px !important;
+          }
+          .upload-box-container .photo-preview {
+            width: 60px !important;
+            height: 60px !important;
+            font-size: 24px !important;
+          }
+          /* Additional Information Grid - Mobile */
+          .additional-info-grid > div {
+            flex: 1 1 calc(50% - 8px) !important;
+            min-width: 0 !important;
+          }
+          .additional-info-grid > div:last-child {
+            flex: 1 1 100% !important;
           }
         }
         /* Extra small screens */
