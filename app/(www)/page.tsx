@@ -92,7 +92,7 @@ export default function HomePage() {
               </nav>
             </div>
             <div className="hidden md:flex items-center space-x-4">
-              <Link href={getAppUrl('/login')}>
+              <Link href={getAppUrl('/login')} target="_blank" rel="noopener noreferrer">
                 <Button
                   variant="ghost"
                   className="text-gray-700 hover:text-emerald-600 font-medium"
@@ -100,7 +100,7 @@ export default function HomePage() {
                   Login
                 </Button>
               </Link>
-              <Link href={getAppUrl('/signup')}>
+              <Link href={getAppUrl('/signup')} target="_blank" rel="noopener noreferrer">
                 <Button className="sr-button-primary">Get started</Button>
               </Link>
             </div>
@@ -155,7 +155,7 @@ export default function HomePage() {
               </Link>
               <div className="pt-4 pb-3 border-t border-gray-100">
                 <div className="px-3 space-y-2">
-                  <Link href={getAppUrl('/login')} onClick={() => setMobileMenuOpen(false)}>
+                  <Link href={getAppUrl('/login')} target="_blank" rel="noopener noreferrer" onClick={() => setMobileMenuOpen(false)}>
                     <Button
                       variant="ghost"
                       className="w-full justify-start text-gray-700 hover:text-emerald-600 hover:bg-gray-50 font-medium transition-colors"
@@ -163,7 +163,7 @@ export default function HomePage() {
                       Login
                     </Button>
                   </Link>
-                  <Link href={getAppUrl('/signup')} onClick={() => setMobileMenuOpen(false)}>
+                  <Link href={getAppUrl('/signup')} target="_blank" rel="noopener noreferrer" onClick={() => setMobileMenuOpen(false)}>
                     <Button className="w-full sr-button-primary">Get started</Button>
                   </Link>
                 </div>

@@ -11,32 +11,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 })
     }
 
-    // Get companyId and date filters from query params
     let companyId: string | null = request.nextUrl.searchParams.get('companyId')
     let userId: string | null = null
     const startDate = request.nextUrl.searchParams.get('startDate')
     const endDate = request.nextUrl.searchParams.get('endDate')
     const userRole = request.nextUrl.searchParams.get('userRole') || 'recruiter'
-    const recruiterId = request.nextUrl.searchParams.get('recruiterId') // For manager/director filtering
-    
-    // Validate date parameters
+    const recruiterId = request.nextUrl.searchParams.get('recruiterId')
+
     if (!startDate || !endDate) {
       return NextResponse.json({ error: 'Start date and end date are required' }, { status: 400 })
     }
-    
-    // Parse dates and validate
+
     const filterStartDate = new Date(startDate + 'T00:00:00.000Z')
     const filterEndDate = new Date(endDate + 'T23:59:59.999Z')
-    
-    console.log('Date Filter Debug:', {
-      startDate,
-      endDate,
-      filterStartDate: filterStartDate.toISOString(),
-      filterEndDate: filterEndDate.toISOString(),
-      filterStartDateLocal: filterStartDate.toString(),
-      filterEndDateLocal: filterEndDate.toString()
-    })
-    
+
     if (isNaN(filterStartDate.getTime()) || isNaN(filterEndDate.getTime())) {
       return NextResponse.json({ error: 'Invalid date format' }, { status: 400 })
     }
@@ -58,14 +46,14 @@ export async function GET(request: NextRequest) {
     if (!companyId) {
       return NextResponse.json({ error: 'Company ID is required' }, { status: 400 })
     }
-    
-    // Get user's actual role from database for validation
+
+    // Role check — must run first to gate access
     let userActualRole: string = 'recruiter'
     if (userId) {
       try {
         const roleQuery = `
-          SELECT ur.role FROM user_roles ur 
-          JOIN users u ON ur.user_id = u.id 
+          SELECT ur.role FROM user_roles ur
+          JOIN users u ON ur.user_id = u.id
           WHERE u.id = $1::uuid AND u.company_id = $2::uuid
           LIMIT 1
         `
@@ -73,71 +61,34 @@ export async function GET(request: NextRequest) {
         if (roleResult.length > 0) {
           userActualRole = roleResult[0].role
         }
-      } catch (roleErr) {
+      } catch {
         console.log('Could not verify user role, defaulting to recruiter')
       }
     }
-    
-    // Enforce role-based restrictions: recruiters can only access recruiter data
-    const allowedRole = userActualRole === 'recruiter' ? 'recruiter' : userRole
+
     if (userActualRole === 'recruiter' && userRole !== 'recruiter') {
-      return NextResponse.json({ 
-        error: 'Access denied: Recruiters can only access recruiter-level data' 
+      return NextResponse.json({
+        error: 'Access denied: Recruiters can only access recruiter-level data'
       }, { status: 403 })
     }
 
-    // --- 1. KPI Stats (single efficient query with date filtering) ---
-    // Build recruiter filter conditions for different query contexts
     const recruiterFilterJP = recruiterId ? `AND jp.recruiter_id = $4::uuid` : ''
     const recruiterFilterJ = recruiterId ? `AND j.recruiter_id = $4::uuid` : ''
-    const queryParams = recruiterId ? [companyId, filterStartDate, filterEndDate, recruiterId] : [companyId, filterStartDate, filterEndDate]
-    
-    // Debug logging
-    console.log('DEBUG - Recruiter Filter Info:', {
-      recruiterId,
-      recruiterFilterJP,
-      recruiterFilterJ,
-      queryParams: queryParams.length
-    })
-    
-    // Debug: Check if recruiter has jobs
-    if (recruiterId) {
-      const debugRecruiterQuery = `
-        SELECT 
-          COUNT(*) as total_jobs,
-          COUNT(*) FILTER (WHERE recruiter_id = $2::uuid) as recruiter_jobs,
-          COUNT(*) FILTER (WHERE recruiter_id IS NULL) as null_recruiter_jobs,
-          COUNT(*) FILTER (WHERE created_by = $2::uuid) as created_by_recruiter
-        FROM job_postings 
-        WHERE company_id = $1::uuid
-      `
-      const debugResult = await DatabaseService.query(debugRecruiterQuery, [companyId, recruiterId])
-      console.log('DEBUG - Recruiter Jobs Check:', debugResult[0])
-      
-      // If recruiter_id is NULL but created_by matches, update it
-      if (debugResult[0].null_recruiter_jobs > 0 && debugResult[0].created_by_recruiter > 0) {
-        console.log('FIXING: Updating NULL recruiter_id fields based on created_by')
-        const updateQuery = `
-          UPDATE job_postings 
-          SET recruiter_id = $2::uuid 
-          WHERE company_id = $1::uuid 
-            AND created_by = $2::uuid 
-            AND recruiter_id IS NULL
-        `
-        await DatabaseService.query(updateQuery, [companyId, recruiterId])
-        console.log('FIXED: Updated recruiter_id fields')
-      }
-    }
-    
+    const queryParams = recruiterId
+      ? [companyId, filterStartDate, filterEndDate, recruiterId]
+      : [companyId, filterStartDate, filterEndDate]
+    const sourceQueryParams = userRole === 'recruiter' && userId
+      ? [companyId, filterStartDate, filterEndDate, userId]
+      : [companyId, filterStartDate, filterEndDate]
+
+    // --- Query strings ---
+
     const kpiQuery = `
       SELECT
-        -- Job counts (filter by creation date and recruiter)
         (SELECT COUNT(*) FROM job_postings jp WHERE jp.company_id = $1::uuid AND jp.status = 'open' AND jp.created_at >= $2::timestamp AND jp.created_at <= $3::timestamp ${recruiterFilterJP}) AS open_jobs,
         (SELECT COUNT(*) FROM job_postings jp WHERE jp.company_id = $1::uuid AND jp.created_at >= $2::timestamp AND jp.created_at <= $3::timestamp ${recruiterFilterJP}) AS total_jobs,
         (SELECT COUNT(*) FROM job_postings jp WHERE jp.company_id = $1::uuid AND jp.status = 'draft' AND jp.created_at >= $2::timestamp AND jp.created_at <= $3::timestamp ${recruiterFilterJP}) AS draft_jobs,
         (SELECT COUNT(*) FROM job_postings jp WHERE jp.company_id = $1::uuid AND jp.status = 'closed' AND jp.created_at >= $2::timestamp AND jp.created_at <= $3::timestamp ${recruiterFilterJP}) AS closed_jobs,
-        
-        -- Application / pipeline counts (filter by application date and recruiter)
         (SELECT COUNT(*) FROM applications a JOIN job_postings jp ON a.job_id = jp.id WHERE a.company_id = $1::uuid AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp ${recruiterFilterJP}) AS total_applications,
         (SELECT COUNT(*) FROM applications a JOIN job_postings jp ON a.job_id = jp.id WHERE a.company_id = $1::uuid AND a.current_stage NOT IN ('hired', 'rejected', 'withdrawn') AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp ${recruiterFilterJP}) AS active_candidates,
         (SELECT COUNT(*) FROM applications a JOIN job_postings jp ON a.job_id = jp.id WHERE a.company_id = $1::uuid AND a.current_stage = 'screening' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp ${recruiterFilterJP}) AS screening_count,
@@ -146,44 +97,17 @@ export async function GET(request: NextRequest) {
         (SELECT COUNT(*) FROM applications a JOIN job_postings jp ON a.job_id = jp.id WHERE a.company_id = $1::uuid AND a.current_stage = 'offer' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp ${recruiterFilterJP}) AS offer_count,
         (SELECT COUNT(*) FROM applications a JOIN job_postings jp ON a.job_id = jp.id WHERE a.company_id = $1::uuid AND a.current_stage = 'hired' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp ${recruiterFilterJP}) AS hired_count,
         (SELECT COUNT(*) FROM applications a JOIN job_postings jp ON a.job_id = jp.id WHERE a.company_id = $1::uuid AND a.current_stage = 'rejected' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp ${recruiterFilterJP}) AS rejected_count,
-        
-        -- New applications in the date range
         (SELECT COUNT(*) FROM applications a JOIN job_postings jp ON a.job_id = jp.id WHERE a.company_id = $1::uuid AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp ${recruiterFilterJP}) AS new_in_period,
-        
-        -- Avg interview score (from interviews table, filter by application date and recruiter)
         (SELECT ROUND(AVG(i.interview_score)::numeric, 1) FROM interviews i JOIN applications a ON i.application_id = a.id JOIN job_postings jp ON a.job_id = jp.id WHERE a.company_id = $1::uuid AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp AND i.interview_score IS NOT NULL ${recruiterFilterJP}) AS avg_interview_score,
-        
-        -- Offer acceptance rate (filter by application date and recruiter)
         (SELECT COUNT(*) FROM applications a JOIN job_postings jp ON a.job_id = jp.id WHERE a.company_id = $1::uuid AND a.offer_status = 'accepted' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp ${recruiterFilterJP}) AS offers_accepted,
         (SELECT COUNT(*) FROM applications a JOIN job_postings jp ON a.job_id = jp.id WHERE a.company_id = $1::uuid AND a.offer_status IN ('accepted', 'declined') AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp ${recruiterFilterJP}) AS offers_decided,
-        
-        -- Hired count in date range
         (SELECT COUNT(*) FROM applications a JOIN job_postings jp ON a.job_id = jp.id WHERE a.company_id = $1::uuid AND a.current_stage = 'hired' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp ${recruiterFilterJP}) AS hired_total,
-        
-        -- Candidate count (filter by creation date)
         (SELECT COUNT(*) FROM candidates WHERE company_id = $1::uuid AND created_at >= $2::timestamp AND created_at <= $3::timestamp) AS total_candidates,
-        
-        -- Team members (no date filter needed)
         (SELECT COUNT(*) FROM users WHERE company_id = $1::uuid AND status = 'active') AS team_members
     `
-    const kpiResult = await DatabaseService.query(kpiQuery, queryParams)
-    const kpi = kpiResult[0] || {}
-    
-    // Debug logging for KPI data
-    console.log('Dashboard KPI Data:', {
-      companyId,
-      dateRange: { start: filterStartDate, end: filterEndDate },
-      kpi: {
-        openJobs: kpi.open_jobs,
-        totalApplications: kpi.total_applications,
-        activeCandidates: kpi.active_candidates,
-        totalCandidates: kpi.total_candidates
-      }
-    })
 
-    // --- 2. Recent candidates (filter by date range) ---
     const recentQuery = `
-      SELECT 
+      SELECT
         a.id,
         a.current_stage,
         a.applied_at,
@@ -197,19 +121,16 @@ export async function GET(request: NextRequest) {
       JOIN candidates c ON a.candidate_id = c.id
       JOIN job_postings j ON a.job_id = j.id
       LEFT JOIN interviews i ON i.application_id = a.id
-      WHERE a.company_id = $1::uuid 
-        AND a.applied_at >= $2::timestamp 
+      WHERE a.company_id = $1::uuid
+        AND a.applied_at >= $2::timestamp
         AND a.applied_at <= $3::timestamp
         ${recruiterFilterJ}
       ORDER BY a.applied_at DESC
       LIMIT 10
     `
-    const recentCandidates = await DatabaseService.query(recentQuery, queryParams)
-    console.log('Recent Candidates Data:', JSON.stringify(recentCandidates, null, 2))
 
-    // --- 3. Pipeline breakdown by job (filter applications by date range) ---
     const pipelineQuery = `
-      SELECT 
+      SELECT
         j.id,
         j.title,
         j.department,
@@ -231,39 +152,29 @@ export async function GET(request: NextRequest) {
       ORDER BY j.created_at DESC
       LIMIT 10
     `
-    const pipelineByJob = await DatabaseService.query(pipelineQuery, queryParams)
 
-    // --- 4. Stage time averages (filter by application date) ---
     const stageTimeQuery = `
-      SELECT 
+      SELECT
         to_stage,
         ROUND(AVG(EXTRACT(EPOCH FROM (
           COALESCE(
-            (SELECT MIN(ash2.created_at) FROM application_stage_history ash2 
+            (SELECT MIN(ash2.created_at) FROM application_stage_history ash2
              WHERE ash2.application_id = ash.application_id AND ash2.created_at > ash.created_at),
             NOW()
           ) - ash.created_at
         )) / 86400)::numeric, 1) AS avg_days
       FROM application_stage_history ash
       JOIN applications a ON ash.application_id = a.id
-      WHERE a.company_id = $1::uuid 
-        AND a.applied_at >= $2::timestamp 
+      WHERE a.company_id = $1::uuid
+        AND a.applied_at >= $2::timestamp
         AND a.applied_at <= $3::timestamp
       GROUP BY to_stage
       ORDER BY avg_days DESC
     `
-    let stageTimeAvgs: any[] = []
-    try {
-      stageTimeAvgs = await DatabaseService.query(stageTimeQuery, [companyId, filterStartDate, filterEndDate])
-    } catch {
-      // application_stage_history might be empty
-    }
 
-    // --- 5. Source effectiveness (filter by date range) ---
-    // For recruiter role, filter by their specific jobs; for manager/director, show all company data
     const sourceQuery = userRole === 'recruiter' && userId ? `
-      SELECT 
-        CASE 
+      SELECT
+        CASE
           WHEN c.source_type = 'Direct' THEN COALESCE(c.sub_source, 'Direct')
           WHEN c.source_type = 'Agency' THEN 'Agency'
           WHEN c.source_type = 'Employee Referral' THEN 'Referrals'
@@ -274,12 +185,12 @@ export async function GET(request: NextRequest) {
       FROM candidates c
       LEFT JOIN applications a ON c.id = a.candidate_id
       LEFT JOIN job_postings jp ON a.job_id = jp.id
-      WHERE c.company_id = $1::uuid 
-        AND c.created_at >= $2::timestamp 
+      WHERE c.company_id = $1::uuid
+        AND c.created_at >= $2::timestamp
         AND c.created_at <= $3::timestamp
-        AND (jp.created_by::text = $4::text OR a.id IS NULL)  -- Include candidates without applications for this recruiter
-      GROUP BY 
-        CASE 
+        AND (jp.created_by::text = $4::text OR a.id IS NULL)
+      GROUP BY
+        CASE
           WHEN c.source_type = 'Direct' THEN COALESCE(c.sub_source, 'Direct')
           WHEN c.source_type = 'Agency' THEN 'Agency'
           WHEN c.source_type = 'Employee Referral' THEN 'Referrals'
@@ -288,8 +199,8 @@ export async function GET(request: NextRequest) {
       ORDER BY total DESC
       LIMIT 8
     ` : `
-      SELECT 
-        CASE 
+      SELECT
+        CASE
           WHEN c.source_type = 'Direct' THEN COALESCE(c.sub_source, 'Direct')
           WHEN c.source_type = 'Agency' THEN 'Agency'
           WHEN c.source_type = 'Employee Referral' THEN 'Referrals'
@@ -299,11 +210,11 @@ export async function GET(request: NextRequest) {
         COUNT(DISTINCT CASE WHEN a.current_stage IN ('offer', 'hired') OR a.offer_status = 'accepted' THEN c.id END) AS converted
       FROM candidates c
       LEFT JOIN applications a ON c.id = a.candidate_id
-      WHERE c.company_id = $1::uuid 
-        AND c.created_at >= $2::timestamp 
+      WHERE c.company_id = $1::uuid
+        AND c.created_at >= $2::timestamp
         AND c.created_at <= $3::timestamp
-      GROUP BY 
-        CASE 
+      GROUP BY
+        CASE
           WHEN c.source_type = 'Direct' THEN COALESCE(c.sub_source, 'Direct')
           WHEN c.source_type = 'Agency' THEN 'Agency'
           WHEN c.source_type = 'Employee Referral' THEN 'Referrals'
@@ -312,20 +223,12 @@ export async function GET(request: NextRequest) {
       ORDER BY total DESC
       LIMIT 8
     `
-    
-    const sourceQueryParams = userRole === 'recruiter' && userId 
-      ? [companyId, filterStartDate, filterEndDate, userId]
-      : [companyId, filterStartDate, filterEndDate]
-    
-    const sourceEffectiveness = await DatabaseService.query(sourceQuery, sourceQueryParams)
 
-    // --- 6. Sourcing Activity ---
-    // For recruiter role, filter by their specific jobs; for manager/director, show all company data
     const sourcingActivityQuery = userRole === 'recruiter' && userId ? `
       WITH source_mapping AS (
-        SELECT 
+        SELECT
           c.id as candidate_id,
-          CASE 
+          CASE
             WHEN c.source_type = 'Direct' THEN COALESCE(c.sub_source, 'Direct')
             WHEN c.source_type = 'Agency' THEN 'Agency'
             WHEN c.source_type = 'Employee Referral' THEN 'Referrals'
@@ -340,10 +243,10 @@ export async function GET(request: NextRequest) {
         LEFT JOIN job_postings jp ON a.job_id = jp.id
         WHERE c.company_id = $1::uuid
           AND c.created_at >= $2::timestamp AND c.created_at <= $3::timestamp
-          AND (jp.created_by::text = $4::text OR a.id IS NULL)  -- Include candidates without applications for this recruiter
+          AND (jp.created_by::text = $4::text OR a.id IS NULL)
       ),
       source_stats AS (
-        SELECT 
+        SELECT
           channel,
           COUNT(DISTINCT candidate_id) as outreach,
           COUNT(DISTINCT application_id) as responses,
@@ -353,15 +256,15 @@ export async function GET(request: NextRequest) {
         HAVING COUNT(DISTINCT candidate_id) > 0
         ORDER BY outreach DESC
       )
-      SELECT 
+      SELECT
         channel,
         outreach::text,
         responses::text,
-        CASE 
+        CASE
           WHEN outreach > 0 THEN ROUND((responses::decimal / outreach::decimal) * 100, 0)::text
           ELSE '0'
         END as conversion_rate,
-        CASE 
+        CASE
           WHEN outreach > 0 AND (advanced::decimal / outreach::decimal) >= 0.5 THEN 'High'
           WHEN outreach > 0 AND (advanced::decimal / outreach::decimal) >= 0.3 THEN 'Medium'
           WHEN outreach > 0 THEN 'Low'
@@ -370,9 +273,9 @@ export async function GET(request: NextRequest) {
       FROM source_stats
     ` : `
       WITH source_mapping AS (
-        SELECT 
+        SELECT
           c.id as candidate_id,
-          CASE 
+          CASE
             WHEN c.source_type = 'Direct' THEN COALESCE(c.sub_source, 'Direct')
             WHEN c.source_type = 'Agency' THEN 'Agency'
             WHEN c.source_type = 'Employee Referral' THEN 'Referrals'
@@ -388,7 +291,7 @@ export async function GET(request: NextRequest) {
           AND c.created_at >= $2::timestamp AND c.created_at <= $3::timestamp
       ),
       source_stats AS (
-        SELECT 
+        SELECT
           channel,
           COUNT(DISTINCT candidate_id) as outreach,
           COUNT(DISTINCT application_id) as responses,
@@ -398,15 +301,15 @@ export async function GET(request: NextRequest) {
         HAVING COUNT(DISTINCT candidate_id) > 0
         ORDER BY outreach DESC
       )
-      SELECT 
+      SELECT
         channel,
         outreach::text,
         responses::text,
-        CASE 
+        CASE
           WHEN outreach > 0 THEN ROUND((responses::decimal / outreach::decimal) * 100, 0)::text
           ELSE '0'
         END as conversion_rate,
-        CASE 
+        CASE
           WHEN outreach > 0 AND (advanced::decimal / outreach::decimal) >= 0.5 THEN 'High'
           WHEN outreach > 0 AND (advanced::decimal / outreach::decimal) >= 0.3 THEN 'Medium'
           WHEN outreach > 0 THEN 'Low'
@@ -414,217 +317,147 @@ export async function GET(request: NextRequest) {
         END as quality
       FROM source_stats
     `
-    
-    const sourcingActivityParams = userRole === 'recruiter' && userId 
-      ? [companyId, filterStartDate, filterEndDate, userId]
-      : [companyId, filterStartDate, filterEndDate]
-    
-    const sourcingActivity = await DatabaseService.query(sourcingActivityQuery, sourcingActivityParams)
 
-    // --- 7. Recruiters list (team members) ---
     const recruitersQuery = `
       SELECT u.id, u.full_name AS name, u.email,
         (SELECT COUNT(*) FROM job_postings jp WHERE jp.created_by = u.id AND jp.status = 'open' AND jp.created_at >= $2::timestamp AND jp.created_at <= $3::timestamp) AS active_jobs,
-        (SELECT COUNT(*) FROM applications a2 
-         JOIN job_postings jp2 ON a2.job_id = jp2.id 
+        (SELECT COUNT(*) FROM applications a2
+         JOIN job_postings jp2 ON a2.job_id = jp2.id
          WHERE jp2.created_by = u.id AND a2.current_stage NOT IN ('hired', 'rejected', 'withdrawn') AND a2.applied_at >= $2::timestamp AND a2.applied_at <= $3::timestamp) AS active_candidates
       FROM users u
       WHERE u.company_id = $1::uuid AND u.status = 'active'
       ORDER BY u.full_name
     `
-    const recruiters = await DatabaseService.query(recruitersQuery, [companyId, filterStartDate, filterEndDate])
 
-    // --- 8. Manager Team Pipeline Health Data ---
-    // Get team metrics with bottlenecks and efficiency calculations
     const teamPipelineQuery = `
-      SELECT 
+      SELECT
         u.full_name AS recruiter,
-        -- Total candidates managed by this recruiter
-        (SELECT COUNT(*) FROM applications a 
-         JOIN job_postings jp ON a.job_id = jp.id 
+        (SELECT COUNT(*) FROM applications a
+         JOIN job_postings jp ON a.job_id = jp.id
          WHERE jp.company_id = $1::uuid AND jp.created_by = u.id AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp) AS total_candidates,
-        -- Bottlenecks: candidates stuck in same stage for more than 2 days
-        (SELECT COUNT(*) FROM applications a 
-         JOIN job_postings jp ON a.job_id = jp.id 
-         WHERE jp.company_id = $1::uuid AND jp.created_by = u.id 
+        (SELECT COUNT(*) FROM applications a
+         JOIN job_postings jp ON a.job_id = jp.id
+         WHERE jp.company_id = $1::uuid AND jp.created_by = u.id
          AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp
          AND a.current_stage NOT IN ('hired', 'rejected', 'withdrawn')
          AND (CURRENT_DATE - a.updated_at::date) > 2) AS bottlenecks,
-        -- Average time in current stage (in days)
-        (SELECT COALESCE(AVG(CURRENT_DATE - a.updated_at::date), 0) FROM applications a 
-         JOIN job_postings jp ON a.job_id = jp.id 
-         WHERE jp.company_id = $1::uuid AND jp.created_by = u.id 
+        (SELECT COALESCE(AVG(CURRENT_DATE - a.updated_at::date), 0) FROM applications a
+         JOIN job_postings jp ON a.job_id = jp.id
+         WHERE jp.company_id = $1::uuid AND jp.created_by = u.id
          AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp
          AND a.current_stage NOT IN ('hired', 'rejected', 'withdrawn')) AS avg_time_in_stage
       FROM users u
       JOIN user_roles ur ON u.id = ur.user_id
-      WHERE u.company_id = $1::uuid 
+      WHERE u.company_id = $1::uuid
         AND u.status = 'active'
         AND ur.role IN ('recruiter', 'manager', 'hiring_manager')
       ORDER BY u.full_name
     `
-    const teamPipelineData = await DatabaseService.query(teamPipelineQuery, [companyId, filterStartDate, filterEndDate])
-    console.log('Team Pipeline Data:', JSON.stringify(teamPipelineData, null, 2))
-    
-    // Debug: Check job_postings created_by values
-    const debugJobsQuery = `
-      SELECT created_by, status, COUNT(*) as count 
-      FROM job_postings 
-      WHERE company_id = $1::uuid 
-      GROUP BY created_by, status
-    `
-    const debugJobs = await DatabaseService.query(debugJobsQuery, [companyId])
-    console.log('Job Postings by created_by:', JSON.stringify(debugJobs, null, 2))
 
-    // --- 9. Manager Offer Acceptance Rate Data ---
-    // Calculate real offer acceptance rate for all team members
     const offerAcceptanceQuery = `
-      SELECT 
+      SELECT
         u.id,
         u.full_name AS name,
         u.email,
-        -- Offers Given = count where offer_status = 'sent' or 'under_review' or 'negotiating' or current_stage = 'offer'
-        (SELECT COUNT(*) FROM applications a 
-         JOIN job_postings jp ON a.job_id = jp.id 
+        (SELECT COUNT(*) FROM applications a
+         JOIN job_postings jp ON a.job_id = jp.id
          WHERE jp.company_id = $1::uuid AND jp.created_by = u.id AND (a.offer_status IN ('sent', 'under_review', 'negotiating') OR a.current_stage = 'offer') AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp) AS offers_given,
-        -- Offers Accepted = count where offer_status = 'accepted'
-        (SELECT COUNT(*) FROM applications a 
-         JOIN job_postings jp ON a.job_id = jp.id 
+        (SELECT COUNT(*) FROM applications a
+         JOIN job_postings jp ON a.job_id = jp.id
          WHERE jp.company_id = $1::uuid AND jp.created_by = u.id AND a.offer_status = 'accepted' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp) AS offers_accepted
       FROM users u
       JOIN user_roles ur ON u.id = ur.user_id
-      WHERE u.company_id = $1::uuid 
+      WHERE u.company_id = $1::uuid
         AND u.status = 'active'
         AND ur.role IN ('recruiter', 'manager', 'hiring_manager')
       ORDER BY u.full_name
     `
-    const offerAcceptanceData = await DatabaseService.query(offerAcceptanceQuery, [companyId, filterStartDate, filterEndDate])
-    console.log('Offer Acceptance Data:', JSON.stringify(offerAcceptanceData, null, 2))
 
-    // --- 10. Manager Team Capacity Load Data ---
-    // Calculate real capacity load for all team members
     const capacityLoadQuery = `
-      SELECT 
+      SELECT
         u.id,
         u.full_name AS name,
         u.email,
-        -- Active Reqs = count of active job_posting where created_by = user id and status = 'open'
-        (SELECT COUNT(*) FROM job_postings jp 
+        (SELECT COUNT(*) FROM job_postings jp
          WHERE jp.company_id = $1::uuid AND jp.created_by = u.id AND jp.status = 'open' AND jp.created_at >= $2::timestamp AND jp.created_at <= $3::timestamp) AS active_reqs
       FROM users u
       JOIN user_roles ur ON u.id = ur.user_id
-      WHERE u.company_id = $1::uuid 
+      WHERE u.company_id = $1::uuid
         AND u.status = 'active'
         AND ur.role IN ('recruiter', 'manager', 'hiring_manager')
       ORDER BY u.full_name
     `
-    const capacityLoadData = await DatabaseService.query(capacityLoadQuery, [companyId, filterStartDate, filterEndDate])
-    console.log('Capacity Load Data:', JSON.stringify(capacityLoadData, null, 2))
 
-    // Get performance settings for capacity defaults
-    const performanceQuery = `
-      SELECT interview_schedule_sla, cost_per_hire_budget, hiring_per_month
-      FROM performance_settings 
+    // Combined performance settings query (replaces two separate queries)
+    const performanceSettingsQuery = `
+      SELECT interview_schedule_sla, cost_per_hire_budget, job_board_costs, cost_currency, hiring_per_month
+      FROM performance_settings
       WHERE company_id = $1::uuid
     `
-    const performanceSettings = await DatabaseService.query(performanceQuery, [companyId])
-    const defaultCapacity = performanceSettings?.[0]?.hiring_per_month || performanceSettings?.[0]?.interview_schedule_sla || 7 // Use hiring_per_month first, then SLA, then default to 7
 
-    // --- 11. Manager Hiring Manager Data ---
-    // Get hiring managers and their application counts
     const hiringManagerQuery = `
-      SELECT 
+      SELECT
         u.id,
         COALESCE(u.full_name, 'Unknown') AS "managerName",
         u.email,
         ur.role as "userRole",
-        -- Approved = count applications where hm_status = 'Approved'
-        (SELECT COUNT(*) FROM applications a 
+        (SELECT COUNT(*) FROM applications a
          WHERE a.hm_status = 'Approved' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp AND
          EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a.job_id AND jp.company_id = $1::uuid)) AS approved,
-        -- Pending = count applications where hm_status IN ('Waiting for HM feedback', 'Under Review', 'OnHold')
-        (SELECT COUNT(*) FROM applications a 
+        (SELECT COUNT(*) FROM applications a
          WHERE a.hm_status IN ('Waiting for HM feedback', 'Under Review', 'OnHold') AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp AND
          EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a.job_id AND jp.company_id = $1::uuid)) AS pending,
-        -- Rejected = count applications where hm_status = 'Rejected'
-        (SELECT COUNT(*) FROM applications a 
+        (SELECT COUNT(*) FROM applications a
          WHERE a.hm_status = 'Rejected' AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp AND
          EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a.job_id AND jp.company_id = $1::uuid)) AS rejected,
-        -- Average rating from hm_rating field
-        (SELECT AVG(a.hm_rating) FROM applications a 
+        (SELECT AVG(a.hm_rating) FROM applications a
          WHERE a.hm_rating IS NOT NULL AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp AND
          EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a.job_id AND jp.company_id = $1::uuid)) AS avg_rating,
-        -- Previous quarter rating (simplified - using older applications)
-        (SELECT AVG(a.hm_rating) FROM applications a 
+        (SELECT AVG(a.hm_rating) FROM applications a
          WHERE a.hm_rating IS NOT NULL AND a.created_at < NOW() - INTERVAL '3 months'
          AND EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a.job_id AND jp.company_id = $1::uuid)) AS prev_quarter_rating
       FROM users u
       JOIN user_roles ur ON u.id = ur.user_id
-      WHERE u.company_id = $1::uuid 
+      WHERE u.company_id = $1::uuid
         AND u.status = 'active'
         AND LOWER(ur.role) IN ('hiring_manager', 'manager', 'hiringmanager')
       ORDER BY u.full_name
     `
-    const hiringManagerData = await DatabaseService.query(hiringManagerQuery, [companyId, filterStartDate, filterEndDate])
-    
-    // Debug logging
-    console.log('Hiring Manager Query Result:', hiringManagerData)
 
-    // --- 12. Director Hiring Velocity Data ---
-    // Calculate real hiring velocity for director dashboard
     const hiringVelocityQuery = `
-      SELECT 
-        -- Total applications count in date range
-        (SELECT COUNT(*) FROM applications a 
+      SELECT
+        (SELECT COUNT(*) FROM applications a
          WHERE a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp
          AND EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a.job_id AND jp.company_id = $1::uuid)) AS total_applications,
-        -- Hiring Velocity = hired candidates in date range
-        (SELECT COUNT(*) FROM applications a 
-         WHERE a.current_stage = 'hired' 
+        (SELECT COUNT(*) FROM applications a
+         WHERE a.current_stage = 'hired'
          AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp
          AND EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a.job_id AND jp.company_id = $1::uuid)) AS hiring_velocity
     `
-    const hiringVelocityData = await DatabaseService.query(hiringVelocityQuery, [companyId, filterStartDate, filterEndDate])
 
-    // --- 13. Director Hiring Velocity Monthly Data ---
-    // Get monthly hiring plans and actual hires
-    console.log('Fetching monthly hiring data for company:', companyId)
-    
-    // First check performance_settings data
-    const performanceCheckQuery = `
-      SELECT 
-        hiring_per_month,
-        created_at,
-        updated_at
-      FROM performance_settings 
-      WHERE company_id = $1::uuid
-    `
-    const performanceCheck = await DatabaseService.query(performanceCheckQuery, [companyId])
-    console.log('Performance Settings Data:', performanceCheck)
-    
     const monthlyHiringQuery = `
       WITH monthly_plan AS (
-        SELECT 
+        SELECT
           DATE_TRUNC('month', created_at) as month,
           hiring_per_month as plan_value
-        FROM performance_settings 
-        WHERE company_id = $1::uuid 
+        FROM performance_settings
+        WHERE company_id = $1::uuid
         AND hiring_per_month IS NOT NULL
         ORDER BY created_at ASC
       ),
       monthly_hires AS (
-        SELECT 
+        SELECT
           DATE_TRUNC('month', hire_date) as month,
           COUNT(*) as hires_count
         FROM applications a
-        WHERE a.current_stage = 'hired' 
+        WHERE a.current_stage = 'hired'
         AND a.hire_date IS NOT NULL
         AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp
         AND EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a.job_id AND jp.company_id = $1::uuid)
         GROUP BY DATE_TRUNC('month', hire_date)
         ORDER BY month ASC
       )
-      SELECT 
+      SELECT
         TO_CHAR(m.month, 'YYYY-MM') as month,
         TO_CHAR(m.month, 'Month') as month_name,
         COALESCE(mp.plan_value, 0) as plan,
@@ -637,39 +470,31 @@ export async function GET(request: NextRequest) {
         ) as month
       ) m
       LEFT JOIN LATERAL (
-        SELECT plan_value 
-        FROM monthly_plan mp2 
-        WHERE mp2.month <= m.month 
-        ORDER BY mp2.month DESC 
+        SELECT plan_value
+        FROM monthly_plan mp2
+        WHERE mp2.month <= m.month
+        ORDER BY mp2.month DESC
         LIMIT 1
       ) mp ON true
       LEFT JOIN monthly_hires mh ON mh.month = m.month
       ORDER BY m.month ASC
     `
-    const monthlyHiringData = await DatabaseService.query(monthlyHiringQuery, [companyId, filterStartDate, filterEndDate])
-    console.log('Monthly Hiring Data:', monthlyHiringData)
 
-    // --- 14. Director Quality of Hire Data ---
-    // Calculate real quality of hire metrics
     const qualityOfHireQuery = `
-      SELECT 
-        -- Average quality_of_hire_rating
+      SELECT
         AVG((qoh.rating)::numeric) as avg_rating,
-        -- Total hired candidates with quality rating
         COUNT(*) as total_count,
-        -- Retention calculation: hired at least 3 months ago and still active
-        (SELECT COUNT(*) 
+        (SELECT COUNT(*)
          FROM applications a2
-         WHERE a2.current_stage = 'hired' 
+         WHERE a2.current_stage = 'hired'
          AND a2.hire_date IS NOT NULL
          AND a2.hire_date <= NOW() - INTERVAL '3 months'
          AND EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a2.job_id AND jp.company_id = $1::uuid)
-         AND (a2.quality_of_hire_rating->>'employmentStatus' = 'Still with the Firm' 
+         AND (a2.quality_of_hire_rating->>'employmentStatus' = 'Still with the Firm'
               OR a2.quality_of_hire_rating->>'employmentStatus' IS NULL)) as retained_count,
-        -- Total eligible for retention (hired at least 3 months ago)
-        (SELECT COUNT(*) 
+        (SELECT COUNT(*)
          FROM applications a3
-         WHERE a3.current_stage = 'hired' 
+         WHERE a3.current_stage = 'hired'
          AND a3.hire_date IS NOT NULL
          AND a3.hire_date <= NOW() - INTERVAL '3 months'
          AND EXISTS (SELECT 1 FROM job_postings jp WHERE jp.id = a3.job_id AND jp.company_id = $1::uuid)) as retention_eligible
@@ -682,41 +507,22 @@ export async function GET(request: NextRequest) {
         AND a.quality_of_hire_rating->>'rating' IS NOT NULL
         AND a.applied_at >= $2::timestamp AND a.applied_at <= $3::timestamp
     `
-    const qualityOfHireData = await DatabaseService.query(qualityOfHireQuery, [companyId, filterStartDate, filterEndDate])
 
-    // --- 15. Director Quality of Hire Detailed Data ---
-    // Get cohort analysis based on actual hire dates
-    console.log('Fetching Quality of Hire detailed data for company:', companyId)
-    
-    // First check if there's any quality_of_hire_rating data
-    const qualityCheckQuery = `
-      SELECT COUNT(*) as count
-      FROM applications a
-      JOIN job_postings jp ON a.job_id = jp.id
-      WHERE jp.company_id = $1::uuid
-        AND a.current_stage = 'hired'
-        AND a.quality_of_hire_rating IS NOT NULL
-        AND a.quality_of_hire_rating->>'rating' IS NOT NULL
-    `
-    const qualityCheck = await DatabaseService.query(qualityCheckQuery, [companyId])
-    console.log('Quality Rating Data Count:', qualityCheck)
-    
     const qualityOfHireDetailedQuery = `
       WITH hired_cohorts AS (
-        SELECT 
+        SELECT
           TO_CHAR(DATE_TRUNC('quarter', hire_date), 'YYYY "Q"Q') as cohort,
           AVG((qoh.rating)::numeric) as avg_rating,
           COUNT(*) as count,
-          -- Calculate retention for this cohort
-          COUNT(CASE 
-            WHEN a.hire_date <= NOW() - INTERVAL '3 months' 
-            AND (a.quality_of_hire_rating->>'employmentStatus' = 'Still with the Firm' 
+          COUNT(CASE
+            WHEN a.hire_date <= NOW() - INTERVAL '3 months'
+            AND (a.quality_of_hire_rating->>'employmentStatus' = 'Still with the Firm'
                  OR a.quality_of_hire_rating->>'employmentStatus' IS NULL)
-            THEN 1 
+            THEN 1
           END) as retained_count,
-          COUNT(CASE 
-            WHEN a.hire_date <= NOW() - INTERVAL '3 months' 
-            THEN 1 
+          COUNT(CASE
+            WHEN a.hire_date <= NOW() - INTERVAL '3 months'
+            THEN 1
           END) as retention_eligible
         FROM applications a
         JOIN job_postings jp ON a.job_id = jp.id
@@ -731,14 +537,14 @@ export async function GET(request: NextRequest) {
         ORDER BY DATE_TRUNC('quarter', hire_date) DESC
         LIMIT 4
       )
-      SELECT 
+      SELECT
         cohort,
         ROUND(avg_rating, 1) as avg_rating,
-        CASE 
+        CASE
           WHEN retention_eligible > 0 THEN ROUND((retained_count::numeric / retention_eligible) * 100)
-          ELSE 0 
+          ELSE 0
         END as retention_3mo,
-        CASE 
+        CASE
           WHEN avg_rating >= 4.5 THEN 'High'
           WHEN avg_rating >= 4.0 THEN 'Medium-High'
           WHEN avg_rating >= 3.5 THEN 'Medium'
@@ -748,23 +554,19 @@ export async function GET(request: NextRequest) {
       FROM hired_cohorts
       ORDER BY cohort DESC
     `
-    const qualityOfHireDetailedData = await DatabaseService.query(qualityOfHireDetailedQuery, [companyId, filterStartDate, filterEndDate])
-    console.log('Quality of Hire Detailed Data:', qualityOfHireDetailedData)
 
-    // --- 16. Director Total Candidates Detailed Data ---
-    // Get cohort analysis based on candidate created_at dates
     const totalCandidatesDetailedQuery = `
       WITH candidate_cohorts AS (
-        SELECT 
+        SELECT
           TO_CHAR(DATE_TRUNC('quarter', c.created_at), 'YYYY "Q"Q') as cohort,
           COUNT(*) as total_candidates,
-          COUNT(CASE 
+          COUNT(CASE
             WHEN NOT EXISTS (
-              SELECT 1 FROM applications a 
-              WHERE a.candidate_id = c.id 
+              SELECT 1 FROM applications a
+              WHERE a.candidate_id = c.id
               AND a.current_stage IN ('hired', 'rejected', 'withdrawn')
             )
-            THEN 1 
+            THEN 1
           END) as active_candidates
         FROM candidates c
         WHERE c.company_id = $1::uuid
@@ -775,50 +577,30 @@ export async function GET(request: NextRequest) {
         ORDER BY DATE_TRUNC('quarter', c.created_at) DESC
         LIMIT 6
       )
-      SELECT 
+      SELECT
         cohort,
         total_candidates,
         active_candidates,
-        CASE 
+        CASE
           WHEN total_candidates > 0 THEN ROUND((active_candidates::numeric / total_candidates) * 100)
-          ELSE 0 
+          ELSE 0
         END as active_percentage
       FROM candidate_cohorts
       ORDER BY cohort DESC
     `
-    const totalCandidatesDetailedData = await DatabaseService.query(totalCandidatesDetailedQuery, [companyId, filterStartDate, filterEndDate])
-    console.log('Total Candidates Detailed Data:', totalCandidatesDetailedData)
 
-    // --- Fetch Performance Settings for Cost Calculations ---
-    const performanceSettingsQuery = `
-      SELECT 
-        cost_per_hire_budget,
-        job_board_costs,
-        cost_currency,
-        hiring_per_month
-      FROM performance_settings 
-      WHERE company_id = $1::uuid
-    `
-    const costSettings = await DatabaseService.query(performanceSettingsQuery, [companyId])
-    const settings = costSettings.length > 0 ? costSettings[0] : null
-
-    // --- Fetch Agency and Client Rates ---
     const agencyClientQuery = `
-      SELECT 
+      SELECT
         connection_type,
         rate_type,
         rate
-      FROM agency_client_connections 
+      FROM agency_client_connections
       WHERE company_id = $1::uuid
     `
-    const agencyClientData = await DatabaseService.query(agencyClientQuery, [companyId])
-    
-    
-    // --- Fetch Quarterly Cost Breakdown (month-wise effective values) ---
+
     const quarterlyCostQuery = `
       WITH monthly_hires AS (
-        -- Step 1: Count hired candidates grouped by month using hire_date
-        SELECT 
+        SELECT
           EXTRACT(YEAR  FROM a.hire_date)::int    AS hire_year,
           EXTRACT(MONTH FROM a.hire_date)::int    AS hire_month,
           EXTRACT(QUARTER FROM a.hire_date)::int  AS hire_quarter,
@@ -836,7 +618,6 @@ export async function GET(request: NextRequest) {
         GROUP BY hire_year, hire_month, hire_quarter, hire_month_start, hire_month_end
       ),
       monthly_effective_settings AS (
-        -- Step 2: Get effective performance settings for each month
         SELECT DISTINCT
           mh.hire_year,
           mh.hire_month,
@@ -846,40 +627,35 @@ export async function GET(request: NextRequest) {
           mh.hired_count,
           mh.total_offer_amount,
           COALESCE(
-            (SELECT ps.cost_per_hire_budget 
-             FROM performance_settings ps 
+            (SELECT ps.cost_per_hire_budget
+             FROM performance_settings ps
              WHERE ps.company_id = $1::uuid
              ORDER BY ps.updated_at DESC NULLS LAST
-             LIMIT 1), 
+             LIMIT 1),
             0
           )::numeric AS effective_cost_per_hire,
           COALESCE(
-            (SELECT ps.job_board_costs 
-             FROM performance_settings ps 
+            (SELECT ps.job_board_costs
+             FROM performance_settings ps
              WHERE ps.company_id = $1::uuid
              ORDER BY ps.updated_at DESC NULLS LAST
-             LIMIT 1), 
+             LIMIT 1),
             0
           )::numeric AS effective_job_board_cost
         FROM monthly_hires mh
       ),
       quarterly_aggregated AS (
-        -- Step 3: Aggregate monthly data back to quarters for display
-        SELECT 
+        SELECT
           hire_year,
           hire_quarter,
           SUM(hired_count) AS hired_count,
           SUM(total_offer_amount) AS total_offer_amount,
-          -- Sum monthly recruitment costs (month_cost * month_hires)
           SUM(hired_count * effective_cost_per_hire) AS total_recruitment_cost,
-          -- Sum monthly job board costs (month_cost * month_hires)  
           SUM(hired_count * effective_job_board_cost) AS total_job_board_cost
         FROM monthly_effective_settings
         GROUP BY hire_year, hire_quarter
       ),
       agency_costs AS (
-        -- Step 4: Sum agency rate × hired-count per agency, per quarter
-        -- Link: candidates.source_type = 'Agency' AND candidates.agency_name = agency_client_connections.name
         SELECT
           EXTRACT(YEAR  FROM a.hire_date)::int   AS hire_year,
           EXTRACT(QUARTER FROM a.hire_date)::int AS hire_quarter,
@@ -903,8 +679,6 @@ export async function GET(request: NextRequest) {
         GROUP BY hire_year, hire_quarter
       ),
       client_revenue AS (
-        -- Step 6: Sum client revenue per quarter across all active clients
-        -- Fixed: rate * hired_count | %: (rate/100) * total_offer_amount
         SELECT
           qa.hire_year,
           qa.hire_quarter,
@@ -927,21 +701,15 @@ export async function GET(request: NextRequest) {
       SELECT
         CONCAT('Q', qa.hire_quarter, ' ', qa.hire_year)      AS quarter,
         qa.hired_count,
-        -- Step 2: Recruitment Cost = sum of monthly effective costs
         ROUND(qa.total_recruitment_cost)::int                AS recruitment_cost,
-        -- Step 3: Job Board Cost = sum of monthly effective costs
         ROUND(qa.total_job_board_cost)::int                  AS job_board_cost,
-        -- Step 4: Agency Cost
         ROUND(COALESCE(ac.total_agency_cost, 0))::int        AS agency_cost,
-        -- Step 5: Cost To Company = recruitment + job_board + agency
         ROUND(
           qa.total_recruitment_cost
           + qa.total_job_board_cost
           + COALESCE(ac.total_agency_cost, 0)
         )::int                                               AS cost_to_company,
-        -- Step 6: Client Revenue
         ROUND(COALESCE(cr.total_client_revenue, 0))::int     AS client_revenue,
-        -- Step 7: Total Spend = Cost To Company - Client Revenue
         ROUND(
           qa.total_recruitment_cost
           + qa.total_job_board_cost
@@ -955,26 +723,84 @@ export async function GET(request: NextRequest) {
       LIMIT 4
     `
 
-    // Debug: Check actual performance settings values
-    const debugSettingsQuery = `
-      SELECT 
-        cost_per_hire_budget,
-        job_board_costs,
-        cost_currency
-      FROM performance_settings 
-      WHERE company_id = $1::uuid
+    const qualityScoreQuery = `
+      SELECT
+        AVG((quality_of_hire_rating->>'rating')::numeric) AS avg_quality_rating,
+        COUNT(*) AS total_rated
+      FROM applications a
+      JOIN job_postings jp ON a.job_id = jp.id
+      WHERE jp.company_id = $1::uuid
+        AND a.current_stage = 'hired'
+        AND a.quality_of_hire_rating IS NOT NULL
+        AND (quality_of_hire_rating->>'rating') IS NOT NULL
+        AND a.hire_date >= DATE_TRUNC('year', CURRENT_DATE)
     `
-    const debugSettings = await DatabaseService.query(debugSettingsQuery, [companyId])
-    console.log('DEBUG - Performance Settings from DB:', debugSettings)
 
-    const quarterlyCostData = await DatabaseService.query(quarterlyCostQuery, [
-      companyId,
-      filterStartDate,
-      filterEndDate,
+    const retentionQuery = `
+      SELECT
+        COUNT(*) AS eligible_count,
+        COUNT(CASE WHEN a.current_stage = 'hired' THEN 1 END) AS retained_count
+      FROM applications a
+      JOIN job_postings jp ON a.job_id = jp.id
+      WHERE jp.company_id = $1::uuid
+        AND a.current_stage = 'hired'
+        AND a.hire_date IS NOT NULL
+        AND a.hire_date <= CURRENT_DATE - INTERVAL '3 months'
+    `
+
+    // --- Execute all queries in parallel ---
+    const [
+      kpiResult,
+      recentCandidates,
+      pipelineByJob,
+      stageTimeAvgs,
+      sourceEffectiveness,
+      sourcingActivity,
+      recruiters,
+      teamPipelineData,
+      offerAcceptanceData,
+      capacityLoadData,
+      performanceSettingsRaw,
+      hiringManagerData,
+      hiringVelocityData,
+      monthlyHiringData,
+      qualityOfHireData,
+      qualityOfHireDetailedData,
+      totalCandidatesDetailedData,
+      agencyClientData,
+      quarterlyCostData,
+      qualityScoreResult,
+      retentionResult,
+    ] = await Promise.all([
+      DatabaseService.query(kpiQuery, queryParams),
+      DatabaseService.query(recentQuery, queryParams),
+      DatabaseService.query(pipelineQuery, queryParams),
+      DatabaseService.query(stageTimeQuery, [companyId, filterStartDate, filterEndDate]).catch(() => []),
+      DatabaseService.query(sourceQuery, sourceQueryParams),
+      DatabaseService.query(sourcingActivityQuery, sourceQueryParams),
+      DatabaseService.query(recruitersQuery, [companyId, filterStartDate, filterEndDate]),
+      DatabaseService.query(teamPipelineQuery, [companyId, filterStartDate, filterEndDate]),
+      DatabaseService.query(offerAcceptanceQuery, [companyId, filterStartDate, filterEndDate]),
+      DatabaseService.query(capacityLoadQuery, [companyId, filterStartDate, filterEndDate]),
+      DatabaseService.query(performanceSettingsQuery, [companyId]),
+      DatabaseService.query(hiringManagerQuery, [companyId, filterStartDate, filterEndDate]),
+      DatabaseService.query(hiringVelocityQuery, [companyId, filterStartDate, filterEndDate]),
+      DatabaseService.query(monthlyHiringQuery, [companyId, filterStartDate, filterEndDate]),
+      DatabaseService.query(qualityOfHireQuery, [companyId, filterStartDate, filterEndDate]),
+      DatabaseService.query(qualityOfHireDetailedQuery, [companyId, filterStartDate, filterEndDate]),
+      DatabaseService.query(totalCandidatesDetailedQuery, [companyId, filterStartDate, filterEndDate]),
+      DatabaseService.query(agencyClientQuery, [companyId]),
+      DatabaseService.query(quarterlyCostQuery, [companyId, filterStartDate, filterEndDate]),
+      DatabaseService.query(qualityScoreQuery, [companyId]),
+      DatabaseService.query(retentionQuery, [companyId]),
     ])
-    console.log('Quarterly Cost Data:', quarterlyCostData)
 
-    // --- Calculate overall Cost Per Hire from quarterly totals ---
+    // --- Process results ---
+    const kpi = kpiResult[0] || {}
+    const settingsRow = performanceSettingsRaw[0] || null
+    const defaultCapacity = settingsRow?.hiring_per_month || settingsRow?.interview_schedule_sla || 7
+    const currency = settingsRow?.cost_currency || 'USD'
+
     let hiredCount = parseInt(kpi.hired_count) || 0
     let recruitmentCost = 0
     let jobBoardCost = 0
@@ -984,7 +810,6 @@ export async function GET(request: NextRequest) {
     let totalSpend = 0
     let costPerHire = 0
 
-    // Update Cost Per Hire calculation using quarterly totals for consistency
     if (quarterlyCostData && quarterlyCostData.length > 0) {
       const quarterlyTotals = quarterlyCostData.reduce((acc: any, q: any) => ({
         hired: acc.hired + (parseInt(q.hired_count) || 0),
@@ -995,7 +820,6 @@ export async function GET(request: NextRequest) {
         totalSpend: acc.totalSpend + (parseFloat(q.total_spend) || 0)
       }), { hired: 0, recruitmentCost: 0, jobBoardCost: 0, agencyCost: 0, clientRevenue: 0, totalSpend: 0 })
 
-      // Use quarterly totals if they exist
       hiredCount = quarterlyTotals.hired
       recruitmentCost = quarterlyTotals.recruitmentCost
       jobBoardCost = quarterlyTotals.jobBoardCost
@@ -1005,40 +829,53 @@ export async function GET(request: NextRequest) {
       totalCostToCompany = recruitmentCost + jobBoardCost + agencyCost
     }
 
-    // If quarterly costs are 0 but we have hires, use performance settings
     if (hiredCount > 0 && totalSpend === 0) {
-      recruitmentCost = hiredCount * (parseFloat(settings?.cost_per_hire_budget) || 0)
-      jobBoardCost = hiredCount * (parseFloat(settings?.job_board_costs) || 0)
+      recruitmentCost = hiredCount * (parseFloat(settingsRow?.cost_per_hire_budget) || 0)
+      jobBoardCost = hiredCount * (parseFloat(settingsRow?.job_board_costs) || 0)
       totalCostToCompany = recruitmentCost + jobBoardCost
       totalSpend = totalCostToCompany
     }
 
     costPerHire = hiredCount > 0 ? Math.round(totalSpend / hiredCount) : 0
 
-    console.log('Updated Cost Analysis:', {
-      hiredCount,
-      recruitmentCost,
-      jobBoardCost,
-      agencyCost,
-      totalCostToCompany,
-      clientRevenue,
-      totalSpend,
-      costPerHire
-    })
-
-    // Calculate satisfaction score from actual hiring managers data
-    const currentRating = hiringManagerData && hiringManagerData.length > 0 
+    const currentRating = hiringManagerData && hiringManagerData.length > 0
       ? hiringManagerData.reduce((sum: number, hm: any) => sum + (parseFloat(hm.avg_rating) || 0), 0) / hiringManagerData.length
       : 0
     const previousRating = hiringManagerData && hiringManagerData.length > 0
-      ? hiringManagerData.reduce((sum: number, hm: any) => sum + (parseFloat(hm.prev_quarter_rating) || 0), 0) / hiringManagerData.length  
+      ? hiringManagerData.reduce((sum: number, hm: any) => sum + (parseFloat(hm.prev_quarter_rating) || 0), 0) / hiringManagerData.length
       : 0
     const ratingChange = currentRating - previousRating
 
-    // --- Build response ---
     const offerAcceptanceRate = parseInt(kpi.offers_decided) > 0
       ? Math.round((parseInt(kpi.offers_accepted) / parseInt(kpi.offers_decided)) * 100)
       : 0
+
+    // --- Build ROI metrics from already-fetched data ---
+    const totalInvestment = quarterlyCostData.reduce((sum: number, q: any) => sum + (parseInt(q.cost_to_company) || 0), 0)
+    const totalValueCreated = quarterlyCostData.reduce((sum: number, q: any) => sum + (parseInt(q.total_spend) || 0), 0)
+    const calculatedRoi = totalInvestment > 0 ? Math.abs(totalValueCreated / totalInvestment).toFixed(1) : '0.0'
+
+    const avgQuality = qualityScoreResult?.[0]?.avg_quality_rating
+      ? parseFloat(qualityScoreResult[0].avg_quality_rating)
+      : 0
+    const qualityBenchmark = avgQuality >= 4 ? 'Top Quartile' : avgQuality >= 3 ? 'Above Average' : avgQuality > 0 ? 'Needs Improvement' : 'No Data'
+
+    const eligibleCount = parseInt(retentionResult?.[0]?.eligible_count) || 0
+    const retainedCount = parseInt(retentionResult?.[0]?.retained_count) || 0
+    const retentionRate = eligibleCount > 0 ? Math.round((retainedCount / eligibleCount) * 100) : 0
+    const retentionBenchmark = eligibleCount > 0 ? (retentionRate >= 85 ? 'Above Target' : 'Below Target') : 'No Data'
+
+    const getCurrencySymbol = (curr: string) => {
+      const symbols: Record<string, string> = {
+        'USD': '$', 'INR': '₹', 'EUR': '€', 'GBP': '£',
+        'JPY': '¥', 'CAD': 'C$', 'AUD': 'A$'
+      }
+      return symbols[curr] || '$'
+    }
+    const currencySymbol = getCurrencySymbol(currency)
+    const investment = Math.abs(totalInvestment)
+    const valueCreated = Math.abs(totalValueCreated)
+    const roi = parseFloat(calculatedRoi)
 
     return NextResponse.json({
       success: true,
@@ -1059,7 +896,7 @@ export async function GET(request: NextRequest) {
           newThisWeek: parseInt(kpi.new_in_period) || 0,
           avgInterviewScore: parseFloat(kpi.avg_interview_score) || 0,
           offerAcceptanceRate,
-          avgTimeToFill: 14, // Default placeholder - actual calculation requires proper date columns
+          avgTimeToFill: 14,
           totalCandidates: parseInt(kpi.total_candidates) || 0,
           teamMembers: parseInt(kpi.team_members) || 0,
         },
@@ -1143,13 +980,11 @@ export async function GET(request: NextRequest) {
         }),
         teamCapacityLoad: (capacityLoadData || []).map((c: any) => {
           const activeReqs = parseInt(c.active_reqs) || 0
-          const standardCapacity = defaultCapacity // Use performance settings or default to 10
+          const standardCapacity = defaultCapacity
           const loadPercent = Math.round((activeReqs / standardCapacity) * 100)
-          
           let status = 'Normal'
           if (loadPercent > 100) status = 'Overloaded'
           else if (loadPercent >= 70) status = 'High'
-          
           return {
             id: c.id,
             name: c.name,
@@ -1162,12 +997,12 @@ export async function GET(request: NextRequest) {
         }),
         hiringManagerStats: (hiringManagerData || []).map((hm: any) => ({
           id: hm.id,
-          managerName: hm.managerName, // Now using COALESCE from SQL
+          managerName: hm.managerName,
           email: hm.email,
           approved: parseInt(hm.approved) || 0,
           pending: parseInt(hm.pending) || 0,
           rejected: parseInt(hm.rejected) || 0,
-          userRole: hm.userRole // Add role for debugging
+          userRole: hm.userRole
         })),
         hiringManagerSatisfaction: {
           currentRating: currentRating.toFixed(1),
@@ -1176,7 +1011,7 @@ export async function GET(request: NextRequest) {
         },
         costAnalysis: {
           costPerHire: costPerHire,
-          currency: settings?.cost_currency || 'USD',
+          currency: currency,
           totalSpend: totalSpend,
           recruitmentCost: recruitmentCost,
           jobBoardCost: jobBoardCost,
@@ -1203,7 +1038,6 @@ export async function GET(request: NextRequest) {
           const hires = parseInt(m.hires) || 0
           const variance = hires - plan
           const fillRate = plan > 0 ? Math.round((hires / plan) * 100) : 0
-          
           return {
             month: m.month_name.trim(),
             plan: plan,
@@ -1215,7 +1049,7 @@ export async function GET(request: NextRequest) {
         }),
         qualityOfHire: {
           avgRating: qualityOfHireData?.[0]?.avg_rating ? parseFloat(qualityOfHireData[0].avg_rating).toFixed(1) : '0.0',
-          retentionRate: qualityOfHireData?.[0]?.retention_eligible > 0 
+          retentionRate: qualityOfHireData?.[0]?.retention_eligible > 0
             ? Math.round((parseInt(qualityOfHireData[0].retained_count) / parseInt(qualityOfHireData[0].retention_eligible)) * 100)
             : 0,
           totalCount: parseInt(qualityOfHireData?.[0]?.total_count) || 0
@@ -1233,128 +1067,38 @@ export async function GET(request: NextRequest) {
           activeCandidates: t.active_candidates,
           activePercentage: t.active_percentage
         })),
-        
-        // --- Recruitment ROI Metrics ---
-        recruitmentROI: await (async () => {
-          console.log('DEBUG - quarterlyCostData:', quarterlyCostData)
-          
-          // Get currency from performance_settings
-          const currencyQuery = `SELECT cost_currency FROM performance_settings WHERE company_id = $1::uuid LIMIT 1`
-          const currencyResult = await DatabaseService.query(currencyQuery, [companyId])
-          const currency = currencyResult?.[0]?.cost_currency || 'USD'
-          
-          // METRIC 1 & 2: Use existing quarterlyCostBreakdown data
-          // Investment = SUM of all costToCompany from quarterly data
-          // Value Created = SUM of all totalSpend from quarterly data
-          const totalInvestment = quarterlyCostData.reduce((sum: number, q: any) => sum + (parseInt(q.cost_to_company) || 0), 0)
-          const totalValueCreated = quarterlyCostData.reduce((sum: number, q: any) => sum + (parseInt(q.total_spend) || 0), 0)
-          const calculatedRoi = totalInvestment > 0 ? Math.abs(totalValueCreated / totalInvestment).toFixed(1) : '0.0'
-          
-          console.log('DEBUG - ROI Calculations:', {
-            totalInvestment,
-            totalValueCreated,
-            calculatedRoi,
-            currency
-          })
-          
-          // METRIC 3: Quality Score - Average quality_of_hire_rating for hired candidates
-          const qualityScoreQuery = `
-            SELECT 
-              AVG((quality_of_hire_rating->>'rating')::numeric) AS avg_quality_rating,
-              COUNT(*) AS total_rated
-            FROM applications a
-            JOIN job_postings jp ON a.job_id = jp.id
-            WHERE jp.company_id = $1::uuid
-              AND a.current_stage = 'hired'
-              AND a.quality_of_hire_rating IS NOT NULL
-              AND (quality_of_hire_rating->>'rating') IS NOT NULL
-              AND a.hire_date >= DATE_TRUNC('year', CURRENT_DATE)
-          `
-          
-          // METRIC 4: Retention Impact - 3-month retention rate
-          const retentionQuery = `
-            SELECT 
-              COUNT(*) AS eligible_count,
-              COUNT(CASE WHEN a.current_stage = 'hired' THEN 1 END) AS retained_count
-            FROM applications a
-            JOIN job_postings jp ON a.job_id = jp.id
-            WHERE jp.company_id = $1::uuid
-              AND a.current_stage = 'hired'
-              AND a.hire_date IS NOT NULL
-              AND a.hire_date <= CURRENT_DATE - INTERVAL '3 months'
-          `
-          
-          const [qualityResult, retentionResult] = await Promise.all([
-            DatabaseService.query(qualityScoreQuery, [companyId]),
-            DatabaseService.query(retentionQuery, [companyId])
-          ])
-          
-          // Always ensure we have values, even if 0
-          const investment = Math.abs(totalInvestment)
-          const valueCreated = Math.abs(totalValueCreated)
-          const roi = parseFloat(calculatedRoi)
-          
-          const avgQuality = qualityResult?.[0]?.avg_quality_rating ? parseFloat(qualityResult[0].avg_quality_rating) : 0
-          const qualityBenchmark = avgQuality >= 4 ? 'Top Quartile' : avgQuality >= 3 ? 'Above Average' : avgQuality > 0 ? 'Needs Improvement' : 'No Data'
-          
-          const eligibleCount = parseInt(retentionResult?.[0]?.eligible_count) || 0
-          const retainedCount = parseInt(retentionResult?.[0]?.retained_count) || 0
-          const retentionRate = eligibleCount > 0 ? Math.round((retainedCount / eligibleCount) * 100) : 0
-          const retentionBenchmark = eligibleCount > 0 ? (retentionRate >= 85 ? 'Above Target' : 'Below Target') : 'No Data'
-          
-          // Currency symbol function
-          const getCurrencySymbol = (curr: string) => {
-            const symbols: Record<string, string> = {
-              'USD': '$',
-              'INR': '₹',
-              'EUR': '€',
-              'GBP': '£',
-              'JPY': '¥',
-              'CAD': 'C$',
-              'AUD': 'A$'
-            }
-            return symbols[curr] || '$'
+        recruitmentROI: [
+          {
+            metric: 'Investment',
+            value: investment > 0 ? `${currencySymbol}${investment.toLocaleString()}` : `${currencySymbol}0`,
+            period: 'Annual',
+            benchmark: 'Industry Avg'
+          },
+          {
+            metric: 'Value Created',
+            value: valueCreated > 0 ? `${currencySymbol}${Math.abs(valueCreated).toLocaleString()}` : `${currencySymbol}0`,
+            period: 'Annual',
+            benchmark: `${roi}x ROI`
+          },
+          {
+            metric: 'ROI',
+            value: `${roi}x`,
+            period: 'Annual',
+            benchmark: roi >= 1.0 ? 'Positive' : roi > 0 ? 'Breaking Even' : 'Negative'
+          },
+          {
+            metric: 'Quality Score',
+            value: avgQuality > 0 ? `${avgQuality.toFixed(1)}/5` : '0.0/5',
+            period: 'YTD',
+            benchmark: qualityBenchmark
+          },
+          {
+            metric: 'Retention Impact',
+            value: `${retentionRate}%`,
+            period: '3 months',
+            benchmark: retentionBenchmark
           }
-          
-          const currencySymbol = getCurrencySymbol(currency)
-          
-          // Create detailed calculation breakdown
-          const quarterBreakdown = quarterlyCostData.map(q => `${q.quarter}: ${currencySymbol}${q.costToCompany}`).join(' + ')
-          const spendBreakdown = quarterlyCostData.map(q => `${q.quarter}: ${currencySymbol}${q.totalSpend}`).join(' + ')
-          
-          return [
-            {
-              metric: 'Investment',
-              value: investment > 0 ? `${currencySymbol}${investment.toLocaleString()}` : `${currencySymbol}0`,
-              period: 'Annual',
-              benchmark: 'Industry Avg'
-            },
-            {
-              metric: 'Value Created',
-              value: valueCreated > 0 ? `${currencySymbol}${Math.abs(valueCreated).toLocaleString()}` : `${currencySymbol}0`,
-              period: 'Annual',
-              benchmark: `${roi}x ROI`
-            },
-            {
-              metric: 'ROI',
-              value: `${roi}x`,
-              period: 'Annual',
-              benchmark: roi >= 1.0 ? 'Positive' : roi > 0 ? 'Breaking Even' : 'Negative'
-            },
-            {
-              metric: 'Quality Score',
-              value: avgQuality > 0 ? `${avgQuality.toFixed(1)}/5` : '0.0/5',
-              period: 'YTD',
-              benchmark: qualityBenchmark
-            },
-            {
-              metric: 'Retention Impact',
-              value: `${retentionRate}%`,
-              period: '3 months',
-              benchmark: retentionBenchmark
-            }
-          ]
-        })()
+        ]
       }
     })
   } catch (error: any) {

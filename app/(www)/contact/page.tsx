@@ -207,17 +207,15 @@ export default function ContactPage() {
                     />
                   </div>
 
-                  <div className="flex items-start space-x-3">
-                    <Checkbox 
-                      id="terms" 
+                  <div className="flex items-center gap-2.5">
+                    <Checkbox
+                      id="terms"
                       checked={agreed}
                       onCheckedChange={(checked) => setAgreed(checked as boolean)}
+                      className="flex-shrink-0"
                     />
-                    <Label htmlFor="terms" className="text-sm text-slate-600 leading-relaxed cursor-pointer">
-                      I agree to the{' '}
-                      <Link href="/terms" className="text-emerald-600 hover:underline">Terms & Conditions</Link>
-                      {' '}and{' '}
-                      <Link href="/privacy" className="text-emerald-600 hover:underline">Privacy Policy</Link>
+                    <Label htmlFor="terms" className="text-sm text-slate-600 cursor-pointer">
+                      I agree to the <Link href="/terms" className="text-emerald-600 hover:underline">Terms & Conditions</Link> and <Link href="/privacy" className="text-emerald-600 hover:underline">Privacy Policy</Link>
                     </Label>
                   </div>
 
