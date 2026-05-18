@@ -740,9 +740,9 @@ export default function BookMeetingPage() {
       <footer className="bg-slate-900 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Main Footer Content */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-12 mb-12">
+          <div className="grid grid-cols-2 md:grid-cols-12 gap-6 md:gap-12 mb-12">
             {/* Left Section - Brand Block */}
-            <div className="md:col-span-3">
+            <div className="col-span-2 md:col-span-3">
               <h3 className="text-2xl font-bold mb-2">
                 <span className="text-white">Hire</span>
                 <span className="text-emerald-400">GenAI</span>
@@ -772,7 +772,7 @@ export default function BookMeetingPage() {
             </div>
 
             {/* Product Section */}
-            <div className="md:col-span-2">
+            <div className="col-span-1 md:col-span-2">
               <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Product</h4>
               <ul className="space-y-3 text-slate-400 text-sm">
                 <li>
@@ -811,7 +811,7 @@ export default function BookMeetingPage() {
             </div>
 
             {/* Company Section */}
-            <div className="md:col-span-2">
+            <div className="col-span-1 md:col-span-2">
               <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Company</h4>
               <ul className="space-y-3 text-slate-400 text-sm">
                 <li>
@@ -838,7 +838,7 @@ export default function BookMeetingPage() {
             </div>
 
             {/* Legal Section */}
-            <div className="md:col-span-2">
+            <div className="col-span-1 md:col-span-2">
               <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Legal</h4>
               <ul className="space-y-3 text-slate-400 text-sm">
                 <li>
@@ -855,7 +855,7 @@ export default function BookMeetingPage() {
             </div>
 
             {/* Right Section - Badges Block */}
-            <div className="md:col-span-3">
+            <div className="col-span-1 md:col-span-3">
               <div className="space-y-4">
                 {/* Trustpilot Badge */}
                 <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">

@@ -128,11 +128,12 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
 
-    // Allow only known app routes
-    if (!APP_ROUTES.has(pathname)) {
-      return NextResponse.rewrite(new URL('/not-found', request.url), { status: 404 })
-    }
-
+    // Allow everything else through. We can't allowlist by exact pathname
+    // because dynamic routes (/jobs/[companySlug]/[jobId], /interview/[applicationId],
+    // /apply/[companySlug]/[jobId], /report/[jobId]/[candidateId], /admin-hiregenai/*,
+    // /support-hiregenai/*, /owner-login, /payment/return, etc.) would 404.
+    // Marketing-only routes are already redirected above; Next.js itself will
+    // 404 paths that have no matching route.
     return NextResponse.next()
   }
 
