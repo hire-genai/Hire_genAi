@@ -6,32 +6,32 @@ let pdfParse: any = null
 let mammoth: any = null
 
 // Dynamic loading function to handle different environments
+// IMPORTANT (Vercel fix): pdf-parse's index.js has a debug block that runs
+// `fs.readFileSync('./test/data/05-versions-space.pdf')` at module load when
+// `module.parent` is undefined. On Vercel's bundled serverless functions this
+// throws ENOENT because the test fixture isn't included in the bundle. To
+// avoid this we import the internal `pdf-parse/lib/pdf-parse.js` directly,
+// which is the actual parser (a pure function over a Buffer) without the
+// debug wrapper. This also lets us use a normal dynamic `import()` instead
+// of `createRequire(import.meta.url)`, which is unreliable when bundled.
 async function loadLibraries() {
   if (typeof window !== 'undefined') return // Skip in browser
-  
+
   if (!pdfParse) {
     try {
-      // Use pdf-parse v1.1.1 which is more stable in server environments
-      const { createRequire } = await import('module')
-      const require = createRequire(import.meta.url || __filename)
-      pdfParse = require('pdf-parse')
-      console.log('✅ pdf-parse v1.1.1 loaded successfully')
+      const mod: any = await import('pdf-parse/lib/pdf-parse.js')
+      pdfParse = mod.default || mod
+      console.log('✅ pdf-parse loaded via /lib/pdf-parse.js (Vercel-safe)')
     } catch (err: any) {
-      console.error('❌ Failed to load pdf-parse:', err.message)
+      console.error('❌ Failed to load pdf-parse/lib/pdf-parse.js:', err.message)
     }
   }
 
   if (!mammoth) {
     try {
-      try {
-        mammoth = await import('mammoth')
-        console.log('✅ mammoth loaded via dynamic import')
-      } catch {
-        const { createRequire } = await import('module')
-        const require = createRequire(import.meta.url || __filename)
-        mammoth = require('mammoth')
-        console.log('✅ mammoth loaded via require')
-      }
+      const mod: any = await import('mammoth')
+      mammoth = mod.default || mod
+      console.log('✅ mammoth loaded via dynamic import')
     } catch (err: any) {
       console.error('❌ Failed to load mammoth:', err.message)
     }

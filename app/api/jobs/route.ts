@@ -147,117 +147,95 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Try to get company slug/name (slug column may not exist yet)
+    // --- BATCH fetch all per-job data in parallel (replaces N+1 query pattern) ---
+    const jobIds = jobs.map((j: any) => j.id)
+
+    const [companyResult, interviewQuestionsResult, candidateCountsResult, stageCountsResult] = await Promise.all([
+      // Company info (slug may or may not exist)
+      DatabaseService.query(`SELECT name, slug FROM companies WHERE id = $1::uuid`, [companyId])
+        .catch(async () => {
+          try {
+            return await DatabaseService.query(`SELECT name FROM companies WHERE id = $1::uuid`, [companyId])
+          } catch {
+            return []
+          }
+        }),
+      // Interview questions for all jobs in one query
+      jobIds.length > 0
+        ? DatabaseService.query(
+            `SELECT job_id::text AS job_id, selected_criteria, questions FROM job_interview_questions WHERE job_id = ANY($1::uuid[])`,
+            [jobIds]
+          ).catch(() => [])
+        : Promise.resolve([]),
+      // Total candidates per job in one query
+      jobIds.length > 0
+        ? DatabaseService.query(
+            `SELECT job_id::text AS job_id, COUNT(*)::int AS total FROM applications WHERE job_id = ANY($1::uuid[]) GROUP BY job_id`,
+            [jobIds]
+          ).catch(() => [])
+        : Promise.resolve([]),
+      // Stage counts per job in one query
+      jobIds.length > 0
+        ? DatabaseService.query(
+            `SELECT job_id::text AS job_id, current_stage, COUNT(*)::int AS count FROM applications WHERE job_id = ANY($1::uuid[]) GROUP BY job_id, current_stage`,
+            [jobIds]
+          ).catch(() => [])
+        : Promise.resolve([]),
+    ])
+
+    // Resolve company name/slug
     let companySlug = 'company'
     let companyName = ''
-    try {
-      const companies = await DatabaseService.query(
-        `SELECT name, slug FROM companies WHERE id = $1::uuid`,
-        [companyId]
-      )
-      if (companies.length > 0) {
-        companyName = companies[0].name || ''
-        companySlug = companies[0].slug || companies[0].name?.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'company'
-      }
-    } catch {
-      // slug column may not exist, try without it
-      try {
-        const companies = await DatabaseService.query(
-          `SELECT name FROM companies WHERE id = $1::uuid`,
-          [companyId]
-        )
-        if (companies.length > 0) {
-          companyName = companies[0].name || ''
-          companySlug = companies[0].name?.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'company'
-        }
-      } catch {
-        // ignore
-      }
+    if (companyResult.length > 0) {
+      companyName = companyResult[0].name || ''
+      companySlug =
+        companyResult[0].slug ||
+        companyResult[0].name?.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') ||
+        'company'
     }
 
-    // Attach company info to each job
+    // Build lookup maps
+    const iqMap = new Map<string, any>()
+    for (const iq of interviewQuestionsResult) {
+      iqMap.set(iq.job_id, iq)
+    }
+    const countMap = new Map<string, number>()
+    for (const c of candidateCountsResult) {
+      countMap.set(c.job_id, parseInt(c.total) || 0)
+    }
+    const stageMap = new Map<string, Record<string, number>>()
+    for (const sc of stageCountsResult) {
+      if (!stageMap.has(sc.job_id)) {
+        stageMap.set(sc.job_id, {})
+      }
+      stageMap.get(sc.job_id)![sc.current_stage] = parseInt(sc.count) || 0
+    }
+
+    // Attach all enriched data to each job
     for (const job of jobs) {
       job.company_slug = companySlug
       job.company_name = companyName
-    }
 
-    // Try to enrich with interview questions (table may not exist yet)
-    for (const job of jobs) {
-      try {
-        const iq = await DatabaseService.query(
-          `SELECT selected_criteria, questions FROM job_interview_questions WHERE job_id = $1::uuid`,
-          [job.id]
-        )
-        if (iq.length > 0) {
-          job.selected_criteria = iq[0].selected_criteria
-          job.interview_questions = iq[0].questions
-        }
-      } catch {
-        // job_interview_questions table may not exist yet
+      const iq = iqMap.get(job.id)
+      if (iq) {
+        job.selected_criteria = iq.selected_criteria
+        job.interview_questions = iq.questions
       }
 
-      // Recruiter name is now included via LEFT JOIN in the main query
       if (!job.recruiter_name && job.created_by) {
         job.recruiter_name = 'Unknown'
         job.recruiter_email = job.created_by
       }
 
-      // Try to get candidate counts
-      try {
-        const counts = await DatabaseService.query(
-          `SELECT COUNT(*) as total FROM applications WHERE job_id = $1::uuid`,
-          [job.id]
-        )
-        job.total_candidates = counts[0]?.total || 0
-      } catch {
-        job.total_candidates = 0
-      }
+      job.total_candidates = countMap.get(job.id) || 0
 
-      // Try to get application stage counts
-      try {
-        const stageCounts = await DatabaseService.query(
-          `SELECT current_stage, COUNT(*) as count FROM applications WHERE job_id = $1::uuid GROUP BY current_stage`,
-          [job.id]
-        )
-        // Initialize all to 0
-        job.screening_count = 0
-        job.ai_interview_count = 0
-        job.hiring_manager_count = 0
-        job.offer_count = 0
-        job.hired_count = 0
-        job.rejected_count = 0
-        // Map the counts
-        stageCounts.forEach((sc: any) => {
-          switch (sc.current_stage) {
-            case 'screening':
-              job.screening_count = parseInt(sc.count)
-              break
-            case 'ai_interview':
-              job.ai_interview_count = parseInt(sc.count)
-              break
-            case 'hiring_manager':
-              job.hiring_manager_count = parseInt(sc.count)
-              break
-            case 'offer':
-              job.offer_count = parseInt(sc.count)
-              break
-            case 'hired':
-              job.hired_count = parseInt(sc.count)
-              break
-            case 'rejected':
-              job.rejected_count = parseInt(sc.count)
-              break
-          }
-        })
-      } catch (err) {
-        console.log('Could not get stage counts:', err)
-        job.screening_count = 0
-        job.ai_interview_count = 0
-        job.hiring_manager_count = 0
-        job.offer_count = 0
-        job.hired_count = 0
-        job.rejected_count = 0
-      }
+      const stages = stageMap.get(job.id) || {}
+      job.screening_count = stages.screening || 0
+      job.ai_interview_count = stages.ai_interview || 0
+      job.hiring_manager_count = stages.hiring_manager || 0
+      job.offer_count = stages.offer || 0
+      job.hired_count = stages.hired || 0
+      job.rejected_count = stages.rejected || 0
     }
 
     return NextResponse.json({

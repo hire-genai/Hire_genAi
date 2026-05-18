@@ -7,8 +7,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { 
-  Loader2, 
+import {
+  Loader2,
   AlertCircle,
   ArrowLeft,
   Send,
@@ -141,7 +141,7 @@ export default function ApplyPage() {
           const nameParts = (parsed.candidateName || '').trim().split(' ')
           const firstName = nameParts[0] || ''
           const lastName = nameParts.slice(1).join(' ') || ''
-          
+
           setFormData(prev => ({
             ...prev,
             firstName,
@@ -411,8 +411,8 @@ export default function ApplyPage() {
           <p className="text-slate-600 mb-6">
             Thank you for applying for <strong>{job.title}</strong> at {job.company.name}. We will review your application and get back to you soon.
           </p>
-          <Button 
-            onClick={() => router.push(`/jobs/${companySlug}/${jobId}`)} 
+          <Button
+            onClick={() => router.push(`/jobs/${companySlug}/${jobId}`)}
             className="bg-emerald-600 hover:bg-emerald-600/90 text-white font-semibold shadow-lg hover:shadow-2xl ring-1 ring-transparent hover:ring-emerald-300 ring-offset-1 ring-offset-white motion-safe:transition-shadow motion-safe:duration-300"
           >
             Back to Job Listing
@@ -482,10 +482,10 @@ export default function ApplyPage() {
             <div className="space-y-3">
               <div className="space-y-1">
                 <Label htmlFor="sourceType" className="text-xs">Source Type</Label>
-                <select 
-                  id="sourceType" 
-                  value={formData.sourceType} 
-                  onChange={(e) => setFormData(p => ({ ...p, sourceType: e.target.value, subSource: '', agencyName: '', referralEmployeeName: '', referralEmployeeEmail: '' }))} 
+                <select
+                  id="sourceType"
+                  value={formData.sourceType}
+                  onChange={(e) => setFormData(p => ({ ...p, sourceType: e.target.value, subSource: '', agencyName: '', referralEmployeeName: '', referralEmployeeEmail: '' }))}
                   className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none"
                   disabled={isSubmitting}
                 >
@@ -500,10 +500,10 @@ export default function ApplyPage() {
               {formData.sourceType === 'Direct' && (
                 <div className="space-y-1">
                   <Label htmlFor="subSource" className="text-xs">Where did you find us?</Label>
-                  <select 
-                    id="subSource" 
-                    value={formData.subSource} 
-                    onChange={(e) => setFormData(p => ({ ...p, subSource: e.target.value }))} 
+                  <select
+                    id="subSource"
+                    value={formData.subSource}
+                    onChange={(e) => setFormData(p => ({ ...p, subSource: e.target.value }))}
                     className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none"
                     disabled={isSubmitting}
                   >
@@ -559,13 +559,13 @@ export default function ApplyPage() {
               {formData.sourceType === 'Agency' && (
                 <div className="space-y-1">
                   <Label htmlFor="agencyName" className="text-xs">Agency Name</Label>
-                  <Input 
-                    id="agencyName" 
-                    value={formData.agencyName} 
-                    onChange={(e) => setFormData(p => ({ ...p, agencyName: e.target.value }))} 
-                    placeholder="e.g., ABC Consulting" 
-                    className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" 
-                    disabled={isSubmitting} 
+                  <Input
+                    id="agencyName"
+                    value={formData.agencyName}
+                    onChange={(e) => setFormData(p => ({ ...p, agencyName: e.target.value }))}
+                    placeholder="e.g., ABC Consulting"
+                    className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600"
+                    disabled={isSubmitting}
                   />
                 </div>
               )}
@@ -574,25 +574,25 @@ export default function ApplyPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label htmlFor="referralEmployeeName" className="text-xs">Employee Name</Label>
-                    <Input 
-                      id="referralEmployeeName" 
-                      value={formData.referralEmployeeName} 
-                      onChange={(e) => setFormData(p => ({ ...p, referralEmployeeName: e.target.value }))} 
-                      placeholder="John Doe" 
-                      className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" 
-                      disabled={isSubmitting} 
+                    <Input
+                      id="referralEmployeeName"
+                      value={formData.referralEmployeeName}
+                      onChange={(e) => setFormData(p => ({ ...p, referralEmployeeName: e.target.value }))}
+                      placeholder="John Doe"
+                      className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600"
+                      disabled={isSubmitting}
                     />
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor="referralEmployeeEmail" className="text-xs">Employee Email</Label>
-                    <Input 
-                      id="referralEmployeeEmail" 
+                    <Input
+                      id="referralEmployeeEmail"
                       type="email"
-                      value={formData.referralEmployeeEmail} 
-                      onChange={(e) => setFormData(p => ({ ...p, referralEmployeeEmail: e.target.value }))} 
-                      placeholder="john@company.com" 
-                      className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" 
-                      disabled={isSubmitting} 
+                      value={formData.referralEmployeeEmail}
+                      onChange={(e) => setFormData(p => ({ ...p, referralEmployeeEmail: e.target.value }))}
+                      placeholder="john@company.com"
+                      className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600"
+                      disabled={isSubmitting}
                     />
                   </div>
                 </div>

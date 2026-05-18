@@ -8,6 +8,10 @@ const nextConfig = {
   },
   // Empty turbopack config to silence the warning
   turbopack: {},
+  // Keep PDF/DOCX parsing libs out of the server bundle so they resolve
+  // their own internal files at runtime on Vercel (otherwise pdf-parse's
+  // internals get bundled incorrectly and fail with fs lookups).
+  serverExternalPackages: ['pdf-parse', 'mammoth'],
   // Experimental: disable static generation
   experimental: {
     // PPR (Partial Prerendering) disabled
