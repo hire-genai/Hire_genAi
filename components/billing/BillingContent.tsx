@@ -555,17 +555,17 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
-          {/* Overview Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Overview Cards Grid — 2x2 on mobile, 4 across on desktop */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
             {/* Wallet Balance Card */}
             <Card className="border rounded-lg shadow-sm">
               <CardContent className="p-3">
                 <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1">
-                    <p className="text-sm text-muted-foreground font-medium mb-1">Wallet Balance</p>
-                    <p className="text-2xl font-semibold">₹{billingData?.walletBalance?.toFixed(2) || '0.00'}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm text-muted-foreground font-medium mb-1">Wallet Balance</p>
+                    <p className="text-lg sm:text-2xl font-semibold break-words">₹{billingData?.walletBalance?.toFixed(2) || '0.00'}</p>
                   </div>
-                  <div className="ml-3">
+                  <div className="ml-2 shrink-0">
                     <Wallet className="h-5 w-5 text-muted-foreground" />
                   </div>
                 </div>
@@ -584,16 +584,16 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             <Card className="border rounded-lg shadow-sm">
               <CardContent className="p-3">
                 <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1">
-                    <p className="text-sm text-muted-foreground font-medium mb-1">Current Month</p>
-                    <p className="text-2xl font-semibold">₹{billingData?.currentMonthSpent?.toFixed(2) || '0.00'}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm text-muted-foreground font-medium mb-1">Current Month</p>
+                    <p className="text-lg sm:text-2xl font-semibold break-words">₹{billingData?.currentMonthSpent?.toFixed(2) || '0.00'}</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 truncate">
                       {billingData?.monthlySpendCap
                         ? `Cap: ₹${billingData.monthlySpendCap.toFixed(2)}`
                         : 'No cap set'}
                     </p>
                   </div>
-                  <div className="ml-3">
+                  <div className="ml-2 shrink-0">
                     <TrendingUp className="h-5 w-5 text-muted-foreground" />
                   </div>
                 </div>
@@ -604,12 +604,12 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             <Card className="border rounded-lg shadow-sm">
               <CardContent className="p-3">
                 <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1">
-                    <p className="text-sm text-muted-foreground font-medium mb-1">Total Spent</p>
-                    <p className="text-2xl font-semibold">₹{billingData?.totalSpent?.toFixed(2) || '0.00'}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">All-time usage</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm text-muted-foreground font-medium mb-1">Total Spent</p>
+                    <p className="text-lg sm:text-2xl font-semibold break-words">₹{billingData?.totalSpent?.toFixed(2) || '0.00'}</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">All-time usage</p>
                   </div>
-                  <div className="ml-3">
+                  <div className="ml-2 shrink-0">
                     <DollarSign className="h-5 w-5 text-muted-foreground" />
                   </div>
                 </div>
@@ -620,10 +620,10 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             <Card className="border rounded-lg shadow-sm">
               <CardContent className="p-3">
                 <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm text-muted-foreground font-medium mb-3">Auto-Recharge</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm text-muted-foreground font-medium mb-3">Auto-Recharge</p>
                     <div className="flex items-center gap-2">
-                      <Switch 
+                      <Switch
                         checked={autoRecharge}
                         disabled={isTogglingAutoRecharge}
                         onCheckedChange={async (checked) => {
@@ -663,11 +663,11 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-2">
                       {autoRecharge ? 'Auto recharge active' : 'Manual top-up'}
                     </p>
                   </div>
-                  <div className="ml-3">
+                  <div className="ml-2 shrink-0">
                     <Shield className="h-5 w-5 text-muted-foreground" />
                   </div>
                 </div>
