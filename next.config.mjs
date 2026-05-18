@@ -12,6 +12,19 @@ const nextConfig = {
   // their own internal files at runtime on Vercel (otherwise pdf-parse's
   // internals get bundled incorrectly and fail with fs lookups).
   serverExternalPackages: ['pdf-parse', 'mammoth', 'puppeteer-core', '@sparticuz/chromium'],
+  // ── Vercel bundling fix for @sparticuz/chromium ─────────────────────────
+  // The brotli-compressed Chromium binary (.br files in /bin) is read with
+  // fs.readFileSync at runtime, NOT via require(). Vercel's file tracer only
+  // follows static require/import graphs, so without this hint those .br
+  // files are dropped from the function bundle and `chromium.executablePath()`
+  // throws: "/var/task/node_modules/@sparticuz/chromium/bin does not exist".
+  // Forcing the trace to include the whole package keeps the binary alive.
+  // ───────────────────────────────────────────────────────────────────────
+  outputFileTracingIncludes: {
+    '/api/invoice/generate-pdf': [
+      './node_modules/@sparticuz/chromium/**/*',
+    ],
+  },
   // Experimental: disable static generation
   experimental: {
     // PPR (Partial Prerendering) disabled
