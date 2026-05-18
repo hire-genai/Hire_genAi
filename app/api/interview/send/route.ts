@@ -127,6 +127,30 @@ Talent Acquisition Team`
         } catch (e) {
           console.warn('Failed to update interview_status to Scheduled:', e)
         }
+
+        // Move the application from CV Screening → AI Interview bucket on the
+        // /candidate page. The page derives buckets from applications.current_stage
+        // ('screening' → CV Screening tab, 'ai_interview' → AI Interview tab),
+        // so once the invite is actually sent we promote the stage. We only
+        // promote from screening-ish stages so we never demote candidates that
+        // have already progressed (e.g. hiring_manager, offer, hired).
+        try {
+          const updated = await DatabaseService.query(
+            `UPDATE applications
+                SET current_stage = 'ai_interview'
+              WHERE id = $1::uuid
+                AND (current_stage IS NULL OR current_stage IN ('screening', 'cv_qualified'))
+              RETURNING id`,
+            [interviewId]
+          ) as any[]
+          if (updated?.length) {
+            console.log(`[Interview Send] ✅ application ${interviewId} moved to ai_interview stage`)
+          } else {
+            console.log(`[Interview Send] application ${interviewId} not promoted (already past screening)`)
+          }
+        } catch (e) {
+          console.warn('[Interview Send] Failed to move application to ai_interview stage:', e)
+        }
       }
     }
 
