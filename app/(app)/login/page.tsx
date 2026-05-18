@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { RefreshCw } from "lucide-react"
+import { RefreshCw, Home } from "lucide-react"
 import Link from "next/link"
 
 export default function LoginPage() {
@@ -173,7 +173,8 @@ export default function LoginPage() {
         {/* Header */}
         <CardHeader className="text-center pb-2">
           <Link href="/">
-            <CardTitle className="text-3xl font-bold mb-2">
+            <CardTitle className="text-3xl font-bold mb-2 flex items-center justify-center gap-1">
+              <Home className="h-6 w-6 text-slate-500 hover:text-emerald-600 transition-colors" />
               <span className="text-slate-800">Hire</span>
               <span className="bg-gradient-to-r from-emerald-600 to-blue-600 bg-clip-text text-transparent">GenAI</span>
             </CardTitle>
@@ -220,12 +221,15 @@ export default function LoginPage() {
                     <Input
                       id="otp"
                       type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
                       value={otp}
                       onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       placeholder="6-digit code"
-                      className="h-11 border-slate-300 focus:border-emerald-500 focus:ring-emerald-500 text-center font-mono tracking-widest"
+                      className="h-11 border-slate-300 focus:border-emerald-500 focus:ring-emerald-500 text-center font-mono tracking-widest disabled:opacity-60 disabled:cursor-not-allowed"
                       maxLength={6}
                       required
+                      disabled={loading}
                     />
                   </div>
                   <Button 

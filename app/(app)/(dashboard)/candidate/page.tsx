@@ -178,15 +178,22 @@ export default function CandidatesPage() {
       
       // Get date range for API call (with override support)
       const dateRange = getDateRange(overrideStart, overrideEnd)
-      
+
+      // Pick userId filter based on "View As" selection:
+      //   - recruiter: filter by the chosen recruiter (ownership + delegation)
+      //   - manager/director: no user filter, show all company data
+      const effectiveUserId = viewAsRole === 'recruiter' ? viewAsRecruiter : ''
+
       console.log('DEBUG - Candidate Date Filter:', {
         overrideStart,
         overrideEnd,
         dateRange,
-        selectedDateFilter
+        selectedDateFilter,
+        viewAsRole,
+        effectiveUserId
       })
-      
-      const apiUrl = `/api/candidates?companyId=${company.id}${user?.id ? `&userId=${user.id}` : ''}&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`
+
+      const apiUrl = `/api/candidates?companyId=${company.id}${effectiveUserId ? `&userId=${effectiveUserId}` : ''}&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`
       console.log('DEBUG - Candidates API URL:', apiUrl)
       
       const res = await fetch(apiUrl)
@@ -213,7 +220,7 @@ export default function CandidatesPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [company?.id, getDateRange])
+  }, [company?.id, getDateRange, viewAsRole, viewAsRecruiter])
 
   // Initialize viewAsRole from logged-in user's role
   useEffect(() => {
@@ -238,11 +245,16 @@ export default function CandidatesPage() {
       .catch(() => {})
   }, [company?.id, user?.id])
   
-  // Initial fetch only - no automatic refetching
+  // Refetch when company, view-as role, or selected recruiter changes.
+  // Wait until role is initialized, and (if recruiter view) until a recruiter is chosen,
+  // so we don't fire a fetch with an empty userId and then immediately fire another.
   useEffect(() => {
+    if (!company?.id) return
+    if (!viewAsRole) return
+    if (viewAsRole === 'recruiter' && !viewAsRecruiter) return
     fetchCandidates()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [company?.id, viewAsRole, viewAsRecruiter])
   
   // Permission check - only recruiters can modify
   const canModify = viewAsRole === 'recruiter'
@@ -923,44 +935,44 @@ export default function CandidatesPage() {
             </Button>
             
             {showDatePicker && (
-              <div className="absolute right-0 top-10 z-50 bg-white text-gray-900 rounded-lg shadow-2xl border border-gray-200 p-3 w-[calc(100vw-2rem)] max-w-[400px] sm:w-[400px]">
-                <div className="flex gap-3">
+              <div className="absolute right-0 top-10 z-50 bg-white text-gray-900 rounded-lg shadow-2xl border border-gray-200 p-2 w-[calc(100vw-2rem)] max-w-[330px] sm:w-[330px]">
+                <div className="flex gap-2">
                   {/* Preset Options Sidebar */}
-                  <div className="w-28 border-r border-gray-200 pr-2">
-                    <div className="space-y-1">
+                  <div className="w-[88px] border-r border-gray-200 pr-1.5 shrink-0">
+                    <div className="space-y-0.5">
                       <button
                         onClick={() => handlePresetDateFilter('weekToDate')}
-                        className="w-full text-left px-1.5 py-1 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                        className="w-full text-left px-1.5 py-1 text-[11px] rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
                       >
                         Week to date
                       </button>
                       <button
                         onClick={() => handlePresetDateFilter('monthToDate')}
-                        className="w-full text-left px-1.5 py-1 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                        className="w-full text-left px-1.5 py-1 text-[11px] rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
                       >
                         Month to date
                       </button>
                       <button
                         onClick={() => handlePresetDateFilter('last7Days')}
-                        className="w-full text-left px-1.5 py-1 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                        className="w-full text-left px-1.5 py-1 text-[11px] rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
                       >
                         Last 7 days
                       </button>
                       <button
                         onClick={() => handlePresetDateFilter('last14Days')}
-                        className="w-full text-left px-1.5 py-1 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                        className="w-full text-left px-1.5 py-1 text-[11px] rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
                       >
                         Last 14 days
                       </button>
                       <button
                         onClick={() => handlePresetDateFilter('last30Days')}
-                        className="w-full text-left px-1.5 py-1 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                        className="w-full text-left px-1.5 py-1 text-[11px] rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
                       >
                         Last 30 days
                       </button>
                       <button
                         onClick={() => handlePresetDateFilter('last90Days')}
-                        className="w-full text-left px-1.5 py-1 text-xs rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
+                        className="w-full text-left px-1.5 py-1 text-[11px] rounded bg-gray-100 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
                       >
                         Last 90 days
                       </button>
@@ -968,35 +980,35 @@ export default function CandidatesPage() {
                   </div>
 
                   {/* Calendar */}
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     {/* Month Navigation */}
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-1.5">
                       <button
                         onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-                        className="p-1 hover:bg-gray-100 rounded transition-colors"
+                        className="p-0.5 hover:bg-gray-100 rounded transition-colors"
                       >
-                        <ChevronLeft className="w-4 h-4" />
+                        <ChevronLeft className="w-3.5 h-3.5" />
                       </button>
-                      <h3 className="text-xs font-medium">
+                      <h3 className="text-[11px] font-medium">
                         {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                       </h3>
                       <button
                         onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-                        className="p-1 hover:bg-gray-100 rounded transition-colors"
+                        className="p-0.5 hover:bg-gray-100 rounded transition-colors"
                       >
-                        <ArrowRight className="w-4 h-4" />
+                        <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
 
                     {/* Calendar Grid */}
-                    <div className="grid grid-cols-7 gap-0.5 text-xs">
+                    <div className="grid grid-cols-7 gap-0.5 text-[10px]">
                       {/* Weekday headers */}
                       {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => (
-                        <div key={idx} className="text-center text-gray-500 font-medium py-1">
+                        <div key={idx} className="text-center text-gray-500 font-medium py-0.5">
                           {day}
                         </div>
                       ))}
-                      
+
                       {/* Calendar days */}
                       {getCalendarDays(currentMonth).map((date, idx) => (
                         <div key={idx}>
@@ -1007,7 +1019,7 @@ export default function CandidatesPage() {
                               onMouseLeave={() => setHoveredDate(null)}
                               disabled={isDateInFuture(date)}
                               style={!isDateInFuture(date) ? { border: '1px solid transparent' } : {}}
-                              className={`w-full aspect-square text-xs rounded flex items-center justify-center transition-all duration-200 ${
+                              className={`w-full aspect-square text-[10px] rounded flex items-center justify-center transition-all duration-200 ${
                                 isDateInFuture(date)
                                   ? 'text-gray-300 cursor-not-allowed'
                                   : isRangeEdge(date)
@@ -1027,7 +1039,7 @@ export default function CandidatesPage() {
                     </div>
 
                     {/* Apply/Cancel Buttons */}
-                    <div className="flex gap-2 mt-2 pt-2 border-t border-gray-200">
+                    <div className="flex gap-1.5 mt-1.5 pt-1.5 border-t border-gray-200">
                       <Button
                         onClick={() => {
                           if (customStartDate && customEndDate) {
@@ -1036,7 +1048,7 @@ export default function CandidatesPage() {
                           }
                         }}
                         disabled={!customStartDate || !customEndDate}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs py-0.5"
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] h-6 px-2"
                         size="sm"
                       >
                         Apply
@@ -1049,7 +1061,7 @@ export default function CandidatesPage() {
                           setSelectedDateFilter('last90Days')
                         }}
                         variant="outline"
-                        className="flex-1 text-xs py-0.5"
+                        className="flex-1 text-[11px] h-6 px-2"
                         size="sm"
                       >
                         Cancel

@@ -9,6 +9,7 @@ import { SelectTrigger } from "@/components/ui/select"
 import { Select } from "@/components/ui/select"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { createPortal } from "react-dom"
+import dynamicImport from "next/dynamic"
 import { 
   Users, 
   Briefcase, 
@@ -36,7 +37,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import OnboardingTour from '@/components/onboarding/onboarding-tour'
+// OnboardingTour is only shown to first-time users; defer its bundle until after hydration
+const OnboardingTour = dynamicImport(() => import('@/components/onboarding/onboarding-tour'), { ssr: false })
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -1255,7 +1257,14 @@ const roleDescriptions = {
       </div>
 
       {/* Loading State */}
-      {loading && <StatCardGridLoader count={6} />}
+      {loading && (
+        <>
+          <StatCardGridLoader count={6} />
+          <div className="mt-3">
+            <TableLoader rows={6} columns={6} />
+          </div>
+        </>
+      )}
 
       {/* Error State */}
       {!loading && error && <ErrorState message={error} onRetry={fetchDashboard} />}
