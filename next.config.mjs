@@ -11,7 +11,7 @@ const nextConfig = {
   // Keep PDF/DOCX parsing libs out of the server bundle so they resolve
   // their own internal files at runtime on Vercel (otherwise pdf-parse's
   // internals get bundled incorrectly and fail with fs lookups).
-  serverExternalPackages: ['pdf-parse', 'mammoth'],
+  serverExternalPackages: ['pdf-parse', 'mammoth', 'puppeteer-core', '@sparticuz/chromium'],
   // Experimental: disable static generation
   experimental: {
     // PPR (Partial Prerendering) disabled

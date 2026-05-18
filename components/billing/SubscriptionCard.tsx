@@ -302,45 +302,45 @@ export default function SubscriptionCard({
     <div className="w-full mb-4">
       {/* ACTIVE STATE - Clean Green Theme Card */}
       {status === 'active' && (
-        <div className="w-full bg-white rounded-xl border border-slate-100 border-l-[6px] border-l-emerald-600 px-7 py-6">
-          
+        <div className="w-full bg-white rounded-xl border border-slate-100 border-l-[6px] border-l-emerald-600 px-4 sm:px-7 py-5 sm:py-6">
+
           {/* Row 1: Badge + Status */}
-          <div className="flex justify-between items-center mb-4">
-            <div className="bg-emerald-600 text-white px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5">
+          <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
+            <div className="bg-emerald-600 text-white px-3 sm:px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
               SUBSCRIBED · PRO PLAN
             </div>
-            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-4 py-1.5 rounded-full">
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3 sm:px-4 py-1.5 rounded-full">
               <div className="w-2 h-2 bg-green-500 rounded-full" />
               <span className="text-xs font-medium text-emerald-800">active</span>
             </div>
           </div>
 
           {/* Title + Description */}
-          <h3 className="text-xl font-semibold text-slate-900 mb-1.5">Your workspace is upgraded</h3>
+          <h3 className="text-lg sm:text-xl font-semibold text-slate-900 mb-1.5">Your workspace is upgraded</h3>
           <p className="text-sm text-emerald-700 border-l-[3px] border-emerald-300 pl-3 mb-5 leading-relaxed">
             All premium features are unlocked. Priority support & analytics.
           </p>
 
-          {/* Billing Date + Buttons */}
-          <div className="flex justify-between items-center flex-wrap gap-2">
-            
-            {/* Billing Date - side by side */}
-            <div className="bg-emerald-50 border-2 border-emerald-200 rounded-full px-4 py-1.5 flex items-center gap-2">
+          {/* Billing Date + Buttons — stack on mobile, row on desktop */}
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+
+            {/* Billing Date */}
+            <div className="bg-emerald-50 border-2 border-emerald-200 rounded-full px-4 py-1.5 inline-flex items-center gap-2 self-start">
               <span className="text-[10px] font-medium text-emerald-700">Next billing date</span>
               <span className="text-xs font-semibold text-emerald-950">
-                {subscription?.nextBillingDate 
+                {subscription?.nextBillingDate
                   ? new Date(subscription.nextBillingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })
                   : nextBillingDate || 'TBD'}
               </span>
             </div>
-            
-            {/* Buttons */}
-            <div className="flex gap-3">
-              <Button 
+
+            {/* Buttons — full width on mobile so labels never get clipped */}
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
+              <Button
                 onClick={handleManagePlan}
                 disabled={isManagingPlan}
-                className="bg-transparent border-2 border-emerald-700 text-emerald-700 hover:bg-emerald-50 rounded-full px-5 py-2 text-sm font-medium"
+                className="bg-transparent border-2 border-emerald-700 text-emerald-700 hover:bg-emerald-50 rounded-full px-4 sm:px-5 py-2 text-sm font-medium w-full sm:w-auto justify-center"
               >
                 {isManagingPlan ? (
                   <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
@@ -349,10 +349,10 @@ export default function SubscriptionCard({
                 )}
                 Manage Plan
               </Button>
-              <Button 
+              <Button
                 onClick={() => setShowCancelModal(true)}
                 disabled={isCancellingSubscription}
-                className="bg-transparent border-2 border-orange-500 text-orange-600 hover:bg-orange-50 rounded-full px-5 py-2 text-sm font-medium"
+                className="bg-transparent border-2 border-orange-500 text-orange-600 hover:bg-orange-50 rounded-full px-4 sm:px-5 py-2 text-sm font-medium w-full sm:w-auto justify-center"
               >
                 {isCancellingSubscription ? (
                   <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />

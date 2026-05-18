@@ -262,59 +262,71 @@ async function getInvoiceData(paymentId: string, companyId: string): Promise<Inv
 /**
  * Generate PDF using Puppeteer (HTML to PDF conversion)
  * Produces high-quality, pixel-perfect PDF matching the HTML design
+ *
+ * Vercel-compatible: uses puppeteer-core + @sparticuz/chromium on serverless
+ * (the regular `puppeteer` package can't find a Chrome binary in Lambda).
+ * Falls back to a locally-installed Chrome on dev/Windows.
  */
 async function generatePDF(invoiceData: InvoiceData): Promise<Buffer> {
   // Generate HTML from template
   const html = generateInvoiceHTML(invoiceData)
 
-  // Import Puppeteer
-  const puppeteer = await import('puppeteer')
-  let browser = null
+  const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME
+
+  const puppeteer = (await import('puppeteer-core')).default
+  let browser: any = null
 
   try {
-    // Configure browser launch options for Windows
-    const launchOptions: any = {
-      headless: 'new',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--font-render-hinting=none',
-        '--disable-extensions',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding',
-      ],
+    let launchOptions: any
+
+    if (isServerless) {
+      // @sparticuz/chromium ships a Lambda-compatible Chromium binary
+      const chromium = (await import('@sparticuz/chromium')).default
+      launchOptions = {
+        args: chromium.args,
+        defaultViewport: chromium.defaultViewport,
+        executablePath: await chromium.executablePath(),
+        headless: chromium.headless,
+      }
+    } else {
+      // Dev / local — use whatever Chrome is installed. Override with
+      // PUPPETEER_EXECUTABLE_PATH if your Chrome lives somewhere else.
+      const localChrome =
+        process.env.PUPPETEER_EXECUTABLE_PATH ||
+        (process.platform === 'win32'
+          ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+          : process.platform === 'darwin'
+            ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+            : '/usr/bin/google-chrome')
+      launchOptions = {
+        headless: true,
+        executablePath: localChrome,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--font-render-hinting=none',
+        ],
+      }
     }
 
-    // Launch browser
-    browser = await (puppeteer.default || puppeteer).launch(launchOptions)
+    browser = await puppeteer.launch(launchOptions)
     const page = await browser.newPage()
 
-    // Set content and wait for rendering
-    await page.setContent(html, {
-      waitUntil: 'domcontentloaded',
-    })
+    await page.setContent(html, { waitUntil: 'domcontentloaded' })
 
-    // Add a small delay to ensure fonts are loaded
+    // Small delay so web fonts settle before printing
     await new Promise(resolve => setTimeout(resolve, 1000))
 
-    // Generate PDF with A4 format and proper margins
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
-      margin: {
-        top: '0mm',
-        right: '0mm',
-        bottom: '0mm',
-        left: '0mm',
-      },
+      margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
       preferCSSPageSize: true,
     })
 
     return Buffer.from(pdfBuffer)
-
   } finally {
     if (browser) {
       await browser.close()
