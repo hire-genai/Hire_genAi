@@ -470,13 +470,17 @@ async function getInterviewStats(companyId: string, userId: string | null) {
 async function getHiringManagerStats(companyId: string, userId: string | null) {
   const { clause, params } = buildAccessFilter(companyId, userId)
   const result = await DatabaseService.query(`
-    SELECT 
+    SELECT
       COUNT(*) AS total,
       COUNT(*) FILTER (WHERE a.hm_status = 'Approved') AS approved,
-      COUNT(*) FILTER (WHERE a.hm_status = 'Rejected') AS rejected
+      COUNT(*) FILTER (WHERE a.hm_status = 'Rejected' OR (a.current_stage = 'rejected' AND a.rejection_stage = 'hiring_manager')) AS rejected
     FROM applications a
     JOIN job_postings j ON a.job_id = j.id
-    WHERE a.current_stage = 'hiring_manager' AND ${clause}
+    WHERE (a.current_stage = 'hiring_manager' OR EXISTS (
+      SELECT 1 FROM application_stage_history h
+      WHERE h.application_id = a.id
+        AND (h.to_stage = 'hiring_manager' OR h.from_stage = 'hiring_manager')
+    )) AND ${clause}
   `, params)
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
@@ -493,13 +497,17 @@ async function getHiringManagerStats(companyId: string, userId: string | null) {
 async function getOfferStats(companyId: string, userId: string | null) {
   const { clause, params } = buildAccessFilter(companyId, userId)
   const result = await DatabaseService.query(`
-    SELECT 
+    SELECT
       COUNT(*) AS total,
       COUNT(*) FILTER (WHERE a.offer_status = 'accepted') AS accepted,
       COUNT(*) FILTER (WHERE a.offer_status = 'declined') AS declined
     FROM applications a
     JOIN job_postings j ON a.job_id = j.id
-    WHERE a.current_stage = 'offer' AND ${clause}
+    WHERE (a.current_stage = 'offer' OR EXISTS (
+      SELECT 1 FROM application_stage_history h
+      WHERE h.application_id = a.id
+        AND (h.to_stage = 'offer' OR h.from_stage = 'offer')
+    )) AND ${clause}
   `, params)
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
@@ -516,13 +524,17 @@ async function getOfferStats(companyId: string, userId: string | null) {
 async function getHiredStats(companyId: string, userId: string | null) {
   const { clause, params } = buildAccessFilter(companyId, userId)
   const result = await DatabaseService.query(`
-    SELECT 
+    SELECT
       COUNT(*) AS total,
       COUNT(*) FILTER (WHERE a.onboarding_status = 'Complete') AS onboarded,
       COUNT(*) FILTER (WHERE a.onboarding_status IS NULL OR a.onboarding_status != 'Complete') AS awaiting
     FROM applications a
     JOIN job_postings j ON a.job_id = j.id
-    WHERE a.current_stage = 'hired' AND ${clause}
+    WHERE (a.current_stage = 'hired' OR EXISTS (
+      SELECT 1 FROM application_stage_history h
+      WHERE h.application_id = a.id
+        AND (h.to_stage = 'hired' OR h.from_stage = 'hired')
+    )) AND ${clause}
   `, params)
   const r = result?.[0] || {}
   const total = parseInt(r.total) || 0
@@ -539,14 +551,18 @@ async function getHiredStats(companyId: string, userId: string | null) {
 async function getRejectedStats(companyId: string, userId: string | null) {
   const { clause, params } = buildAccessFilter(companyId, userId)
   const result = await DatabaseService.query(`
-    SELECT 
+    SELECT
       COUNT(*) AS total,
       COUNT(*) FILTER (WHERE a.rejection_stage = 'screening') AS from_screening,
       COUNT(*) FILTER (WHERE a.rejection_stage = 'ai_interview') AS from_interview,
       COUNT(*) FILTER (WHERE a.rejection_stage NOT IN ('screening', 'ai_interview') OR a.rejection_stage IS NULL) AS from_other
     FROM applications a
     JOIN job_postings j ON a.job_id = j.id
-    WHERE a.current_stage = 'rejected' AND ${clause}
+    WHERE (a.current_stage = 'rejected' OR EXISTS (
+      SELECT 1 FROM application_stage_history h
+      WHERE h.application_id = a.id
+        AND (h.to_stage = 'rejected' OR h.from_stage = 'rejected')
+    )) AND ${clause}
   `, params)
   const r = result?.[0] || {}
   return {
