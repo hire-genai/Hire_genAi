@@ -19,6 +19,7 @@ export default function CandidateReportPage({
   const [report, setReport] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [printMode, setPrintMode] = useState(false)
 
   useEffect(() => {
     async function fetchReport() {
@@ -40,7 +41,20 @@ export default function CandidateReportPage({
     if (jobId && candidateId) fetchReport()
   }, [jobId, candidateId])
 
-  const handleDownloadReport = () => { window.print() }
+  const handleDownloadReport = () => {
+    setPrintMode(true)
+    const cleanup = () => {
+      setPrintMode(false)
+      window.removeEventListener('afterprint', cleanup)
+    }
+    window.addEventListener('afterprint', cleanup)
+    // Allow React to render all sections before triggering the print dialog
+    setTimeout(() => {
+      window.print()
+      // Fallback cleanup in case afterprint doesn't fire (some browsers)
+      setTimeout(cleanup, 1500)
+    }, 250)
+  }
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'text-green-600'
@@ -255,17 +269,24 @@ export default function CandidateReportPage({
     return 'bg-green-100 text-green-700'
   }
 
+  // Candidate skills + work history for dedicated sections
+  const candidateSkills: string[] = Array.isArray(candidate.skills) ? candidate.skills : []
+  const workHistory: any[] = Array.isArray(extracted.work_experience) ? extracted.work_experience : []
+  const allDisplaySkills = candidateSkills.length > 0
+    ? candidateSkills
+    : [...matchedSkills, ...missingSkills]
+
   return (
     <div className="min-h-screen bg-gray-100 print:bg-white">
-      <div className="max-w-[210mm] mx-auto bg-white shadow-lg print:shadow-none">
+      <div className="w-full max-w-[1100px] mx-auto bg-white shadow-lg print:shadow-none">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-8 py-6 print:py-4">
-          <div className="flex justify-between items-center">
+        <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-4 sm:px-8 py-4 sm:py-6 print:py-4">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
             <div>
-              <h1 className="text-2xl font-bold print:text-xl">Report of {candidate.name} for {candidate.position}</h1>
-              <p className="text-blue-100 text-sm mt-2">Candidate ID: {candidateId}</p>
+              <h1 className="text-base sm:text-2xl font-bold print:text-xl break-words">Report of {candidate.name} for {candidate.position}</h1>
+              <p className="text-blue-100 text-[11px] sm:text-sm mt-1 sm:mt-2 break-all">Candidate ID: {candidateId}</p>
             </div>
-            <Button onClick={handleDownloadReport} className="bg-white text-blue-600 hover:bg-blue-50 print:hidden" size="default">
+            <Button onClick={handleDownloadReport} className="bg-white text-blue-600 hover:bg-blue-50 print:hidden self-start sm:self-auto" size="sm">
               <Download className="h-4 w-4 mr-2" />
               Download Report
             </Button>
@@ -273,7 +294,7 @@ export default function CandidateReportPage({
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b print:hidden">
+        <div className="flex border-b print:hidden overflow-x-auto">
           {[
             { id: 'application', label: 'Candidate Job Application', icon: User },
             { id: 'evaluation', label: 'Interview Evaluation', icon: FileText },
@@ -282,7 +303,7 @@ export default function CandidateReportPage({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as TabType)}
-              className={`flex-1 px-4 py-2.5 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
+              className={`flex-1 min-w-[140px] px-2 sm:px-4 py-2.5 text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-600 hover:bg-gray-50'
@@ -295,45 +316,47 @@ export default function CandidateReportPage({
         </div>
 
         {/* Content */}
-        <div className="p-5 print:p-4 space-y-4 print:space-y-3">
+        <div className="p-3 sm:p-5 print:p-4 space-y-4 print:space-y-3">
           {/* Candidate Header Card - Only on Application tab */}
-          {activeTab === 'application' && (
-          <div className="flex items-center justify-between bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg p-4 print:p-3 border">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 print:w-12 print:h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg print:text-base">
+          {(activeTab === 'application' || printMode) && (
+          <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg p-3 sm:p-4 print:p-3 border">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 print:w-12 print:h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-base sm:text-lg print:text-base shrink-0">
                 {(candidate.name || '').split(' ').map((n: string) => n[0]).join('')}
               </div>
-              <div>
-                <h2 className="text-lg print:text-base font-bold text-gray-900">{candidate.name}</h2>
-                <p className="text-sm print:text-xs text-gray-600">{candidate.position}</p>
-                <Badge className={`mt-1 text-[10px] print:text-[9px] ${shouldHire ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                  {shouldHire ? <CheckCircle className="h-3 w-3 mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
-                  {shouldHire ? 'HIRE' : 'NOT HIRE'}
-                </Badge>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <h2 className="text-base sm:text-lg print:text-base font-bold text-gray-900 truncate">{candidate.name}</h2>
+                  <Badge className={`text-[10px] print:text-[9px] ${shouldHire ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    {shouldHire ? <CheckCircle className="h-3 w-3 mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
+                    {shouldHire ? 'HIRE' : 'NOT HIRE'}
+                  </Badge>
+                </div>
+                <p className="text-xs sm:text-sm print:text-xs text-gray-600 truncate">{candidate.position}</p>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] sm:text-[11px] text-gray-500">
+                  {candidate.email && <span className="truncate max-w-[180px] sm:max-w-none">{candidate.email}</span>}
+                  {candidate.phone && <span>{candidate.phone}</span>}
+                  {candidate.location && <span>{candidate.location}</span>}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              {candidate.resumeUrl && (
-                <a href={candidate.resumeUrl} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" size="sm" className="text-xs print:hidden">
-                    <Download className="h-3 w-3 mr-1" />
-                    Download Resume
-                  </Button>
-                </a>
-              )}
-              <div className="text-center">
-                <p className="text-xs text-gray-500">Score</p>
-                <div className={`text-2xl print:text-xl font-bold ${getScoreColor(cvScore)}`}>
-                  {cvScore}<span className="text-sm text-gray-400">/100</span>
-                </div>
+            <div className="text-center shrink-0">
+              <p className="text-[10px] sm:text-xs text-gray-500">Score</p>
+              <div className={`text-xl sm:text-2xl print:text-xl font-bold leading-tight ${getScoreColor(cvScore)}`}>
+                {cvScore}<span className="text-xs sm:text-sm text-gray-400">/100</span>
               </div>
             </div>
           </div>
           )}
 
           {/* ==================== APPLICATION TAB ==================== */}
-          {activeTab === 'application' && (
+          {(activeTab === 'application' || printMode) && (
             <>
+              {printMode && (
+                <div className="border-b-2 border-blue-600 pb-1 mt-2 print:mt-0">
+                  <h2 className="text-base font-bold text-blue-700 uppercase tracking-wide">1. Candidate Job Application</h2>
+                </div>
+              )}
               {/* Candidate Profile Snapshot */}
               <div className="border rounded-lg overflow-hidden">
                 <div className="bg-gray-800 text-white px-4 py-2 print:py-1.5">
@@ -349,15 +372,77 @@ export default function CandidateReportPage({
                     { label: 'Employer History', value: employerStr },
                     { label: 'Location', value: candidate.location || 'N/A' }
                   ].map((item, idx) => (
-                    <div key={idx} className="flex">
-                      <div className="w-32 print:w-28 bg-gray-50 px-3 py-2 print:py-1.5 font-medium text-gray-700 shrink-0">
+                    <div key={idx} className="flex items-stretch">
+                      <div className="w-24 sm:w-32 print:w-28 bg-gray-50 px-2 sm:px-3 py-1.5 sm:py-2 print:py-1.5 font-medium text-gray-700 shrink-0 text-[11px] sm:text-xs">
                         {item.label}
                       </div>
-                      <div className="flex-1 px-3 py-2 print:py-1.5 text-gray-600">
+                      <div className="flex-1 min-w-0 px-2 sm:px-3 py-1.5 sm:py-2 print:py-1.5 text-gray-600 break-words text-[11px] sm:text-xs">
                         {item.value}
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Skills */}
+              <div className="border rounded-lg overflow-hidden">
+                <div className="bg-gray-800 text-white px-4 py-2 print:py-1.5">
+                  <h3 className="text-sm print:text-xs font-semibold flex items-center gap-1.5">
+                    <Zap className="h-3.5 w-3.5" />
+                    Skills
+                  </h3>
+                </div>
+                <div className="p-3 print:p-2">
+                  {allDisplaySkills.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {allDisplaySkills.map((s: string, i: number) => {
+                        const isMatched = matchedSkills.some((m: string) => m.toLowerCase() === String(s).toLowerCase())
+                        const isMissing = missingSkills.some((m: string) => m.toLowerCase() === String(s).toLowerCase())
+                        const cls = isMatched
+                          ? 'bg-green-100 text-green-700 border-green-200'
+                          : isMissing
+                          ? 'bg-red-100 text-red-700 border-red-200'
+                          : 'bg-blue-50 text-blue-700 border-blue-200'
+                        return (
+                          <span key={i} className={`text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full border ${cls}`}>
+                            {s}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400">No skills extracted</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Company Set / Work History */}
+              <div className="border rounded-lg overflow-hidden">
+                <div className="bg-gray-800 text-white px-4 py-2 print:py-1.5">
+                  <h3 className="text-sm print:text-xs font-semibold flex items-center gap-1.5">
+                    <Briefcase className="h-3.5 w-3.5" />
+                    Company Set
+                  </h3>
+                </div>
+                <div className="p-3 print:p-2">
+                  {workHistory.length > 0 ? (
+                    <ol className="space-y-1.5 list-decimal list-inside">
+                      {workHistory.map((w: any, i: number) => (
+                        <li key={i} className="text-xs text-gray-700">
+                          <span className="font-medium">{w.company || 'Unknown company'}</span>
+                          {w.role || w.title ? <span className="text-gray-600"> — {w.role || w.title}</span> : null}
+                          {w.duration ? <span className="text-gray-500"> ({w.duration})</span> : null}
+                        </li>
+                      ))}
+                    </ol>
+                  ) : candidate.currentCompany ? (
+                    <p className="text-xs text-gray-700">
+                      <span className="font-medium">{candidate.currentCompany}</span>
+                      {candidate.currentTitle ? <span className="text-gray-600"> — {candidate.currentTitle}</span> : null}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-400">No company history found</p>
+                  )}
                 </div>
               </div>
 
@@ -367,7 +452,8 @@ export default function CandidateReportPage({
                   <div className="bg-gray-800 text-white px-4 py-2 print:py-1.5">
                     <h3 className="text-sm print:text-xs font-semibold">Skills & Experience Alignment</h3>
                   </div>
-                  <table className="w-full text-xs print:text-[10px]">
+                  <div className="overflow-x-auto">
+                  <table className="w-full text-xs print:text-[10px] min-w-[640px]">
                     <thead>
                       <tr className="bg-gray-100">
                         <th className="px-3 py-2 print:py-1.5 text-left font-semibold text-gray-700 w-36">Area</th>
@@ -404,11 +490,12 @@ export default function CandidateReportPage({
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               )}
 
               {/* Certifications & Recent Projects */}
-              <div className="grid grid-cols-2 gap-4 print:gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 print:grid-cols-2 print:gap-3">
                 <div className="border rounded-lg overflow-hidden">
                   <div className="bg-gray-800 text-white px-4 py-2 print:py-1.5">
                     <h3 className="text-sm print:text-xs font-semibold flex items-center gap-1.5">
@@ -461,7 +548,7 @@ export default function CandidateReportPage({
                       Recommendation: {recommendation}
                     </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-4 print:gap-3 text-xs print:text-[10px]">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 print:grid-cols-3 print:gap-3 text-xs print:text-[10px]">
                     <div>
                       <p className="font-semibold text-gray-700 mb-1">Strengths:</p>
                       <div className="flex flex-wrap gap-1">
@@ -504,8 +591,13 @@ export default function CandidateReportPage({
           )}
 
           {/* ==================== EVALUATION TAB ==================== */}
-          {activeTab === 'evaluation' && (
+          {(activeTab === 'evaluation' || printMode) && (
             <>
+              {printMode && (
+                <div className="border-b-2 border-blue-600 pb-1 mt-6 print:mt-4 section-heading">
+                  <h2 className="text-base font-bold text-blue-700 uppercase tracking-wide">2. Interview Evaluation</h2>
+                </div>
+              )}
               {interview.status === 'Not Scheduled' ? (
                 <div className="border rounded-lg p-8 text-center">
                   <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
@@ -578,8 +670,8 @@ export default function CandidateReportPage({
                           const CritIcon = style.icon
                           const score = Math.round(Number(avg))
                           return (
-                            <div key={criterion} className="flex items-center gap-3">
-                              <div className={`flex items-center gap-1.5 w-36 shrink-0`}>
+                            <div key={criterion} className="flex items-center gap-2 sm:gap-3">
+                              <div className={`flex items-center gap-1.5 w-28 sm:w-36 shrink-0`}>
                                 <div className={`p-1 rounded ${style.bg}`}>
                                   <CritIcon className={`h-3 w-3 ${style.text}`} />
                                 </div>
@@ -607,7 +699,7 @@ export default function CandidateReportPage({
 
                   {/* Key Strengths & Areas for Improvement */}
                   {(evalKeyStrengths.length > 0 || evalAreasForImprovement.length > 0) && (
-                    <div className="grid grid-cols-2 gap-4 print:gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 print:grid-cols-2 print:gap-3">
                       <div className="border rounded-lg overflow-hidden">
                         <div className="bg-green-700 text-white px-4 py-2 print:py-1.5 flex items-center gap-1.5">
                           <TrendingUp className="h-3.5 w-3.5" />
@@ -639,57 +731,52 @@ export default function CandidateReportPage({
                     </div>
                   )}
 
-                  {/* Question-wise Detailed Evaluation grouped by Criterion */}
-                  {criterionNames.map((criterion: string) => {
-                    const style = getCriterionStyle(criterion)
-                    const CritIcon = style.icon
-                    const critQuestions = questionsByCriterion[criterion] || []
-                    const critAvg = evalCriterionAvg[criterion] ? Math.round(Number(evalCriterionAvg[criterion])) : null
-
-                    return (
-                      <div key={criterion} className="border rounded-lg overflow-hidden">
-                        <div className={`bg-gray-800 text-white px-4 py-2.5 print:py-2 flex items-center justify-between`}>
-                          <div className="flex items-center gap-2">
-                            <div className={`p-1 rounded ${style.bg}`}>
-                              <CritIcon className={`h-3.5 w-3.5 ${style.text}`} />
+                  {/* Question-wise Detailed Evaluation — single flat numbered list */}
+                  {evalQuestions.length > 0 && (
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="bg-gray-800 text-white px-4 py-2 print:py-1.5 flex items-center justify-between">
+                        <h3 className="text-sm print:text-xs font-semibold">Detailed Question Evaluation</h3>
+                        <Badge className="text-[9px] bg-white/15 text-white/80">{evalQuestions.length} question{evalQuestions.length > 1 ? 's' : ''}</Badge>
+                      </div>
+                      <div className="divide-y">
+                        {evalQuestions.map((q: any, qIdx: number) => (
+                          <div key={qIdx} className="p-3 sm:p-4 print:p-3 space-y-2">
+                            {/* Question Header */}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-2 flex-1 min-w-0">
+                                <span className="text-[11px] font-bold text-white bg-blue-600 rounded-full w-6 h-6 flex items-center justify-center shrink-0">
+                                  {qIdx + 1}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-semibold text-gray-800 leading-snug">{q.question_text}</p>
+                                  {q.criterion && (
+                                    <span className="inline-block mt-0.5 text-[9px] text-gray-500 uppercase tracking-wide">{q.criterion}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end gap-1 shrink-0">
+                                {q.difficulty && <Badge className={`text-[9px] ${getDifficultyBadge(q.difficulty)}`}>{q.difficulty}</Badge>}
+                                <Badge className="text-[9px] bg-gray-100 text-gray-600 font-mono">
+                                  {q.weighted_contribution ?? 0}/{q.marks ?? 0}
+                                </Badge>
+                              </div>
                             </div>
-                            <h3 className="text-sm print:text-xs font-semibold">{criterion}</h3>
-                          </div>
-                          <Badge className="text-[9px] bg-white/15 text-white/80">{critQuestions.length} question{critQuestions.length > 1 ? 's' : ''}</Badge>
-                        </div>
-                        <div className="divide-y">
-                          {critQuestions.map((q: any, qIdx: number) => (
-                            <div key={qIdx} className="p-4 print:p-3 space-y-2.5">
-                              {/* Question Header */}
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="flex items-start gap-2 flex-1">
-                                  <span className="text-xs font-bold text-purple-600 bg-purple-50 rounded-full w-6 h-6 flex items-center justify-center shrink-0">
-                                    Q{q.question_number}
-                                  </span>
-                                  <p className="text-xs font-semibold text-gray-800 leading-relaxed">{q.question_text}</p>
-                                </div>
-                                <div className="flex flex-col items-end gap-1 shrink-0">
-                                  <Badge className={`text-[9px] ${getDifficultyBadge(q.difficulty)}`}>{q.difficulty}</Badge>
-                                  <Badge className="text-[9px] bg-gray-100 text-gray-600 font-mono">
-                                    {q.weighted_contribution ?? 0}/{q.marks ?? 0}
-                                  </Badge>
-                                </div>
-                              </div>
 
-                              {/* Candidate Response */}
-                              <div className="ml-8 bg-blue-50 border border-blue-100 rounded-lg p-3">
-                                <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider mb-1">Candidate Response</p>
-                                <p className="text-xs text-gray-700 leading-relaxed">{q.candidate_response || 'No response provided'}</p>
-                              </div>
+                            {/* Candidate Response */}
+                            <div className="ml-2 sm:ml-8 bg-blue-50 border border-blue-100 rounded-lg p-2.5">
+                              <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider mb-1">Candidate Response</p>
+                              <p className="text-xs text-gray-700 leading-relaxed">{q.candidate_response || 'No response provided'}</p>
+                            </div>
 
-                              {/* Strengths & Gaps */}
-                              <div className="ml-8 grid grid-cols-2 gap-3">
+                            {/* Strengths & Gaps */}
+                            {(q.strengths?.length > 0 || q.gaps?.length > 0) && (
+                              <div className="ml-2 sm:ml-8 grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 {q.strengths?.length > 0 && (
-                                  <div className="bg-green-50 border border-green-100 rounded-lg p-2.5">
-                                    <p className="text-[10px] font-semibold text-green-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                                  <div className="bg-green-50 border border-green-100 rounded-lg p-2">
+                                    <p className="text-[10px] font-semibold text-green-700 uppercase tracking-wider mb-1 flex items-center gap-1">
                                       <TrendingUp className="h-3 w-3" /> Strengths
                                     </p>
-                                    <div className="space-y-1">
+                                    <div className="space-y-0.5">
                                       {q.strengths.map((s: string, sIdx: number) => (
                                         <div key={sIdx} className="flex items-start gap-1.5 text-[11px] text-green-800">
                                           <CheckCircle className="h-3 w-3 shrink-0 mt-0.5 text-green-500" />
@@ -700,11 +787,11 @@ export default function CandidateReportPage({
                                   </div>
                                 )}
                                 {q.gaps?.length > 0 && (
-                                  <div className="bg-red-50 border border-red-100 rounded-lg p-2.5">
-                                    <p className="text-[10px] font-semibold text-red-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                                  <div className="bg-red-50 border border-red-100 rounded-lg p-2">
+                                    <p className="text-[10px] font-semibold text-red-700 uppercase tracking-wider mb-1 flex items-center gap-1">
                                       <TrendingDown className="h-3 w-3" /> Gaps
                                     </p>
-                                    <div className="space-y-1">
+                                    <div className="space-y-0.5">
                                       {q.gaps.map((g: string, gIdx: number) => (
                                         <div key={gIdx} className="flex items-start gap-1.5 text-[11px] text-red-800">
                                           <XCircle className="h-3 w-3 shrink-0 mt-0.5 text-red-500" />
@@ -715,30 +802,35 @@ export default function CandidateReportPage({
                                   </div>
                                 )}
                               </div>
+                            )}
 
-                              {/* Evaluation Reasoning */}
-                              {q.evaluation_reasoning && (
-                                <div className="ml-8 bg-gray-50 border border-gray-200 rounded-lg p-2.5">
-                                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
-                                    <Brain className="h-3 w-3" /> AI Evaluation Reasoning
-                                  </p>
-                                  <p className="text-[11px] text-gray-600 leading-relaxed italic">{q.evaluation_reasoning}</p>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
+                            {/* Evaluation Reasoning */}
+                            {q.evaluation_reasoning && (
+                              <div className="ml-2 sm:ml-8 bg-gray-50 border border-gray-200 rounded-lg p-2">
+                                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                                  <Brain className="h-3 w-3" /> AI Evaluation Reasoning
+                                </p>
+                                <p className="text-[11px] text-gray-600 leading-relaxed italic">{q.evaluation_reasoning}</p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                    )
-                  })}
+                    </div>
+                  )}
                 </>
               )}
             </>
           )}
 
           {/* ==================== TRANSCRIPT TAB ==================== */}
-          {activeTab === 'transcript' && (
+          {(activeTab === 'transcript' || printMode) && (
             <>
+              {printMode && (
+                <div className="border-b-2 border-blue-600 pb-1 mt-6 print:mt-4 section-heading">
+                  <h2 className="text-base font-bold text-blue-700 uppercase tracking-wide">3. Interview Transcript</h2>
+                </div>
+              )}
               {/* Interview Transcript from interview_feedback */}
               <div className="border rounded-lg overflow-hidden">
                 <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white px-5 py-3 flex items-center justify-between">
@@ -755,7 +847,7 @@ export default function CandidateReportPage({
                 </div>
                 {interview.feedback ? (
                   <div className="p-5 print:p-4">
-                    <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                    <div className={`space-y-3 ${printMode ? '' : 'max-h-[600px] overflow-y-auto'} print:max-h-none print:overflow-visible`}>
                       {(() => {
                         const lines = interview.feedback.split('\n')
                         const messages: Array<{speaker: 'interviewer' | 'candidate', text: string}> = []
@@ -820,7 +912,7 @@ export default function CandidateReportPage({
                         
                         return messages.map((msg, idx) => (
                           <div key={idx} className={`flex ${msg.speaker === 'interviewer' ? 'justify-start' : 'justify-end'}`}>
-                            <div className={`max-w-[70%] ${msg.speaker === 'interviewer' ? 'bg-blue-50 border border-blue-200' : 'bg-green-50 border border-green-200'} rounded-lg p-3 shadow-sm`}>
+                            <div className={`max-w-[85%] sm:max-w-[70%] ${msg.speaker === 'interviewer' ? 'bg-blue-50 border border-blue-200' : 'bg-green-50 border border-green-200'} rounded-lg p-3 shadow-sm`}>
                               <div className={`text-[10px] font-semibold mb-1 ${msg.speaker === 'interviewer' ? 'text-blue-700' : 'text-green-700'}`}>
                                 {msg.speaker === 'interviewer' ? '👨‍💼 Interviewer' : '👤 Candidate'}
                               </div>
@@ -853,9 +945,21 @@ export default function CandidateReportPage({
       </div>
 
       <style jsx global>{`
+        html, body { scrollbar-width: none; -ms-overflow-style: none; }
+        html::-webkit-scrollbar, body::-webkit-scrollbar { width: 0; height: 0; display: none; }
+        *::-webkit-scrollbar { width: 0; height: 0; display: none; }
+        * { scrollbar-width: none; -ms-overflow-style: none; }
         @media print {
           @page { size: A4; margin: 10mm; }
+          html, body { background: #fff !important; }
           body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          .print\\:break-before-page { break-before: page; page-break-before: always; }
+          /* Keep section headings with following content */
+          .section-heading { break-after: avoid; page-break-after: avoid; break-inside: avoid; page-break-inside: avoid; }
+          /* Avoid awkward breaks inside small cards/rows, but allow long ones to flow */
+          table, tr { break-inside: avoid; page-break-inside: avoid; }
+          .grid { break-inside: auto; page-break-inside: auto; }
+          .border.rounded-lg { break-inside: auto; page-break-inside: auto; }
         }
       `}</style>
     </div>

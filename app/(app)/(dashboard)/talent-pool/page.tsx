@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Users, Filter, Plus, Mail, Phone, Calendar, X, Send, Briefcase, Target, TrendingUp, Clock, Upload, FileSpreadsheet } from 'lucide-react'
+import { Users, Filter, Plus, Mail, Phone, Calendar, X, Send, Briefcase, Target, TrendingUp, Clock, Upload, FileSpreadsheet, Linkedin, FileText, Settings2 } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { StatCardGridLoader, TalentPoolTableLoader, ErrorState } from '@/components/ui/skeleton-loader'
@@ -26,6 +26,7 @@ interface TalentPoolEntry {
   phone: string
   location: string
   currentCompany: string
+  companies: string[]
   experienceYears: number | null
   linkedinUrl: string
   resumeUrl: string
@@ -470,144 +471,183 @@ export default function TalentPoolPage() {
       </Card>
 
       {/* Talent Pool Table */}
-      <Card>
+      <Card className="overflow-hidden">
         <div className="overflow-x-auto">
+          <div className="min-w-[1400px]">
           <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-3 py-3 text-left">
-                    <input 
+            <thead className="border-b">
+              <tr>
+                <th className="px-3 py-3 text-left bg-gray-50 border-r border-gray-200">
+                  <input
+                    type="checkbox"
+                    checked={selectedCandidates.length === filteredCandidates.length && filteredCandidates.length > 0}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedCandidates(filteredCandidates.map(c => c.email))
+                      else setSelectedCandidates([])
+                    }}
+                    className="w-3.5 h-3.5 rounded border-gray-300"
+                  />
+                </th>
+                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Candidate Name</th>
+                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Email / Phone</th>
+                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Exp</th>
+                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">LinkedIn / Resume</th>
+                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[120px]">Position</th>
+                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide min-w-[200px]">Skills</th>
+                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Previous Company Set</th>
+                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">CV / Interview Score</th>
+                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Status / Source</th>
+                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Last Contact</th>
+                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 uppercase tracking-wide sticky right-0 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)] border-l border-gray-200">Action</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-100">
+              {filteredCandidates.map((candidate, index) => (
+                <tr key={index} className="hover:bg-gray-50 transition-colors border-b">
+                  {/* Checkbox */}
+                  <td className="px-3 py-3 border-r border-gray-100">
+                    <input
                       type="checkbox"
-                      checked={selectedCandidates.length === filteredCandidates.length && filteredCandidates.length > 0}
+                      checked={selectedCandidates.includes(candidate.email)}
                       onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedCandidates(filteredCandidates.map(c => c.email))
-                        } else {
-                          setSelectedCandidates([])
-                        }
+                        if (e.target.checked) setSelectedCandidates([...selectedCandidates, candidate.email])
+                        else setSelectedCandidates(selectedCandidates.filter(e => e !== candidate.email))
                       }}
-                      className="w-4 h-4 rounded border-gray-300"
+                      className="w-3.5 h-3.5 rounded border-gray-300"
                     />
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Candidate</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Skills</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CV Score</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Interview Score</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Contact</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredCandidates.map((candidate, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-3 py-4">
-                      <input 
-                        type="checkbox"
-                        checked={selectedCandidates.includes(candidate.email)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedCandidates([...selectedCandidates, candidate.email])
-                          } else {
-                            setSelectedCandidates(selectedCandidates.filter(email => email !== candidate.email))
-                          }
-                        }}
-                        className="w-4 h-4 rounded border-gray-300"
-                      />
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
-                          {candidate.name.split(' ').map(n => n[0]).join('')}
-                        </div>
-                        <div>
-                          <button 
-                            onClick={() => {
-                              setSelectedCandidateDetails(candidate)
-                              setShowCandidateDetailsDialog(true)
-                            }}
-                            className="font-medium text-blue-600 hover:text-blue-800 text-sm underline decoration-dotted cursor-pointer transition-colors text-left"
-                          >
-                            {candidate.name}
-                          </button>
-                          <div className="text-xs text-gray-500">{candidate.email}</div>
-                        </div>
+                  </td>
+                  {/* Candidate Name */}
+                  <td className="px-3 py-3 border-r border-gray-100 min-w-[140px]">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-[10px] shrink-0">
+                        {candidate.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                       </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">{candidate.position}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {candidate.skills.slice(0, 2).map((skill, i) => (
-                          <Badge key={i} variant="secondary" className="text-xs">
+                      <button
+                        onClick={() => { setSelectedCandidateDetails(candidate); setShowCandidateDetailsDialog(true) }}
+                        className="text-xs font-medium text-blue-600 hover:text-blue-800 underline decoration-dotted cursor-pointer transition-colors text-left leading-tight whitespace-nowrap"
+                      >
+                        {candidate.name}
+                      </button>
+                    </div>
+                  </td>
+                  {/* Email / Phone */}
+                  <td className="px-3 py-3 border-r border-gray-100">
+                    <div className="text-xs text-gray-700 whitespace-nowrap">{candidate.email || '—'}</div>
+                    <div className="text-[10px] text-gray-500 mt-0.5 whitespace-nowrap">{candidate.phone || '—'}</div>
+                  </td>
+                  {/* Exp */}
+                  <td className="px-3 py-3 border-r border-gray-100">
+                    {candidate.experienceYears != null ? (
+                      <span className="inline-block bg-indigo-50 text-indigo-700 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-indigo-200 whitespace-nowrap">
+                        {candidate.experienceYears} yr{candidate.experienceYears !== 1 ? 's' : ''}
+                      </span>
+                    ) : <span className="text-[10px] text-gray-400">—</span>}
+                  </td>
+                  {/* LinkedIn / Resume */}
+                  <td className="px-3 py-3 border-r border-gray-100">
+                    <div className="flex items-center gap-2">
+                      {candidate.linkedinUrl ? (
+                        <a href={candidate.linkedinUrl} target="_blank" rel="noopener noreferrer" title="LinkedIn"
+                          className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors">
+                          <Linkedin className="h-4 w-4 text-green-600 fill-green-600" strokeWidth={2} />
+                        </a>
+                      ) : (
+                        <span title="No LinkedIn" className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-50 border border-gray-200">
+                          <Linkedin className="h-4 w-4 text-gray-400" strokeWidth={2} />
+                        </span>
+                      )}
+                      {candidate.resumeUrl ? (
+                        <a href={candidate.resumeUrl} target="_blank" rel="noopener noreferrer" title="Resume"
+                          className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors">
+                          <FileText className="h-4 w-4 text-green-600" strokeWidth={2} />
+                        </a>
+                      ) : (
+                        <span title="No Resume" className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-50 border border-gray-200">
+                          <FileText className="h-4 w-4 text-gray-400" strokeWidth={2} />
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  {/* Position */}
+                  <td className="px-3 py-3 border-r border-gray-100">
+                    <div className="text-xs text-gray-700 leading-tight">{candidate.position || '—'}</div>
+                  </td>
+                  {/* Skills */}
+                  <td className="px-3 py-3 border-r border-gray-100">
+                    {candidate.skills.length > 0 ? (
+                      <div className="max-h-[80px] overflow-y-auto flex flex-wrap gap-1" style={{scrollbarWidth:'thin', scrollbarColor:'#e5e7eb transparent'}}>
+                        {candidate.skills.map((skill, i) => (
+                          <span key={i} className="bg-emerald-50 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-full border border-emerald-200 whitespace-nowrap">
                             {skill}
-                          </Badge>
+                          </span>
                         ))}
-                        {candidate.skills.length > 2 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{candidate.skills.length - 2}
-                          </Badge>
-                        )}
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      {candidate.cvScore ? (
-                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800">
-                          {candidate.cvScore}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">N/A</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      {candidate.interviewScore ? (
-                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-purple-100 text-purple-800">
-                          {candidate.interviewScore}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">N/A</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <Badge className={candidate.status === 'Active Interest' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
-                        {candidate.status}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{candidate.source}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{candidate.lastContact}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-2 group relative">
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          title={`Email: ${candidate.email}`}
-                          className="bg-transparent"
-                          disabled={!canModify}
-                        >
-                          <Mail className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          title={`Call: ${candidate.phone}`}
-                          className="bg-transparent"
-                          disabled={!canModify}
-                        >
-                          <Phone className="h-4 w-4" />
-                        </Button>
-                        {/* Hover Tooltip */}
-                        <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-10 bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap">
-                          <div>{candidate.email}</div>
-                          <div>{candidate.phone}</div>
-                          {!canModify && <div className="text-yellow-400 mt-1">View-only mode</div>}
+                    ) : <span className="text-[10px] text-gray-400">—</span>}
+                  </td>
+                  {/* Company Set */}
+                  <td className="px-3 py-3 border-r border-gray-100">
+                    {(() => {
+                      const companyList = (candidate.companies && candidate.companies.length > 0)
+                        ? candidate.companies
+                        : (candidate.currentCompany ? candidate.currentCompany.split(',').map(c => c.trim()).filter(Boolean) : [])
+                      return companyList.length > 0 ? (
+                        <div className="max-h-[72px] overflow-y-auto flex flex-col gap-0.5" style={{scrollbarWidth:'thin', scrollbarColor:'#e5e7eb transparent'}}>
+                          {companyList.map((c, i) => (
+                            <span key={i} className="text-[10px] text-gray-700 whitespace-nowrap leading-5">
+                              {i + 1}. {c}
+                            </span>
+                          ))}
                         </div>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      ) : <span className="text-[10px] text-gray-400">—</span>
+                    })()}
+                  </td>
+                  {/* CV / Interview Score */}
+                  <td className="px-3 py-3 border-r border-gray-100">
+                    <Badge className="bg-emerald-100 text-emerald-800 font-semibold text-[10px] px-1.5 py-0 h-auto">
+                      {candidate.cvScore || 'N/A'}
+                    </Badge>
+                    <div className="mt-1">
+                      <Badge className={`text-[10px] px-1.5 py-0 h-auto ${candidate.interviewScore ? 'bg-purple-100 text-purple-800 font-semibold' : 'bg-gray-100 text-gray-500'}`}>
+                        {candidate.interviewScore || 'N/A'}
+                      </Badge>
+                    </div>
+                  </td>
+                  {/* Status / Source */}
+                  <td className="px-3 py-3 border-r border-gray-100">
+                    <Badge className={`text-[10px] px-1.5 py-0 h-auto ${candidate.status === 'Active Interest' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
+                      {candidate.status}
+                    </Badge>
+                    <div className="text-[10px] text-gray-500 mt-1 whitespace-nowrap">{candidate.source}</div>
+                  </td>
+                  {/* Last Contact */}
+                  <td className="px-3 py-3 border-r border-gray-100">
+                    <div className="text-[10px] text-gray-600 whitespace-nowrap">{candidate.lastContact}</div>
+                  </td>
+                  {/* Action - sticky */}
+                  <td className="px-3 py-3 sticky right-0 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] border-l border-gray-100">
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => { setSelectedCandidateDetails(candidate); setShowCandidateDetailsDialog(true) }}
+                        title="View Profile"
+                        className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 bg-white hover:bg-gray-50 transition-colors"
+                      >
+                        <Settings2 className="h-3.5 w-3.5 text-gray-600" />
+                      </button>
+                      <button
+                        onClick={() => { setSelectedCandidates([candidate.email]); setShowEmailDialog(true) }}
+                        title="Send Email"
+                        disabled={!canModify}
+                        className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 bg-white hover:bg-gray-50 transition-colors disabled:opacity-40"
+                      >
+                        <Mail className="h-3.5 w-3.5 text-gray-600" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
         </div>
       </Card>
       </>
@@ -904,30 +944,30 @@ export default function TalentPoolPage() {
 
       {/* Send JD Dialog */}
       {showJDDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <div className="p-4 border-b flex items-center justify-between bg-gray-50">
-              <h3 className="text-lg font-semibold">Send Job Description</h3>
-              <Button 
-                variant="ghost" 
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3">
+          <Card className="w-full max-w-2xl max-h-[88vh] overflow-y-auto tp-no-scrollbar">
+            <div className="px-4 py-2.5 border-b flex items-center justify-between bg-gray-50 sticky top-0 z-10">
+              <h3 className="text-sm font-semibold">Send Job Description</h3>
+              <Button
+                variant="ghost"
                 size="icon"
                 onClick={() => {
                   setShowJDDialog(false)
                   setSelectedJDForSend('')
                   setJdEmailPreview(null)
                 }}
-                className="bg-transparent"
+                className="bg-transparent h-7 w-7"
               >
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-3">
               {/* Recipients */}
               <div>
-                <p className="text-sm text-gray-600 mb-2">
+                <p className="text-xs text-gray-600 mb-1.5">
                   Sending to {selectedCandidates.length} candidate(s)
                 </p>
-                <div className="flex flex-wrap gap-1 mb-4">
+                <div className="flex flex-wrap gap-1 mb-2">
                   {filteredCandidates
                     .filter(c => selectedCandidates.includes(c.email))
                     .map((c, i) => (
@@ -940,11 +980,11 @@ export default function TalentPoolPage() {
 
               {/* Job Selection Dropdown */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
                   Select Job Description
                 </label>
                 <select
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full h-8 px-2 text-xs border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={selectedJDForSend}
                   onChange={(e) => {
                     const jobId = e.target.value
@@ -1019,28 +1059,28 @@ ${companyName} Talent Acquisition Team`
 
               {/* Email Preview */}
               {jdEmailPreview && (
-                <div className="space-y-3">
-                  <label className="block text-sm font-medium text-gray-700">
+                <div className="space-y-2">
+                  <label className="block text-xs font-medium text-gray-700">
                     Email Preview
                   </label>
-                  
+
                   {/* Subject */}
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Subject</label>
-                    <div className="px-3 py-2 bg-gray-50 border rounded text-sm">
+                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Subject</label>
+                    <div className="px-2 py-1.5 bg-gray-50 border rounded text-xs">
                       {jdEmailPreview.subject}
                     </div>
                   </div>
-                  
+
                   {/* Body */}
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Body</label>
-                    <div className="px-3 py-3 bg-gray-50 border rounded text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto">
+                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Body</label>
+                    <div className="px-2 py-2 bg-gray-50 border rounded text-xs whitespace-pre-wrap max-h-[220px] overflow-y-auto tp-no-scrollbar">
                       {jdEmailPreview.body}
                     </div>
                   </div>
-                  
-                  <p className="text-xs text-gray-500 italic">
+
+                  <p className="text-[10px] text-gray-500 italic">
                     Note: [Candidate Name] and [Your Name] will be replaced with actual names when sending.
                   </p>
                 </div>
@@ -1048,28 +1088,30 @@ ${companyName} Talent Acquisition Team`
 
               {/* Loading State */}
               {isSendingEmail && (
-                <div className="p-3 border rounded bg-blue-50 text-center">
+                <div className="p-2 border rounded bg-blue-50 text-center">
                   <div className="flex items-center justify-center gap-2">
-                    <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-                    <span className="text-sm font-medium">Sending emails to {selectedCandidates.length} candidates...</span>
+                    <div className="animate-spin h-3.5 w-3.5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                    <span className="text-xs font-medium">Sending emails to {selectedCandidates.length} candidates...</span>
                   </div>
                 </div>
               )}
 
               {/* Action Buttons */}
-              <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button 
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <Button
+                  size="sm"
                   variant="outline"
                   onClick={() => {
                     setShowJDDialog(false)
                     setSelectedJDForSend('')
                     setJdEmailPreview(null)
                   }}
-                  className="bg-transparent"
+                  className="bg-transparent h-8 text-xs"
                 >
                   Cancel
                 </Button>
                 <Button
+                  size="sm"
                   disabled={!selectedJDForSend || !jdEmailPreview || isSendingEmail}
                   onClick={async () => {
                     if (!jdEmailPreview || !selectedJDForSend) return
@@ -1112,9 +1154,9 @@ ${companyName} Talent Acquisition Team`
                       setIsSendingEmail(false)
                     }
                   }}
-                  className="bg-green-600 hover:bg-green-700 text-white"
+                  className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs"
                 >
-                  <Send className="h-4 w-4 mr-1" />
+                  <Send className="h-3.5 w-3.5 mr-1" />
                   Send Email
                 </Button>
               </div>
@@ -1125,20 +1167,20 @@ ${companyName} Talent Acquisition Team`
 
       {/* Add Candidate Dialog */}
       <Dialog open={showAddCandidateDialog} onOpenChange={setShowAddCandidateDialog}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto w-[90vw]">
-          <DialogHeader>
-            <DialogTitle className="text-2xl">Add Candidate to Talent Pool</DialogTitle>
+        <DialogContent className="max-w-2xl w-[95vw] max-h-[88vh] overflow-y-auto p-4 sm:p-5 tp-no-scrollbar">
+          <DialogHeader className="space-y-0">
+            <DialogTitle className="text-base font-semibold">Add Candidate to Talent Pool</DialogTitle>
           </DialogHeader>
-          
-          <div className="space-y-4 py-4">
+
+          <div className="space-y-3 pt-2">
             {/* Import Button */}
-            <Card className="p-4 bg-blue-50 border-blue-200">
-              <div className="flex items-start gap-3">
-                <FileSpreadsheet className="h-5 w-5 text-blue-600 mt-0.5" />
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+              <div className="flex items-start gap-2">
+                <FileSpreadsheet className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
                 <div className="flex-1">
-                  <h4 className="font-semibold text-sm text-blue-900">Import from Excel</h4>
-                  <p className="text-xs text-gray-600 mt-1">Upload an Excel file with candidate data in the required format</p>
-                  <div className="mt-3 flex gap-2">
+                  <h4 className="font-semibold text-xs text-blue-900">Import from Excel</h4>
+                  <p className="text-[11px] text-gray-600 mt-0.5">Upload an Excel file with candidate data in the required format</p>
+                  <div className="mt-2 flex gap-2">
                     <Button 
                       size="sm" 
                       variant="outline"
@@ -1181,19 +1223,16 @@ ${companyName} Talent Acquisition Team`
                         }
                         input.click()
                       }}
-                      className="bg-transparent"
+                      className="bg-transparent h-7 text-[11px]"
                     >
                       <Upload className="h-3 w-3 mr-1" />
                       Upload Excel File
                     </Button>
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       variant="outline"
-                      onClick={() => {
-                        // Download Excel template from API
-                        window.location.href = '/api/talent-pool/template'
-                      }}
-                      className="bg-transparent"
+                      onClick={() => { window.location.href = '/api/talent-pool/template' }}
+                      className="bg-transparent h-7 text-[11px]"
                     >
                       <FileSpreadsheet className="h-3 w-3 mr-1" />
                       Download Template
@@ -1201,15 +1240,15 @@ ${companyName} Talent Acquisition Team`
                   </div>
                 </div>
               </div>
-            </Card>
+            </div>
 
-            <div className="border-t pt-4">
-              <h4 className="font-semibold text-sm mb-4">Or Enter Candidate Details Manually</h4>
-              
+            <div className="border-t pt-3">
+              <h4 className="font-semibold text-xs mb-2">Or Enter Candidate Details Manually</h4>
+
               {/* Basic Information */}
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
+              <div className="space-y-2.5 [&_label]:text-[11px] [&_label]:font-medium [&_input]:h-8 [&_input]:text-xs [&_button[role=combobox]]:h-8 [&_button[role=combobox]]:text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
                     <Label htmlFor="candidate-name">Full Name *</Label>
                     <Input 
                       id="candidate-name"
@@ -1218,7 +1257,7 @@ ${companyName} Talent Acquisition Team`
                       onChange={(e) => setNewCandidate({...newCandidate, name: e.target.value})}
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <Label htmlFor="candidate-position">Position/Role *</Label>
                     <Input 
                       id="candidate-position"
@@ -1229,8 +1268,8 @@ ${companyName} Talent Acquisition Team`
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
                     <Label htmlFor="candidate-email">Email Address *</Label>
                     <Input 
                       id="candidate-email"
@@ -1240,7 +1279,7 @@ ${companyName} Talent Acquisition Team`
                       onChange={(e) => setNewCandidate({...newCandidate, email: e.target.value})}
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <Label htmlFor="candidate-phone">Phone Number</Label>
                     <Input 
                       id="candidate-phone"
@@ -1252,8 +1291,8 @@ ${companyName} Talent Acquisition Team`
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
                     <Label htmlFor="candidate-experience">Years of Experience</Label>
                     <Input 
                       id="candidate-experience"
@@ -1263,7 +1302,7 @@ ${companyName} Talent Acquisition Team`
                       onChange={(e) => setNewCandidate({...newCandidate, experience: e.target.value})}
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <Label htmlFor="candidate-location">Location</Label>
                     <Input 
                       id="candidate-location"
@@ -1274,8 +1313,8 @@ ${companyName} Talent Acquisition Team`
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
                     <Label htmlFor="candidate-company">Current Company</Label>
                     <Input 
                       id="candidate-company"
@@ -1284,7 +1323,7 @@ ${companyName} Talent Acquisition Team`
                       onChange={(e) => setNewCandidate({...newCandidate, currentCompany: e.target.value})}
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <Label htmlFor="candidate-linkedin">LinkedIn Profile</Label>
                     <Input 
                       id="candidate-linkedin"
@@ -1295,7 +1334,7 @@ ${companyName} Talent Acquisition Team`
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <Label htmlFor="candidate-skills">Skills (comma-separated)</Label>
                   <Input 
                     id="candidate-skills"
@@ -1305,8 +1344,8 @@ ${companyName} Talent Acquisition Team`
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
                     <Label htmlFor="candidate-source">Source</Label>
                     <Select 
                       value={newCandidate.source} 
@@ -1325,7 +1364,7 @@ ${companyName} Talent Acquisition Team`
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <Label htmlFor="candidate-status">Interest Status</Label>
                     <Select 
                       value={newCandidate.status} 
@@ -1342,12 +1381,13 @@ ${companyName} Talent Acquisition Team`
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <Label htmlFor="candidate-notes">Additional Notes</Label>
-                  <Textarea 
+                  <Textarea
                     id="candidate-notes"
                     placeholder="Any additional information about the candidate..."
-                    rows={3}
+                    rows={2}
+                    className="text-xs min-h-0"
                     value={newCandidate.notes}
                     onChange={(e) => setNewCandidate({...newCandidate, notes: e.target.value})}
                   />
@@ -1356,8 +1396,9 @@ ${companyName} Talent Acquisition Team`
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3 pt-4 border-t">
-              <Button 
+            <div className="flex gap-2 pt-3 border-t">
+              <Button
+                size="sm"
                 onClick={async () => {
                   if (!newCandidate.name || !newCandidate.position || !newCandidate.email) {
                     alert('Please fill in required fields: Name, Position, and Email')
@@ -1417,14 +1458,15 @@ ${companyName} Talent Acquisition Team`
                   } finally {
                     setLoading(false)
                   }
-                }} 
-                className="flex-1"
+                }}
+                className="flex-1 h-8 text-xs"
                 disabled={loading}
               >
                 {loading ? 'Adding...' : 'Add to Talent Pool'}
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                size="sm"
+                variant="outline"
                 onClick={() => {
                   setShowAddCandidateDialog(false)
                   setNewCandidate({
@@ -1441,8 +1483,8 @@ ${companyName} Talent Acquisition Team`
                     linkedIn: '',
                     notes: ''
                   })
-                }} 
-                className="flex-1 bg-transparent"
+                }}
+                className="flex-1 bg-transparent h-8 text-xs"
               >
                 Cancel
               </Button>
@@ -1453,46 +1495,40 @@ ${companyName} Talent Acquisition Team`
 
       {/* Candidate Details Dialog */}
       <Dialog open={showCandidateDetailsDialog} onOpenChange={setShowCandidateDetailsDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl">Candidate Profile</DialogTitle>
+        <DialogContent className="max-w-2xl w-[95vw] max-h-[88vh] overflow-y-auto p-4 sm:p-5 tp-no-scrollbar">
+          <DialogHeader className="space-y-0">
+            <DialogTitle className="text-base font-semibold">Candidate Profile</DialogTitle>
           </DialogHeader>
-          
+
           {selectedCandidateDetails && (
-            <div className="space-y-6 py-4">
+            <div className="space-y-3 pt-2">
               {/* Header with Avatar */}
-              <div className="flex items-start gap-4 pb-6 border-b">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-xl">
+              <div className="flex items-start gap-3 pb-3 border-b">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm shrink-0">
                   {selectedCandidateDetails.name.split(' ').map((n: string) => n[0]).join('')}
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-xl font-semibold text-gray-900">{selectedCandidateDetails.name}</h3>
-                  <p className="text-gray-600 mt-1">{selectedCandidateDetails.position}</p>
-                  <div className="flex gap-4 mt-2 text-sm">
-                    <span className="flex items-center gap-1 text-gray-600">
-                      <Mail className="h-4 w-4" />
-                      {selectedCandidateDetails.email}
-                    </span>
-                    <span className="flex items-center gap-1 text-gray-600">
-                      <Phone className="h-4 w-4" />
-                      {selectedCandidateDetails.phone}
-                    </span>
-                  </div>
-                  <div className="mt-3">
-                    <Badge className={selectedCandidateDetails.status === 'Active Interest' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <h3 className="text-sm font-semibold text-gray-900 truncate">{selectedCandidateDetails.name}</h3>
+                    <Badge className={`text-[10px] px-1.5 py-0 h-auto ${selectedCandidateDetails.status === 'Active Interest' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                       {selectedCandidateDetails.status}
                     </Badge>
+                  </div>
+                  <p className="text-xs text-gray-600 truncate">{selectedCandidateDetails.position}</p>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[11px] text-gray-500">
+                    <span className="flex items-center gap-1 truncate max-w-[200px]"><Mail className="h-3 w-3" />{selectedCandidateDetails.email}</span>
+                    {selectedCandidateDetails.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{selectedCandidateDetails.phone}</span>}
                   </div>
                 </div>
               </div>
 
               {/* Source Information */}
-              <Card className="p-4 bg-blue-50 border-blue-200">
-                <h4 className="font-semibold text-sm text-blue-900 mb-2 flex items-center gap-2">
-                  <Target className="h-4 w-4" />
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                <h4 className="font-semibold text-xs text-blue-900 mb-1.5 flex items-center gap-1.5">
+                  <Target className="h-3.5 w-3.5" />
                   How They Joined Our Talent Pool
                 </h4>
-                <div className="space-y-2 text-sm">
+                <div className="space-y-1 text-xs">
                   <div className="flex justify-between">
                     <span className="text-gray-700 font-medium">Source:</span>
                     <span className="text-gray-900">{selectedCandidateDetails.source}</span>
@@ -1501,97 +1537,77 @@ ${companyName} Talent Acquisition Team`
                     <span className="text-gray-700 font-medium">Date Added:</span>
                     <span className="text-gray-900">{selectedCandidateDetails.addedDate}</span>
                   </div>
-                  
-                  {/* Past Application Details */}
+
                   {selectedCandidateDetails.source === 'Past Application' && (
-                    <>
-                      <div className="mt-3 pt-3 border-t border-blue-300">
-                        <h5 className="font-semibold text-blue-900 mb-2">Previous Application Details</h5>
-                        <div className="space-y-2">
-                          {selectedCandidateDetails.cvScore && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-700 font-medium">CV Score:</span>
-                              <span className="font-semibold text-blue-700">{selectedCandidateDetails.cvScore}</span>
-                            </div>
-                          )}
-                          {selectedCandidateDetails.interviewScore && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-700 font-medium">Interview Score:</span>
-                              <span className="font-semibold text-purple-700">{selectedCandidateDetails.interviewScore}</span>
-                            </div>
-                          )}
-                          {selectedCandidateDetails.rejectionStage && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-700 font-medium">Last Stage:</span>
-                              <Badge className="bg-amber-100 text-amber-800">{selectedCandidateDetails.rejectionStage}</Badge>
-                            </div>
-                          )}
-                          {selectedCandidateDetails.rejectionReason && (
-                            <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded">
-                              <span className="text-xs font-semibold text-amber-900">Reason for Moving to Talent Pool:</span>
-                              <p className="text-xs text-gray-700 mt-1">{selectedCandidateDetails.rejectionReason}</p>
-                            </div>
-                          )}
-                          <div className="mt-3">
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => {
-                                console.log('[v0] Viewing CV & Interview Report for:', selectedCandidateDetails.name)
-                                alert('Opening detailed CV and Interview Report...')
-                              }}
-                              className="w-full bg-transparent"
-                            >
-                              <Briefcase className="h-3 w-3 mr-1" />
-                              View CV & Interview Report
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  
-                  {selectedCandidateDetails.history && selectedCandidateDetails.history[0] && !selectedCandidateDetails.source.includes('Past Application') && (
                     <div className="mt-2 pt-2 border-t border-blue-300">
-                      <p className="text-gray-700">{selectedCandidateDetails.history[0].description}</p>
+                      <h5 className="font-semibold text-blue-900 mb-1.5 text-[11px]">Previous Application Details</h5>
+                      <div className="space-y-1">
+                        {selectedCandidateDetails.cvScore && (
+                          <div className="flex justify-between"><span className="text-gray-700 font-medium">CV Score:</span><span className="font-semibold text-blue-700">{selectedCandidateDetails.cvScore}</span></div>
+                        )}
+                        {selectedCandidateDetails.interviewScore && (
+                          <div className="flex justify-between"><span className="text-gray-700 font-medium">Interview Score:</span><span className="font-semibold text-purple-700">{selectedCandidateDetails.interviewScore}</span></div>
+                        )}
+                        {selectedCandidateDetails.rejectionStage && (
+                          <div className="flex justify-between items-center"><span className="text-gray-700 font-medium">Last Stage:</span><Badge className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0 h-auto">{selectedCandidateDetails.rejectionStage}</Badge></div>
+                        )}
+                        {selectedCandidateDetails.rejectionReason && (
+                          <div className="mt-1.5 p-1.5 bg-amber-50 border border-amber-200 rounded">
+                            <span className="text-[10px] font-semibold text-amber-900">Reason for Moving to Talent Pool:</span>
+                            <p className="text-[11px] text-gray-700 mt-0.5">{selectedCandidateDetails.rejectionReason}</p>
+                          </div>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => alert('Opening detailed CV and Interview Report...')}
+                          className="w-full bg-transparent h-7 text-[11px] mt-1.5"
+                        >
+                          <Briefcase className="h-3 w-3 mr-1" />
+                          View CV & Interview Report
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedCandidateDetails.history && selectedCandidateDetails.history[0] && !selectedCandidateDetails.source.includes('Past Application') && (
+                    <div className="mt-1.5 pt-1.5 border-t border-blue-300">
+                      <p className="text-gray-700 text-[11px]">{selectedCandidateDetails.history[0].description}</p>
                     </div>
                   )}
                 </div>
-              </Card>
+              </div>
 
               {/* Skills */}
               <div>
-                <h4 className="font-semibold text-gray-900 mb-3">Skills & Expertise</h4>
-                <div className="flex flex-wrap gap-2">
-                  {selectedCandidateDetails.skills.map((skill: string, i: number) => (
-                    <Badge key={i} className="bg-purple-100 text-purple-800">
-                      {skill}
-                    </Badge>
-                  ))}
-                </div>
+                <h4 className="font-semibold text-xs text-gray-900 mb-1.5">Skills & Expertise</h4>
+                {selectedCandidateDetails.skills.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {selectedCandidateDetails.skills.map((skill: string, i: number) => (
+                      <Badge key={i} className="bg-purple-100 text-purple-800 text-[10px] px-1.5 py-0 h-auto">{skill}</Badge>
+                    ))}
+                  </div>
+                ) : <span className="text-[11px] text-gray-400">—</span>}
               </div>
 
               {/* Activity History */}
               {selectedCandidateDetails.history && selectedCandidateDetails.history.length > 0 && (
                 <div>
-                  <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
+                  <h4 className="font-semibold text-xs text-gray-900 mb-1.5 flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5" />
                     Activity Timeline
                   </h4>
-                  <div className="space-y-4">
+                  <div className="space-y-1.5 max-h-[180px] overflow-y-auto tp-no-scrollbar pr-1">
                     {selectedCandidateDetails.history.map((item: any, index: number) => (
-                      <div key={index} className="relative pl-8 pb-4 border-l-2 border-gray-200 last:border-0 last:pb-0">
-                        {/* Timeline indicator removed */}
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <div className="flex items-start justify-between mb-1">
-                            <span className="font-semibold text-sm text-gray-900">{item.event}</span>
-                            <span className="text-xs text-gray-500">{item.date}</span>
+                      <div key={index} className="relative pl-3 border-l-2 border-gray-200">
+                        <div className="bg-gray-50 rounded-md p-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-semibold text-[11px] text-gray-900">{item.event}</span>
+                            <span className="text-[10px] text-gray-500 shrink-0">{item.date}</span>
                           </div>
-                          <p className="text-sm text-gray-700">{item.description}</p>
+                          <p className="text-[11px] text-gray-700 mt-0.5">{item.description}</p>
                           {item.source && (
-                            <span className="inline-block mt-2 text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                              {item.source}
-                            </span>
+                            <span className="inline-block mt-1 text-[10px] px-1.5 py-0 bg-blue-100 text-blue-800 rounded">{item.source}</span>
                           )}
                         </div>
                       </div>
@@ -1600,40 +1616,44 @@ ${companyName} Talent Acquisition Team`
                 </div>
               )}
 
-              {/* Last Contact */}
-              <Card className="p-4 bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-semibold text-sm text-gray-900">Last Contact</h4>
-                    <p className="text-sm text-gray-600 mt-1">{selectedCandidateDetails.lastContact}</p>
-                  </div>
-                  <Button 
+              {/* Last Contact + Actions */}
+              <div className="flex items-center justify-between gap-2 pt-2 border-t">
+                <div>
+                  <p className="text-[10px] text-gray-500">Last Contact</p>
+                  <p className="text-xs text-gray-700">{selectedCandidateDetails.lastContact}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowCandidateDetailsDialog(false)}
+                    className="h-7 text-[11px] px-3"
+                  >
+                    Close
+                  </Button>
+                  <Button
                     size="sm"
                     onClick={() => {
                       setShowCandidateDetailsDialog(false)
                       setSelectedCandidates([selectedCandidateDetails.email])
-                      setShowJDDialog(true) // Use the Send JD dialog instead
+                      setShowJDDialog(true)
                     }}
+                    className="h-7 text-[11px] px-3"
                   >
                     <Mail className="h-3 w-3 mr-1" />
                     Send Email
                   </Button>
                 </div>
-              </Card>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-4 border-t">
-                <Button 
-                  onClick={() => setShowCandidateDetailsDialog(false)} 
-                  className="flex-1"
-                >
-                  Close
-                </Button>
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      <style jsx global>{`
+        .tp-no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+        .tp-no-scrollbar::-webkit-scrollbar { width: 0; height: 0; display: none; }
+      `}</style>
     </div>
   )
 }

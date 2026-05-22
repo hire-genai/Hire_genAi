@@ -59,11 +59,17 @@ export async function GET(request: NextRequest) {
           ELSE 'Direct'
         END AS candidate_source,
         c.notes AS candidate_notes,
-        tp.skills AS skills,                          -- Skills from talent_pool_entries (matches UAT)
+        tp.skills AS skills,                          -- Skills from talent_pool_entries (manual fallback)
         -- Get best CV score from any application
         (SELECT MAX(a.ai_cv_score) FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid) AS best_cv_score,
         -- Get best interview score from interviews table
         (SELECT MAX(i.interview_score) FROM interviews i JOIN applications a ON i.application_id = a.id WHERE a.candidate_id = c.id AND a.company_id = $1::uuid) AS best_interview_score,
+        -- Get qualification_explanations from the application that produced the best CV score (resume-parsed data)
+        (SELECT a.qualification_explanations
+           FROM applications a
+          WHERE a.candidate_id = c.id AND a.company_id = $1::uuid AND a.ai_cv_score IS NOT NULL
+          ORDER BY a.ai_cv_score DESC NULLS LAST, a.updated_at DESC
+          LIMIT 1) AS best_qual_explanations,
         -- Get rejection info from most recent application
         (SELECT a.rejection_stage FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid AND a.current_stage = 'rejected' ORDER BY a.updated_at DESC LIMIT 1) AS rejection_stage,
         (SELECT a.rejection_reason FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid AND a.current_stage = 'rejected' ORDER BY a.updated_at DESC LIMIT 1) AS rejection_reason,
@@ -145,8 +151,31 @@ export async function GET(request: NextRequest) {
     }
 
     const formattedEntries = entries.map((e: any) => {
-      // Parse skills from comma-separated string to array
-      const skills = e.skills ? e.skills.split(',').map((s: string) => s.trim()).filter(Boolean) : []
+      // Safely parse qualification_explanations (may come back as object or JSON string)
+      let qual: any = {}
+      try {
+        qual = typeof e.best_qual_explanations === 'string'
+          ? JSON.parse(e.best_qual_explanations)
+          : (e.best_qual_explanations || {})
+      } catch { qual = {} }
+      const extracted = qual?.extracted || {}
+
+      // Skills: prefer resume-parsed (extracted.skills) when present; else fall back to talent_pool_entries.skills
+      const parsedSkills: string[] = Array.isArray(extracted.skills)
+        ? extracted.skills.map((s: any) => (typeof s === 'string' ? s : (s?.name || ''))).filter(Boolean)
+        : []
+      const manualSkills: string[] = e.skills ? e.skills.split(',').map((s: string) => s.trim()).filter(Boolean) : []
+      const skills = parsedSkills.length > 0 ? parsedSkills : manualSkills
+
+      // Previous Company Set: prefer resume-parsed work_experience; else split candidates.current_company
+      const parsedCompanies: string[] = Array.isArray(extracted.work_experience)
+        ? extracted.work_experience.map((w: any) => (typeof w === 'string' ? w : (w?.company || ''))).filter(Boolean)
+        : []
+      const manualCompanies: string[] = e.current_company
+        ? String(e.current_company).split(',').map((c: string) => c.trim()).filter(Boolean)
+        : []
+      const companies = parsedCompanies.length > 0 ? parsedCompanies : manualCompanies
+
       const appHistory = appHistoryMap[e.candidate_id] || []
 
       // Build combined history
@@ -178,6 +207,7 @@ export async function GET(request: NextRequest) {
         phone: e.phone || '',
         location: e.location || '',
         currentCompany: e.current_company || '',
+        companies,
         experienceYears: e.experience_years,
         linkedinUrl: e.linkedin_url || '',
         resumeUrl: e.resume_url || '',

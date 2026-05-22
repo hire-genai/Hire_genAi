@@ -83,6 +83,8 @@ export function CandidateActionDialog({
   const [hmInterviewDate, setHmInterviewDate] = useState('')
   const [hmFeedbackDate, setHmFeedbackDate] = useState('')
   const [hmSaveLoading, setHmSaveLoading] = useState(false)
+  const [compSaveLoading, setCompSaveLoading] = useState(false)
+  const [compSaved, setCompSaved] = useState(false)
   const [offerStatus, setOfferStatus] = useState(candidate?.offerStatus || 'Not Sent Yet')
   const [interviewType, setInterviewType] = useState('')
   const [interviewerName, setInterviewerName] = useState('')
@@ -140,8 +142,8 @@ export function CandidateActionDialog({
       setInterviewType('')
       setInterviewerName('')
       
-      // Reset offer-related states
-      setOfferAmount('')
+      // Reset offer-related states — pre-fill saved values if available
+      setOfferAmount(candidate?.offerAmount ? String(candidate.offerAmount).replace(/[^0-9.]/g, '') : '')
       setOfferExpiry('')
       setOfferBonus('')
       setOfferEquity('')
@@ -398,6 +400,37 @@ export function CandidateActionDialog({
       console.error('Offer save error:', err)
     } finally {
       setMoveLoading(false)
+    }
+  }
+
+  const handleSaveCompensation = async () => {
+    if (!candidate?.id) return
+    try {
+      setCompSaveLoading(true)
+      const res = await fetch('/api/applications/update-offer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicationId: candidate.id,
+          offerAmount: offerAmount || undefined,
+          offerBonus: offerBonus || undefined,
+          offerEquity: offerEquity || undefined,
+          offerCurrency: offerCurrency || 'USD',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data?.error) {
+        alert(data?.error || 'Failed to save compensation')
+        return
+      }
+      setCompSaved(true)
+      setTimeout(() => setCompSaved(false), 2000)
+      if (onMoved) onMoved()
+    } catch (err) {
+      console.error('Compensation save error:', err)
+      alert('Failed to save compensation')
+    } finally {
+      setCompSaveLoading(false)
     }
   }
 
@@ -789,7 +822,16 @@ export function CandidateActionDialog({
                   </div>
 
                   <Card className="p-3 bg-gray-50">
-                    <h5 className="font-medium text-sm mb-3">Compensation Package</h5>
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="font-medium text-sm">Compensation Package</h5>
+                      <button
+                        onClick={handleSaveCompensation}
+                        disabled={compSaveLoading}
+                        className="text-[11px] font-semibold px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 transition-colors"
+                      >
+                        {compSaveLoading ? 'Saving…' : compSaved ? '✓ Saved' : 'Save'}
+                      </button>
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <Label className="text-xs">Currency</Label>
@@ -963,12 +1005,24 @@ export function CandidateActionDialog({
                     <h5 className="font-medium text-sm mb-2">Final Package Details</h5>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>
-                        <Label className="text-xs text-gray-600">Base Salary</Label>
-                        <p className="font-medium">{candidate?.offerAmount || 'N/A'}</p>
+                        <Label className="text-xs text-gray-600">Base Salary / yr</Label>
+                        <p className="font-medium text-emerald-700">
+                          {candidate?.offerAmount
+                            ? candidate.offerAmount
+                            : <span className="text-gray-400 italic">Not set</span>}
+                        </p>
                       </div>
                       <div>
-                        <Label className="text-xs text-gray-600">Total Compensation</Label>
-                        <p className="font-medium">Calculate from offer data</p>
+                        <Label className="text-xs text-gray-600">Annual Bonus</Label>
+                        <p className="font-medium">{candidate?.offerBonus ? `${candidate?.offerCurrency || candidate?.jobCurrency || ''} ${Number(candidate.offerBonus).toLocaleString()}` : <span className="text-gray-400 italic">Not set</span>}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-600">Equity / Stock</Label>
+                        <p className="font-medium">{candidate?.offerEquity || <span className="text-gray-400 italic">Not set</span>}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-600">Currency</Label>
+                        <p className="font-medium">{candidate?.offerCurrency || candidate?.jobCurrency || 'USD'}</p>
                       </div>
                     </div>
                   </Card>

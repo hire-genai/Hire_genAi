@@ -52,8 +52,13 @@ export async function POST(req: NextRequest) {
       fields.push(`offer_status = $${idx++}`)
       values.push(dbStatus)
     }
-    if (offerAmount !== undefined)          { fields.push(`offer_amount = $${idx++}`);            values.push(offerAmount || null) }
-    if (offerBonus !== undefined)           { fields.push(`offer_bonus = $${idx++}`);             values.push(offerBonus || null) }
+    const stripToNumber = (v: any) => {
+      if (v === undefined || v === null || v === '') return null
+      const n = parseFloat(String(v).replace(/[^0-9.]/g, ''))
+      return isNaN(n) ? null : n
+    }
+    if (offerAmount !== undefined)          { fields.push(`offer_amount = $${idx++}`);            values.push(stripToNumber(offerAmount)) }
+    if (offerBonus !== undefined)           { fields.push(`offer_bonus = $${idx++}`);             values.push(stripToNumber(offerBonus)) }
     if (offerEquity !== undefined)          { fields.push(`offer_equity = $${idx++}`);            values.push(offerEquity || null) }
     if (offerExtendedDate !== undefined)    { fields.push(`offer_extended_date = $${idx++}`);     values.push(offerExtendedDate || null) }
     if (offerExpiryDate !== undefined)      { fields.push(`offer_expiry_date = $${idx++}`);       values.push(offerExpiryDate || null) }
