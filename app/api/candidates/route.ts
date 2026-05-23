@@ -267,7 +267,11 @@ export async function GET(req: NextRequest) {
         hmFeedbackDate: app.hm_feedback_date ? new Date(app.hm_feedback_date).toISOString().split('T')[0] : '',
         hiringManager: 'Assigned Manager',
         daysWithHM: '0 days',
-        offerAmount: app.offer_amount != null ? `$${Number(app.offer_amount).toLocaleString()}` : '$0',
+        offerAmount: app.offer_amount != null && Number(app.offer_amount) > 0
+          ? `${app.offer_currency || 'USD'} ${Number(app.offer_amount).toLocaleString()}`
+          : '',
+        offerBonus: app.offer_bonus != null ? app.offer_bonus : null,
+        offerEquity: app.offer_equity || '',
         offerStatus: formatOfferStatus(app.offer_status),
         hireDate: app.hire_date ? new Date(app.hire_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
         rawHireDate: app.hire_date ? new Date(app.hire_date).toISOString().split('T')[0] : '',
@@ -289,13 +293,58 @@ export async function GET(req: NextRequest) {
         offerCurrency: app.offer_currency || app.job_currency || 'USD',
         // Extract detailed info from qualification_explanations
         qualificationDetails: app.qualification_explanations || {},
-        skills: (app.qualification_explanations?.extracted?.skills || []).join(', '),
-        experience: app.qualification_explanations?.extracted?.relevant_experience_years || app.qualification_explanations?.extracted?.total_experience_years_estimate || app.qualification_explanations?.extracted?.experience || app.qualification_explanations?.extracted?.experienceYears || '',
+        ...(() => {
+          // Safe parse — JSONB may come back as string or object depending on driver
+          const raw = app.qualification_explanations
+          const qe: any = !raw ? {} : typeof raw === 'string' ? (() => { try { return JSON.parse(raw) } catch { return {} } })() : raw
+
+          const rawSkills: any[] = qe?.extracted?.skills || []
+          const allSkills: string[] = Array.isArray(rawSkills)
+            ? rawSkills.map((s: any) => (typeof s === 'string' ? s : (s?.name || ''))).filter(Boolean)
+            : []
+
+          const yrs = qe?.extracted?.total_experience_years_estimate
+            || qe?.extracted?.relevant_experience_years
+            || null
+          const experience = (() => {
+            if (yrs == null) return ''
+            const n = parseFloat(yrs)
+            const full = Math.floor(n)
+            const months = Math.round((n - full) * 12)
+            if (months === 0) return `${full} yr${full !== 1 ? 's' : ''}`
+            if (full === 0) return `${months} mo${months !== 1 ? 's' : ''}`
+            return `${full} yr${full !== 1 ? 's' : ''} ${months} mo${months !== 1 ? 's' : ''}`
+          })()
+
+          return {
+            skills: allSkills.join(', '),
+            experience,
+          }
+        })(),
         education: Array.isArray(app.qualification_explanations?.extracted?.education) 
           ? app.qualification_explanations.extracted.education.map((edu: any) => typeof edu === 'object' ? `${edu.degree || ''} ${edu.field || ''} - ${edu.institution || ''}`.trim() : edu).join('; ')
           : (app.qualification_explanations?.extracted?.education || ''),
-        currentCompany: app.qualification_explanations?.extracted?.currentCompany || '',
-        currentRole: app.qualification_explanations?.extracted?.currentRole || app.qualification_explanations?.extracted?.currentTitle || '',
+        currentCompany: (app.qualification_explanations?.extracted?.work_experience?.[0]?.company || '').split(',')[0].trim() || '',
+        currentRole: app.qualification_explanations?.extracted?.currentRole
+          || app.qualification_explanations?.extracted?.currentTitle
+          || app.qualification_explanations?.extracted?.work_experience?.[0]?.title
+          || app.qualification_explanations?.extracted?.titles?.[0]
+          || '',
+        companySet: (() => {
+          const workExp = app.qualification_explanations?.extracted?.work_experience || []
+          const seen = new Set<string>()
+          const companies: string[] = []
+          for (const w of workExp) {
+            if (!w.company) continue
+            // Company is stored as "Company Name, City, Country" — take only the part before the first comma
+            const name = w.company.split(',')[0].trim()
+            if (name && !seen.has(name.toLowerCase())) {
+              seen.add(name.toLowerCase())
+              companies.push(name)
+            }
+          }
+          return companies.join(', ')
+        })(),
         noticePeriod: app.qualification_explanations?.extracted?.noticePeriod || '30',
         candidateLocation: app.candidate_location || app.qualification_explanations?.extracted?.location || ''
       }

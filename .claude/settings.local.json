@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git show *)"
+      "Bash(git show *)",
+      "Bash(node -e ' *)",
+      "Bash(npx tsc *)"
     ],
     "additionalDirectories": [
       "\\tmp"

@@ -73,6 +73,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Always allow API routes — they handle their own auth
+  if (pathname.startsWith(API_PREFIX)) {
+    return NextResponse.next()
+  }
+
   // Block any nested dashboard routes (e.g., /dashboard/candidates, /dashboard/*)
   if (pathname.startsWith('/dashboard/')) {
     return NextResponse.rewrite(new URL('/not-found', request.url), { status: 404 })
@@ -85,10 +90,6 @@ export async function middleware(request: NextRequest) {
 
   // --- WWW subdomain enforcement ---
   if (subdomain === 'www') {
-    // Block API routes on www
-    if (pathname.startsWith(API_PREFIX)) {
-      return NextResponse.rewrite(new URL('/not-found', request.url), { status: 404 })
-    }
 
     // Block application routes on www
     if (APP_ROUTES.has(pathname)) {
@@ -108,11 +109,6 @@ export async function middleware(request: NextRequest) {
 
   // --- APP subdomain enforcement ---
   if (subdomain === 'app') {
-    // Allow API routes on app
-    if (pathname.startsWith(API_PREFIX)) {
-      return NextResponse.next()
-    }
-
     // Block marketing routes on app
     if (WWW_ROUTES.has(pathname) && pathname !== '/') {
       // Redirect marketing pages to www subdomain

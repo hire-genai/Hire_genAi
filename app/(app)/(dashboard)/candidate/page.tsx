@@ -20,7 +20,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Users, Filter, Calendar, UserCheck, FileText, CheckCircle, XCircle, Database, Download, FileTextIcon, Search, ChevronLeft, ArrowRight } from 'lucide-react'
+import { Users, Filter, Calendar, UserCheck, FileText, CheckCircle, XCircle, Database, FileTextIcon, Search, ChevronLeft, ArrowRight, MoreVertical, Settings2, Linkedin } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
 import { CandidateActionDialog } from '@/components/dashboard/candidate-action-dialogs'
 import { useMobileMenu } from '@/components/dashboard/mobile-menu-context'
@@ -69,6 +69,11 @@ export default function CandidatesPage() {
   const [candidateDetailsOpen, setCandidateDetailsOpen] = useState(false)
   const [jdDetailsOpen, setJdDetailsOpen] = useState(false)
   const [editableCandidate, setEditableCandidate] = useState<any>(null)
+  const [reportModalOpen, setReportModalOpen] = useState(false)
+  const [reportUrl, setReportUrl] = useState('')
+  const [resumeModalOpen, setResumeModalOpen] = useState(false)
+  const [resumeUrl, setResumeUrl] = useState('')
+  const [resumeCandidateName, setResumeCandidateName] = useState('')
   const { setIsCollapsed } = useMobileMenu()
   const [searchQuery, setSearchQuery] = useState('')
   const [positionFilter, setPositionFilter] = useState('all')
@@ -522,82 +527,116 @@ export default function CandidatesPage() {
       case 'screening':
         return (
           <>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Candidate</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Position</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Applied Date</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Source</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Screening Score</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Screening Status</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Actions</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 whitespace-nowrap uppercase tracking-wide">App / Cand / Job ID</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Candidate Name</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Email / Phone</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Source / Score / Status</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">LinkedIn / Resume</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Yrs of Exp</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide min-w-[200px]">Skills</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Previous Company</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Application History</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 uppercase tracking-wide sticky right-0 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)] border-l border-gray-200">Action</th>
           </>
         )
       case 'interview':
         return (
           <>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Candidate</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Position</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">CV Score</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Interview Score</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Interview Status</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Interview Result</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Comments</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Actions</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 whitespace-nowrap uppercase tracking-wide">App / Cand / Job ID</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Candidate Name</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Email / Phone</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Exp</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">LinkedIn / Resume</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">CV / Interview Score</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[140px]">Status / Result</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide min-w-[130px]">Source / Comment</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide min-w-[200px]">Skills</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[180px]">Company Set</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide min-w-[110px]">JD</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 uppercase tracking-wide sticky right-0 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)] border-l border-gray-200">Action</th>
           </>
         )
       case 'hiringManager':
         return (
           <>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Candidate</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Position</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Hiring Manager</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Days with HM</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">HM Status</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Comments</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Actions</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">App / Cand / Job ID</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Candidate Name</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Email / Phone</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Exp</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">LinkedIn / Resume</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Position</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[140px]">HM Status / Rating</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Comments</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide min-w-[200px]">Skills</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Previous Company</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 uppercase tracking-wide sticky right-0 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)] border-l border-gray-200">Action</th>
           </>
         )
       case 'offer':
         return (
           <>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Candidate</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Position</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Offer Amount</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Offer Status</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Comments</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Actions</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">App / Cand / Job ID</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Candidate Name</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Email / Phone</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Exp</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">LinkedIn / Resume</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Position</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Offer Amount / Status</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Comments</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide min-w-[200px]">Skills</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Previous Company</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 uppercase tracking-wide sticky right-0 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)] border-l border-gray-200">Action</th>
           </>
         )
       case 'hired':
         return (
           <>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Candidate</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Position</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Hire Date</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Start Date</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Hire Status</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Comments</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Actions</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">App / Cand / Job ID</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Candidate Name</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Email / Phone</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Exp</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">LinkedIn / Resume</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Position</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Salary / Bonus</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Hire Date / Start Date</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Hire Status</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Comments</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide min-w-[200px]">Skills</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Previous Company</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 uppercase tracking-wide sticky right-0 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)] border-l border-gray-200">Action</th>
           </>
         )
       case 'rejected':
         return (
           <>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Candidate</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Position</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Rejection Stage</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Rejection Reason</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Actions</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">App / Cand / Job ID</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Candidate Name</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Email / Phone</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Exp</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">LinkedIn / Resume</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Position</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Rejection Stage</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[160px]">Rejection Reason</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide min-w-[200px]">Skills</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Previous Company</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 uppercase tracking-wide sticky right-0 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)] border-l border-gray-200">Action</th>
           </>
         )
       default:
         return (
           <>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Candidate</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Position</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Applied Date</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Status</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Source</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50">Actions</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">App / Cand / Job ID</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Candidate Name</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Email / Phone</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Exp</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">LinkedIn / Resume</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Position</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Applied Date</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Stage / Status</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Source</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide min-w-[200px]">Skills</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Previous Company</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 uppercase tracking-wide sticky right-0 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)] border-l border-gray-200">Action</th>
           </>
         )
     }
@@ -628,205 +667,499 @@ export default function CandidatesPage() {
     
     return filteredData.map((application: any, index: number) => (
       <tr key={index} className="hover:bg-gray-50 transition-colors border-b">
-        <td className="px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
-              {application?.name?.split(' ').map((n: string) => n[0]).join('')}
-            </div>
-            <button 
-              onClick={() => {
-                setEditableCandidate({...application})
-                setCandidateDetailsOpen(true)
-              }}
-              className="font-medium text-emerald-600 hover:text-emerald-800 text-sm underline decoration-dotted cursor-pointer transition-colors"
-            >
-              {application?.name}
-            </button>
-          </div>
-        </td>
-        <td className="px-6 py-4">
-          <button 
-            onClick={() => {
-              setSelectedCandidate(application)
-              setJdDetailsOpen(true)
-            }}
-            className="text-sm text-emerald-600 hover:text-emerald-800 underline decoration-dotted cursor-pointer transition-colors"
-          >
-            {application?.position}
-          </button>
-        </td>
-        
-        {activeBucket === 'screening' && (
+        {activeBucket === 'interview' ? (
           <>
-            <td className="px-6 py-4 text-sm text-gray-600">{application?.appliedDate}</td>
-            <td className="px-6 py-4 text-sm text-gray-600">{application?.source}</td>
-            <td className="px-6 py-4">
-              <Badge className="bg-emerald-100 text-emerald-800 font-semibold">
-                {application?.screeningScore}
-              </Badge>
-            </td>
-            <td className="px-6 py-4">
-              <Badge className={application?.screeningStatus === 'Qualified' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                {application?.screeningStatus}
-              </Badge>
-            </td>
-            <td className="px-6 py-4">
-              <div className="flex gap-2">
-                <Button size="sm" onClick={() => handleViewCandidate(application)}>
-                  Action
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  title="CV Report"
-                  onClick={() => {
-                    window.open(`/report/${application?.jobId}/${application?.candidateId}`, '_blank')
-                  }}
-                >
-                  <FileTextIcon className="h-4 w-4" />
-                </Button>
-                <Button size="sm" variant="outline" title="Download CV & Report">
-                  <Download className="h-4 w-4" />
-                </Button>
+            {/* IDs column */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              <div className="text-[10px] font-mono text-gray-500 whitespace-nowrap leading-5">
+                <span className="text-gray-400">App:</span> {application?.id ? String(application.id).slice(-8) : '—'}
+              </div>
+              <div className="text-[10px] font-mono text-gray-500 whitespace-nowrap leading-5">
+                <span className="text-gray-400">C:</span> {String(application?.candidateId || '—').slice(-8)}
+              </div>
+              <div className="text-[10px] font-mono text-gray-500 whitespace-nowrap leading-5">
+                <span className="text-gray-400">J:</span> {String(application?.jobId || '—').slice(-8)}
               </div>
             </td>
-          </>
-        )}
-        
-        {activeBucket === 'interview' && (
-          <>
-            <td className="px-6 py-4">
-              <Badge className="bg-emerald-100 text-emerald-800 font-semibold">
-                {application?.cvScore}
+
+            {/* Candidate Name */}
+            <td className="px-3 py-3 border-r border-gray-100 min-w-[140px]">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-purple-600 flex items-center justify-center text-white font-semibold text-[10px] shrink-0">
+                  {application?.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                </div>
+                <button
+                  onClick={() => {
+                    setEditableCandidate({...application})
+                    setCandidateDetailsOpen(true)
+                  }}
+                  className="text-xs font-medium text-emerald-600 hover:text-emerald-800 underline decoration-dotted cursor-pointer transition-colors text-left leading-tight whitespace-nowrap"
+                >
+                  {application?.name}
+                </button>
+              </div>
+            </td>
+
+            {/* Email / Phone */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              <div className="text-xs text-gray-700 whitespace-nowrap">{application?.email || '—'}</div>
+              <div className="text-[10px] text-gray-500 mt-0.5 whitespace-nowrap">{application?.phone || '—'}</div>
+            </td>
+
+            {/* Experience */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              {application?.experience ? (
+                <span className="inline-block bg-indigo-50 text-indigo-700 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-indigo-200 whitespace-nowrap">
+                  {application.experience}
+                </span>
+              ) : <span className="text-[10px] text-gray-400">—</span>}
+            </td>
+
+            {/* LinkedIn / Resume - icons */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              <div className="flex items-center gap-2">
+                {application?.linkedinUrl ? (
+                  <a
+                    href={application.linkedinUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Open LinkedIn"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors"
+                  >
+                    <Linkedin className="h-4 w-4 text-green-600 fill-green-600" strokeWidth={2} />
+                  </a>
+                ) : (
+                  <span
+                    title="No LinkedIn"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-50 border border-gray-200"
+                  >
+                    <Linkedin className="h-4 w-4 text-gray-400" strokeWidth={2} />
+                  </span>
+                )}
+                {application?.resumeUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => { setResumeUrl(application.resumeUrl); setResumeCandidateName(application?.name || application?.candidateName || ''); setResumeModalOpen(true) }}
+                    title="Open Resume"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors cursor-pointer"
+                  >
+                    <FileText className="h-4 w-4 text-green-600" strokeWidth={2} />
+                  </button>
+                ) : (
+                  <span
+                    title="No Resume"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-50 border border-gray-200"
+                  >
+                    <FileText className="h-4 w-4 text-gray-400" strokeWidth={2} />
+                  </span>
+                )}
+              </div>
+            </td>
+
+            {/* CV Score / Interview Score */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              <Badge className="bg-emerald-100 text-emerald-800 font-semibold text-[10px] px-1.5 py-0 h-auto">
+                {application?.cvScore ?? '—'}
               </Badge>
+              <div className="mt-1">
+                <Badge className={`text-[10px] px-1.5 py-0 h-auto ${application?.interviewScore && application.interviewScore !== 'N/A' ? 'bg-purple-100 text-purple-800 font-semibold' : 'bg-gray-100 text-gray-500'}`}>
+                  {application?.interviewScore || 'N/A'}
+                </Badge>
+              </div>
             </td>
-            <td className="px-6 py-4">
-              <Badge className={application?.interviewScore !== 'N/A' ? 'bg-purple-100 text-purple-800 font-semibold' : 'bg-gray-100 text-gray-800'}>
-                {application?.interviewScore}
+
+            {/* Interview Status / Result */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              <Badge className={`text-[10px] px-1.5 py-0 h-auto ${
+                application?.interviewStatus === 'Completed' ? 'bg-green-100 text-green-800' :
+                application?.interviewStatus === 'Scheduled' ? 'bg-emerald-100 text-emerald-800' :
+                'bg-gray-100 text-gray-600'
+              }`}>
+                {application?.interviewStatus || 'Pending'}
               </Badge>
+              <div className="mt-1">
+                <Badge className={`text-[10px] px-1.5 py-0 h-auto ${
+                  application?.interviewResult === 'Strongly Recommend' ? 'bg-purple-600 text-white font-bold' :
+                  application?.interviewResult === 'Recommend' ? 'bg-blue-600 text-white font-semibold' :
+                  application?.interviewResult === 'Maybe' ? 'bg-orange-500 text-white font-medium' :
+                  application?.interviewResult === 'Reject' ? 'bg-red-600 text-white font-medium' :
+                  'bg-amber-100 text-amber-800'
+                }`}>
+                  {application?.interviewResult || 'Pending'}
+                </Badge>
+              </div>
             </td>
-            <td className="px-6 py-4">
-              <Badge className={
-                application?.interviewStatus === 'Completed' ? 'bg-green-100 text-green-800' : 
-                application?.interviewStatus === 'Scheduled' ? 'bg-emerald-100 text-emerald-800' : 
-                'bg-gray-100 text-gray-800'
-              }>
-                {application?.interviewStatus}
-              </Badge>
+
+            {/* Source / Comment */}
+            <td className="px-3 py-3 border-r border-gray-100 max-w-[140px]">
+              <div className="text-xs text-gray-600">{application?.source || '—'}</div>
+              <div className="text-[10px] text-gray-500 mt-0.5 truncate" title={application?.comments}>{application?.comments || '—'}</div>
             </td>
-            <td className="px-6 py-4">
-              <Badge className={
-                application?.interviewResult === 'Strongly Recommend' ? 'bg-purple-600 text-white font-bold' : 
-                application?.interviewResult === 'Recommend' ? 'bg-blue-600 text-white font-semibold' : 
-                application?.interviewResult === 'Maybe' ? 'bg-orange-500 text-white font-medium' : 
-                application?.interviewResult === 'Reject' ? 'bg-red-600 text-white font-medium' : 
-                'bg-amber-100 text-amber-800'
-              }>
-                {application?.interviewResult}
-              </Badge>
+
+            {/* Skills */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              {application?.skills ? (
+                <div
+                  className="max-h-[80px] overflow-y-auto flex flex-wrap gap-1"
+                  style={{scrollbarWidth:'thin', scrollbarColor:'#e5e7eb transparent'}}
+                >
+                  {String(application.skills).split(',').filter(s => s.trim()).map((s: string, i: number) => (
+                    <span key={i} className="bg-emerald-50 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-full border border-emerald-200 whitespace-nowrap">
+                      {s.trim()}
+                    </span>
+                  ))}
+                </div>
+              ) : <span className="text-[10px] text-gray-400">—</span>}
             </td>
-            <td className="px-6 py-4 text-xs text-gray-600 max-w-xs truncate">
-              {application?.comments}
+
+            {/* Company Set */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              {application?.companySet ? (
+                <div
+                  className="max-h-[80px] overflow-y-auto flex flex-col gap-0.5"
+                  style={{scrollbarWidth:'thin', scrollbarColor:'#e5e7eb transparent'}}
+                >
+                  {String(application.companySet).split(',').filter(c => c.trim()).map((c: string, i: number) => (
+                    <span key={i} className="text-[10px] text-gray-700 whitespace-nowrap leading-5">
+                      {i + 1}. {c.trim()}
+                    </span>
+                  ))}
+                </div>
+              ) : <span className="text-[10px] text-gray-400">—</span>}
             </td>
-            <td className="px-6 py-4">
-              <div className="flex gap-2">
-                <Button size="sm" onClick={() => handleViewCandidate(application)}>
-                  Action
+
+            {/* JD */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              <button
+                onClick={() => {
+                  setSelectedCandidate(application)
+                  setJdDetailsOpen(true)
+                }}
+                className="text-xs text-emerald-600 hover:text-emerald-800 underline decoration-dotted cursor-pointer transition-colors text-left leading-tight max-w-[100px] truncate block"
+                title={application?.position}
+              >
+                {application?.position}
+              </button>
+            </td>
+
+            {/* Action - sticky right */}
+            <td className="px-3 py-3 sticky right-0 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] border-l border-gray-100">
+              <div className="flex gap-1.5">
+                <Button size="sm" onClick={() => handleViewCandidate(application)} title="Actions" className="h-7 w-7 p-0">
+                  <Settings2 className="h-3.5 w-3.5" />
                 </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
+                <Button
+                  size="sm"
+                  variant="outline"
                   title="Interview Report"
+                  className="h-7 w-7 p-0"
                   onClick={() => {
-                    window.open(`/report/${application?.jobId}/${application?.candidateId}`, '_blank')
+                    setReportUrl(`/report/${application?.jobId}/${application?.candidateId}`); setReportModalOpen(true)
                   }}
                 >
-                  <FileTextIcon className="h-4 w-4" />
-                </Button>
-                <Button size="sm" variant="outline" title="Download Reports & CV">
-                  <Download className="h-4 w-4" />
+                  <FileTextIcon className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </td>
           </>
-        )}
-        
-        {activeBucket === 'hiringManager' && (
+        ) : activeBucket === 'screening' ? (
           <>
-            <td className="px-6 py-4 text-sm text-gray-700 font-medium">{application?.hiringManager}</td>
-            <td className="px-6 py-4 text-sm text-gray-600">{application?.daysWithHM}</td>
-            <td className="px-6 py-4">
-              <Badge className={application?.hmStatus === 'Approved' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}>
-                {application?.hmStatus}
+            {/* IDs */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              <div className="text-[10px] font-mono text-gray-500 whitespace-nowrap leading-5"><span className="text-gray-400">App:</span> {application?.id ? String(application.id).slice(-8) : '—'}</div>
+              <div className="text-[10px] font-mono text-gray-500 whitespace-nowrap leading-5"><span className="text-gray-400">C:</span> {String(application?.candidateId || '—').slice(-8)}</div>
+              <div className="text-[10px] font-mono text-gray-500 whitespace-nowrap leading-5"><span className="text-gray-400">J:</span> {String(application?.jobId || '—').slice(-8)}</div>
+            </td>
+            {/* Candidate Name */}
+            <td className="px-3 py-3 border-r border-gray-100 min-w-[140px]">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-purple-600 flex items-center justify-center text-white font-semibold text-[10px] shrink-0">
+                  {application?.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                </div>
+                <button onClick={() => { setEditableCandidate({...application}); setCandidateDetailsOpen(true) }}
+                  className="text-xs font-medium text-emerald-600 hover:text-emerald-800 underline decoration-dotted cursor-pointer transition-colors text-left leading-tight whitespace-nowrap">
+                  {application?.name}
+                </button>
+              </div>
+            </td>
+            {/* Email / Phone */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              <div className="text-xs text-gray-700 whitespace-nowrap">{application?.email || '—'}</div>
+              <div className="text-[10px] text-gray-500 mt-0.5 whitespace-nowrap">{application?.phone || '—'}</div>
+            </td>
+            {/* Source / Score / Status */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              <div className="text-[10px] text-gray-600 mb-1">{application?.source || '—'}</div>
+              <Badge className="bg-emerald-100 text-emerald-800 font-semibold text-[10px] px-1.5 py-0 h-auto">
+                {application?.cvScore ?? '—'}
               </Badge>
+              <div className="mt-1">
+                <Badge className={`text-[10px] px-1.5 py-0 h-auto ${application?.screeningStatus === 'Qualified' ? 'bg-green-100 text-green-800' : application?.screeningStatus === 'Unqualified' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}>
+                  {application?.screeningStatus || 'Pending'}
+                </Badge>
+              </div>
             </td>
-            <td className="px-6 py-4 text-xs text-gray-600 max-w-xs truncate">{application?.comments}</td>
-            <td className="px-6 py-4">
-              <Button size="sm" onClick={() => handleViewCandidate(application)}>
-                Action
-              </Button>
+            {/* LinkedIn / Resume */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              <div className="flex items-center gap-2">
+                {application?.linkedinUrl ? (
+                  <a href={application.linkedinUrl} target="_blank" rel="noopener noreferrer" title="LinkedIn" className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors">
+                    <Linkedin className="h-4 w-4 text-green-600 fill-green-600" strokeWidth={2} />
+                  </a>
+                ) : (
+                  <span title="No LinkedIn" className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-50 border border-gray-200">
+                    <Linkedin className="h-4 w-4 text-gray-400" strokeWidth={2} />
+                  </span>
+                )}
+                {application?.resumeUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => { setResumeUrl(application.resumeUrl); setResumeCandidateName(application?.name || application?.candidateName || ''); setResumeModalOpen(true) }}
+                    title="Resume"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors cursor-pointer"
+                  >
+                    <FileText className="h-4 w-4 text-green-600" strokeWidth={2} />
+                  </button>
+                ) : (
+                  <span title="No Resume" className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-50 border border-gray-200">
+                    <FileText className="h-4 w-4 text-gray-400" strokeWidth={2} />
+                  </span>
+                )}
+              </div>
+            </td>
+            {/* Yrs of Exp */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              {application?.experience ? (
+                <span className="inline-block bg-indigo-50 text-indigo-700 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-indigo-200 whitespace-nowrap">{application.experience}</span>
+              ) : <span className="text-[10px] text-gray-400">—</span>}
+            </td>
+            {/* Skills */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              {application?.skills ? (
+                <div className="max-h-[80px] overflow-y-auto flex flex-wrap gap-1" style={{scrollbarWidth:'thin', scrollbarColor:'#e5e7eb transparent'}}>
+                  {String(application.skills).split(',').filter((s: string) => s.trim()).map((s: string, i: number) => (
+                    <span key={i} className="bg-emerald-50 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-full border border-emerald-200 whitespace-nowrap">{s.trim()}</span>
+                  ))}
+                </div>
+              ) : <span className="text-[10px] text-gray-400">—</span>}
+            </td>
+            {/* Previous Company */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              {application?.companySet ? (
+                <div className="max-h-[72px] overflow-y-auto flex flex-col gap-0.5" style={{scrollbarWidth:'thin', scrollbarColor:'#e5e7eb transparent'}}>
+                  {String(application.companySet).split(',').filter((c: string) => c.trim()).map((c: string, i: number) => (
+                    <span key={i} className="text-[10px] text-gray-700 whitespace-nowrap leading-5">{i + 1}. {c.trim()}</span>
+                  ))}
+                </div>
+              ) : <span className="text-[10px] text-gray-400">—</span>}
+            </td>
+            {/* Application History */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              <div className="text-[10px] text-gray-500 whitespace-nowrap">{application?.appliedDate || '—'}</div>
+              <button onClick={() => { setSelectedCandidate(application); setJdDetailsOpen(true) }}
+                className="text-[10px] text-emerald-600 hover:text-emerald-800 underline decoration-dotted cursor-pointer transition-colors text-left leading-tight max-w-[110px] truncate block mt-0.5"
+                title={application?.position}>
+                {application?.position}
+              </button>
+            </td>
+            {/* Action - sticky */}
+            <td className="px-3 py-3 sticky right-0 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] border-l border-gray-100">
+              <div className="flex gap-1.5">
+                <Button size="sm" onClick={() => handleViewCandidate(application)} title="Actions" className="h-7 w-7 p-0"><Settings2 className="h-3.5 w-3.5" /></Button>
+                <Button size="sm" variant="outline" title="CV Report" className="h-7 w-7 p-0" onClick={() => { setReportUrl(`/report/${application?.jobId}/${application?.candidateId}`); setReportModalOpen(true) }}><FileTextIcon className="h-3.5 w-3.5" /></Button>
+              </div>
             </td>
           </>
-        )}
-        
-        {activeBucket === 'offer' && (
+        ) : (
           <>
-            <td className="px-6 py-4 text-sm font-semibold text-gray-900">{application?.offerAmount}</td>
-            <td className="px-6 py-4">
-              <Badge className="bg-amber-100 text-amber-800">{application?.offerStatus}</Badge>
+            {/* IDs */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              <div className="text-[10px] font-mono text-gray-500 whitespace-nowrap leading-5"><span className="text-gray-400">App:</span> {application?.id ? String(application.id).slice(-8) : '—'}</div>
+              <div className="text-[10px] font-mono text-gray-500 whitespace-nowrap leading-5"><span className="text-gray-400">C:</span> {String(application?.candidateId || '—').slice(-8)}</div>
+              <div className="text-[10px] font-mono text-gray-500 whitespace-nowrap leading-5"><span className="text-gray-400">J:</span> {String(application?.jobId || '—').slice(-8)}</div>
             </td>
-            <td className="px-6 py-4 text-xs text-gray-600 max-w-xs truncate">{application?.comments}</td>
-            <td className="px-6 py-4">
-              <Button size="sm" onClick={() => handleViewCandidate(application)}>
-                Action
-              </Button>
+            {/* Candidate Name */}
+            <td className="px-3 py-3 border-r border-gray-100 min-w-[140px]">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-purple-600 flex items-center justify-center text-white font-semibold text-[10px] shrink-0">
+                  {application?.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                </div>
+                <button onClick={() => { setEditableCandidate({...application}); setCandidateDetailsOpen(true) }}
+                  className="text-xs font-medium text-emerald-600 hover:text-emerald-800 underline decoration-dotted cursor-pointer transition-colors text-left leading-tight whitespace-nowrap">
+                  {application?.name}
+                </button>
+              </div>
             </td>
-          </>
-        )}
-        
-        {activeBucket === 'hired' && (
-          <>
-            <td className="px-6 py-4 text-sm text-gray-600">{application?.hireDate}</td>
-            <td className="px-6 py-4 text-sm text-gray-600">{application?.startDate}</td>
-            <td className="px-6 py-4">
-              <Badge className={application?.hireStatus === 'Onboarded' ? 'bg-green-100 text-green-800' : 'bg-emerald-100 text-emerald-800'}>
-                {application?.hireStatus}
-              </Badge>
+            {/* Email / Phone */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              <div className="text-xs text-gray-700 whitespace-nowrap">{application?.email || '—'}</div>
+              <div className="text-[10px] text-gray-500 mt-0.5 whitespace-nowrap">{application?.phone || '—'}</div>
             </td>
-            <td className="px-6 py-4 text-xs text-gray-600 max-w-xs truncate">{application?.comments}</td>
-            <td className="px-6 py-4">
-              <Button size="sm" onClick={() => handleViewCandidate(application)}>
-                Action
-              </Button>
+            {/* Exp */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              {application?.experience ? (
+                <span className="inline-block bg-indigo-50 text-indigo-700 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-indigo-200 whitespace-nowrap">{application.experience}</span>
+              ) : <span className="text-[10px] text-gray-400">—</span>}
             </td>
-          </>
-        )}
-        
-        {activeBucket === 'rejected' && (
-          <>
-            <td className="px-6 py-4">
-              <Badge className="bg-red-100 text-red-800">{application?.rejectionStage || 'N/A'}</Badge>
+            {/* LinkedIn / Resume */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              <div className="flex items-center gap-2">
+                {application?.linkedinUrl ? (
+                  <a href={application.linkedinUrl} target="_blank" rel="noopener noreferrer" title="LinkedIn" className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors">
+                    <Linkedin className="h-4 w-4 text-green-600 fill-green-600" strokeWidth={2} />
+                  </a>
+                ) : (
+                  <span title="No LinkedIn" className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-50 border border-gray-200">
+                    <Linkedin className="h-4 w-4 text-gray-400" strokeWidth={2} />
+                  </span>
+                )}
+                {application?.resumeUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => { setResumeUrl(application.resumeUrl); setResumeCandidateName(application?.name || application?.candidateName || ''); setResumeModalOpen(true) }}
+                    title="Resume"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors cursor-pointer"
+                  >
+                    <FileText className="h-4 w-4 text-green-600" strokeWidth={2} />
+                  </button>
+                ) : (
+                  <span title="No Resume" className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-50 border border-gray-200">
+                    <FileText className="h-4 w-4 text-gray-400" strokeWidth={2} />
+                  </span>
+                )}
+              </div>
             </td>
-            <td className="px-6 py-4 text-sm text-gray-600">{application?.rejectionReason || <span className="text-gray-400 italic">Not specified</span>}</td>
-            <td className="px-6 py-4">
-              <Button size="sm" onClick={() => handleViewCandidate(application)}>
-                Action
-              </Button>
+            {/* Position */}
+            <td className="px-3 py-3 border-r border-gray-100">
+              <button onClick={() => { setSelectedCandidate(application); setJdDetailsOpen(true) }}
+                className="text-xs text-emerald-600 hover:text-emerald-800 underline decoration-dotted cursor-pointer transition-colors text-left leading-tight max-w-[120px] truncate block"
+                title={application?.position}>
+                {application?.position}
+              </button>
             </td>
-          </>
-        )}
-        
-        {activeBucket === 'all' && (
-          <>
-            <td className="px-6 py-4 text-sm text-gray-600">{application?.appliedDate}</td>
-            <td className="px-6 py-4">
-              <Badge className="bg-emerald-100 text-emerald-800">{application?.status}</Badge>
-            </td>
-            <td className="px-6 py-4 text-sm text-gray-600">{application?.source}</td>
-            <td className="px-6 py-4">
-              <Button size="sm" variant="outline" onClick={() => handleViewCandidate(application)}>
-                View
-              </Button>
+
+            {/* Hiring Manager specific */}
+            {activeBucket === 'hiringManager' && (
+              <>
+                <td className="px-3 py-3 border-r border-gray-100">
+                  <Badge className={`text-[10px] px-1.5 py-0 h-auto ${application?.hmStatus === 'Approved' ? 'bg-green-100 text-green-800' : application?.hmStatus === 'Rejected' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
+                    {application?.hmStatus || 'Pending'}
+                  </Badge>
+                  {application?.hmRating && (
+                    <div className="text-[10px] text-gray-500 mt-0.5">Rating: {application.hmRating}</div>
+                  )}
+                </td>
+                <td className="px-3 py-3 border-r border-gray-100 max-w-[150px]">
+                  <div className="text-[10px] text-gray-600 truncate" title={application?.comments}>{application?.comments || '—'}</div>
+                </td>
+              </>
+            )}
+
+            {/* Offer specific */}
+            {activeBucket === 'offer' && (
+              <>
+                <td className="px-3 py-3 border-r border-gray-100">
+                  <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">{application?.offerAmount || '—'}</div>
+                  <Badge className={`mt-1 text-[10px] px-1.5 py-0 h-auto ${application?.offerStatus === 'Accepted' ? 'bg-green-100 text-green-800' : application?.offerStatus === 'Declined' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
+                    {application?.offerStatus || 'Pending'}
+                  </Badge>
+                </td>
+                <td className="px-3 py-3 border-r border-gray-100 max-w-[150px]">
+                  <div className="text-[10px] text-gray-600 truncate" title={application?.comments}>{application?.comments || '—'}</div>
+                </td>
+              </>
+            )}
+
+            {/* Hired specific */}
+            {activeBucket === 'hired' && (
+              <>
+                <td className="px-3 py-3 border-r border-gray-100">
+                  {application?.offerAmount
+                    ? <div className="text-[10px] font-semibold text-emerald-700 whitespace-nowrap">{application.offerAmount}</div>
+                    : <span className="text-[10px] text-gray-400">—</span>}
+                  {application?.offerBonus
+                    ? <div className="text-[10px] text-gray-500 mt-0.5 whitespace-nowrap">+{application?.offerCurrency || ''} {Number(application.offerBonus).toLocaleString()} bonus</div>
+                    : null}
+                </td>
+                <td className="px-3 py-3 border-r border-gray-100">
+                  <div className="text-[10px] text-gray-700 whitespace-nowrap">{application?.hireDate || '—'}</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5 whitespace-nowrap">{application?.startDate || '—'}</div>
+                </td>
+                <td className="px-3 py-3 border-r border-gray-100">
+                  <Badge className={`text-[10px] px-1.5 py-0 h-auto ${application?.hireStatus === 'Onboarded' ? 'bg-green-100 text-green-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                    {application?.hireStatus || 'Awaiting'}
+                  </Badge>
+                </td>
+                <td className="px-3 py-3 border-r border-gray-100 max-w-[150px]">
+                  <div className="text-[10px] text-gray-600 truncate" title={application?.comments}>{application?.comments || '—'}</div>
+                </td>
+              </>
+            )}
+
+            {/* Rejected specific */}
+            {activeBucket === 'rejected' && (
+              <>
+                <td className="px-3 py-3 border-r border-gray-100">
+                  <Badge className="bg-red-100 text-red-800 text-[10px] px-1.5 py-0 h-auto">{application?.rejectionStage || 'N/A'}</Badge>
+                </td>
+                <td className="px-3 py-3 border-r border-gray-100 max-w-[160px]">
+                  <div className="text-[10px] text-gray-600 truncate" title={application?.rejectionReason}>{application?.rejectionReason || <span className="text-gray-400 italic">Not specified</span>}</div>
+                </td>
+              </>
+            )}
+
+            {/* All/default specific */}
+            {activeBucket === 'all' && (
+              <>
+                <td className="px-3 py-3 border-r border-gray-100">
+                  <div className="text-[10px] text-gray-600 whitespace-nowrap">{application?.appliedDate || '—'}</div>
+                </td>
+                <td className="px-3 py-3 border-r border-gray-100">
+                  <Badge className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0 h-auto">{application?.status || '—'}</Badge>
+                </td>
+                <td className="px-3 py-3 border-r border-gray-100">
+                  <div className="text-[10px] text-gray-600 whitespace-nowrap">{application?.source || '—'}</div>
+                </td>
+              </>
+            )}
+
+            {/* Skills - hiringManager/offer/hired/rejected/all tabs */}
+            {(activeBucket === 'all' || activeBucket === 'hiringManager' || activeBucket === 'offer' || activeBucket === 'hired' || activeBucket === 'rejected') && (
+              <td className="px-3 py-3 border-r border-gray-100">
+                {application?.skills ? (
+                  <div className="max-h-[80px] overflow-y-auto flex flex-wrap gap-1" style={{scrollbarWidth:'none'}}>
+                    {String(application.skills).split(',').filter((s: string) => s.trim()).map((s: string, i: number) => (
+                      <span key={i} className="bg-emerald-50 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-full border border-emerald-200 whitespace-nowrap">{s.trim()}</span>
+                    ))}
+                  </div>
+                ) : <span className="text-[10px] text-gray-400">—</span>}
+              </td>
+            )}
+
+            {/* Previous Company - hiringManager/offer/hired/rejected/all tabs */}
+            {(activeBucket === 'all' || activeBucket === 'hiringManager' || activeBucket === 'offer' || activeBucket === 'hired' || activeBucket === 'rejected') && (
+              <td className="px-3 py-3 border-r border-gray-100">
+                {application?.companySet ? (
+                  <div className="max-h-[80px] overflow-y-auto flex flex-col gap-0.5" style={{scrollbarWidth:'none'}}>
+                    {String(application.companySet).split(',').filter((c: string) => c.trim()).map((c: string, i: number) => (
+                      <span key={i} className="text-[10px] text-gray-700 whitespace-nowrap leading-5">{i + 1}. {c.trim()}</span>
+                    ))}
+                  </div>
+                ) : <span className="text-[10px] text-gray-400">—</span>}
+              </td>
+            )}
+
+            {/* Action - sticky right */}
+            <td className="px-3 py-3 sticky right-0 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] border-l border-gray-100">
+              <div className="flex gap-1.5">
+                <Button size="sm" onClick={() => handleViewCandidate(application)} title="Actions" className="h-7 w-7 p-0">
+                  <Settings2 className="h-3.5 w-3.5" />
+                </Button>
+                <Button size="sm" variant="outline" title="Report" className="h-7 w-7 p-0"
+                  onClick={() => { setReportUrl(`/report/${application?.jobId}/${application?.candidateId}`); setReportModalOpen(true) }}>
+                  <FileTextIcon className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </td>
           </>
         )}
@@ -1177,7 +1510,7 @@ export default function CandidatesPage() {
       {/* Applications Table - Mobile Responsive */}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto -mx-3 md:mx-0">
-          <div className="min-w-[800px] md:min-w-0">
+          <div className={activeBucket === 'interview' || activeBucket === 'screening' ? 'min-w-[1700px]' : 'min-w-[1550px]'}>
             <table className="w-full">
               <thead>
                 <tr>{renderTableHeaders()}</tr>
@@ -1446,6 +1779,94 @@ export default function CandidatesPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Report Modal */}
+      <Dialog open={reportModalOpen} onOpenChange={setReportModalOpen}>
+        <DialogContent className="w-[95vw] sm:w-[92vw] max-w-[95vw] sm:max-w-[800px] h-[96vh] sm:h-[94vh] p-0 overflow-hidden flex flex-col">
+          <DialogHeader className="px-4 py-3 border-b shrink-0">
+            <DialogTitle className="text-base font-semibold">Candidate Report</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden">
+            {reportModalOpen && reportUrl && (
+              <iframe
+                src={reportUrl}
+                className="w-full h-full border-0"
+                title="Candidate Report"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Resume Preview Modal */}
+      <Dialog open={resumeModalOpen} onOpenChange={setResumeModalOpen}>
+        <DialogContent className="w-[94vw] sm:w-[90vw] max-w-[94vw] sm:max-w-[800px] h-[96vh] sm:h-[94vh] p-0 overflow-hidden flex flex-col">
+          <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2">
+            <DialogTitle className="text-base font-semibold truncate">
+              {resumeCandidateName ? `Resume — ${resumeCandidateName}` : 'Resume'}
+            </DialogTitle>
+            {resumeUrl && (
+              <a
+                href={resumeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-emerald-700 hover:text-emerald-900 underline decoration-dotted mr-6"
+              >
+                Open in new tab
+              </a>
+            )}
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden bg-gray-100 cp-no-scrollbar">
+            {resumeModalOpen && resumeUrl && (() => {
+              const url = resumeUrl
+              const lower = url.toLowerCase().split('?')[0]
+              const isPdf = lower.endsWith('.pdf')
+              const isDoc = lower.endsWith('.doc') || lower.endsWith('.docx')
+              const isImage = /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(lower)
+              if (isPdf) {
+                return (
+                  <iframe
+                    src={`${url}#toolbar=0&navpanes=0`}
+                    className="w-full h-full border-0"
+                    title="Resume"
+                  />
+                )
+              }
+              if (isDoc) {
+                return (
+                  <iframe
+                    src={`https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`}
+                    className="w-full h-full border-0"
+                    title="Resume"
+                  />
+                )
+              }
+              if (isImage) {
+                return (
+                  <div className="w-full h-full flex items-center justify-center overflow-auto cp-no-scrollbar p-4">
+                    <img src={url} alt="Resume" className="max-w-full max-h-full object-contain" />
+                  </div>
+                )
+              }
+              return (
+                <iframe
+                  src={url}
+                  className="w-full h-full border-0"
+                  title="Resume"
+                />
+              )
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <style jsx global>{`
+        /* Invisible scrollbar for candidate page dialogs */
+        .cp-no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+        .cp-no-scrollbar::-webkit-scrollbar { width: 0; height: 0; display: none; }
+        [role="dialog"] *::-webkit-scrollbar { width: 0; height: 0; display: none; }
+        [role="dialog"] * { scrollbar-width: none; -ms-overflow-style: none; }
+      `}</style>
     </div>
   )
 }
