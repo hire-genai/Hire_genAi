@@ -5,6 +5,12 @@ import { decrypt } from "@/lib/encryption"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
+// Migrated to OpenAI Realtime GA API (Aug 2025).
+// - Endpoint: POST /v1/realtime/client_secrets (replaces the deprecated /v1/realtime/sessions beta endpoint)
+// - Body shape: { session: { type: "realtime", model, instructions, audio: { input, output }, output_modalities } }
+// - Response shape: { value, expires_at, session }
+// - No OpenAI-Beta header is sent — the GA API rejects the legacy beta shape.
+// - This route normalizes the response to { value, expires_at, model, session } for the client.
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
@@ -15,7 +21,7 @@ export async function GET(request: Request) {
     }
 
     console.log("\n" + "=".repeat(60))
-    console.log("🎯 [REALTIME SESSION] Starting session creation...")
+    console.log("🎯 [REALTIME SESSION] Starting GA session creation...")
     console.log("📋 Company ID:", companyId)
 
     let apiKey: string | null = null
@@ -73,7 +79,9 @@ export async function GET(request: Request) {
       )
     }
 
-    const model = process.env.OPENAI_REALTIME_MODEL || "gpt-4o-realtime-preview"
+    // GA default model is `gpt-realtime`. Keep env override for flexibility.
+    const model = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime"
+    const voice = process.env.OPENAI_REALTIME_VOICE || "alloy"
     console.log("🤖 Model:", model)
 
     const headers: Record<string, string> = {
@@ -86,25 +94,70 @@ export async function GET(request: Request) {
       console.log("✅ [REALTIME SESSION] Using OpenAI Project header:", projectId)
     }
 
-    const response = await fetch("https://api.openai.com/v1/realtime/sessions", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
+    // GA request body — note the nested audio.input/audio.output structure and `type: "realtime"`.
+    const requestBody = {
+      session: {
+        type: "realtime",
         model,
-        voice: "alloy",
-        modalities: ["audio", "text"],
-        turn_detection: {
-          type: "server_vad",
-          silence_duration_ms: 1200,
-          threshold: 0.6,
-          prefix_padding_ms: 300,
+        output_modalities: ["audio"],
+        instructions:
+          "You are a professional AI recruiter conducting a technical interview. Core rules: speak fluent English (en-US), ask ONE question at a time, and speak in complete sentences without unnatural pauses.",
+        audio: {
+          input: {
+            format: { type: "audio/pcm", rate: 24000 },
+            transcription: { model: "whisper-1" },
+            turn_detection: {
+              type: "server_vad",
+              threshold: 0.6,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 1200,
+              create_response: true,
+            },
+          },
+          output: {
+            format: { type: "audio/pcm", rate: 24000 },
+            voice,
+          },
         },
-        input_audio_transcription: {
-          model: "whisper-1",
-        },
-        instructions: `You are a professional AI recruiter conducting a technical interview. Core rules: speak fluent English (en-US), ask ONE question at a time, and speak in complete sentences without unnatural pauses.`,
-      }),
-    })
+      },
+    }
+
+    // Retry on transient 5xx errors (max 2 retries with exponential backoff).
+    let response: Response | null = null
+    let lastError: any = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(requestBody),
+        })
+
+        // Don't retry on client errors (4xx); only retry on 5xx
+        if (response.ok || response.status < 500) break
+
+        lastError = `HTTP ${response.status}`
+        if (attempt < 2) {
+          const backoff = 500 * Math.pow(2, attempt)
+          console.warn(`⚠️ [REALTIME SESSION] Attempt ${attempt + 1} failed (${lastError}), retrying in ${backoff}ms…`)
+          await new Promise(r => setTimeout(r, backoff))
+        }
+      } catch (err: any) {
+        lastError = err?.message || "Network error"
+        if (attempt < 2) {
+          const backoff = 500 * Math.pow(2, attempt)
+          console.warn(`⚠️ [REALTIME SESSION] Attempt ${attempt + 1} threw (${lastError}), retrying in ${backoff}ms…`)
+          await new Promise(r => setTimeout(r, backoff))
+        }
+      }
+    }
+
+    if (!response) {
+      return NextResponse.json(
+        { error: "Failed to reach OpenAI Realtime API", details: lastError },
+        { status: 502 }
+      )
+    }
 
     if (!response.ok) {
       let errorBody: any = null
@@ -113,6 +166,7 @@ export async function GET(request: Request) {
       } catch {
         errorBody = { error: await response.text() }
       }
+      console.error("❌ [REALTIME SESSION] OpenAI returned error:", response.status, errorBody)
       return NextResponse.json(
         { error: "Failed to create realtime session", details: errorBody },
         { status: response.status }
@@ -120,12 +174,22 @@ export async function GET(request: Request) {
     }
 
     const data = await response.json()
-    console.log("✅ [REALTIME SESSION] Session created successfully!")
-    console.log("🆔 Session ID:", data.id)
+    console.log("✅ [REALTIME SESSION] Session created successfully (GA)!")
     console.log("=".repeat(60) + "\n")
-    return NextResponse.json(data)
-  } catch (error) {
+
+    // Normalize the response so callers get a predictable shape regardless of
+    // future minor SDK changes. `value` is the ephemeral key for WebRTC auth.
+    return NextResponse.json({
+      value: data.value,
+      expires_at: data.expires_at,
+      model: data.session?.model || model,
+      session: data.session,
+    })
+  } catch (error: any) {
     console.error("❌ [REALTIME SESSION] Error:", error)
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Internal Server Error", details: error?.message },
+      { status: 500 }
+    )
   }
 }

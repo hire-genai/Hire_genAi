@@ -892,12 +892,12 @@ export default function InterviewVerifyPage() {
   }, [])
 
   return (
-    <div className="h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50 overflow-hidden">
-      <div className="max-w-xl mx-auto px-4 h-full flex flex-col justify-center">
+    <div className="h-screen overflow-y-scroll bg-gradient-to-br from-slate-50 via-white to-emerald-50">
+      <div className="max-w-xl mx-auto px-4 py-3 min-h-full flex flex-col justify-center">
         
         
         {/* Progress Steps */}
-        <div className="flex items-center justify-center gap-4 mb-4">
+        <div className="flex items-center justify-center gap-4 mb-3">
           <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
             currentStep === 1 
               ? 'bg-emerald-100 text-emerald-700 ring-2 ring-emerald-500' 
@@ -1010,15 +1010,13 @@ export default function InterviewVerifyPage() {
 
           {/* Step 2: Photo Verification */}
           {currentStep === 2 && (
-            <div className="p-6">
-              <div className="text-center mb-4">
-                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-emerald-100 mb-3">
-                  <Camera className="w-5 h-5 text-emerald-600" />
+            <div className="p-4">
+              <div className="text-center mb-2">
+                <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-emerald-100 mb-2">
+                  <Camera className="w-4 h-4 text-emerald-600" />
                 </div>
-                <h2 className="text-lg font-semibold text-slate-900">Photo Verification</h2>
-                <p className="text-slate-600 mt-1 text-sm">
-                  Take a photo to verify your identity
-                </p>
+                <h2 className="text-base font-semibold text-slate-900">Photo Verification</h2>
+                <p className="text-slate-500 text-xs mt-0.5">Take a photo to verify your identity</p>
               </div>
 
               {/* Camera / Photo Preview */}
@@ -1027,7 +1025,7 @@ export default function InterviewVerifyPage() {
                 {isCameraOpen && !capturedPhoto && (
                   <div className="flex flex-col items-center">
                     {/* Camera Stabilization / Face Detection Status */}
-                    <div className={`w-full max-w-xs mb-3 p-2 rounded-lg text-center text-sm font-medium ${
+                    <div className={`w-full max-w-xs mb-2 p-1.5 rounded-lg text-center text-sm font-medium ${
                       cameraStabilizing ? 'bg-blue-100 text-blue-700' :
                       faceStatus === 'ready' ? 'bg-emerald-100 text-emerald-700' :
                       faceStatus === 'loading' ? 'bg-slate-100 text-slate-600' :
@@ -1093,17 +1091,14 @@ export default function InterviewVerifyPage() {
                     </div>
 
                     {/* Capture Instructions */}
-                    <div className="mt-4 text-xs text-slate-500 text-center max-w-xs space-y-1">
-                      <p className="font-medium">For best results:</p>
-                      <p>• Move close so your face fills the oval</p>
-                      <p>• Ensure good lighting on your face</p>
-                      <p>• Look directly at the camera</p>
+                    <div className="mt-2 text-xs text-slate-400 text-center max-w-xs">
+                      <p>Move close • Good lighting • Look at camera</p>
                     </div>
 
                     <Button
                       onClick={() => setCountdown(3)}
                       disabled={!isCameraReady || cameraStabilizing || countdown !== null || faceStatus !== 'ready'}
-                      className={`mt-4 ${!cameraStabilizing && faceStatus === 'ready' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-400 cursor-not-allowed'} text-white gap-2`}
+                      className={`mt-3 ${!cameraStabilizing && faceStatus === 'ready' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-400 cursor-not-allowed'} text-white gap-2`}
                     >
                       <Camera className="w-4 h-4" />
                       {cameraStabilizing ? 'Stabilizing...' : countdown !== null ? 'Capturing...' : 'Capture Photo'}

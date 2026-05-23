@@ -592,7 +592,7 @@ export default function InterviewPage() {
           console.log("⏭️ [ANALYZE] No question tracked yet, ignoring user input")
         }
       }
-    } else if (event.type === "response.audio_transcript.done") {
+    } else if (event.type === "response.output_audio_transcript.done" || event.type === "response.audio_transcript.done") {
       const text = agentTextBufferRef.current
       if (text) {
         agentTextBufferRef.current = ""
@@ -743,7 +743,11 @@ export default function InterviewPage() {
   }
 
   const handleTranscriptionDelta = (event: any) => {
-    if (event.type === "response.audio_transcript.delta" && typeof event.delta === "string") {
+    // Accept both GA (`response.output_audio_transcript.delta`) and legacy event names.
+    if (
+      (event.type === "response.output_audio_transcript.delta" || event.type === "response.audio_transcript.delta") &&
+      typeof event.delta === "string"
+    ) {
       agentTextBufferRef.current += event.delta
     }
   }
@@ -1114,28 +1118,39 @@ ${questions?.[0]?.criteria?.join(", ") || "Communication, Technical skills, Cult
 11. **After saying the closing message, remain COMPLETELY SILENT - do not respond to anything**
 12. **The interview will automatically end 20 seconds after the closing message**`
 
+        // GA session.update — nested audio.input/audio.output structure replaces
+        // the flat modalities/voice/input_audio_format/output_audio_format/etc. fields.
         const updateMsg = {
           type: "session.update",
           session: {
-            modalities: ["audio", "text"],
+            type: "realtime",
             instructions,
-            voice: "alloy",
-            input_audio_format: "pcm16",
-            output_audio_format: "pcm16",
-            input_audio_transcription: { model: "whisper-1" },
-            turn_detection: {
-              type: "server_vad",
-              threshold: 0.5,
-              prefix_padding_ms: 300,
-              silence_duration_ms: 2500,
+            output_modalities: ["audio"],
+            audio: {
+              input: {
+                format: { type: "audio/pcm", rate: 24000 },
+                transcription: { model: "whisper-1" },
+                turn_detection: {
+                  type: "server_vad",
+                  threshold: 0.5,
+                  prefix_padding_ms: 300,
+                  silence_duration_ms: 2500,
+                  create_response: true,
+                },
+              },
+              output: {
+                format: { type: "audio/pcm", rate: 24000 },
+                voice: "alloy",
+              },
             },
           },
         }
         dc.send(JSON.stringify(updateMsg))
 
+        // GA response.create — `output_modalities` replaces the legacy `modalities` field.
         const startMsg = {
           type: "response.create",
-          response: { modalities: ["audio", "text"] },
+          response: { output_modalities: ["audio"] },
         }
         dc.send(JSON.stringify(startMsg))
         logTs("Interview started - Step 1: Greeting & Setup")
@@ -1148,38 +1163,44 @@ ${questions?.[0]?.criteria?.join(", ") || "Communication, Technical skills, Cult
     dc.onmessage = (evt) => {
       try {
         const msg = JSON.parse(evt.data)
-        
+
+        // GA renamed audio events: response.audio.* → response.output_audio.*
+        // and response.audio_transcript.* → response.output_audio_transcript.*.
+        // We accept both spellings so we degrade gracefully if OpenAI re-emits the legacy names.
+        const isAudioDelta = msg.type === "response.output_audio.delta" || msg.type === "response.audio.delta"
+        const isAudioDone = msg.type === "response.output_audio.done" || msg.type === "response.audio.done"
+        const isTranscriptDelta =
+          msg.type === "response.output_audio_transcript.delta" || msg.type === "response.audio_transcript.delta"
+        const isTranscriptDone =
+          msg.type === "response.output_audio_transcript.done" || msg.type === "response.audio_transcript.done"
+
         // Mute user mic when AI starts speaking to prevent echo
-        if (msg.type === "response.audio.delta" || msg.type === "response.created") {
+        if (isAudioDelta || msg.type === "response.created") {
           if (!agentSpeakingRef.current) {
             agentSpeakingRef.current = true
             setUserMicEnabled(false)
           }
         }
-        
+
         // Unmute user mic when AI stops speaking
-        if (msg.type === "response.done" || msg.type === "response.audio.done") {
+        if (msg.type === "response.done" || isAudioDone) {
           if (agentSpeakingRef.current) {
             agentSpeakingRef.current = false
             // Small delay before unmuting to ensure audio playback is complete
             setTimeout(() => setUserMicEnabled(true), 300)
           }
         }
-        
-        switch (msg.type) {
-          case "conversation.item.input_audio_transcription.completed":
-            handleTranscriptionCompleted(msg)
-            break
-          case "response.audio_transcript.done":
-            handleTranscriptionCompleted(msg)
-            break
-          case "response.audio_transcript.delta":
-            handleTranscriptionDelta(msg)
-            break
-          case "conversation.item.created":
-            handleHistoryAdded(msg.item || msg)
-            break
+
+        if (msg.type === "conversation.item.input_audio_transcription.completed") {
+          handleTranscriptionCompleted(msg)
+        } else if (isTranscriptDone) {
+          handleTranscriptionCompleted(msg)
+        } else if (isTranscriptDelta) {
+          handleTranscriptionDelta(msg)
+        } else if (msg.type === "conversation.item.created") {
+          handleHistoryAdded(msg.item || msg)
         }
+
         if (msg.type === "response.output_text.delta" && typeof msg.delta === "string") {
           agentTextBufferRef.current += msg.delta
         }
@@ -1195,12 +1216,14 @@ ${questions?.[0]?.criteria?.join(", ") || "Communication, Technical skills, Cult
     if (initSeq != null && initSeq !== initSeqRef.current) return
     await pc.setLocalDescription(offer)
 
-    const baseUrl = "https://api.openai.com/v1/realtime"
-    const model = session?.model || "gpt-4o-realtime-preview"
-    const clientSecret = session?.client_secret?.value
-    if (!clientSecret) throw new Error("Missing realtime client secret from session response")
+    // GA WebRTC endpoint: /v1/realtime/calls (replaces the deprecated /v1/realtime SDP path).
+    // The session API now returns the ephemeral key directly as `value` (not nested under `client_secret`).
+    const baseUrl = "https://api.openai.com/v1/realtime/calls"
+    const model = session?.model || "gpt-realtime"
+    const clientSecret = session?.value || session?.client_secret?.value
+    if (!clientSecret) throw new Error("Missing realtime ephemeral key from session response")
 
-    logTs("RTC: Exchanging SDP with OpenAI…")
+    logTs("RTC: Exchanging SDP with OpenAI (GA /calls)…")
     const sdpResponse = await fetch(`${baseUrl}?model=${encodeURIComponent(model)}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${clientSecret}`, "Content-Type": "application/sdp" },
@@ -1627,8 +1650,8 @@ ${questions?.[0]?.criteria?.join(", ") || "Communication, Technical skills, Cult
           </div>
 
           {/* Live Interview Card - Right Side (hidden on mobile) */}
-          <div className="hidden md:flex w-[280px] flex-shrink-0 p-0 md:px-4 md:py-3">
-            <div className="bg-[#0b1220]/80 backdrop-blur-xl rounded-2xl shadow-lg shadow-blue-500/10 border border-white/10 p-4 h-full w-full">
+          <div className="hidden md:flex w-[300px] flex-shrink-0 p-0 md:pl-4 md:pr-0 md:py-4">
+            <div className="bg-[#0b1220]/80 backdrop-blur-xl rounded-2xl shadow-lg shadow-blue-500/10 border border-white/10 p-5 h-full w-full">
               {/* Header with LIVE indicator */}
               <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
                 <div className="flex items-center gap-2">

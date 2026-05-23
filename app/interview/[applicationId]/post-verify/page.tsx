@@ -218,13 +218,12 @@ export default function PostInterviewVerifyPage() {
     await loadModels()
     
     try {
-      // Mobile-friendly camera constraints
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
       const constraints = {
-        video: { 
+        video: {
           facingMode: 'user',
-          width: isMobile ? { ideal: 640 } : { ideal: 1280 },
-          height: isMobile ? { ideal: 480 } : { ideal: 720 }
+          width: isMobile ? { ideal: 1280 } : { ideal: 1920 },
+          height: isMobile ? { ideal: 720 } : { ideal: 1080 }
         },
         audio: false
       }
@@ -282,7 +281,7 @@ export default function PostInterviewVerifyPage() {
           ctx.translate(canvas.width, 0)
           ctx.scale(-1, 1)
           ctx.drawImage(video, 0, 0)
-          setCapturedPhoto(canvas.toDataURL('image/jpeg', 0.9))
+          setCapturedPhoto(canvas.toDataURL('image/jpeg', 0.95))
           stopCamera()
         }
       }
@@ -413,14 +412,14 @@ export default function PostInterviewVerifyPage() {
           </div>
 
           {/* Camera / Photo Display */}
-          <div className="relative bg-slate-800 rounded-xl overflow-hidden mb-4 flex items-center justify-center py-6">
-            <div className={`relative w-48 h-64 overflow-hidden ring-4 bg-slate-800 ${
+          <div className="relative bg-slate-800 rounded-xl overflow-hidden mb-4 flex items-center justify-center py-4">
+            <div className={`relative overflow-hidden ring-4 bg-slate-800 ${
               capturedPhoto ? 'ring-emerald-500' :
               faceStatus === 'ready' ? 'ring-emerald-500' :
               faceStatus === 'loading' ? 'ring-slate-500' :
               'ring-red-500'
             }`}
-            style={{ borderRadius: '50% / 45%' }}>
+            style={{ width: '240px', height: '320px', borderRadius: '50% / 45%' }}>
               {!capturedPhoto ? (
                 <>
                   <div
@@ -439,22 +438,22 @@ export default function PostInterviewVerifyPage() {
                       width="100%"
                       height="100%"
                       className="absolute inset-0 w-full h-full object-cover bg-black z-10"
-                      style={{ 
-                        transform: 'scale(1.3) scaleX(-1)',
+                      style={{
+                        transform: 'scaleX(-1)',
                         objectFit: 'cover',
                         objectPosition: 'center',
                         display: isCameraReady ? 'block' : 'none'
                       }}
                     />
                   </div>
-                  
+
                   {/* Countdown overlay */}
                   {countdown !== null && (
                     <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50">
                       <span className="text-6xl font-bold text-white animate-pulse">{countdown}</span>
                     </div>
                   )}
-                  
+
                   {/* Camera loading */}
                   {(!isCameraReady && isCameraOpen) && (
                     <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-800">
@@ -466,11 +465,10 @@ export default function PostInterviewVerifyPage() {
                   )}
                 </>
               ) : (
-                <img 
-                  src={capturedPhoto} 
-                  alt="Captured" 
-                  className="absolute inset-0 w-full h-full object-cover" 
-                  style={{ transform: 'scale(1.2)' }}
+                <img
+                  src={capturedPhoto}
+                  alt="Captured"
+                  className="absolute inset-0 w-full h-full object-cover"
                 />
               )}
             </div>

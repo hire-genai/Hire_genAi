@@ -71,6 +71,9 @@ export default function CandidatesPage() {
   const [editableCandidate, setEditableCandidate] = useState<any>(null)
   const [reportModalOpen, setReportModalOpen] = useState(false)
   const [reportUrl, setReportUrl] = useState('')
+  const [resumeModalOpen, setResumeModalOpen] = useState(false)
+  const [resumeUrl, setResumeUrl] = useState('')
+  const [resumeCandidateName, setResumeCandidateName] = useState('')
   const { setIsCollapsed } = useMobileMenu()
   const [searchQuery, setSearchQuery] = useState('')
   const [positionFilter, setPositionFilter] = useState('all')
@@ -565,6 +568,7 @@ export default function CandidatesPage() {
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[140px]">HM Status / Rating</th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Comments</th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide min-w-[200px]">Skills</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Previous Company</th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 uppercase tracking-wide sticky right-0 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)] border-l border-gray-200">Action</th>
           </>
         )
@@ -580,6 +584,7 @@ export default function CandidatesPage() {
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Offer Amount / Status</th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Comments</th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide min-w-[200px]">Skills</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Previous Company</th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 uppercase tracking-wide sticky right-0 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)] border-l border-gray-200">Action</th>
           </>
         )
@@ -597,6 +602,7 @@ export default function CandidatesPage() {
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Hire Status</th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Comments</th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide min-w-[200px]">Skills</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Previous Company</th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 uppercase tracking-wide sticky right-0 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)] border-l border-gray-200">Action</th>
           </>
         )
@@ -612,6 +618,7 @@ export default function CandidatesPage() {
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Rejection Stage</th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[160px]">Rejection Reason</th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide min-w-[200px]">Skills</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Previous Company</th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 uppercase tracking-wide sticky right-0 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)] border-l border-gray-200">Action</th>
           </>
         )
@@ -628,6 +635,7 @@ export default function CandidatesPage() {
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Stage / Status</th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Source</th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide min-w-[200px]">Skills</th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Previous Company</th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 uppercase tracking-wide sticky right-0 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)] border-l border-gray-200">Action</th>
           </>
         )
@@ -729,15 +737,14 @@ export default function CandidatesPage() {
                   </span>
                 )}
                 {application?.resumeUrl ? (
-                  <a
-                    href={application.resumeUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => { setResumeUrl(application.resumeUrl); setResumeCandidateName(application?.name || application?.candidateName || ''); setResumeModalOpen(true) }}
                     title="Open Resume"
-                    className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors cursor-pointer"
                   >
                     <FileText className="h-4 w-4 text-green-600" strokeWidth={2} />
-                  </a>
+                  </button>
                 ) : (
                   <span
                     title="No Resume"
@@ -905,9 +912,14 @@ export default function CandidatesPage() {
                   </span>
                 )}
                 {application?.resumeUrl ? (
-                  <a href={application.resumeUrl} target="_blank" rel="noopener noreferrer" title="Resume" className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors">
+                  <button
+                    type="button"
+                    onClick={() => { setResumeUrl(application.resumeUrl); setResumeCandidateName(application?.name || application?.candidateName || ''); setResumeModalOpen(true) }}
+                    title="Resume"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors cursor-pointer"
+                  >
                     <FileText className="h-4 w-4 text-green-600" strokeWidth={2} />
-                  </a>
+                  </button>
                 ) : (
                   <span title="No Resume" className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-50 border border-gray-200">
                     <FileText className="h-4 w-4 text-gray-400" strokeWidth={2} />
@@ -1002,9 +1014,14 @@ export default function CandidatesPage() {
                   </span>
                 )}
                 {application?.resumeUrl ? (
-                  <a href={application.resumeUrl} target="_blank" rel="noopener noreferrer" title="Resume" className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors">
+                  <button
+                    type="button"
+                    onClick={() => { setResumeUrl(application.resumeUrl); setResumeCandidateName(application?.name || application?.candidateName || ''); setResumeModalOpen(true) }}
+                    title="Resume"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors cursor-pointer"
+                  >
                     <FileText className="h-4 w-4 text-green-600" strokeWidth={2} />
-                  </a>
+                  </button>
                 ) : (
                   <span title="No Resume" className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-50 border border-gray-200">
                     <FileText className="h-4 w-4 text-gray-400" strokeWidth={2} />
@@ -1113,6 +1130,19 @@ export default function CandidatesPage() {
                   <div className="max-h-[80px] overflow-y-auto flex flex-wrap gap-1" style={{scrollbarWidth:'none'}}>
                     {String(application.skills).split(',').filter((s: string) => s.trim()).map((s: string, i: number) => (
                       <span key={i} className="bg-emerald-50 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-full border border-emerald-200 whitespace-nowrap">{s.trim()}</span>
+                    ))}
+                  </div>
+                ) : <span className="text-[10px] text-gray-400">—</span>}
+              </td>
+            )}
+
+            {/* Previous Company - hiringManager/offer/hired/rejected/all tabs */}
+            {(activeBucket === 'all' || activeBucket === 'hiringManager' || activeBucket === 'offer' || activeBucket === 'hired' || activeBucket === 'rejected') && (
+              <td className="px-3 py-3 border-r border-gray-100">
+                {application?.companySet ? (
+                  <div className="max-h-[80px] overflow-y-auto flex flex-col gap-0.5" style={{scrollbarWidth:'none'}}>
+                    {String(application.companySet).split(',').filter((c: string) => c.trim()).map((c: string, i: number) => (
+                      <span key={i} className="text-[10px] text-gray-700 whitespace-nowrap leading-5">{i + 1}. {c.trim()}</span>
                     ))}
                   </div>
                 ) : <span className="text-[10px] text-gray-400">—</span>}
@@ -1480,7 +1510,7 @@ export default function CandidatesPage() {
       {/* Applications Table - Mobile Responsive */}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto -mx-3 md:mx-0">
-          <div className={activeBucket === 'interview' || activeBucket === 'screening' ? 'min-w-[1700px]' : 'min-w-[1400px]'}>
+          <div className={activeBucket === 'interview' || activeBucket === 'screening' ? 'min-w-[1700px]' : 'min-w-[1550px]'}>
             <table className="w-full">
               <thead>
                 <tr>{renderTableHeaders()}</tr>
@@ -1752,7 +1782,7 @@ export default function CandidatesPage() {
 
       {/* Report Modal */}
       <Dialog open={reportModalOpen} onOpenChange={setReportModalOpen}>
-        <DialogContent className="max-w-7xl w-[98vw] sm:w-[95vw] h-[95vh] sm:h-[90vh] p-0 overflow-hidden flex flex-col">
+        <DialogContent className="w-[95vw] sm:w-[92vw] max-w-[95vw] sm:max-w-[800px] h-[96vh] sm:h-[94vh] p-0 overflow-hidden flex flex-col">
           <DialogHeader className="px-4 py-3 border-b shrink-0">
             <DialogTitle className="text-base font-semibold">Candidate Report</DialogTitle>
           </DialogHeader>
@@ -1767,6 +1797,76 @@ export default function CandidatesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Resume Preview Modal */}
+      <Dialog open={resumeModalOpen} onOpenChange={setResumeModalOpen}>
+        <DialogContent className="w-[94vw] sm:w-[90vw] max-w-[94vw] sm:max-w-[800px] h-[96vh] sm:h-[94vh] p-0 overflow-hidden flex flex-col">
+          <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2">
+            <DialogTitle className="text-base font-semibold truncate">
+              {resumeCandidateName ? `Resume — ${resumeCandidateName}` : 'Resume'}
+            </DialogTitle>
+            {resumeUrl && (
+              <a
+                href={resumeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-emerald-700 hover:text-emerald-900 underline decoration-dotted mr-6"
+              >
+                Open in new tab
+              </a>
+            )}
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden bg-gray-100 cp-no-scrollbar">
+            {resumeModalOpen && resumeUrl && (() => {
+              const url = resumeUrl
+              const lower = url.toLowerCase().split('?')[0]
+              const isPdf = lower.endsWith('.pdf')
+              const isDoc = lower.endsWith('.doc') || lower.endsWith('.docx')
+              const isImage = /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(lower)
+              if (isPdf) {
+                return (
+                  <iframe
+                    src={`${url}#toolbar=0&navpanes=0`}
+                    className="w-full h-full border-0"
+                    title="Resume"
+                  />
+                )
+              }
+              if (isDoc) {
+                return (
+                  <iframe
+                    src={`https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`}
+                    className="w-full h-full border-0"
+                    title="Resume"
+                  />
+                )
+              }
+              if (isImage) {
+                return (
+                  <div className="w-full h-full flex items-center justify-center overflow-auto cp-no-scrollbar p-4">
+                    <img src={url} alt="Resume" className="max-w-full max-h-full object-contain" />
+                  </div>
+                )
+              }
+              return (
+                <iframe
+                  src={url}
+                  className="w-full h-full border-0"
+                  title="Resume"
+                />
+              )
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <style jsx global>{`
+        /* Invisible scrollbar for candidate page dialogs */
+        .cp-no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+        .cp-no-scrollbar::-webkit-scrollbar { width: 0; height: 0; display: none; }
+        [role="dialog"] *::-webkit-scrollbar { width: 0; height: 0; display: none; }
+        [role="dialog"] * { scrollbar-width: none; -ms-overflow-style: none; }
+      `}</style>
     </div>
   )
 }
