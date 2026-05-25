@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import StripeCheckout from "../../stripe/stripeCheckout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -75,6 +76,7 @@ interface BillingContentProps {
 export default function BillingContent({ companyId }: BillingContentProps) {
   const { user } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [billingData, setBillingData] = useState<any>(null)
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionInfo | null>(null)
@@ -145,6 +147,25 @@ export default function BillingContent({ companyId }: BillingContentProps) {
       loadBillingData()
     }
   }, [companyId])
+
+  // Handle Stripe redirect — show toast and trigger realtime balance refresh
+  useEffect(() => {
+    if (!searchParams) return
+    const stripeSuccess = searchParams.get('stripe_success')
+    const stripeCancel = searchParams.get('stripe_cancel')
+
+    if (stripeSuccess === '1') {
+      setToastMessage('Stripe payment successful — updating balance...')
+      window.dispatchEvent(new CustomEvent('subscription-updated'))
+      setTimeout(() => setToastMessage(null), 4000)
+      router.replace('/settings?tab=payment')
+    } else if (stripeCancel === '1') {
+      setToastMessage('Stripe payment cancelled')
+      setTimeout(() => setToastMessage(null), 3000)
+      router.replace('/settings?tab=payment')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (companyId && billingData) {
@@ -691,6 +712,29 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             currentMonthSpent={billingData?.currentMonthSpent ?? 0}
             totalSpent={billingData?.totalSpent ?? 0}
           />
+
+          {/* Stripe — independent payment option, sits next to Razorpay upgrade above */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <CreditCard className="h-4 w-4" />
+                Pay with Stripe
+              </CardTitle>
+              <CardDescription>
+                Alternative payment gateway — fully independent of the Razorpay flow above.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <StripeCheckout
+                name="HireGenAI Pro"
+                description="One-time payment via Stripe"
+                amount={1000}
+                currency="usd"
+                customerEmail={user?.email}
+                buttonLabel="Pay with Stripe"
+              />
+            </CardContent>
+          </Card>
 
           {/* Saved Card for Auto-Recharge */}
           <SavedCardSettings companyId={companyId} />
