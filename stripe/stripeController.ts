@@ -237,17 +237,35 @@ export async function processSuccessfulCheckout(session: Stripe.Checkout.Session
   )) as any[]
   const alreadyCaptured = existing.length > 0 && existing[0].status === 'captured'
 
-  await DatabaseService.recordSubscriptionPayment({
-    subscriptionId: `stripe_session_${sessionId}`,
-    provider: 'stripe',
-    paymentId: paymentIntentId,
-    amount: amountTotal,
-    currency,
-    status: 'captured',
-    paymentTime: new Date(),
-    companyId: resolvedCompanyId,
-    rawData: session,
-  }).catch((e) => console.error('[Stripe] recordSubscriptionPayment error:', e))
+  try {
+    await DatabaseService.query(
+      `INSERT INTO subscription_payments (
+         subscription_id, company_id, provider, payment_id,
+         amount, currency, status, payment_time, raw_data
+       ) VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8, $9::jsonb)
+       ON CONFLICT (payment_id, provider) DO UPDATE SET
+         status = EXCLUDED.status,
+         amount = EXCLUDED.amount,
+         currency = EXCLUDED.currency,
+         payment_time = EXCLUDED.payment_time,
+         raw_data = EXCLUDED.raw_data,
+         company_id = COALESCE(subscription_payments.company_id, EXCLUDED.company_id)`,
+      [
+        `stripe_session_${sessionId}`,
+        resolvedCompanyId,
+        'stripe',
+        paymentIntentId,
+        amountTotal,
+        currency,
+        'captured',
+        new Date().toISOString(),
+        JSON.stringify(session),
+      ]
+    )
+    console.log(`[Stripe] subscription_payments row written for ${paymentIntentId}`)
+  } catch (e) {
+    console.error('[Stripe] subscription_payments insert failed:', e)
+  }
 
   if (alreadyCaptured) {
     console.log(`[Stripe] Payment ${paymentIntentId} already credited — skipping wallet update`)
@@ -277,21 +295,38 @@ export async function processSuccessfulCheckout(session: Stripe.Checkout.Session
     [resolvedCompanyId, amountTotal]
   )) as any[]
   const balanceAfter = updated.length > 0 ? parseFloat(updated[0].wallet_balance) : balanceBefore + amountTotal
+  console.log(`[Stripe] company_billing updated — balance: ${balanceBefore} → ${balanceAfter}`)
 
-  await DatabaseService.addLedgerEntry({
-    companyId: resolvedCompanyId,
-    entryType: 'WALLET_TOPUP',
-    description: `Stripe payment — Session ${sessionId}`,
-    amount: amountTotal,
-    balanceBefore,
-    balanceAfter,
-    metadata: {
-      provider: 'stripe',
-      sessionId,
-      paymentIntentId,
-      currency,
-    },
-  })
+  try {
+    await DatabaseService.query(
+      `INSERT INTO usage_ledger (
+         company_id, entry_type, description,
+         quantity, unit_price, amount,
+         balance_before, balance_after, metadata, created_at
+       ) VALUES (
+         $1::uuid, $2::ledger_entry_type, $3,
+         1, $4, $4,
+         $5, $6, $7::jsonb, NOW()
+       )`,
+      [
+        resolvedCompanyId,
+        'WALLET_TOPUP',
+        `Stripe payment — Session ${sessionId}`,
+        amountTotal,
+        balanceBefore,
+        balanceAfter,
+        JSON.stringify({
+          provider: 'stripe',
+          sessionId,
+          paymentIntentId,
+          currency,
+        }),
+      ]
+    )
+    console.log(`[Stripe] usage_ledger entry written for ${sessionId}`)
+  } catch (e) {
+    console.error('[Stripe] usage_ledger insert failed:', e)
+  }
 
   try {
     await DatabaseService.activateCompanyFromSubscription(resolvedCompanyId)
