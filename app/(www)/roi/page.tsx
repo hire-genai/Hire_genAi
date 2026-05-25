@@ -262,7 +262,7 @@ export default function ROIPage() {
     <div className="min-h-screen bg-white overflow-x-hidden">
       <Navbar />
 
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-16">
+      <div className="w-full w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-8 sm:py-16">
         {/* Hero Header */}
         <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl sm:rounded-3xl p-6 sm:p-12 mb-8 sm:mb-12 text-white overflow-hidden border border-emerald-500/20">
           <div className="absolute top-4 right-4 sm:top-6 sm:right-6 bg-emerald-500 text-white px-3 py-1 sm:px-4 sm:py-2 rounded-full font-bold flex items-center gap-1 sm:gap-2 shadow-lg text-sm sm:text-base">

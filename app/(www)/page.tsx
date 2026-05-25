@@ -55,7 +55,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-white">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -175,7 +175,7 @@ export default function HomePage() {
 
       {/* Announcement Banner */}
       <div className="bg-emerald-50 border-b border-emerald-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-3">
           <div className="flex items-center justify-center">
             <div className="flex items-center space-x-2 text-emerald-700">
               <Zap className="w-4 h-4" />
@@ -187,9 +187,9 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <section className="sr-hero-bg py-20 lg:py-32">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div className="max-w-2xl">
+            <div>
               <h1 className="text-5xl lg:text-6xl font-bold text-slate-800 mb-6 leading-tight">
                 AI-Recruiter: Your <span className="sr-text-gradient">24/7 Screening Partner</span>
               </h1>
@@ -237,7 +237,7 @@ export default function HomePage() {
 
       {/* Features Section */}
       <section id="product" className="py-20 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
           <div className="text-center mb-16">
             <h2 className="text-4xl lg:text-5xl font-bold text-slate-800 mb-6">
               Everything you need for <span className="sr-text-gradient">modern recruitment</span>
@@ -307,7 +307,7 @@ export default function HomePage() {
 
       {/* Problem Statement Section */}
       <section className="py-20 bg-gradient-to-b from-red-50 to-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
           <div className="text-center mb-16">
             <h2 className="text-4xl lg:text-5xl font-bold text-slate-800 mb-6">
               Traditional Recruitment Is <span className="text-red-600">Holding You Back</span>
@@ -356,7 +356,7 @@ export default function HomePage() {
 
       {/* Solution Section */}
       <section className="py-20 bg-gradient-to-b from-emerald-50 to-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
           <div className="text-center mb-16">
             <h2 className="text-4xl lg:text-5xl font-bold text-slate-800 mb-6">
               AI Recruitment: <span className="sr-text-gradient">The Complete Hiring Transformation</span>
@@ -432,7 +432,7 @@ export default function HomePage() {
 
       {/* Benefits Section - For Companies */}
       <section className="py-20 bg-slate-900 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
           <div className="text-center mb-16">
             <p className="text-emerald-400 font-semibold mb-2">FOR COMPANIES</p>
             <h2 className="text-4xl lg:text-5xl font-bold mb-6">
@@ -502,7 +502,7 @@ export default function HomePage() {
 
       {/* Benefits Section - For HR Teams */}
       <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
           <div className="text-center mb-16">
             <p className="text-emerald-600 font-semibold mb-2">FOR HR TEAMS & RECRUITERS</p>
             <h2 className="text-4xl lg:text-5xl font-bold text-slate-800 mb-6">
@@ -556,7 +556,7 @@ export default function HomePage() {
 
       {/* Comparison Table Section */}
       <section className="py-20 bg-gradient-to-br from-slate-50 to-emerald-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
           <div className="text-center mb-16">
             <h2 className="text-4xl lg:text-5xl font-bold text-slate-800 mb-6">
               See The Difference <span className="sr-text-gradient">AI Makes</span>
@@ -567,7 +567,8 @@ export default function HomePage() {
           </div>
 
           {/* Comparison Table */}
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-12 border border-slate-200">
+          <div className="overflow-x-auto mb-12">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden border border-slate-200 min-w-[560px]">
             <div className="grid grid-cols-3 text-center py-6 bg-slate-800 text-white">
               <div className="px-4">
                 <h3 className="text-lg md:text-xl font-semibold">What Matters Most</h3>
@@ -675,6 +676,7 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+          </div>
         </div>
       </section>
 
@@ -749,7 +751,7 @@ export default function HomePage() {
 
       {/* CTA Section */}
       <section className="py-20 sr-gradient text-white">
-        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
+        <div className="w-full text-center px-4 sm:px-6 lg:px-8 xl:px-12">
           <h2 className="text-4xl lg:text-5xl font-bold mb-6">Ready to revolutionize your hiring?</h2>
           <p className="text-xl mb-8 text-emerald-100">
             Join thousands of companies already using AI to hire better, faster, and smarter.
@@ -779,7 +781,7 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="bg-slate-900 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
           {/* Main Footer Content */}
           <div className="grid grid-cols-2 md:grid-cols-12 gap-6 md:gap-12 mb-12">
             {/* Left Section - Brand Block */}

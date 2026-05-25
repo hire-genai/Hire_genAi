@@ -367,7 +367,7 @@ export default function BookMeetingPage() {
       
       {/* Announcement Banner */}
       <div className="bg-emerald-50 border-b border-emerald-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-3">
           <div className="flex items-center justify-center">
             <div className="flex items-center space-x-2 text-emerald-800">
               <Zap className="w-4 h-4" />
@@ -377,7 +377,7 @@ export default function BookMeetingPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-8">
+      <div className="w-full px-4 xl:px-12 py-8">
         <div className="bg-white rounded-2xl shadow-lg overflow-visible min-h-[600px]">
           <div className="flex flex-col lg:flex-row">
             {/* Left Column - Meeting Info */}
@@ -738,7 +738,7 @@ export default function BookMeetingPage() {
 
       {/* Footer */}
       <footer className="bg-slate-900 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
           {/* Main Footer Content */}
           <div className="grid grid-cols-2 md:grid-cols-12 gap-6 md:gap-12 mb-12">
             {/* Left Section - Brand Block */}
