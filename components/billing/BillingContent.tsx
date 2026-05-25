@@ -58,14 +58,14 @@ function getProviderLabel(raw: any): string {
 
 function formatPaymentDate(date: string | Date): string {
   if (!date) return "-"
-  
+
   const d = new Date(date)
   if (isNaN(d.getTime())) return "-"
-  
-  return d.toLocaleDateString("en-IN", { 
-    day: "2-digit", 
-    month: "short", 
-    year: "numeric" 
+
+  return d.toLocaleDateString("en-US", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
   })
 }
 
@@ -87,28 +87,6 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   const handlePaymentCancel = () => {
     router.push('/settings?tab=payment')
   }
-
-  // Currency Detection
-  const [currency, setCurrency] = useState<'INR' | 'USD'>('USD')
-
-  useEffect(() => {
-    const detectCountry = async () => {
-      try {
-        const res = await fetch('https://ipapi.co/json/')
-        if (!res.ok) throw new Error('Country detection failed')
-        const data = await res.json()
-        const countryCode = data.country_code || data.country
-        setCurrency(countryCode === 'IN' ? 'INR' : 'USD')
-      } catch (err) {
-        console.warn('[BillingContent] Country detection failed, defaulting to USD:', err)
-        setCurrency('USD')
-      }
-    }
-    detectCountry()
-  }, [])
-
-  // Formatted upgrade amount based on pricing page logic
-  const upgradeDisplayAmount = currency === 'INR' ? '₹10,000' : '$100'
 
   // Auto-Recharge
   const [autoRecharge, setAutoRecharge] = useState(false)
@@ -278,7 +256,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
           countryCode = countryData.countryCode || 'US'
         }
       } catch {
-        countryCode = currency === 'INR' ? 'IN' : 'US'
+        countryCode = 'US'
       }
       
       const res = await fetch(`/api/billing/status?companyId=${companyId}&country=${countryCode}`)
@@ -382,13 +360,13 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
   const generatePaymentReceiptHtml = (payment: any) => {
     // Fallback HTML receipt generation (kept for emergency fallback)
-    const paymentDate = new Date(payment.paymentDate).toLocaleDateString('en-IN', {
+    const paymentDate = new Date(payment.paymentDate).toLocaleDateString('en-US', {
       day: '2-digit',
       month: 'long',
       year: 'numeric'
     })
     const amount = payment.amount?.toFixed(2) || '0.00'
-    const currency = payment.currency === 'INR' ? 'Rs.' : '$'
+    const currency = '$'
 
     return `
 <!DOCTYPE html>
@@ -606,7 +584,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs sm:text-sm text-muted-foreground font-medium mb-1">Wallet Balance</p>
-                    <p className="text-lg sm:text-2xl font-semibold break-words">₹{billingData?.walletBalance?.toFixed(2) || '0.00'}</p>
+                    <p className="text-lg sm:text-2xl font-semibold break-words">${billingData?.walletBalance?.toFixed(2) || '0.00'}</p>
                   </div>
                   <div className="ml-2 shrink-0">
                     <Wallet className="h-5 w-5 text-muted-foreground" />
@@ -629,10 +607,10 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs sm:text-sm text-muted-foreground font-medium mb-1">Current Month</p>
-                    <p className="text-lg sm:text-2xl font-semibold break-words">₹{billingData?.currentMonthSpent?.toFixed(2) || '0.00'}</p>
+                    <p className="text-lg sm:text-2xl font-semibold break-words">${billingData?.currentMonthSpent?.toFixed(2) || '0.00'}</p>
                     <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 truncate">
                       {billingData?.monthlySpendCap
-                        ? `Cap: ₹${billingData.monthlySpendCap.toFixed(2)}`
+                        ? `Cap: $${billingData.monthlySpendCap.toFixed(2)}`
                         : 'No cap set'}
                     </p>
                   </div>
@@ -649,7 +627,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs sm:text-sm text-muted-foreground font-medium mb-1">Total Spent</p>
-                    <p className="text-lg sm:text-2xl font-semibold break-words">₹{billingData?.totalSpent?.toFixed(2) || '0.00'}</p>
+                    <p className="text-lg sm:text-2xl font-semibold break-words">${billingData?.totalSpent?.toFixed(2) || '0.00'}</p>
                     <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">All-time usage</p>
                   </div>
                   <div className="ml-2 shrink-0">
@@ -846,7 +824,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                   </div>
                 </CardHeader>
                 <CardContent className="px-3 py-1">
-                  <div className="text-lg font-bold text-blue-900">₹{usageData.totals.cvParsing.toFixed(2)}</div>
+                  <div className="text-lg font-bold text-blue-900">${usageData.totals.cvParsing.toFixed(2)}</div>
                   <p className="text-[10px] text-muted-foreground">
                     {usageData.totals.cvCount || 0} CVs processed
                   </p>
@@ -861,7 +839,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                   </div>
                 </CardHeader>
                 <CardContent className="px-3 py-1">
-                  <div className="text-lg font-bold text-green-900">₹{usageData.totals.jdQuestions.toFixed(2)}</div>
+                  <div className="text-lg font-bold text-green-900">${usageData.totals.jdQuestions.toFixed(2)}</div>
                   <p className="text-[10px] text-muted-foreground">
                     {usageData.totals.questionCount || 0} questions generated
                   </p>
@@ -876,7 +854,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                   </div>
                 </CardHeader>
                 <CardContent className="px-3 py-1">
-                  <div className="text-lg font-bold text-purple-900">₹{usageData.totals.video.toFixed(2)}</div>
+                  <div className="text-lg font-bold text-purple-900">${usageData.totals.video.toFixed(2)}</div>
                   <p className="text-[10px] text-muted-foreground">
                     {usageData.totals.interviewCount || 0} interviews ({(usageData.totals.videoMinutes || 0).toFixed(1)} mins)
                   </p>
@@ -892,7 +870,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                 </CardHeader>
                 <CardContent className="px-3 py-1">
                   <div className="text-lg font-bold text-orange-900">
-                    ₹{((usageData.totals.cvParsing || 0) + (usageData.totals.jdQuestions || 0) + (usageData.totals.video || 0)).toFixed(2)}
+                    ${((usageData.totals.cvParsing || 0) + (usageData.totals.jdQuestions || 0) + (usageData.totals.video || 0)).toFixed(2)}
                   </div>
                   <p className="text-[10px] text-muted-foreground">
                     All services combined
@@ -920,21 +898,21 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                         <FileText className="h-4 w-4 text-blue-600" />
                         <span className="text-sm font-medium text-blue-800">CV Parsing</span>
                       </div>
-                      <Badge variant="secondary" className="text-xs">₹{usageData?.totals?.cvParsing?.toFixed(2) || '0.00'}</Badge>
+                      <Badge variant="secondary" className="text-xs">${usageData?.totals?.cvParsing?.toFixed(2) || '0.00'}</Badge>
                     </div>
                     <div className="flex items-center justify-between p-2.5 bg-green-50 rounded-lg">
                       <div className="flex items-center gap-2">
                         <TrendingUp className="h-4 w-4 text-green-600" />
                         <span className="text-sm font-medium text-green-800">JD Questions</span>
                       </div>
-                      <Badge variant="secondary" className="text-xs">₹{usageData?.totals?.jdQuestions?.toFixed(2) || '0.00'}</Badge>
+                      <Badge variant="secondary" className="text-xs">${usageData?.totals?.jdQuestions?.toFixed(2) || '0.00'}</Badge>
                     </div>
                     <div className="flex items-center justify-between p-2.5 bg-purple-50 rounded-lg">
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-purple-600" />
                         <span className="text-sm font-medium text-purple-800">Video Interviews</span>
                       </div>
-                      <Badge variant="secondary" className="text-xs">₹{usageData?.totals?.video?.toFixed(2) || '0.00'}</Badge>
+                      <Badge variant="secondary" className="text-xs">${usageData?.totals?.video?.toFixed(2) || '0.00'}</Badge>
                     </div>
                   </div>
                 </div>
@@ -981,7 +959,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-base font-bold text-green-600">₹{job.totalCost.toFixed(2)}</div>
+                          <div className="text-base font-bold text-green-600">${job.totalCost.toFixed(2)}</div>
                           <span className="text-xs text-gray-400">total</span>
                         </div>
                       </div>
@@ -991,21 +969,21 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                             <FileText className="h-3 w-3 text-blue-600" />
                             <span className="text-xs font-medium text-blue-800">CV Parsing</span>
                           </div>
-                          <div className="text-sm font-semibold text-blue-900">₹{job.cvParsingCost.toFixed(2)}</div>
+                          <div className="text-sm font-semibold text-blue-900">${job.cvParsingCost.toFixed(2)}</div>
                         </div>
                         <div className="bg-green-50 rounded p-2">
                           <div className="flex items-center gap-1 mb-1">
                             <TrendingUp className="h-3 w-3 text-green-600" />
                             <span className="text-xs font-medium text-green-800">Questions</span>
                           </div>
-                          <div className="text-sm font-semibold text-green-900">₹{job.jdQuestionsCost.toFixed(2)}</div>
+                          <div className="text-sm font-semibold text-green-900">${job.jdQuestionsCost.toFixed(2)}</div>
                         </div>
                         <div className="bg-purple-50 rounded p-2">
                           <div className="flex items-center gap-1 mb-1">
                             <Calendar className="h-3 w-3 text-purple-600" />
                             <span className="text-xs font-medium text-purple-800">Video</span>
                           </div>
-                          <div className="text-sm font-semibold text-purple-900">₹{job.videoCost.toFixed(2)}</div>
+                          <div className="text-sm font-semibold text-purple-900">${job.videoCost.toFixed(2)}</div>
                         </div>
                       </div>
                     </div>
@@ -1099,7 +1077,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">Total Recharge</p>
-                      <p className="text-3xl font-extrabold text-slate-800 mt-2">₹{totalRecharged.toLocaleString('en-IN')}</p>
+                      <p className="text-3xl font-extrabold text-slate-800 mt-2">${totalRecharged.toLocaleString('en-US')}</p>
                     </div>
                     <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center">
                       <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1112,7 +1090,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">Current Balance</p>
-                      <p className="text-3xl font-extrabold text-emerald-700 mt-2">₹{walletBalance.toLocaleString('en-IN')}</p>
+                      <p className="text-3xl font-extrabold text-emerald-700 mt-2">${walletBalance.toLocaleString('en-US')}</p>
                     </div>
                     <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
                       <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1127,13 +1105,13 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                       <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">Last Recharge</p>
                       {lastPayment ? (
                         <>
-                          <p className="text-2xl font-bold text-slate-800 mt-2">₹{lastPayment.amount?.toLocaleString('en-IN')}</p>
+                          <p className="text-2xl font-bold text-slate-800 mt-2">${lastPayment.amount?.toLocaleString('en-US')}</p>
                           <p className="text-xs text-slate-400 mt-0.5">
-                            {new Date(lastPayment.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            {new Date(lastPayment.paymentDate).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                           </p>
                         </>
                       ) : (
-                        <p className="text-2xl font-bold text-slate-300 mt-2">₹0</p>
+                        <p className="text-2xl font-bold text-slate-300 mt-2">$0</p>
                       )}
                     </div>
                     <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
@@ -1162,7 +1140,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             const grouped: Record<string, any[]> = {}
             filteredPayments.forEach((payment, idx) => {
               const date = new Date(payment.paymentDate)
-              const monthKey = date.toLocaleDateString("en-IN", { month: "long", year: "numeric" })
+              const monthKey = date.toLocaleDateString("en-US", { month: "long", year: "numeric" })
               if (!grouped[monthKey]) grouped[monthKey] = []
               payment._index = idx
               grouped[monthKey].push(payment)
@@ -1219,8 +1197,8 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                         <div className="space-y-3">
                           {monthPayments.map((payment: any, idx: number) => {
                             const paymentDate = new Date(payment.paymentDate)
-                            const currency = payment.currency === 'INR' ? 'Rs' : '$'
-                            const amount = payment.amount?.toLocaleString('en-IN') || '0'
+                            const currency = '$'
+                            const amount = payment.amount?.toLocaleString('en-US') || '0'
                             
                             // Generate invoice number
                             const invoiceYear = paymentDate.getFullYear()
@@ -1286,7 +1264,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                                 {/* RIGHT: Amount + Download Button */}
                                 <div className="flex items-center justify-between sm:justify-end gap-4 min-w-[160px] w-full sm:w-auto">
                                   <div className="text-right">
-                                    <div className="text-xl font-extrabold text-slate-800 tracking-tight">Rs{amount}</div>
+                                    <div className="text-xl font-extrabold text-slate-800 tracking-tight">${amount}</div>
                                   </div>
                                   <Button
                                     variant="outline"
