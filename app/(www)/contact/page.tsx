@@ -83,7 +83,7 @@ export default function ContactPage() {
       
       {/* Announcement Banner */}
       <div className="bg-emerald-50 border-b border-emerald-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-3">
           <div className="flex items-center justify-center">
             <div className="flex items-center space-x-2 text-emerald-800">
               <Zap className="w-4 h-4" />
@@ -93,7 +93,7 @@ export default function ContactPage() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-16">
+      <div className="w-full px-4 xl:px-12 py-16">
         <div className="grid lg:grid-cols-2 gap-12 items-start">
           {/* Left Side - Info */}
           <div>
@@ -262,7 +262,7 @@ export default function ContactPage() {
 
       {/* Footer */}
       <footer className="bg-slate-900 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
           <div className="grid grid-cols-2 md:grid-cols-12 gap-6 md:gap-12 mb-12">
             <div className="col-span-2 md:col-span-3">
               <h3 className="text-2xl font-bold mb-2">

@@ -32,7 +32,7 @@ export default function AboutPage() {
       
       {/* About Content */}
       <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
           {/* Title - Green highlighted, left aligned, full width */}
           <div className="mb-16">
             <h1 className="text-5xl font-bold text-emerald-600 mb-4">About Us</h1>

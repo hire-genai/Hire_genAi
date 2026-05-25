@@ -658,7 +658,7 @@ export default function DemoEnPage() {
       
       {/* Announcement Banner */}
       <div className="bg-emerald-50 border-b border-emerald-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-3">
           <div className="flex items-center justify-center">
             <div className="flex items-center space-x-2 text-emerald-800">
               <Zap className="w-4 h-4" />
@@ -1735,10 +1735,8 @@ export default function DemoEnPage() {
 
         {/* assessment screen */}
         {screen === "assessment" && (
-          <section className="screen" style={{ 
-            maxWidth: 1100, 
-            margin: "0 auto", 
-            padding: "0 16px",
+          <section className="screen" style={{
+            padding: "0 clamp(16px, 4vw, 48px)",
             width: "100%",
             boxSizing: "border-box"
           }}>

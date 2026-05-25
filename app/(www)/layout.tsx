@@ -12,5 +12,5 @@ export default function MarketingLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  return <>{children}</>
+  return <div className="w-full overflow-x-hidden">{children}</div>
 }

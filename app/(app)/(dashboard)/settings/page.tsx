@@ -71,6 +71,20 @@ type UserRole = 'director' | 'manager' | 'recruiter' | string
 type SettingsTab = 'company' | 'users' | 'payment' | 'agency'
 type AgencySubTab = 'performance' | 'onboarding'
 
+// Helper to get currency symbol
+const getCurrencySymbol = (currency: string): string => {
+  const symbols: Record<string, string> = {
+    'INR': '₹',
+    'USD': '$',
+    'EUR': '€',
+    'GBP': '£',
+    'JPY': '¥',
+    'CAD': '$',
+    'AUD': '$',
+  }
+  return symbols[currency] || '$'
+}
+
 interface TeamUser {
   id: string
   name: string
@@ -140,8 +154,23 @@ export default function SettingsPage() {
     interviewScheduleSLA: '48',
     costPerHireBudget: '100',
     jobBoardCosts: '',
-    costCurrency: 'USD',
+    costCurrency: 'INR',
   })
+
+  // Currency detection based on company country
+  useEffect(() => {
+    const detectCurrency = async () => {
+      try {
+        if (company?.country && company.country.toLowerCase() === 'india') {
+          setPerformanceMetrics((prev) => ({ ...prev, costCurrency: 'INR' }))
+        }
+      } catch (err) {
+        // Fallback to INR
+        setPerformanceMetrics((prev) => ({ ...prev, costCurrency: 'INR' }))
+      }
+    }
+    detectCurrency()
+  }, [company?.country])
 
   // Onboarding state
   const [monthlyTargets, setMonthlyTargets] = useState({
@@ -160,9 +189,9 @@ export default function SettingsPage() {
 
   const [connectedList, setConnectedList] = useState([
     { id: '1', name: 'ABC Consulting', type: 'Agency', contact: 'john@abc.com', rate: '15%', role: 'Manager' },
-    { id: '2', name: 'XYZ Corporation', type: 'Client', contact: 'sarah@xyz.com', rate: '$5,000', role: 'Director' },
+    { id: '2', name: 'XYZ Corporation', type: 'Client', contact: 'sarah@xyz.com', rate: '₹5,00,000', role: 'Director' },
     { id: '3', name: 'Global Recruiters', type: 'Agency', contact: 'mike@global.com', rate: '12%', role: 'Manager' },
-    { id: '4', name: 'Tech Mahindra', type: 'Client', contact: 'tech@mahindra.com', rate: '$7,500', role: 'Manager' },
+    { id: '4', name: 'Tech Mahindra', type: 'Client', contact: 'tech@mahindra.com', rate: '₹7,50,000', role: 'Manager' },
     { id: '5', name: 'Innovative Solutions', type: 'Agency', contact: 'info@innovative.com', rate: '10%', role: 'Director' },
   ])
 
@@ -1260,7 +1289,7 @@ export default function SettingsPage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Fixed">Fixed ($)</SelectItem>
+                            <SelectItem value="Fixed">Fixed ({getCurrencySymbol(performanceMetrics.costCurrency)})</SelectItem>
                             <SelectItem value="%">Percentage (%)</SelectItem>
                           </SelectContent>
                         </Select>
@@ -1270,7 +1299,7 @@ export default function SettingsPage() {
                         <Label>Rate</Label>
                         <Input
                           type="number"
-                          placeholder={newAgency.rateType === '%' ? '15' : '5000'}
+                          placeholder={newAgency.rateType === '%' ? '15' : performanceMetrics.costCurrency === 'INR' ? '50000' : '5000'}
                           value={newAgency.rate}
                           onChange={(e) => setNewAgency({ ...newAgency, rate: e.target.value })}
                           className="w-full"

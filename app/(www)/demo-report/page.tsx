@@ -61,7 +61,7 @@ export default function DemoReport() {
     <div className="min-h-screen bg-white">
       {/* Header */}
       <header className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <Link href="/" className="flex-shrink-0">
@@ -116,7 +116,7 @@ export default function DemoReport() {
 
       {/* Report Content */}
       <section className="py-12 sm:py-20 bg-gradient-to-br from-slate-50 to-emerald-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
           {isLoading ? (
             <Card className="overflow-hidden shadow-sm">
               <div className="bg-gradient-to-r from-emerald-600 to-purple-600 text-white p-4 sm:p-6 text-center">
