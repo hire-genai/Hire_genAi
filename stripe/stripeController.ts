@@ -11,8 +11,7 @@ if (!stripeSecretKey) {
 }
 
 export const stripe = new Stripe(stripeSecretKey || 'sk_test_placeholder', {
-  apiVersion: '2024-06-20' as any,
-  typescript: true,
+  apiVersion: '2025-01-27.acacia' as any,
 })
 
 type SessionInfo = {
