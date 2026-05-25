@@ -136,6 +136,8 @@ export async function handleWebhookEvent(rawBody: string, signature: string) {
 
   const event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret)
 
+  console.log(`[Stripe] Webhook received — type: ${event.type}, id: ${event.id}, livemode: ${event.livemode}`)
+
   await DatabaseService.logWebhookEvent({
     provider: 'stripe',
     eventType: event.type,
@@ -143,44 +145,48 @@ export async function handleWebhookEvent(rawBody: string, signature: string) {
     rawData: event,
   }).catch((e) => console.error('[Stripe] logWebhookEvent failed:', e))
 
-  switch (event.type) {
-    case 'checkout.session.completed': {
-      const session = event.data.object as Stripe.Checkout.Session
-      await processSuccessfulCheckout(session)
-      break
-    }
-    case 'payment_intent.succeeded': {
-      const intent = event.data.object as Stripe.PaymentIntent
-      console.log('[Stripe] PaymentIntent succeeded:', intent.id)
-      break
-    }
-    case 'payment_intent.payment_failed': {
-      const intent = event.data.object as Stripe.PaymentIntent
-      console.warn('[Stripe] PaymentIntent failed:', intent.id, intent.last_payment_error?.message)
-      const companyId = (intent.metadata?.company_id as string) || null
-      if (companyId) {
-        await DatabaseService.recordSubscriptionPayment({
-          subscriptionId: `stripe_pi_${intent.id}`,
-          provider: 'stripe',
-          paymentId: intent.id,
-          amount: (intent.amount || 0) / 100,
-          currency: (intent.currency || 'usd').toUpperCase(),
-          status: 'failed',
-          paymentTime: new Date(),
-          companyId,
-          rawData: intent,
-        }).catch((e) => console.error('[Stripe] recordSubscriptionPayment(failed) error:', e))
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session
+        await processSuccessfulCheckout(session)
+        break
       }
-      break
+      case 'payment_intent.succeeded': {
+        const intent = event.data.object as Stripe.PaymentIntent
+        console.log('[Stripe] PaymentIntent succeeded:', intent.id)
+        break
+      }
+      case 'payment_intent.payment_failed': {
+        const intent = event.data.object as Stripe.PaymentIntent
+        console.warn('[Stripe] PaymentIntent failed:', intent.id, intent.last_payment_error?.message)
+        const companyId = (intent.metadata?.company_id as string) || null
+        if (companyId) {
+          await DatabaseService.recordSubscriptionPayment({
+            subscriptionId: `stripe_pi_${intent.id}`,
+            provider: 'stripe',
+            paymentId: intent.id,
+            amount: (intent.amount || 0) / 100,
+            currency: (intent.currency || 'usd').toUpperCase(),
+            status: 'failed',
+            paymentTime: new Date(),
+            companyId,
+            rawData: intent,
+          }).catch((e) => console.error('[Stripe] recordSubscriptionPayment(failed) error:', e))
+        }
+        break
+      }
+      default:
+        console.log('[Stripe] Unhandled event:', event.type)
     }
-    default:
-      console.log('[Stripe] Unhandled event:', event.type)
+  } catch (e) {
+    console.error(`[Stripe] Event processing failed — type: ${event.type}, id: ${event.id}`, e)
   }
 
   return event
 }
 
-async function processSuccessfulCheckout(session: Stripe.Checkout.Session) {
+export async function processSuccessfulCheckout(session: Stripe.Checkout.Session) {
   const sessionId = session.id
   const companyId =
     (session.metadata?.company_id as string) ||
@@ -223,6 +229,14 @@ async function processSuccessfulCheckout(session: Stripe.Checkout.Session) {
     return
   }
 
+  const existing = (await DatabaseService.query(
+    `SELECT id, status FROM subscription_payments
+      WHERE provider = 'stripe' AND payment_id = $1
+      LIMIT 1`,
+    [paymentIntentId]
+  )) as any[]
+  const alreadyCaptured = existing.length > 0 && existing[0].status === 'captured'
+
   await DatabaseService.recordSubscriptionPayment({
     subscriptionId: `stripe_session_${sessionId}`,
     provider: 'stripe',
@@ -234,6 +248,11 @@ async function processSuccessfulCheckout(session: Stripe.Checkout.Session) {
     companyId: resolvedCompanyId,
     rawData: session,
   }).catch((e) => console.error('[Stripe] recordSubscriptionPayment error:', e))
+
+  if (alreadyCaptured) {
+    console.log(`[Stripe] Payment ${paymentIntentId} already credited — skipping wallet update`)
+    return
+  }
 
   await DatabaseService.query(
     `INSERT INTO company_billing (company_id, wallet_balance, status, created_at, updated_at)

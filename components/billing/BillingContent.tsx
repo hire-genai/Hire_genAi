@@ -156,7 +156,29 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
     if (stripeSuccess === '1') {
       setToastMessage('Stripe payment successful — updating balance...')
-      window.dispatchEvent(new CustomEvent('subscription-updated'))
+      const sessionId = searchParams.get('session_id')
+      ;(async () => {
+        if (sessionId) {
+          try {
+            const res = await fetch('/api/stripe/confirm', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ session_id: sessionId }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) {
+              console.error('[BillingContent] Stripe confirm failed:', data)
+              setToastMessage(data?.error || 'Stripe confirm failed')
+            }
+          } catch (e) {
+            console.error('[BillingContent] Stripe confirm error:', e)
+          }
+        }
+        window.dispatchEvent(new CustomEvent('subscription-updated'))
+        if (companyId) {
+          await loadBillingData()
+        }
+      })()
       setTimeout(() => setToastMessage(null), 4000)
       router.replace('/settings?tab=payment')
     } else if (stripeCancel === '1') {
