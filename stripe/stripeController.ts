@@ -664,6 +664,101 @@ export async function processSubscriptionCheckoutCompleted(
     )
   }
 
+  // ─── Record first payment from latest_invoice (idempotent) ───
+  // This is done here because checkout.session.completed ALWAYS has company_id in metadata.
+  // invoice.payment_succeeded may fire before subscription_id is stored in DB (race condition).
+  try {
+    const latestInvoice = (subscription as any).latest_invoice
+    if (latestInvoice && typeof latestInvoice === 'object') {
+      const amountPaid = (latestInvoice.amount_paid || 0) / 100
+      const currency = (latestInvoice.currency || 'usd').toUpperCase()
+
+      if (amountPaid > 0) {
+        const paymentId =
+          typeof latestInvoice.payment_intent === 'string'
+            ? latestInvoice.payment_intent
+            : latestInvoice.payment_intent?.id || latestInvoice.id
+
+        // Idempotency: check if already recorded by invoice.payment_succeeded
+        const existing = (await DatabaseService.query(
+          `SELECT id FROM subscription_payments WHERE provider = 'stripe' AND payment_id = $1 LIMIT 1`,
+          [paymentId]
+        )) as any[]
+
+        if (existing.length === 0) {
+          // Insert payment
+          await DatabaseService.query(
+            `INSERT INTO subscription_payments (
+               subscription_id, provider, payment_id, amount, currency,
+               status, payment_time, company_id, raw_data
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::uuid, $9::jsonb)
+             ON CONFLICT (payment_id, provider) DO NOTHING`,
+            [
+              subscription.id,
+              'stripe',
+              paymentId,
+              amountPaid,
+              currency,
+              'captured',
+              latestInvoice.created ? new Date(latestInvoice.created * 1000).toISOString() : new Date().toISOString(),
+              companyId,
+              JSON.stringify(latestInvoice),
+            ]
+          )
+          console.log(`[Stripe] Recorded first subscription payment: ${paymentId}, amount: ${amountPaid} ${currency}`)
+
+          // Credit wallet
+          await DatabaseService.query(
+            `INSERT INTO company_billing (company_id, wallet_balance, status, created_at, updated_at)
+             VALUES ($1::uuid, 0, 'active', NOW(), NOW())
+             ON CONFLICT (company_id) DO NOTHING`,
+            [companyId]
+          )
+          const before = (await DatabaseService.query(
+            `SELECT wallet_balance FROM company_billing WHERE company_id = $1::uuid`,
+            [companyId]
+          )) as any[]
+          const balanceBefore = before[0] ? parseFloat(before[0].wallet_balance) : 0
+
+          const updated = (await DatabaseService.query(
+            `UPDATE company_billing SET wallet_balance = wallet_balance + $2, status = 'active', updated_at = NOW()
+             WHERE company_id = $1::uuid RETURNING wallet_balance`,
+            [companyId, amountPaid]
+          )) as any[]
+          const balanceAfter = updated[0] ? parseFloat(updated[0].wallet_balance) : balanceBefore + amountPaid
+
+          console.log(`[Stripe] Wallet credited on checkout — company: ${companyId}, +${amountPaid} ${currency}, balance: ${balanceBefore} → ${balanceAfter}`)
+
+          try {
+            await DatabaseService.addLedgerEntry({
+              companyId,
+              entryType: 'WALLET_TOPUP',
+              description: `Stripe subscription payment — Invoice ${latestInvoice.id}`,
+              amount: amountPaid,
+              balanceBefore,
+              balanceAfter,
+              metadata: { provider: 'stripe', subscriptionId: subscription.id, invoiceId: latestInvoice.id, paymentId, currency },
+            })
+          } catch (e) {
+            console.error('[Stripe] addLedgerEntry failed:', e)
+          }
+
+          // Restore jobs/interviews
+          try {
+            await DatabaseService.restoreJobsAfterRecharge(companyId)
+            await DatabaseService.restoreInterviewsAfterRecharge(companyId)
+          } catch (e) {
+            console.error('[Stripe] restore after checkout payment error:', e)
+          }
+        } else {
+          console.log(`[Stripe] Payment ${paymentId} already recorded by invoice.payment_succeeded — skipping`)
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[Stripe] Failed to record first payment from checkout:', e)
+  }
+
   // Activate company billing
   try {
     await DatabaseService.activateCompanyFromSubscription(companyId)
