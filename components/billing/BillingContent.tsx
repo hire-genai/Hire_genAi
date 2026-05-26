@@ -901,15 +901,29 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                     <AlertCircle className="h-4 w-4" />
                     Payment pending — complete checkout to activate
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={handleStripeSubscribe}
-                    disabled={stripeSubStarting}
-                    className="w-full bg-[#635bff] hover:bg-[#4f46e5] text-white"
-                  >
-                    {stripeSubStarting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Complete Stripe Checkout
-                  </Button>
+                  {stripeSubscription.checkoutUrl ? (
+                    <Button
+                      size="sm"
+                      onClick={() => { window.location.href = stripeSubscription.checkoutUrl }}
+                      className="w-full bg-[#635bff] hover:bg-[#4f46e5] text-white"
+                    >
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Complete Stripe Checkout
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={handleStripeSubscribe}
+                      disabled={stripeSubStarting}
+                      className="w-full bg-[#635bff] hover:bg-[#4f46e5] text-white"
+                    >
+                      {stripeSubStarting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Start New Checkout
+                    </Button>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Already paid? Webhook may still be processing — refresh in a moment.
+                  </p>
                 </div>
               ) : (
                 /* ── No Stripe Subscription ── */

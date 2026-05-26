@@ -99,6 +99,7 @@ export async function GET(request: NextRequest) {
           : subscription.next_billing_time,
         cancelAtCycleEnd: subscription.cancel_at_cycle_end,
         customerId: subscription.customer_id,
+        checkoutUrl: subscription.subscription_link || null,
         createdAt: subscription.created_at,
         updatedAt: subscription.updated_at,
       },
