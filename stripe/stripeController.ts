@@ -756,75 +756,117 @@ export async function processSubscriptionEvent(
 
 /**
  * Handle invoice.payment_succeeded — credit wallet by invoice amount
- * Triggered for BOTH initial subscription payment and recurring renewals.
+ * Mirrors Razorpay's subscription.charged handler: simple, inline, no extra API calls.
  */
 export async function processInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
-  console.log(
-    `[Stripe] Invoice payment succeeded — id: ${invoice.id}, amount: ${(invoice.amount_paid || 0) / 100} ${invoice.currency}, reason: ${(invoice as any).billing_reason}`
-  )
+  const invoiceAny = invoice as any
+
+  const amountPaid = (invoice.amount_paid || 0) / 100
+  const currency = (invoice.currency || 'usd').toUpperCase()
+
+  console.log(`[Stripe] Invoice payment succeeded — id: ${invoice.id}, amount: ${amountPaid} ${currency}`)
 
   const subscriptionId =
-    typeof (invoice as any).subscription === 'string'
-      ? (invoice as any).subscription
-      : (invoice as any).subscription?.id || null
+    typeof invoiceAny.subscription === 'string'
+      ? invoiceAny.subscription
+      : invoiceAny.subscription?.id || null
 
   if (!subscriptionId) {
-    console.log('[Stripe] Invoice has no subscription — skipping (not a subscription invoice)')
+    console.log('[Stripe] Invoice has no subscription — skipping')
     return
   }
 
   const customerId =
-    typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id || null
+    typeof invoice.customer === 'string' ? invoice.customer : (invoice.customer as any)?.id || null
 
-  const companyId = await resolveCompanyIdFromStripe({
-    metadata: (invoice as any).subscription_details?.metadata || null,
-    customerId,
-    email: invoice.customer_email,
-    subscriptionId,
-  })
+  // ─── Resolve company (mirrors Razorpay's notes → email → DB lookup) ───
+  let companyId: string | null = null
 
-  if (!companyId) {
-    console.error(`[Stripe] Could not resolve company for invoice: ${invoice.id}, subscriptionId: ${subscriptionId}, customerId: ${customerId}`)
-    return
+  // 1. From subscription metadata (set at checkout creation)
+  if (invoiceAny.subscription_details?.metadata?.company_id) {
+    companyId = invoiceAny.subscription_details.metadata.company_id
+    console.log(`[Stripe] Company resolved from subscription metadata: ${companyId}`)
   }
 
-  const enriched = await buildEnrichedStripePayment({ invoice })
-  const amountPaid = enriched.amount
+  // 2. From subscription_id in DB (most reliable — set by customer.subscription.created)
+  if (!companyId && subscriptionId) {
+    const rows = (await DatabaseService.query(
+      `SELECT company_id FROM company_subscriptions WHERE subscription_id = $1 AND provider = 'stripe' LIMIT 1`,
+      [subscriptionId]
+    )) as any[]
+    if (rows[0]?.company_id) {
+      companyId = rows[0].company_id
+      console.log(`[Stripe] Company resolved from subscription_id DB lookup: ${companyId}`)
+    }
+  }
+
+  // 3. From customer_id in DB
+  if (!companyId && customerId) {
+    const rows = (await DatabaseService.query(
+      `SELECT company_id FROM company_subscriptions WHERE customer_id = $1 AND provider = 'stripe' LIMIT 1`,
+      [customerId]
+    )) as any[]
+    if (rows[0]?.company_id) {
+      companyId = rows[0].company_id
+      console.log(`[Stripe] Company resolved from customer_id DB lookup: ${companyId}`)
+    }
+  }
+
+  // 4. Fallback: email lookup
+  if (!companyId && invoice.customer_email) {
+    const rows = (await DatabaseService.query(
+      `SELECT c.id AS company_id FROM users u JOIN companies c ON c.id = u.company_id WHERE u.email = $1 LIMIT 1`,
+      [invoice.customer_email]
+    )) as any[]
+    if (rows[0]?.company_id) {
+      companyId = rows[0].company_id
+      console.log(`[Stripe] Company resolved from email lookup: ${companyId}`)
+    }
+  }
+
+  if (!companyId) {
+    console.error(`[Stripe] Could not resolve company for invoice: ${invoice.id}, subscriptionId: ${subscriptionId}, customerId: ${customerId}, email: ${invoice.customer_email}`)
+    return
+  }
 
   if (amountPaid <= 0) {
     console.log(`[Stripe] Invoice ${invoice.id} has zero amount — skipping wallet credit`)
     return
   }
 
-  // Idempotency: check if this payment was already recorded
+  // Payment ID: prefer payment_intent id, fallback to invoice id
+  const paymentId =
+    typeof invoiceAny.payment_intent === 'string'
+      ? invoiceAny.payment_intent
+      : invoiceAny.payment_intent?.id || invoice.id
+
+  // ─── Idempotency check ───
   const existing = (await DatabaseService.query(
-    `SELECT id, status FROM subscription_payments
-     WHERE provider = 'stripe' AND payment_id = $1
-     LIMIT 1`,
-    [enriched.paymentId]
+    `SELECT id, status FROM subscription_payments WHERE provider = 'stripe' AND payment_id = $1 LIMIT 1`,
+    [paymentId]
   )) as any[]
   const alreadyCaptured = existing.length > 0 && existing[0].status === 'captured'
 
-  // Record payment (idempotent via UNIQUE constraint)
+  // ─── Record payment (mirrors Razorpay subscription.charged) ───
   await DatabaseService.recordSubscriptionPayment({
     subscriptionId,
     provider: 'stripe',
-    paymentId: enriched.paymentId,
+    paymentId,
     amount: amountPaid,
-    currency: enriched.currency,
+    currency,
     status: 'captured',
-    paymentTime: enriched.createdAt,
+    paymentTime: invoice.created ? new Date(invoice.created * 1000) : new Date(),
     companyId,
-    rawData: enriched,
+    rawData: invoice,
   })
-  console.log(`[Stripe] Recorded subscription_payment: ${enriched.paymentId}`)
+  console.log(`[Stripe] Recorded subscription_payment: ${paymentId}, company: ${companyId}, amount: ${amountPaid}`)
 
   if (alreadyCaptured) {
-    console.log(`[Stripe] Payment ${enriched.paymentId} already credited — skipping wallet update`)
+    console.log(`[Stripe] Payment ${paymentId} already credited — skipping wallet update`)
     return
   }
 
-  // Ensure company_billing exists
+  // ─── Credit wallet (mirrors Razorpay subscription.charged) ───
   await DatabaseService.query(
     `INSERT INTO company_billing (company_id, wallet_balance, status, created_at, updated_at)
      VALUES ($1::uuid, 0, 'active', NOW(), NOW())
@@ -832,31 +874,24 @@ export async function processInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
     [companyId]
   )
 
-  // Get balance before
   const before = (await DatabaseService.query(
     `SELECT wallet_balance FROM company_billing WHERE company_id = $1::uuid`,
     [companyId]
   )) as any[]
   const balanceBefore = before.length > 0 ? parseFloat(before[0].wallet_balance) : 0
 
-  // Credit wallet by exact invoice amount paid
   const updated = (await DatabaseService.query(
     `UPDATE company_billing
-        SET wallet_balance = wallet_balance + $2,
-            status = 'active',
-            updated_at = NOW()
-      WHERE company_id = $1::uuid
-      RETURNING wallet_balance`,
+       SET wallet_balance = wallet_balance + $2, status = 'active', updated_at = NOW()
+     WHERE company_id = $1::uuid
+     RETURNING wallet_balance`,
     [companyId, amountPaid]
   )) as any[]
-  const balanceAfter =
-    updated.length > 0 ? parseFloat(updated[0].wallet_balance) : balanceBefore + amountPaid
+  const balanceAfter = updated.length > 0 ? parseFloat(updated[0].wallet_balance) : balanceBefore + amountPaid
 
-  console.log(
-    `[Stripe] Wallet credited — company: ${companyId}, +${amountPaid} ${enriched.currency}, balance: ${balanceBefore} → ${balanceAfter}`
-  )
+  console.log(`[Stripe] Wallet credited — company: ${companyId}, +${amountPaid} ${currency}, balance: ${balanceBefore} → ${balanceAfter}`)
 
-  // Add usage_ledger entry
+  // ─── Ledger entry ───
   try {
     await DatabaseService.addLedgerEntry({
       companyId,
@@ -865,50 +900,24 @@ export async function processInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
       amount: amountPaid,
       balanceBefore,
       balanceAfter,
-      metadata: {
-        provider: 'stripe',
-        subscriptionId,
-        invoiceId: invoice.id,
-        paymentId: enriched.paymentId,
-        billingReason: (invoice as any).billing_reason,
-        currency: enriched.currency,
-      },
+      metadata: { provider: 'stripe', subscriptionId, invoiceId: invoice.id, paymentId, currency },
     })
   } catch (e) {
     console.error('[Stripe] addLedgerEntry failed:', e)
   }
 
-  // Update subscription with next billing time
-  const subscriptionFresh = await stripe.subscriptions
-    .retrieve(subscriptionId)
-    .catch(() => null)
-  if (subscriptionFresh) {
-    const nextBilling = (subscriptionFresh as any).current_period_end
-      ? new Date((subscriptionFresh as any).current_period_end * 1000)
-      : undefined
-    await DatabaseService.updateSubscriptionStatus(
-      companyId,
-      'stripe',
-      mapStripeSubscriptionStatus(subscriptionFresh.status),
-      nextBilling
-    )
-  }
-
-  // Ensure company is active
+  // ─── Activate company + restore jobs/interviews ───
   try {
     await DatabaseService.activateCompanyFromSubscription(companyId)
   } catch (e) {
     console.error('[Stripe] activateCompanyFromSubscription error:', e)
   }
 
-  // Restore jobs/interviews on hold
   try {
     const restoredJobs = await DatabaseService.restoreJobsAfterRecharge(companyId)
     const restoredInterviews = await DatabaseService.restoreInterviewsAfterRecharge(companyId)
     if (restoredJobs > 0 || restoredInterviews > 0) {
-      console.log(
-        `[Stripe] Restored ${restoredJobs} jobs and ${restoredInterviews} interviews after subscription payment`
-      )
+      console.log(`[Stripe] Restored ${restoredJobs} jobs and ${restoredInterviews} interviews`)
     }
   } catch (e) {
     console.error('[Stripe] restore after subscription payment error:', e)
@@ -916,45 +925,61 @@ export async function processInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
 }
 
 /**
- * Handle invoice.payment_failed — record failure, mark subscription halted
+ * Handle invoice.payment_failed — record failure
  */
 export async function processInvoicePaymentFailed(invoice: Stripe.Invoice) {
+  const invoiceAny = invoice as any
   console.warn(`[Stripe] Invoice payment failed — id: ${invoice.id}`)
 
   const subscriptionId =
-    typeof (invoice as any).subscription === 'string'
-      ? (invoice as any).subscription
-      : (invoice as any).subscription?.id || null
+    typeof invoiceAny.subscription === 'string'
+      ? invoiceAny.subscription
+      : invoiceAny.subscription?.id || null
 
   if (!subscriptionId) return
 
   const customerId =
-    typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id || null
+    typeof invoice.customer === 'string' ? invoice.customer : (invoice.customer as any)?.id || null
 
-  const companyId = await resolveCompanyIdFromStripe({
-    metadata: (invoice as any).subscription_details?.metadata || null,
-    customerId,
-    email: invoice.customer_email,
-    subscriptionId,
-  })
+  let companyId: string | null = null
+
+  if (invoiceAny.subscription_details?.metadata?.company_id) {
+    companyId = invoiceAny.subscription_details.metadata.company_id
+  }
+  if (!companyId) {
+    const rows = (await DatabaseService.query(
+      `SELECT company_id FROM company_subscriptions WHERE subscription_id = $1 AND provider = 'stripe' LIMIT 1`,
+      [subscriptionId]
+    )) as any[]
+    if (rows[0]?.company_id) companyId = rows[0].company_id
+  }
+  if (!companyId && customerId) {
+    const rows = (await DatabaseService.query(
+      `SELECT company_id FROM company_subscriptions WHERE customer_id = $1 AND provider = 'stripe' LIMIT 1`,
+      [customerId]
+    )) as any[]
+    if (rows[0]?.company_id) companyId = rows[0].company_id
+  }
 
   if (!companyId) return
 
-  const enriched = await buildEnrichedStripePayment({ invoice })
+  const paymentId =
+    typeof invoiceAny.payment_intent === 'string'
+      ? invoiceAny.payment_intent
+      : invoiceAny.payment_intent?.id || invoice.id
 
   await DatabaseService.recordSubscriptionPayment({
     subscriptionId,
     provider: 'stripe',
-    paymentId: enriched.paymentId,
-    amount: enriched.amount,
-    currency: enriched.currency,
+    paymentId,
+    amount: (invoice.amount_due || 0) / 100,
+    currency: (invoice.currency || 'usd').toUpperCase(),
     status: 'failed',
-    paymentTime: enriched.createdAt,
+    paymentTime: invoice.created ? new Date(invoice.created * 1000) : new Date(),
     companyId,
-    rawData: enriched,
+    rawData: invoice,
   }).catch((e) => console.error('[Stripe] recordSubscriptionPayment(failed) error:', e))
 
-  // Don't immediately halt — Stripe will retry. Let customer.subscription.updated mark past_due.
   console.log(`[Stripe] Recorded failed invoice payment for company: ${companyId}`)
 }
 
