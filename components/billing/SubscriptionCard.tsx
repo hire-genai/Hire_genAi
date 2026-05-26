@@ -454,16 +454,16 @@ export default function SubscriptionCard({
                 {'\u2728'} Full Pro features unlocked
               </div>
               <div className="flex gap-3">
-                <Button 
+                <Button
                   onClick={handleUpgrade}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-[20px_7px] py-[7px_20px] font-semibold text-[0.8rem] transition-all text-center"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm transition-all flex items-center justify-center h-10"
                 >
                   Upgrade to Pro
                 </Button>
-                <Button 
+                <Button
                   variant="outline"
                   onClick={handleContinueTrial}
-                  className="border-2 border-emerald-600 text-emerald-700 hover:bg-emerald-50 rounded-full px-[20px_7px] py-[7px_20px] font-semibold text-[0.8rem] text-center"
+                  className="border-2 border-emerald-600 text-emerald-700 hover:bg-emerald-50 rounded-full px-6 py-2.5 font-semibold text-sm flex items-center justify-center h-10"
                 >
                   Continue trial
                 </Button>

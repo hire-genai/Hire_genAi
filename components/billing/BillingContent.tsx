@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -57,14 +57,14 @@ function getProviderLabel(raw: any): string {
 
 function formatPaymentDate(date: string | Date): string {
   if (!date) return "-"
-  
+
   const d = new Date(date)
   if (isNaN(d.getTime())) return "-"
-  
-  return d.toLocaleDateString("en-IN", { 
-    day: "2-digit", 
-    month: "short", 
-    year: "numeric" 
+
+  return d.toLocaleDateString("en-US", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
   })
 }
 
@@ -75,17 +75,22 @@ interface BillingContentProps {
 export default function BillingContent({ companyId }: BillingContentProps) {
   const { user } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [billingData, setBillingData] = useState<any>(null)
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionInfo | null>(null)
   const [usageData, setUsageData] = useState<any>(null)
   const [loadingUsage, setLoadingUsage] = useState(false)
   const [currentTab, setCurrentTab] = useState<string>("overview")
+  // Stripe subscription state
+  const [stripeSubscription, setStripeSubscription] = useState<any>(null)
+  const [stripeSubLoading, setStripeSubLoading] = useState(false)
+  const [stripeSubStarting, setStripeSubStarting] = useState(false)
+  const [stripeSubCancelling, setStripeSubCancelling] = useState(false)
   // Handle payment cancel → redirect to settings payment tab
   const handlePaymentCancel = () => {
     router.push('/settings?tab=payment')
   }
-
 
   // Auto-Recharge
   const [autoRecharge, setAutoRecharge] = useState(false)
@@ -122,8 +127,77 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   useEffect(() => {
     if (companyId) {
       loadBillingData()
+      loadStripeSubscription()
     }
   }, [companyId])
+
+  // Handle Stripe redirect — show toast and trigger realtime balance refresh
+  useEffect(() => {
+    if (!searchParams) return
+    const stripeSuccess = searchParams.get('stripe_success')
+    const stripeCancel = searchParams.get('stripe_cancel')
+    const stripeSubSuccess = searchParams.get('stripe_sub_success')
+    const stripeSubCancel = searchParams.get('stripe_sub_cancel')
+
+    if (stripeSubSuccess === '1') {
+      // Subscription checkout completed — webhook will handle wallet credit
+      setToastMessage('Stripe subscription activated — your plan is being set up...')
+      ;(async () => {
+        // Poll for subscription to appear (webhook processing)
+        for (let i = 0; i < 8; i++) {
+          await new Promise(r => setTimeout(r, 1500))
+          try {
+            const res = await fetch('/api/subscriptions/stripe/status?refresh=true')
+            const data = await res.json()
+            if (data.ok && data.hasSubscription && data.subscription?.status === 'active') {
+              setStripeSubscription(data.subscription)
+              break
+            }
+          } catch { /* continue polling */ }
+        }
+        await loadBillingData()
+        await loadStripeSubscription()
+      })()
+      setTimeout(() => setToastMessage(null), 5000)
+      router.replace('/settings?tab=payment')
+    } else if (stripeSubCancel === '1') {
+      setToastMessage('Stripe subscription setup cancelled')
+      setTimeout(() => setToastMessage(null), 3000)
+      router.replace('/settings?tab=payment')
+    } else if (stripeSuccess === '1') {
+      setToastMessage('Stripe payment successful — updating balance...')
+      const sessionId = searchParams.get('session_id')
+      ;(async () => {
+        if (sessionId) {
+          try {
+            const res = await fetch('/api/stripe/confirm', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ session_id: sessionId }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) {
+              console.error('[BillingContent] Stripe confirm failed:', data)
+              setToastMessage(data?.error || 'Stripe confirm failed')
+            }
+          } catch (e) {
+            console.error('[BillingContent] Stripe confirm error:', e)
+          }
+        }
+        window.dispatchEvent(new CustomEvent('subscription-updated'))
+        if (companyId) {
+          await loadBillingData()
+        }
+      })()
+      setTimeout(() => setToastMessage(null), 4000)
+      router.replace('/settings?tab=payment')
+    } else if (stripeCancel === '1') {
+      setToastMessage('Stripe payment cancelled')
+      setTimeout(() => setToastMessage(null), 3000)
+      router.replace('/settings?tab=payment')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (companyId && billingData) {
@@ -244,6 +318,83 @@ export default function BillingContent({ companyId }: BillingContentProps) {
     }
   }
 
+  const loadStripeSubscription = async () => {
+    try {
+      setStripeSubLoading(true)
+      const res = await fetch('/api/subscriptions/stripe/status')
+      const data = await res.json()
+      if (data.ok && data.hasSubscription) {
+        setStripeSubscription(data.subscription)
+      } else {
+        setStripeSubscription(null)
+      }
+    } catch (e) {
+      console.error('[BillingContent] Failed to load Stripe subscription:', e)
+    } finally {
+      setStripeSubLoading(false)
+    }
+  }
+
+  const handleStripeSubscribe = async () => {
+    try {
+      setStripeSubStarting(true)
+      const res = await fetch('/api/subscriptions/stripe/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planType: 'monthly' }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setToastMessage(data?.error || 'Failed to start Stripe subscription')
+        return
+      }
+      window.location.href = data.subscription.checkoutUrl
+    } catch (e: any) {
+      setToastMessage(e?.message || 'Stripe subscription failed')
+    } finally {
+      setStripeSubStarting(false)
+    }
+  }
+
+  const handleStripeCancel = async () => {
+    if (!confirm('Cancel your Stripe subscription at end of billing period?')) return
+    try {
+      setStripeSubCancelling(true)
+      const res = await fetch('/api/subscriptions/stripe/cancel', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setToastMessage(data?.error || 'Failed to cancel Stripe subscription')
+        return
+      }
+      setToastMessage('Subscription cancelled — access continues until billing period ends')
+      await loadStripeSubscription()
+      setTimeout(() => setToastMessage(null), 4000)
+    } catch (e: any) {
+      setToastMessage(e?.message || 'Cancel failed')
+    } finally {
+      setStripeSubCancelling(false)
+    }
+  }
+
+  const handleStripeResume = async () => {
+    try {
+      setStripeSubCancelling(true)
+      const res = await fetch('/api/subscriptions/stripe/resume', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setToastMessage(data?.error || 'Failed to resume Stripe subscription')
+        return
+      }
+      setToastMessage('Stripe subscription resumed — auto-renewal restored')
+      await loadStripeSubscription()
+      setTimeout(() => setToastMessage(null), 4000)
+    } catch (e: any) {
+      setToastMessage(e?.message || 'Resume failed')
+    } finally {
+      setStripeSubCancelling(false)
+    }
+  }
+
   const loadUsageData = async (startOverride?: Date, endOverride?: Date, jobFilterOverride?: string) => {
     try {
       setLoadingUsage(true)
@@ -318,7 +469,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
 
   const generatePaymentReceiptHtml = (payment: any) => {
     // Fallback HTML receipt generation (kept for emergency fallback)
-    const paymentDate = new Date(payment.paymentDate).toLocaleDateString('en-IN', {
+    const paymentDate = new Date(payment.paymentDate).toLocaleDateString('en-US', {
       day: '2-digit',
       month: 'long',
       year: 'numeric'
@@ -670,6 +821,132 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             currentMonthSpent={billingData?.currentMonthSpent ?? 0}
             totalSpent={billingData?.totalSpent ?? 0}
           />
+
+          {/* Stripe Subscription Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <CreditCard className="h-4 w-4" />
+                Stripe Subscription
+              </CardTitle>
+              <CardDescription>
+                Subscribe via Stripe — monthly billing, cancel anytime.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {stripeSubLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading subscription...
+                </div>
+              ) : stripeSubscription && ['active', 'trialing'].includes(stripeSubscription.status) ? (
+                /* ── Active Stripe Subscription ── */
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-green-100 text-green-800 border-green-200">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Active
+                      </Badge>
+                      {stripeSubscription.cancelAtCycleEnd && (
+                        <Badge variant="outline" className="text-orange-600 border-orange-300 text-xs">
+                          Cancels at period end
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {stripeSubscription.nextBillingTime && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Calendar className="h-3.5 w-3.5" />
+                      {stripeSubscription.cancelAtCycleEnd ? 'Access until' : 'Next billing'}&nbsp;
+                      <span className="font-medium text-foreground">
+                        {new Date(stripeSubscription.nextBillingTime).toLocaleDateString('en-US', {
+                          day: '2-digit', month: 'short', year: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-1">
+                    {stripeSubscription.cancelAtCycleEnd ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={stripeSubCancelling}
+                        onClick={handleStripeResume}
+                        className="text-green-700 border-green-300 hover:bg-green-50"
+                      >
+                        {stripeSubCancelling ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                        Resume Auto-Renewal
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={stripeSubCancelling}
+                        onClick={handleStripeCancel}
+                        className="text-red-600 border-red-300 hover:bg-red-50"
+                      >
+                        {stripeSubCancelling ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                        Cancel Subscription
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ) : stripeSubscription && stripeSubscription.status === 'pending' ? (
+                /* ── Pending (checkout started but not paid) ── */
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-amber-600">
+                    <AlertCircle className="h-4 w-4" />
+                    Payment pending — complete checkout to activate
+                  </div>
+                  {stripeSubscription.checkoutUrl ? (
+                    <Button
+                      size="sm"
+                      onClick={() => { window.location.href = stripeSubscription.checkoutUrl }}
+                      className="w-full bg-[#635bff] hover:bg-[#4f46e5] text-white"
+                    >
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Complete Stripe Checkout
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={handleStripeSubscribe}
+                      disabled={stripeSubStarting}
+                      className="w-full bg-[#635bff] hover:bg-[#4f46e5] text-white"
+                    >
+                      {stripeSubStarting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Start New Checkout
+                    </Button>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Already paid? Webhook may still be processing — refresh in a moment.
+                  </p>
+                </div>
+              ) : (
+                /* ── No Stripe Subscription ── */
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Subscribe via Stripe for monthly billing. Credits are added to your wallet automatically on each renewal.
+                  </p>
+                  <Button
+                    onClick={handleStripeSubscribe}
+                    disabled={stripeSubStarting}
+                    className="w-full bg-[#635bff] hover:bg-[#4f46e5] text-white font-semibold"
+                  >
+                    {stripeSubStarting ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <CreditCard className="h-4 w-4 mr-2" />
+                    )}
+                    Subscribe with Stripe
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Saved Card for Auto-Recharge */}
           <SavedCardSettings companyId={companyId} />
@@ -1042,7 +1319,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                         <>
                           <p className="text-2xl font-bold text-slate-800 mt-2">${lastPayment.amount?.toLocaleString('en-US')}</p>
                           <p className="text-xs text-slate-400 mt-0.5">
-                            {new Date(lastPayment.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            {new Date(lastPayment.paymentDate).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                           </p>
                         </>
                       ) : (
@@ -1075,7 +1352,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             const grouped: Record<string, any[]> = {}
             filteredPayments.forEach((payment, idx) => {
               const date = new Date(payment.paymentDate)
-              const monthKey = date.toLocaleDateString("en-IN", { month: "long", year: "numeric" })
+              const monthKey = date.toLocaleDateString("en-US", { month: "long", year: "numeric" })
               if (!grouped[monthKey]) grouped[monthKey] = []
               payment._index = idx
               grouped[monthKey].push(payment)
@@ -1132,6 +1409,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
                         <div className="space-y-3">
                           {monthPayments.map((payment: any, idx: number) => {
                             const paymentDate = new Date(payment.paymentDate)
+                            const currency = '$'
                             const amount = payment.amount?.toLocaleString('en-US') || '0'
                             
                             // Generate invoice number
