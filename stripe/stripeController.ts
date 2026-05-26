@@ -529,13 +529,25 @@ async function resolveCompanyIdFromStripe(params: {
   metadata?: Stripe.Metadata | null
   customerId?: string | null
   email?: string | null
+  subscriptionId?: string | null
 }): Promise<string | null> {
-  const { metadata, customerId, email } = params
+  const { metadata, customerId, email, subscriptionId } = params
 
   // 1. Direct from metadata
   if (metadata?.company_id) return metadata.company_id as string
 
-  // 2. Look up by Stripe customer_id stored in our DB
+  // 2. Look up by subscription_id — most reliable, always set when checkout completes
+  if (subscriptionId) {
+    const bySub = (await DatabaseService.query(
+      `SELECT company_id FROM company_subscriptions
+       WHERE subscription_id = $1 AND provider = 'stripe'
+       LIMIT 1`,
+      [subscriptionId]
+    )) as any[]
+    if (bySub.length > 0) return bySub[0].company_id as string
+  }
+
+  // 3. Look up by Stripe customer_id stored in our DB
   if (customerId) {
     const byCustomer = (await DatabaseService.query(
       `SELECT company_id FROM company_subscriptions
@@ -546,7 +558,7 @@ async function resolveCompanyIdFromStripe(params: {
     if (byCustomer.length > 0) return byCustomer[0].company_id as string
   }
 
-  // 3. Fallback to email lookup
+  // 4. Fallback to email lookup
   if (email) {
     const byEmail = (await DatabaseService.query(
       `SELECT c.id AS company_id
@@ -768,10 +780,11 @@ export async function processInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
     metadata: (invoice as any).subscription_details?.metadata || null,
     customerId,
     email: invoice.customer_email,
+    subscriptionId,
   })
 
   if (!companyId) {
-    console.error(`[Stripe] Could not resolve company for invoice: ${invoice.id}`)
+    console.error(`[Stripe] Could not resolve company for invoice: ${invoice.id}, subscriptionId: ${subscriptionId}, customerId: ${customerId}`)
     return
   }
 
@@ -922,6 +935,7 @@ export async function processInvoicePaymentFailed(invoice: Stripe.Invoice) {
     metadata: (invoice as any).subscription_details?.metadata || null,
     customerId,
     email: invoice.customer_email,
+    subscriptionId,
   })
 
   if (!companyId) return
