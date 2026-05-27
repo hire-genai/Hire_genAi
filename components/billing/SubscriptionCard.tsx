@@ -4,12 +4,11 @@ import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
-import { 
-  Flame, 
-  AlertTriangle, 
-  CheckCircle, 
-  Sparkles, 
+import {
+  Flame,
+  AlertTriangle,
+  CheckCircle,
+  Sparkles,
   Settings as SettingsIcon,
   Calendar,
   CreditCard,
@@ -21,7 +20,6 @@ import {
 // 5 billing status values (matches backend - subscription-based)
 export type BillingStatus = 'active' | 'trial' | 'trial_over' | 'cancelled' | 'expired'
 
-// Subscription status from Razorpay
 export type SubscriptionStatus = 'active' | 'pending' | 'halted' | 'cancelled' | 'completed' | 'paused' | 'created' | 'authenticated' | null
 
 export interface SubscriptionInfo {
@@ -32,6 +30,7 @@ export interface SubscriptionInfo {
   currentEnd?: string
   cancelAtCycleEnd?: boolean
   subscriberEmail?: string
+  checkoutUrl?: string | null
 }
 
 interface SubscriptionCardProps {
@@ -51,12 +50,7 @@ interface SubscriptionCardProps {
   onManagePlan?: () => void
   onSubscribe?: (planType: 'monthly' | 'yearly') => void
   onCancelSubscription?: () => void
-}
-
-declare global {
-  interface Window {
-    Razorpay: any
-  }
+  onReactivate?: () => void
 }
 
 export default function SubscriptionCard({
@@ -66,7 +60,7 @@ export default function SubscriptionCard({
   planName = 'Pro Plan',
   nextBillingDate,
   autoRenewal = true,
-  currency = 'INR',
+  currency = 'USD',
   companyId,
   userEmail,
   subscription,
@@ -75,7 +69,8 @@ export default function SubscriptionCard({
   totalSpent = 0,
   onManagePlan,
   onSubscribe,
-  onCancelSubscription
+  onCancelSubscription,
+  onReactivate,
 }: SubscriptionCardProps) {
   const [showContinueMessage, setShowContinueMessage] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
@@ -89,29 +84,14 @@ export default function SubscriptionCard({
     setTimeout(() => setShowContinueMessage(false), 3000)
   }
 
-  const progressPercent = trialTotalDays > 0 
-    ? ((trialTotalDays - trialDaysRemaining) / trialTotalDays) * 100 
+  const progressPercent = trialTotalDays > 0
+    ? ((trialTotalDays - trialDaysRemaining) / trialTotalDays) * 100
     : 0
 
-  // Handle upgrade click - create subscription with monthly plan
   const handleUpgrade = () => handleCreateSubscription('monthly')
 
-  // Load Razorpay script dynamically
-  const loadRazorpayScript = (): Promise<boolean> => {
-    return new Promise((resolve) => {
-      if (window.Razorpay) {
-        resolve(true)
-        return
-      }
-      const script = document.createElement('script')
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js'
-      script.onload = () => resolve(true)
-      script.onerror = () => resolve(false)
-      document.body.appendChild(script)
-    })
-  }
-
-  // Handle subscription creation with Razorpay popup
+  // Create subscription — calls onSubscribe prop (Stripe checkout from BillingContent)
+  // or falls back to calling Stripe API directly
   const handleCreateSubscription = async (planType: 'monthly' | 'yearly' = 'monthly') => {
     if (onSubscribe) {
       onSubscribe(planType)
@@ -122,13 +102,7 @@ export default function SubscriptionCard({
     setSubscriptionError(null)
 
     try {
-      // Load Razorpay script
-      const scriptLoaded = await loadRazorpayScript()
-      if (!scriptLoaded) {
-        throw new Error('Failed to load Razorpay SDK')
-      }
-
-      const response = await fetch('/api/subscriptions/create', {
+      const response = await fetch('/api/subscriptions/stripe/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ planType })
@@ -140,35 +114,13 @@ export default function SubscriptionCard({
         throw new Error(data.error || 'Failed to create subscription')
       }
 
-      // Open Razorpay popup with subscription_id
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        subscription_id: data.subscription.id,
-        name: 'HireGenAI',
-        description: `${planType === 'monthly' ? 'Monthly' : 'Yearly'} Subscription`,
-        handler: function () {
-          // Payment successful - wait for webhook to process before refetching
-          setIsCreatingSubscription(false)
-          // Add delay to allow webhook to update database (typically 1-2 seconds)
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('subscription-updated'))
-          }, 2000)
-        },
-        prefill: {
-          email: userEmail || ''
-        },
-        theme: {
-          color: '#7c3aed'
-        },
-        modal: {
-          ondismiss: function () {
-            setIsCreatingSubscription(false)
-          }
-        }
+      // Redirect to Stripe Checkout
+      const checkoutUrl = data.subscription?.checkoutUrl || data.checkoutUrl
+      if (checkoutUrl) {
+        window.location.href = checkoutUrl
+      } else {
+        throw new Error('No checkout URL returned')
       }
-
-      const rzp = new window.Razorpay(options)
-      rzp.open()
     } catch (error: any) {
       console.error('Subscription creation error:', error)
       setSubscriptionError(error.message || 'Failed to create subscription')
@@ -176,53 +128,29 @@ export default function SubscriptionCard({
     }
   }
 
-  // Handle manage plan functionality
+  // Manage Plan — no Razorpay link, just call prop or show nothing
   const handleManagePlan = async () => {
     if (onManagePlan) {
       onManagePlan()
       return
     }
-
+    // No external management link for Stripe — subscription managed from this page
     setIsManagingPlan(true)
-    setSubscriptionError(null)
-
-    try {
-      // Fetch current active subscription with its unique management link
-      const response = await fetch('/api/subscription/current', {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch subscription details')
-      }
-
-      // Use the subscription_link from database (unique per company)
-      const subscriptionLink = data.subscription?.subscriptionLink
-      if (!subscriptionLink) {
-        throw new Error('Subscription management link not available')
-      }
-
-      // Open the company's unique Razorpay subscription management URL in new tab
-      window.open(subscriptionLink, '_blank', 'noopener,noreferrer')
-    } catch (error: any) {
-      console.error('Manage plan error:', error)
-      setSubscriptionError(error.message || 'Failed to open manage plan')
-    } finally {
-      setIsManagingPlan(false)
-    }
+    setTimeout(() => setIsManagingPlan(false), 800)
   }
 
-  // Handle subscription reactivation - try resume first, then create new if needed
+  // Reactivate — try Stripe resume first, then create new
   const handleReactivateSubscription = async () => {
+    if (onReactivate) {
+      onReactivate()
+      return
+    }
+
     setIsCreatingSubscription(true)
     setSubscriptionError(null)
 
     try {
-      // First, try to resume the existing subscription (if it was just scheduled for cancellation)
-      const resumeResponse = await fetch('/api/subscriptions/resume', {
+      const resumeResponse = await fetch('/api/subscriptions/stripe/resume', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -230,29 +158,25 @@ export default function SubscriptionCard({
       const resumeData = await resumeResponse.json()
 
       if (resumeResponse.ok) {
-        // Successfully resumed - trigger billing data refresh
-        console.log('Subscription resumed successfully')
         window.dispatchEvent(new CustomEvent('subscription-updated'))
         setIsCreatingSubscription(false)
         return
       }
 
-      // If resume failed (subscription expired or not resumable), create new subscription
+      // Resume failed — create new subscription
       console.log('Resume failed, creating new subscription:', resumeData.error)
-      
-      // Fall back to creating a new subscription
       await handleCreateSubscription('monthly')
     } catch (error: any) {
       console.error('Reactivation error:', error)
-      // Try creating new subscription as fallback
       await handleCreateSubscription('monthly')
     }
   }
 
-  // Handle subscription cancellation - cancels at cycle end (not immediate)
+  // Cancel subscription via Stripe
   const handleCancelSubscription = async () => {
     if (onCancelSubscription) {
       onCancelSubscription()
+      setShowCancelModal(false)
       return
     }
 
@@ -260,10 +184,10 @@ export default function SubscriptionCard({
     setSubscriptionError(null)
 
     try {
-      const response = await fetch('/api/subscriptions/cancel', {
+      const response = await fetch('/api/subscriptions/stripe/cancel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cancelAtCycleEnd: true }) // Cancel at cycle end, not immediately
+        body: JSON.stringify({ cancelAtCycleEnd: true })
       })
 
       const data = await response.json()
@@ -272,10 +196,7 @@ export default function SubscriptionCard({
         throw new Error(data.error || 'Failed to cancel subscription')
       }
 
-      // Close modal and trigger a refetch of billing data
       setShowCancelModal(false)
-      
-      // Dispatch custom event to trigger billing data refresh
       window.dispatchEvent(new CustomEvent('subscription-updated'))
     } catch (error: any) {
       console.error('Subscription cancellation error:', error)
@@ -285,26 +206,14 @@ export default function SubscriptionCard({
     }
   }
 
-  // Check if user has an active subscription
   const hasActiveSubscription = subscription && ['active', 'authenticated'].includes(subscription.status || '')
-
-  // Card border color based on status
-  const getCardStyle = () => {
-    switch (status) {
-      case 'trial_over': return 'border-red-200'
-      case 'active': return 'border-emerald-200'
-      case 'trial': return 'border-amber-200'
-      default: return 'border-slate-200'
-    }
-  }
 
   return (
     <div className="w-full mb-4">
-      {/* ACTIVE STATE - Clean Green Theme Card */}
+      {/* ACTIVE STATE */}
       {status === 'active' && (
         <div className="w-full bg-white rounded-xl border border-slate-100 border-l-[6px] border-l-emerald-600 px-4 sm:px-7 py-5 sm:py-6">
 
-          {/* Row 1: Badge + Status */}
           <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
             <div className="bg-emerald-600 text-white px-3 sm:px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
@@ -316,16 +225,12 @@ export default function SubscriptionCard({
             </div>
           </div>
 
-          {/* Title + Description */}
           <h3 className="text-lg sm:text-xl font-semibold text-slate-900 mb-1.5">Your workspace is upgraded</h3>
           <p className="text-sm text-emerald-700 border-l-[3px] border-emerald-300 pl-3 mb-5 leading-relaxed">
             All premium features are unlocked. Priority support & analytics.
           </p>
 
-          {/* Billing Date + Buttons — stack on mobile, row on desktop */}
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-
-            {/* Billing Date */}
             <div className="bg-emerald-50 border-2 border-emerald-200 rounded-full px-4 py-1.5 inline-flex items-center gap-2 self-start">
               <span className="text-[10px] font-medium text-emerald-700">Next billing date</span>
               <span className="text-xs font-semibold text-emerald-950">
@@ -335,20 +240,7 @@ export default function SubscriptionCard({
               </span>
             </div>
 
-            {/* Buttons — full width on mobile so labels never get clipped */}
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
-              <Button
-                onClick={handleManagePlan}
-                disabled={isManagingPlan}
-                className="bg-transparent border-2 border-emerald-700 text-emerald-700 hover:bg-emerald-50 rounded-full px-4 sm:px-5 py-2 text-sm font-medium w-full sm:w-auto justify-center"
-              >
-                {isManagingPlan ? (
-                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                ) : (
-                  <SettingsIcon className="h-3.5 w-3.5 mr-1.5" />
-                )}
-                Manage Plan
-              </Button>
               <Button
                 onClick={() => setShowCancelModal(true)}
                 disabled={isCancellingSubscription}
@@ -362,7 +254,6 @@ export default function SubscriptionCard({
                 Cancel Subscription
               </Button>
             </div>
-
           </div>
 
           {subscriptionError && (
@@ -375,17 +266,13 @@ export default function SubscriptionCard({
           {showCancelModal && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
               <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-xl border-t-4 border-t-orange-400">
-                
-                {/* Icon + Title */}
                 <div className="flex items-center justify-center gap-3 mb-4">
                   <span className="text-3xl">⚠️</span>
                   <h2 className="text-2xl font-bold text-emerald-900">Cancel plan?</h2>
                 </div>
-
-                {/* Description */}
                 <p className="text-center text-slate-600 text-sm leading-relaxed mb-2">
                   If you cancel your <strong>Pro Plan</strong>, you'll lose premium features at the end of current billing cycle (
-                  {subscription?.nextBillingDate 
+                  {subscription?.nextBillingDate
                     ? new Date(subscription.nextBillingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })
                     : nextBillingDate || 'end of billing cycle'}
                   ). Your wallet balance remains untouched.
@@ -393,8 +280,6 @@ export default function SubscriptionCard({
                 <p className="text-center text-slate-400 text-sm mb-8">
                   You can re-subscribe anytime.
                 </p>
-
-                {/* Buttons */}
                 <div className="flex gap-3">
                   <button
                     onClick={() => setShowCancelModal(false)}
@@ -410,7 +295,6 @@ export default function SubscriptionCard({
                     {isCancellingSubscription ? 'Cancelling...' : 'Confirm cancellation'}
                   </button>
                 </div>
-
               </div>
             </div>
           )}
@@ -421,7 +305,6 @@ export default function SubscriptionCard({
       {status === 'trial' && (
         <Card className="w-full shadow-lg rounded-[32px] border-0 bg-white border-l-[8px] border-l-emerald-600">
           <CardContent className="p-[20px_28px]">
-            {/* Header: Badge only */}
             <div className="mb-4">
               <div className="bg-emerald-600 text-white px-5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 inline-block">
                 <Flame className="h-3.5 w-3.5" />
@@ -429,35 +312,36 @@ export default function SubscriptionCard({
               </div>
             </div>
 
-            {/* Title */}
             <h3 className="text-xl font-bold text-emerald-800 mb-4">
               Trial Period Ongoing
             </h3>
 
-            {/* Progress Bar Section Only */}
             <div className="mb-5">
               <div className="flex justify-between text-[0.75rem] text-emerald-600 font-medium mb-2">
                 <span>{trialTotalDays} days trial</span>
                 <span>{Math.round(progressPercent)}% used</span>
               </div>
               <div className="bg-emerald-100 rounded-full h-2 overflow-hidden">
-                <div 
+                <div
                   className="bg-emerald-600 rounded-full h-full transition-all duration-300"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
             </div>
 
-            {/* Footer: Info + Buttons */}
             <div className="flex justify-between items-center flex-wrap gap-4 mt-4">
               <div className="bg-emerald-50 px-4 py-2 rounded-full text-sm text-emerald-700 font-medium">
-                {'\u2728'} Full Pro features unlocked
+                {'✨'} Full Pro features unlocked
               </div>
               <div className="flex gap-3">
                 <Button
                   onClick={handleUpgrade}
+                  disabled={isCreatingSubscription}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm transition-all flex items-center justify-center h-10"
                 >
+                  {isCreatingSubscription ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  ) : null}
                   Upgrade to Pro
                 </Button>
                 <Button
@@ -470,23 +354,27 @@ export default function SubscriptionCard({
               </div>
             </div>
 
-            {/* Message */}
             {showContinueMessage && (
               <div className="mt-3 text-center">
                 <p className="text-xs text-emerald-600">
-                  {'\u2713'} You can continue using trial features until expiration.
+                  {'✓'} You can continue using trial features until expiration.
                 </p>
+              </div>
+            )}
+
+            {subscriptionError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-2 mt-3 text-center">
+                <p className="text-xs text-red-700">{subscriptionError}</p>
               </div>
             )}
           </CardContent>
         </Card>
       )}
 
-      {/* TRIAL_OVER STATE - Compact Version */}
+      {/* TRIAL_OVER STATE */}
       {status === 'trial_over' && (
         <Card className="w-full shadow-lg rounded-[28px] border-0 bg-gradient-to-br from-white to-orange-50 border-l-[8px] border-l-orange-500">
           <CardContent className="p-[20px_28px]">
-            {/* Row 1: Badge (left) + Status (right) parallel */}
             <div className="flex justify-between items-center flex-wrap gap-4 mb-4">
               <div className="bg-orange-700 text-white px-4 py-1 rounded-full text-[0.8rem] font-semibold flex items-center gap-2 shadow-md">
                 <AlertTriangle className="h-3 w-3" />
@@ -498,17 +386,13 @@ export default function SubscriptionCard({
               </div>
             </div>
 
-            {/* Row 2: Title and description */}
-            <h3 className="text-xl font-bold text-orange-800 mb-2">
-              Your trial has ended
-            </h3>
+            <h3 className="text-xl font-bold text-orange-800 mb-2">Your trial has ended</h3>
             <p className="text-sm text-orange-700 mb-4 leading-relaxed border-l-[3px] border-orange-300 pl-4">
               Some features are locked. Subscribe to restore full access.
             </p>
 
-            {/* Limited mode notice - compact */}
             <div className="bg-orange-50 border border-orange-200 rounded-[16px] p-[8px_16px] mb-4 flex items-center gap-3 flex-wrap">
-              <div className="text-lg">{'\ud83d\udd12'}</div>
+              <div className="text-lg">{'🔒'}</div>
               <div className="flex-1 text-xs text-orange-700 font-medium">
                 Limited mode: Read-only access, no exports, AI features disabled.
               </div>
@@ -517,21 +401,19 @@ export default function SubscriptionCard({
               </div>
             </div>
 
-            {/* Error message if any */}
             {subscriptionError && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-2 mb-3 text-center">
                 <p className="text-xs text-red-700">{subscriptionError}</p>
               </div>
             )}
 
-            {/* Row 3: Message + Subscribe Now button (parallel) */}
             <div className="flex justify-between items-center flex-wrap gap-4">
               <div className="bg-orange-50 border border-orange-200 px-4 py-2 rounded-full flex items-center gap-3 flex-wrap flex-1">
-                <span className="text-[0.7rem] font-semibold text-orange-600 uppercase tracking-wide">{'\u26a0\ufe0f'} Status</span>
+                <span className="text-[0.7rem] font-semibold text-orange-600 uppercase tracking-wide">{'⚠️'} Status</span>
                 <span className="text-xs text-orange-700 font-medium">Your trial expired. Subscribe to regain all Pro features.</span>
               </div>
               <div className="flex gap-3">
-                <Button 
+                <Button
                   onClick={() => handleCreateSubscription('monthly')}
                   disabled={isCreatingSubscription}
                   className="bg-green-700 hover:bg-green-800 text-white rounded-full px-6 py-2 font-bold text-sm shadow-lg transition-all"
@@ -549,15 +431,14 @@ export default function SubscriptionCard({
         </Card>
       )}
 
-      {/* CANCELLED STATE - Similar to your HTML template */}
+      {/* CANCELLED STATE */}
       {status === 'cancelled' && (
         <Card className="w-full shadow-lg rounded-[32px] border-0 bg-gradient-to-br from-white to-orange-50 border-l-[8px] border-l-orange-500">
           <CardContent className="p-8">
-            {/* Row 1: Badge (left) + Status (right) parallel */}
             <div className="flex justify-between items-center flex-wrap gap-4 mb-6">
               <div className="bg-orange-700 text-white px-5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 shadow-md">
-                <span className="text-lg">{'\u23f8\ufe0f'}</span>
-                CANCELLED · PRO (until {subscription?.nextBillingDate 
+                <span className="text-lg">{'⏸️'}</span>
+                CANCELLED · PRO (until {subscription?.nextBillingDate
                   ? new Date(subscription.nextBillingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric' })
                   : nextBillingDate || 'end of cycle'})
               </div>
@@ -567,28 +448,24 @@ export default function SubscriptionCard({
               </div>
             </div>
 
-            {/* Row 2: Title and description */}
-            <h3 className="text-2xl font-bold text-orange-800 mb-2">
-              Plan ends on billing date
-            </h3>
+            <h3 className="text-2xl font-bold text-orange-800 mb-2">Plan ends on billing date</h3>
             <p className="text-sm text-orange-700 mb-6 leading-relaxed border-l-[3px] border-orange-300 pl-4">
-              Your Pro features remain active until {subscription?.nextBillingDate 
+              Your Pro features remain active until {subscription?.nextBillingDate
                 ? new Date(subscription.nextBillingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })
                 : nextBillingDate || 'end of billing cycle'}. After that, workspace will revert to Free tier.
             </p>
 
-            {/* Row 3: Expires on info + Reactivate buttons */}
             <div className="flex justify-between items-center flex-wrap gap-6">
               <div className="bg-orange-50 border border-orange-200 rounded-full px-5 py-3 flex items-center gap-3 flex-wrap flex-1">
                 <span className="text-xs font-semibold text-orange-600 uppercase tracking-wide">Expires on</span>
                 <span className="text-sm text-orange-700 font-medium bg-white px-3 py-1 rounded-full">
-                  {subscription?.nextBillingDate 
+                  {subscription?.nextBillingDate
                     ? new Date(subscription.nextBillingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })
                     : nextBillingDate || 'TBD'}
                 </span>
               </div>
               <div className="flex gap-3">
-                <Button 
+                <Button
                   onClick={handleReactivateSubscription}
                   disabled={isCreatingSubscription}
                   className="bg-orange-600 hover:bg-orange-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm shadow-md transition-all"
@@ -600,91 +477,9 @@ export default function SubscriptionCard({
                   )}
                   Reactivate Subscription
                 </Button>
-                <Button 
-                  variant="outline"
-                  className="border-2 border-orange-300 text-orange-600 hover:bg-orange-50 rounded-full px-5 py-2.5 text-sm font-medium"
-                >
-                  Learn more
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* EXPIRED STATE - Plan completely expired */}
-      {status === 'expired' && (
-        <Card className="w-full shadow-lg rounded-[28px] border-0 bg-[#fefcf5] border-l-[6px] border-l-[#b0aa7c]">
-          <CardContent className="p-[20px_28px]">
-            {/* Row 1: Badge + Status */}
-            <div className="flex justify-between items-center flex-wrap gap-3 mb-4">
-              <div className="bg-[#8f7a4b] text-white px-[18px] py-1 rounded-full text-[0.8rem] font-semibold flex items-center gap-1.5">
-                <span className="text-sm">{'\u26a0\ufe0f'}</span>
-                PLAN EXPIRED
-              </div>
-              <div className="flex items-center gap-1.5 bg-[#f0ede1] px-4 py-1 rounded-full">
-                <div className="w-2 h-2 bg-[#c0a36b] rounded-full" />
-                <span className="text-[0.8rem] font-semibold text-[#8b7342]">expired</span>
               </div>
             </div>
 
-            {/* Row 2: Title + Description */}
-            <div className="text-[1.25rem] font-bold text-[#7a673e] mb-1.5 leading-tight">
-              Your Pro Plan has ended
-            </div>
-            <div className="text-[0.8rem] text-[#8f7e58] leading-relaxed border-l-[2px] border-[#ddd0aa] pl-3 mb-5">
-              Subscription expired on {subscription?.nextBillingDate 
-                ? new Date(subscription.nextBillingDate).toLocaleDateString('en-US', { 
-                    month: 'long', 
-                    day: 'numeric', 
-                    year: 'numeric' 
-                  })
-                : 'expiry date'}. Premium features, priority support & analytics are no longer accessible.
-            </div>
-
-            {/* Row 3: Expiry info + Renew button */}
-            <div className="flex justify-between items-center flex-wrap gap-4 mb-4">
-              <div className="bg-[#f6f2e4] border border-[#e8dfc4] px-5 py-1.5 rounded-full flex items-center gap-3 flex-wrap">
-                <span className="text-[0.65rem] uppercase tracking-wide font-semibold text-[#9e8a5a]">Expired on</span>
-                <span className="text-[0.9rem] font-bold bg-[#fef7e6] text-[#8b6e3c] px-2.5 py-0.5 rounded-full">
-                  {subscription?.nextBillingDate 
-                    ? new Date(subscription.nextBillingDate).toLocaleDateString('en-GB', { 
-                        day: 'numeric', 
-                        month: 'numeric' 
-                      })
-                    : 'TBD'}
-                </span>
-              </div>
-              <div className="flex gap-2.5">
-                <Button 
-                  onClick={() => handleCreateSubscription('monthly')}
-                  disabled={isCreatingSubscription}
-                  className="bg-[#b59d5e] hover:bg-[#9a8048] text-white rounded-full px-6 py-1.5 font-semibold text-[0.75rem] transition-all"
-                >
-                  {isCreatingSubscription ? (
-                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                  ) : (
-                    <span>Renew Pro Plan {'\u2192'}</span>
-                  )}
-                </Button>
-                <button 
-                  className="bg-transparent border border-[#bcad7c] text-[#8b7342] px-5 py-1.5 rounded-full font-semibold text-[0.75rem] opacity-50 cursor-not-allowed"
-                  disabled
-                >
-                  Subscription ended
-                </button>
-              </div>
-            </div>
-
-            {/* Extra message */}
-            <div className="bg-[#fff7e0] border border-[#eadfb5] rounded-[18px] p-[10px_16px] flex items-center gap-2.5">
-              <span className="text-sm">{'\ud83d\udcc6'}</span>
-              <span className="text-[0.7rem] text-[#8b6e3c]">
-                Your plan expired. Renew now to restore Pro access & unlock features.
-              </span>
-            </div>
-
-            {/* Error message if any */}
             {subscriptionError && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-2 mt-3 text-center">
                 <p className="text-xs text-red-700">{subscriptionError}</p>
@@ -694,39 +489,103 @@ export default function SubscriptionCard({
         </Card>
       )}
 
-      {/* SUBSCRIPTION PENDING/HALTED STATE */}
-      {subscription && ['pending', 'halted', 'paused'].includes(subscription.status || '') && (
-        <Card className="w-full shadow-sm rounded-lg">
+      {/* EXPIRED STATE */}
+      {status === 'expired' && (
+        <Card className="w-full shadow-lg rounded-[28px] border-0 bg-[#fefcf5] border-l-[6px] border-l-[#b0aa7c]">
+          <CardContent className="p-[20px_28px]">
+            <div className="flex justify-between items-center flex-wrap gap-3 mb-4">
+              <div className="bg-[#8f7a4b] text-white px-[18px] py-1 rounded-full text-[0.8rem] font-semibold flex items-center gap-1.5">
+                <span className="text-sm">{'⚠️'}</span>
+                PLAN EXPIRED
+              </div>
+              <div className="flex items-center gap-1.5 bg-[#f0ede1] px-4 py-1 rounded-full">
+                <div className="w-2 h-2 bg-[#c0a36b] rounded-full" />
+                <span className="text-[0.8rem] font-semibold text-[#8b7342]">expired</span>
+              </div>
+            </div>
+
+            <div className="text-[1.25rem] font-bold text-[#7a673e] mb-1.5 leading-tight">
+              Your Pro Plan has ended
+            </div>
+            <div className="text-[0.8rem] text-[#8f7e58] leading-relaxed border-l-[2px] border-[#ddd0aa] pl-3 mb-5">
+              Subscription expired. Premium features, priority support & analytics are no longer accessible.
+            </div>
+
+            <div className="flex justify-between items-center flex-wrap gap-4 mb-4">
+              <div className="bg-[#f6f2e4] border border-[#e8dfc4] px-5 py-1.5 rounded-full flex items-center gap-3 flex-wrap">
+                <span className="text-[0.65rem] uppercase tracking-wide font-semibold text-[#9e8a5a]">Expired on</span>
+                <span className="text-[0.9rem] font-bold bg-[#fef7e6] text-[#8b6e3c] px-2.5 py-0.5 rounded-full">
+                  {subscription?.nextBillingDate
+                    ? new Date(subscription.nextBillingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric' })
+                    : 'TBD'}
+                </span>
+              </div>
+              <div className="flex gap-2.5">
+                <Button
+                  onClick={() => handleCreateSubscription('monthly')}
+                  disabled={isCreatingSubscription}
+                  className="bg-[#b59d5e] hover:bg-[#9a8048] text-white rounded-full px-6 py-1.5 font-semibold text-[0.75rem] transition-all"
+                >
+                  {isCreatingSubscription ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  ) : (
+                    <span>Renew Pro Plan {'→'}</span>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <div className="bg-[#fff7e0] border border-[#eadfb5] rounded-[18px] p-[10px_16px] flex items-center gap-2.5">
+              <span className="text-sm">{'📆'}</span>
+              <span className="text-[0.7rem] text-[#8b6e3c]">
+                Your plan expired. Renew now to restore Pro access & unlock features.
+              </span>
+            </div>
+
+            {subscriptionError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-2 mt-3 text-center">
+                <p className="text-xs text-red-700">{subscriptionError}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* PENDING STATE — checkout started but not completed */}
+      {subscription && subscription.status === 'pending' && status !== 'active' && (
+        <Card className="w-full shadow-sm rounded-lg mt-2">
           <CardContent className="pt-4 pb-4 text-center">
             <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border-0 mb-3">
               <AlertTriangle className="h-3.5 w-3.5" />
-              SUBSCRIPTION {subscription.status?.toUpperCase()}
+              PAYMENT PENDING
             </Badge>
-            
-            <h3 className="text-xl font-bold text-slate-900 mb-1.5">
-              {subscription.status === 'pending' && 'Complete your subscription'}
-              {subscription.status === 'halted' && 'Subscription payment failed'}
-              {subscription.status === 'paused' && 'Subscription paused'}
-            </h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-1.5">Complete your subscription</h3>
             <p className="text-sm text-slate-500 mb-3">
-              {subscription.status === 'pending' && 'Please complete the payment to activate your subscription.'}
-              {subscription.status === 'halted' && 'Your subscription payment failed. Please update your payment method.'}
-              {subscription.status === 'paused' && 'Your subscription is currently paused.'}
+              You have an incomplete checkout. Continue where you left off.
             </p>
-
             <div className="flex flex-wrap justify-center gap-3">
-              <Button 
-                onClick={() => handleCreateSubscription('monthly')}
-                disabled={isCreatingSubscription}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm shadow-md transition-all"
-              >
-                {isCreatingSubscription ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
+              {subscription.checkoutUrl ? (
+                <Button
+                  onClick={() => { window.location.href = subscription.checkoutUrl! }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm"
+                >
                   <CreditCard className="h-4 w-4 mr-2" />
-                )}
-                {subscription.status === 'pending' ? 'Complete Payment' : 'Retry Payment'}
-              </Button>
+                  Complete Checkout
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => handleCreateSubscription('monthly')}
+                  disabled={isCreatingSubscription}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm"
+                >
+                  {isCreatingSubscription ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <CreditCard className="h-4 w-4 mr-2" />
+                  )}
+                  Start New Checkout
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -175,7 +175,11 @@ export async function handleWebhookEvent(rawBody: string, signature: string) {
       }
       case 'payment_intent.succeeded': {
         const intent = event.data.object as Stripe.PaymentIntent
-        console.log('[Stripe] PaymentIntent succeeded:', intent.id)
+        if ((intent.metadata as any)?.purpose === 'auto_recharge') {
+          await processAutoRechargePaymentSucceeded(intent)
+        } else {
+          console.log('[Stripe] PaymentIntent succeeded (non-auto-recharge):', intent.id)
+        }
         break
       }
       case 'payment_intent.payment_failed': {
@@ -1076,6 +1080,97 @@ export async function processInvoicePaymentFailed(invoice: Stripe.Invoice) {
   }).catch((e) => console.error('[Stripe] recordSubscriptionPayment(failed) error:', e))
 
   console.log(`[Stripe] Recorded failed invoice payment for company: ${companyId}`)
+}
+
+/**
+ * Handle payment_intent.succeeded for auto-recharge PaymentIntents.
+ * This is a safety-net webhook: if the PaymentIntent was confirmed off-session and
+ * succeeded asynchronously (e.g. after 3DS), we credit the wallet here.
+ * If checkAndAutoRechargeStripe already credited (status=captured in transactions), skip.
+ */
+export async function processAutoRechargePaymentSucceeded(intent: Stripe.PaymentIntent) {
+  const companyId = (intent.metadata as any)?.company_id as string | undefined
+  if (!companyId) {
+    console.warn('[Stripe] Auto-recharge PaymentIntent has no company_id in metadata:', intent.id)
+    return
+  }
+
+  const amountPaid = (intent.amount_received || intent.amount || 0) / 100
+  console.log(`[Stripe] Auto-recharge PI succeeded — id: ${intent.id}, company: ${companyId}, amount: ${amountPaid}`)
+
+  // Idempotency: check if already credited by checkAndAutoRechargeStripe
+  const existing = await DatabaseService.query(
+    `SELECT id, status FROM auto_recharge_transactions WHERE payment_id = $1 LIMIT 1`,
+    [intent.id]
+  ) as any[]
+
+  if (existing.length > 0 && existing[0].status === 'captured') {
+    console.log(`[Stripe] Auto-recharge ${intent.id} already credited — skipping webhook credit`)
+    return
+  }
+
+  // Credit wallet
+  await DatabaseService.query(
+    `INSERT INTO company_billing (company_id, wallet_balance, status, created_at, updated_at)
+     VALUES ($1::uuid, 0, 'active', NOW(), NOW())
+     ON CONFLICT (company_id) DO NOTHING`,
+    [companyId]
+  )
+
+  const before = await DatabaseService.query(
+    `SELECT wallet_balance FROM company_billing WHERE company_id = $1::uuid`,
+    [companyId]
+  ) as any[]
+  const balanceBefore = before[0] ? parseFloat(before[0].wallet_balance) : 0
+
+  const updated = await DatabaseService.query(
+    `UPDATE company_billing SET wallet_balance = wallet_balance + $2, status = 'active', updated_at = NOW()
+     WHERE company_id = $1::uuid RETURNING wallet_balance`,
+    [companyId, amountPaid]
+  ) as any[]
+  const balanceAfter = updated[0] ? parseFloat(updated[0].wallet_balance) : balanceBefore + amountPaid
+
+  console.log(`[Stripe] Auto-recharge wallet credited via webhook — company: ${companyId}, +${amountPaid}, balance: ${balanceBefore} → ${balanceAfter}`)
+
+  try {
+    await DatabaseService.addLedgerEntry({
+      companyId,
+      entryType: 'WALLET_TOPUP',
+      description: `Stripe auto-recharge (webhook) — PI ${intent.id}`,
+      amount: amountPaid,
+      balanceBefore,
+      balanceAfter,
+      metadata: { provider: 'stripe', purpose: 'auto_recharge', paymentIntentId: intent.id, currency: (intent.currency || 'usd').toUpperCase() },
+    })
+  } catch (e) {
+    console.error('[Stripe] Auto-recharge addLedgerEntry failed:', e)
+  }
+
+  // Update transaction to captured
+  await DatabaseService.query(
+    `INSERT INTO auto_recharge_transactions (company_id, payment_id, order_id, customer_id, token_id, amount, amount_paise, status, raw_data, description)
+     VALUES ($1::uuid, $2, 'stripe_auto_recharge', $3, $4, $5, $6, 'captured', $7::jsonb, 'Wallet Auto Recharge (Stripe)')
+     ON CONFLICT (payment_id) DO UPDATE SET
+       status     = 'captured',
+       raw_data   = EXCLUDED.raw_data,
+       updated_at = NOW()`,
+    [
+      companyId,
+      intent.id,
+      typeof intent.customer === 'string' ? intent.customer : null,
+      typeof intent.payment_method === 'string' ? intent.payment_method : null,
+      amountPaid,
+      intent.amount || 0,
+      JSON.stringify(intent),
+    ]
+  )
+
+  try {
+    await DatabaseService.restoreJobsAfterRecharge(companyId)
+    await DatabaseService.restoreInterviewsAfterRecharge(companyId)
+  } catch (e) {
+    console.error('[Stripe] Auto-recharge restore jobs error:', e)
+  }
 }
 
 /**

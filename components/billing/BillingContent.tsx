@@ -335,13 +335,13 @@ export default function BillingContent({ companyId }: BillingContentProps) {
     }
   }
 
-  const handleStripeSubscribe = async () => {
+  const handleStripeSubscribe = async (planType: 'monthly' | 'yearly' = 'monthly') => {
     try {
       setStripeSubStarting(true)
       const res = await fetch('/api/subscriptions/stripe/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planType: 'monthly' }),
+        body: JSON.stringify({ planType }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -805,148 +805,43 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             </Card>
           </div>
 
-          {/* Dynamic Subscription Card - Directly triggers Razorpay/PayPal */}
+          {/* Subscription Card — powered by Stripe */}
           <SubscriptionCard
-            status={(billingData?.billingStatus || billingData?.status || 'trial') as BillingStatus}
+            status={(() => {
+              // Use stripe subscription status if available, else fall back to billingData
+              if (stripeSubscription) {
+                const s = stripeSubscription.status
+                if (['active', 'authenticated'].includes(s)) {
+                  return stripeSubscription.cancelAtCycleEnd ? 'cancelled' : 'active'
+                }
+                if (s === 'cancelled') return 'expired'
+              }
+              return (billingData?.billingStatus || billingData?.status || 'trial') as BillingStatus
+            })()}
             trialDaysRemaining={billingData?.trialDaysRemaining ?? 7}
             trialTotalDays={billingData?.trialTotalDays ?? 7}
             planName="Pro Plan"
-            nextBillingDate={billingData?.nextBillingDate}
-            autoRenewal={billingData?.autoRechargeEnabled ?? true}
-            currency={billingData?.currency ?? 'INR'}
+            nextBillingDate={stripeSubscription?.nextBillingTime || billingData?.nextBillingDate}
+            autoRenewal={!stripeSubscription?.cancelAtCycleEnd}
+            currency="USD"
             companyId={companyId}
             userEmail={user?.email}
-            subscription={subscriptionData}
+            subscription={stripeSubscription ? {
+              id: stripeSubscription.id || '',
+              status: stripeSubscription.status as any,
+              planId: stripeSubscription.planId,
+              nextBillingDate: stripeSubscription.nextBillingTime,
+              cancelAtCycleEnd: stripeSubscription.cancelAtCycleEnd,
+              subscriberEmail: stripeSubscription.subscriberEmail,
+              checkoutUrl: stripeSubscription.checkoutUrl,
+            } : null}
             walletBalance={billingData?.walletBalance ?? 0}
             currentMonthSpent={billingData?.currentMonthSpent ?? 0}
             totalSpent={billingData?.totalSpent ?? 0}
+            onSubscribe={handleStripeSubscribe}
+            onCancelSubscription={handleStripeCancel}
+            onReactivate={handleStripeResume}
           />
-
-          {/* Stripe Subscription Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <CreditCard className="h-4 w-4" />
-                Stripe Subscription
-              </CardTitle>
-              <CardDescription>
-                Subscribe via Stripe — monthly billing, cancel anytime.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {stripeSubLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading subscription...
-                </div>
-              ) : stripeSubscription && ['active', 'trialing'].includes(stripeSubscription.status) ? (
-                /* ── Active Stripe Subscription ── */
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-green-100 text-green-800 border-green-200">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Active
-                      </Badge>
-                      {stripeSubscription.cancelAtCycleEnd && (
-                        <Badge variant="outline" className="text-orange-600 border-orange-300 text-xs">
-                          Cancels at period end
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  {stripeSubscription.nextBillingTime && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Calendar className="h-3.5 w-3.5" />
-                      {stripeSubscription.cancelAtCycleEnd ? 'Access until' : 'Next billing'}&nbsp;
-                      <span className="font-medium text-foreground">
-                        {new Date(stripeSubscription.nextBillingTime).toLocaleDateString('en-US', {
-                          day: '2-digit', month: 'short', year: 'numeric'
-                        })}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 pt-1">
-                    {stripeSubscription.cancelAtCycleEnd ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={stripeSubCancelling}
-                        onClick={handleStripeResume}
-                        className="text-green-700 border-green-300 hover:bg-green-50"
-                      >
-                        {stripeSubCancelling ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                        Resume Auto-Renewal
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={stripeSubCancelling}
-                        onClick={handleStripeCancel}
-                        className="text-red-600 border-red-300 hover:bg-red-50"
-                      >
-                        {stripeSubCancelling ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                        Cancel Subscription
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ) : stripeSubscription && stripeSubscription.status === 'pending' ? (
-                /* ── Pending (checkout started but not paid) ── */
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm text-amber-600">
-                    <AlertCircle className="h-4 w-4" />
-                    Payment pending — complete checkout to activate
-                  </div>
-                  {stripeSubscription.checkoutUrl ? (
-                    <Button
-                      size="sm"
-                      onClick={() => { window.location.href = stripeSubscription.checkoutUrl }}
-                      className="w-full bg-[#635bff] hover:bg-[#4f46e5] text-white"
-                    >
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Complete Stripe Checkout
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={handleStripeSubscribe}
-                      disabled={stripeSubStarting}
-                      className="w-full bg-[#635bff] hover:bg-[#4f46e5] text-white"
-                    >
-                      {stripeSubStarting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Start New Checkout
-                    </Button>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Already paid? Webhook may still be processing — refresh in a moment.
-                  </p>
-                </div>
-              ) : (
-                /* ── No Stripe Subscription ── */
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Subscribe via Stripe for monthly billing. Credits are added to your wallet automatically on each renewal.
-                  </p>
-                  <Button
-                    onClick={handleStripeSubscribe}
-                    disabled={stripeSubStarting}
-                    className="w-full bg-[#635bff] hover:bg-[#4f46e5] text-white font-semibold"
-                  >
-                    {stripeSubStarting ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                      <CreditCard className="h-4 w-4 mr-2" />
-                    )}
-                    Subscribe with Stripe
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
 
           {/* Saved Card for Auto-Recharge */}
           <SavedCardSettings companyId={companyId} />
