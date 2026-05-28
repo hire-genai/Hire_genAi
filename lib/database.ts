@@ -4993,9 +4993,10 @@ export class DatabaseService {
         subscription_id, provider, payment_id, amount, currency,
         status, payment_time, company_id, raw_data
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      ON CONFLICT (payment_id, provider) DO UPDATE SET 
+      ON CONFLICT (payment_id, provider) DO UPDATE SET
         raw_data = EXCLUDED.raw_data,
-        updated_at = NOW()
+        status = EXCLUDED.status,
+        amount = EXCLUDED.amount
       RETURNING *
     `
     const rows = await this.query(q, [
