@@ -16,6 +16,7 @@ import {
   Loader2,
   Wallet
 } from 'lucide-react'
+import { getAppUrl } from '@/lib/domain-config'
 
 // 5 billing status values (matches backend - subscription-based)
 export type BillingStatus = 'active' | 'trial' | 'trial_over' | 'cancelled' | 'expired'
@@ -88,44 +89,16 @@ export default function SubscriptionCard({
     ? ((trialTotalDays - trialDaysRemaining) / trialTotalDays) * 100
     : 0
 
-  const handleUpgrade = () => handleCreateSubscription('monthly')
+  const handleUpgrade = () => goToPricingPage()
+  const handleCreateSubscription = () => goToPricingPage()
 
-  // Create subscription — calls onSubscribe prop (Stripe checkout from BillingContent)
-  // or falls back to calling Stripe API directly
-  const handleCreateSubscription = async (planType: 'monthly' | 'yearly' = 'monthly') => {
+  // Redirect to pricing page inside app (no navbar/footer) so user can pick a plan
+  const goToPricingPage = () => {
     if (onSubscribe) {
-      onSubscribe(planType)
+      onSubscribe('monthly')
       return
     }
-
-    setIsCreatingSubscription(true)
-    setSubscriptionError(null)
-
-    try {
-      const response = await fetch('/api/subscriptions/stripe/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planType })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create subscription')
-      }
-
-      // Redirect to Stripe Checkout
-      const checkoutUrl = data.subscription?.checkoutUrl || data.checkoutUrl
-      if (checkoutUrl) {
-        window.location.href = checkoutUrl
-      } else {
-        throw new Error('No checkout URL returned')
-      }
-    } catch (error: any) {
-      console.error('Subscription creation error:', error)
-      setSubscriptionError(error.message || 'Failed to create subscription')
-      setIsCreatingSubscription(false)
-    }
+    window.location.href = getAppUrl(`/pricing?company_id=${encodeURIComponent(companyId)}`)
   }
 
   // Manage Plan — no Razorpay link, just call prop or show nothing
@@ -414,7 +387,7 @@ export default function SubscriptionCard({
               </div>
               <div className="flex gap-3">
                 <Button
-                  onClick={() => handleCreateSubscription('monthly')}
+                  onClick={() => handleCreateSubscription()}
                   disabled={isCreatingSubscription}
                   className="bg-green-700 hover:bg-green-800 text-white rounded-full px-6 py-2 font-bold text-sm shadow-lg transition-all"
                 >
@@ -522,7 +495,7 @@ export default function SubscriptionCard({
               </div>
               <div className="flex gap-2.5">
                 <Button
-                  onClick={() => handleCreateSubscription('monthly')}
+                  onClick={() => handleCreateSubscription()}
                   disabled={isCreatingSubscription}
                   className="bg-[#b59d5e] hover:bg-[#9a8048] text-white rounded-full px-6 py-1.5 font-semibold text-[0.75rem] transition-all"
                 >
@@ -551,45 +524,6 @@ export default function SubscriptionCard({
         </Card>
       )}
 
-      {/* PENDING STATE — checkout started but not completed */}
-      {subscription && subscription.status === 'pending' && status !== 'active' && (
-        <Card className="w-full shadow-sm rounded-lg mt-2">
-          <CardContent className="pt-4 pb-4 text-center">
-            <Badge className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border-0 mb-3">
-              <AlertTriangle className="h-3.5 w-3.5" />
-              PAYMENT PENDING
-            </Badge>
-            <h3 className="text-lg font-bold text-slate-900 mb-1.5">Complete your subscription</h3>
-            <p className="text-sm text-slate-500 mb-3">
-              You have an incomplete checkout. Continue where you left off.
-            </p>
-            <div className="flex flex-wrap justify-center gap-3">
-              {subscription.checkoutUrl ? (
-                <Button
-                  onClick={() => { window.location.href = subscription.checkoutUrl! }}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm"
-                >
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Complete Checkout
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => handleCreateSubscription('monthly')}
-                  disabled={isCreatingSubscription}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6 py-2.5 font-semibold text-sm"
-                >
-                  {isCreatingSubscription ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <CreditCard className="h-4 w-4 mr-2" />
-                  )}
-                  Start New Checkout
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

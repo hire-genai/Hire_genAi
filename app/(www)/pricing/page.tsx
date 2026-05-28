@@ -4,345 +4,613 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { getAppUrl } from "@/lib/domain-config"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import Navbar from "@/components/layout/Navbar"
-import Link from "next/link"
-import { Check, X, ArrowRight, Star, Facebook, Instagram, Youtube, Linkedin, Lock, Globe } from "lucide-react"
 import Footer from "@/components/layout/Footer"
-type Country = 'IN' | 'INTERNATIONAL' | null
+import { getAppUrl } from "@/lib/domain-config"
+import { Check, ArrowRight, Info, X, UserCircle, LogOut, ChevronDown } from "lucide-react"
+
+type BillingCycle = 'monthly' | 'annual'
+
+interface PlanDef {
+  name: string
+  tagline: string
+  topLabel?: string
+  monthlyPrice: number | null
+  annualPrice: number | null
+  monthlyWallet: number | null
+  annualWallet: number | null
+  monthlyCVs: string
+  annualCVs: string
+  monthlyInterviews: string
+  annualInterviews: string
+  coreFeatures: string[]
+  dashboardFeatures: string[]
+  support: string
+  popular: boolean
+  cta: string
+}
+
+const PLANS: PlanDef[] = [
+  {
+    name: "Starter",
+    tagline: "For startups and small teams running their first AI-powered hiring workflows.",
+    monthlyPrice: 99,
+    annualPrice: 990,
+    monthlyWallet: 99,
+    annualWallet: 119,
+    monthlyCVs: "~200",
+    annualCVs: "~240",
+    monthlyInterviews: "~4",
+    annualInterviews: "~5",
+    coreFeatures: [
+      "Unlimited job postings",
+      "Full ATS — applications, talent pool, delegation & feedback",
+      "AI CV evaluation & scoring",
+      "AI video interviews",
+      "Auto interview question generation",
+      "Manager & recruiter dashboards",
+      "Wallet billing + invoice generation",
+      "Email notifications",
+      "Unlimited team members (4 role types)",
+    ],
+    dashboardFeatures: [
+      "Manager KPIs",
+      "Recruiter KPIs",
+      "Team overview",
+      "Client activation tracking",
+      "Onboarding completion analytics",
+    ],
+    support: "Standard Support · 72h response · Email + Chat",
+    popular: false,
+    cta: "Choose Starter",
+  },
+  {
+    name: "Professional",
+    tagline: "For agencies scaling their recruiting operations.",
+    monthlyPrice: 499,
+    annualPrice: 4990,
+    monthlyWallet: 499,
+    annualWallet: 599,
+    monthlyCVs: "~1,000",
+    annualCVs: "~1,200",
+    monthlyInterviews: "~20",
+    annualInterviews: "~24",
+    coreFeatures: [
+      "Everything in Starter",
+      "Advanced analytics",
+      "Pipeline tracking",
+      "AI recruiter workflows",
+      "Priority support",
+      "Role-based access control",
+      "Team performance tracking",
+    ],
+    dashboardFeatures: [
+      "All Starter dashboards",
+      "Pipeline analytics",
+      "CSAT & satisfaction tracking",
+      "Onboarding TAT + utilization metrics",
+    ],
+    support: "Priority Support · 48h response · Chat + Email + Phone",
+    popular: false,
+    cta: "Choose Professional",
+  },
+  {
+    name: "Business",
+    tagline: "For mid-size agencies and growing recruitment teams.",
+    monthlyPrice: 999,
+    annualPrice: 9990,
+    monthlyWallet: 999,
+    annualWallet: 1199,
+    monthlyCVs: "~2,000",
+    annualCVs: "~2,400",
+    monthlyInterviews: "~40",
+    annualInterviews: "~48",
+    coreFeatures: [
+      "Everything in Professional",
+      "Custom dashboard views",
+      "SLA compliance tracking",
+      "Retention forecasting",
+      "Advanced AI scoring",
+      "Dedicated business support",
+    ],
+    dashboardFeatures: [
+      "All Professional dashboards",
+      "Executive analytics",
+      "Retention forecasting",
+      "SLA & utilization insights",
+    ],
+    support: "Business Support · 24h response · Dedicated Chat",
+    popular: false,
+    cta: "Choose Business",
+  },
+  {
+    name: "Large",
+    tagline: "For scaling recruitment agencies that need serious AI infrastructure.",
+    topLabel: "Most Popular · Best for Agencies",
+    monthlyPrice: 2999,
+    annualPrice: 29990,
+    monthlyWallet: 2999,
+    annualWallet: 3599,
+    monthlyCVs: "~6,000",
+    annualCVs: "~7,200",
+    monthlyInterviews: "~120",
+    annualInterviews: "~144",
+    coreFeatures: [
+      "Everything in Business",
+      "Executive dashboards",
+      "Revenue analytics",
+      "Multi-team workflows",
+      "Slack support",
+      "Advanced AI hiring infrastructure",
+    ],
+    dashboardFeatures: [
+      "Executive-level analytics",
+      "CLTV + revenue per client",
+      "Pipeline health scorecards",
+      "SLA monitoring",
+    ],
+    support: "Large Support · 12h response · Slack + Phone + Onboarding",
+    popular: true,
+    cta: "Choose Large",
+  },
+  {
+    name: "Ultra",
+    tagline: "For high-volume AI-powered hiring operations.",
+    monthlyPrice: 3999,
+    annualPrice: 39990,
+    monthlyWallet: 3999,
+    annualWallet: 4799,
+    monthlyCVs: "~8,000",
+    annualCVs: "~9,600",
+    monthlyInterviews: "~160",
+    annualInterviews: "~192",
+    coreFeatures: [
+      "Everything in Large",
+      "Department-level analytics",
+      "Capacity planning",
+      "Churn risk prediction",
+      "Dedicated AI optimization support",
+    ],
+    dashboardFeatures: [
+      "Advanced operational analytics",
+      "Hiring capacity forecasting",
+      "Churn risk indicators",
+      "Department insights",
+    ],
+    support: "Ultra Support · 6h response · 24/7 priority + Dedicated Rep",
+    popular: false,
+    cta: "Choose Ultra",
+  },
+  {
+    name: "Enterprise",
+    tagline: "Ultimate scale for enterprise hiring infrastructure.",
+    topLabel: "🔥 Ultimate Scale",
+    monthlyPrice: null,
+    annualPrice: null,
+    monthlyWallet: null,
+    annualWallet: null,
+    monthlyCVs: "Custom",
+    annualCVs: "Custom",
+    monthlyInterviews: "Custom",
+    annualInterviews: "Custom",
+    coreFeatures: [
+      "Enterprise-grade ATS",
+      "Multi-tenant architecture",
+      "Custom AI workflows",
+      "Dedicated success manager",
+      "Private deployment options",
+      "Advanced compliance & security",
+      "Custom integrations & APIs",
+    ],
+    dashboardFeatures: [
+      "Enterprise KPI builder",
+      "Multi-tenant benchmarking",
+      "Automated health alerts",
+      "Cross-org reporting",
+    ],
+    support: "Enterprise SLA · 2h critical response · 24/7 dedicated success manager",
+    popular: false,
+    cta: "Talk to Sales",
+  },
+]
+
+const FAQ_ITEMS = [
+  {
+    q: "Can I switch plans at any time?",
+    a: "Yes — upgrade or downgrade whenever you need. Changes apply immediately with prorated billing.",
+  },
+  {
+    q: "How does the annual plan work?",
+    a: "You pay for 10 months and stay active for 12 — saving roughly 17% on cost. Your monthly usage estimates and wallet credits also increase by 20%.",
+  },
+  {
+    q: "What are the wallet credits?",
+    a: "Every plan includes AI usage wallet credits equal to your subscription cost. These cover CV parsing, video interviews, and question generation. If you exceed them, additional usage is billed automatically at standard rates.",
+  },
+  {
+    q: "What do the usage estimates mean?",
+    a: "The CV and interview numbers are indicative ranges based on typical usage at each tier. They are not hard caps — actual consumption depends on your interview duration and workflow. Overage draws from your wallet balance automatically.",
+  },
+  {
+    q: "Do you offer custom pricing for very high volume?",
+    a: "Absolutely. For teams needing more than Enterprise-scale volume or custom integrations, contact our sales team for a tailored proposal.",
+  },
+]
 
 export default function PricingPage() {
   const router = useRouter()
-  const [country, setCountry] = useState<Country>(null)
-  const [detectingCountry, setDetectingCountry] = useState(true)
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false)
+  const [billing, setBilling] = useState<BillingCycle>('annual')
+  const [companyId, setCompanyId] = useState<string | null>(null)
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
-  // Check if user is logged in (manual check since we're not in AuthProvider)
+  // Read company_id from URL — present when opened from app settings page
   useEffect(() => {
-    const checkAuthStatus = () => {
-      // Check for refresh token or any session indicator
-      const refreshToken = localStorage.getItem('refreshToken')
-      const sessionData = sessionStorage.getItem('authSession')
-      setIsLoggedIn(!!(refreshToken || sessionData))
-    }
-    
-    checkAuthStatus()
-    // Listen for storage changes (login/logout in other tabs)
-    window.addEventListener('storage', checkAuthStatus)
-    return () => window.removeEventListener('storage', checkAuthStatus)
+    const params = new URLSearchParams(window.location.search)
+    const cid = params.get('company_id')
+    setCompanyId(cid)
   }, [])
 
-  // Detect user country
   useEffect(() => {
-    const detectCountry = async () => {
+    const scrollTo = new URLSearchParams(window.location.search).get('scroll')
+    if (!scrollTo) return
+    const t = setTimeout(() => {
+      document.getElementById(scrollTo)?.scrollIntoView({ behavior: 'smooth' })
+      window.history.replaceState({}, '', '/pricing')
+    }, 300)
+    return () => clearTimeout(t)
+  }, [])
+
+  const handleSelect = async (planName: string) => {
+    if (planName === 'Enterprise') {
+      window.location.href = companyId ? getAppUrl('/contact') : '/contact'
+      return
+    }
+
+    // App context — user is logged in, call Stripe checkout directly
+    if (companyId) {
+      if (planName === 'Free Trial') return
+      setCheckoutLoading(planName)
+      setCheckoutError(null)
       try {
-        // Check for manual override in localStorage (for testing)
-        const manualCountry = localStorage.getItem('forceCountry')
-        if (manualCountry === 'IN' || manualCountry === 'INTERNATIONAL') {
-          console.log('[Pricing] Using manual country override:', manualCountry)
-          setCountry(manualCountry as Country)
-          setDetectingCountry(false)
-          return
-        }
-
-        const res = await fetch('/api/detect-country')
-        if (!res.ok) throw new Error('Country detection failed')
+        const res = await fetch('/api/subscriptions/stripe/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ planName, billing }),
+        })
         const data = await res.json()
-        const countryCode = data.countryCode
-        console.log('[Pricing] Detected country:', countryCode)
-        setCountry(countryCode === 'IN' ? 'IN' : 'INTERNATIONAL')
-      } catch (err) {
-        console.warn('[Pricing] Country detection failed, defaulting to INTERNATIONAL:', err)
-        setCountry('INTERNATIONAL')
-      } finally {
-        setDetectingCountry(false)
-      }
-    }
-    detectCountry()
-  }, [])
-
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const scrollTo = urlParams.get('scroll')
-    if (scrollTo) {
-      const timer = setTimeout(() => {
-        const element = document.getElementById(scrollTo)
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth' })
+        if (!res.ok) throw new Error(data.error || 'Failed to start checkout')
+        const url = data.subscription?.checkoutUrl || data.checkoutUrl
+        if (url) {
+          window.location.href = url
+        } else {
+          throw new Error('No checkout URL returned')
         }
-        window.history.replaceState({}, '', '/pricing')
-      }, 300)
-      return () => clearTimeout(timer)
+      } catch (err: any) {
+        setCheckoutError(err.message || 'Failed to start checkout')
+        setCheckoutLoading(null)
+      }
+      return
     }
-  }, [])
 
-  // Currency conversion: 1 USD = 100 INR (approximate)
-  const USD_TO_INR = 100
-  
-  const getDisplayPrice = (usdPrice: number | null) => {
-    if (usdPrice === null) return null
-    if (country === 'IN') {
-      return Math.round(usdPrice * USD_TO_INR).toLocaleString('en-IN')
-    }
-    return usdPrice.toLocaleString()
-  }
-
-  const getCurrencySymbol = () => country === 'IN' ? '₹' : '$'
-  const getCurrencyLabel = () => country === 'IN' ? 'INR' : 'USD'
-
-  const plans = [
-    {
-      name: "Free Trial",
-      description: "Try HireGenAI with core features. No credit card required",
-      monthlyPrice: 0,
-      annualPrice: 0,
-      features: [
-        "1 Job Description",
-        "1 CV Parsing",
-        "1 AI Interview",
-        "Usage rates: CV Parsing $0.50 per CV",
-        "Usage rates: AI Interview $0.50 per minute",
-        "Usage rates: Question Generation $0.10 per 10 questions",
-      ],
-      limitations: [
-        "Limited access only",
-        "Watermarked reports",
-      ],
-      popular: false,
-      cta: "Start Free Trial",
-    },
-    {
-      name: "Pro",
-      description: "Complete hiring solution for growing teams",
-      monthlyPrice: 100,
-      annualPrice: 100,
-      features: [
-        "Unlimited job postings",
-        "AI-powered candidate matching & ranking",
-        "Voice/Video AI interviews with real-time evaluation",
-        "Advanced analytics & hiring insights",
-        "Automated interview scheduling",
-        "Priority support 24/7",
-        "Usage rates: CV Parsing $0.50 per CV",
-        "Usage rates: AI Interview $0.50 per minute",
-        "Usage rates: Question Generation $0.10 per 10 questions",
-      ],
-      limitations: [],
-      popular: true,
-      cta: "Choose Pro",
-    },
-    {
-      name: "Enterprise",
-      description: "Custom solutions for large organizations",
-      monthlyPrice: null,
-      annualPrice: null,
-      features: [
-        "Everything in Pro, plus:",
-        "Unlimited recruiters & team members",
-        "Dedicated account manager",
-        "Custom integrations & white-labeling",
-        "Advanced security (SSO, audit logs)",
-        "SLA guarantee & priority support",
-        "Custom pricing & billing options",
-        "On-premise deployment option",
-      ],
-      limitations: [],
-      popular: false,
-      cta: "Contact Sales",
-    },
-  ]
-
-  // Handle plan selection: store plan & redirect based on auth
-  const handlePlanSelect = (planName: string) => {
-    // Store the selected plan in localStorage so it persists through signup
-    localStorage.setItem('pendingPlan', JSON.stringify({
-      name: planName,
-      timestamp: Date.now(),
-    }))
-
-    if (isLoggedIn) {
-      // User is logged in → go to settings payment tab
-      router.push(getAppUrl('/settings?tab=payment'))
-    } else {
-      // User is not logged in → go to signup
+    // www context — not logged in, go to signup
+    if (planName === 'Free Trial') {
       router.push(getAppUrl('/signup'))
+      return
     }
+    const params = new URLSearchParams({ plan: planName, billing })
+    router.push(getAppUrl(`/signup?${params.toString()}`))
   }
+
+  const isAnnual = billing === 'annual'
+
+  const isAppContext = !!companyId
 
   return (
     <div className="min-h-screen bg-white">
-      <Navbar />
-      
-      
-      {/* Value Proposition Section */}
-      <section className="py-16 bg-slate-50">
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-slate-800 mb-4">Why HireGenAI is the Smart Choice</h2>
-            <p className="text-slate-600 max-w-2xl mx-auto">
-              Save time, reduce costs, and hire better candidates with our AI-powered platform
-            </p>
+      {!isAppContext && <Navbar />}
+
+      {/* App-context navbar — logo left, profile dropdown right */}
+      {isAppContext && (
+        <header className="sticky top-0 z-40 bg-white border-b border-gray-100">
+          <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 h-16 flex items-center justify-between">
+            {/* Logo */}
+            <h1 className="text-2xl font-bold">
+              <span className="text-slate-800">Hire</span>
+              <span className="sr-text-gradient">GenAI</span>
+            </h1>
+
+            {/* Profile button — go to settings */}
+            <a
+              href={getAppUrl('/settings?tab=payment')}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+                <UserCircle className="h-5 w-5 text-emerald-600" />
+              </div>
+            </a>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-emerald-600">20x</span>
-              </div>
-              <h3 className="text-xl font-semibold text-slate-800 mb-2">Faster Hiring</h3>
-              <p className="text-slate-600">Screen and interview candidates 20 times faster than traditional methods</p>
-            </div>
-            
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-blue-600">80%</span>
-              </div>
-              <h3 className="text-xl font-semibold text-slate-800 mb-2">Cost Reduction</h3>
-              <p className="text-slate-600">Reduce recruitment costs by up to 80% with automated screening</p>
-            </div>
-            
-            <div className="text-center">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-purple-600">95%</span>
-              </div>
-              <h3 className="text-xl font-semibold text-slate-800 mb-2">Better Matches</h3>
-              <p className="text-slate-600">AI-powered matching ensures 95% better candidate-job fit</p>
-            </div>
+        </header>
+      )}
+
+      {checkoutError && (
+        <div className="max-w-xl mx-auto mt-4 px-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-700 text-sm flex items-center gap-2">
+            <span className="font-semibold">Error:</span> {checkoutError}
           </div>
+        </div>
+      )}
+
+      {/* ── Header ── */}
+      <section className="sr-hero-bg py-16 text-center px-4">
+        <span className="inline-block text-xs font-bold tracking-widest uppercase text-emerald-700 bg-emerald-50 border border-emerald-200 px-5 py-1.5 rounded-full mb-6">
+          ⚡ AI Recruiting OS · Full ATS + AI Interview
+        </span>
+        <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-800 leading-tight tracking-tight mb-4">
+          Simple, transparent pricing.<br />
+          <span className="sr-text-gradient">Pay for what you use.</span>
+        </h1>
+        <p className="text-slate-500 text-lg max-w-2xl mx-auto mb-5">
+          All paid plans include <strong className="text-slate-700">every ATS feature</strong> — Dashboard, Job Listings,
+          Talent Pool, Application List, Delegation, Feedback, and full analytics.<br />
+          <span className="text-slate-600">No hidden user limits. Only support level &amp; usage caps change.</span>
+        </p>
+        <div className="inline-flex items-center gap-2 bg-white border border-gray-200 shadow-sm text-slate-600 text-sm font-semibold px-5 py-2 rounded-full">
+          🧑‍🤝‍🧑 Unlimited team members on every paid plan — invite your whole recruiting team.
         </div>
       </section>
 
-      {/* Pricing Cards */}
-      <section className="py-20 bg-white">
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {plans.map((plan, index) => (
-              <Card
-                key={index}
-                className={`sr-card relative ${plan.popular ? "ring-2 ring-emerald-600 scale-105" : ""}`}
+      {/* ── Billing toggle ── */}
+      <div className="flex justify-center pt-10 pb-3">
+        <div className="inline-flex bg-gray-100 rounded-full p-1 gap-1">
+          <button
+            onClick={() => setBilling('monthly')}
+            className={`px-6 py-2 rounded-full text-sm font-semibold transition-all ${
+              billing === 'monthly'
+                ? 'bg-white text-slate-800 shadow-sm'
+                : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            Monthly
+          </button>
+          <button
+            onClick={() => setBilling('annual')}
+            className={`px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${
+              billing === 'annual'
+                ? 'bg-white text-slate-800 shadow-sm'
+                : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            Annual
+            <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+              Save 17%
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {isAnnual && (
+        <p className="text-center text-sm font-medium text-emerald-700 pb-2 px-4">
+          📅 Annual: pay for 10 months · stay active for 12 · wallet credits &amp; usage increase by 20%
+        </p>
+      )}
+
+      {/* ── 6 Pricing cards ── */}
+      <section className="px-4 py-10 max-w-[1380px] mx-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+          {PLANS.map((plan) => {
+            const price    = isAnnual ? plan.annualPrice    : plan.monthlyPrice
+            const cvs      = isAnnual ? plan.annualCVs      : plan.monthlyCVs
+            const ints     = isAnnual ? plan.annualInterviews : plan.monthlyInterviews
+            const isCustom = plan.monthlyPrice === null
+
+            return (
+              <div
+                key={plan.name}
+                className={`relative flex flex-col rounded-2xl overflow-hidden transition-all duration-200 ${
+                  plan.popular
+                    ? 'bg-white ring-2 ring-emerald-500 shadow-xl sm:scale-[1.02]'
+                    : 'bg-white border border-gray-200 shadow-md hover:bg-emerald-50/25 hover:border-emerald-200 hover:shadow-xl hover:-translate-y-1'
+                }`}
               >
-                {plan.popular && (
-                  <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                    <Badge className="bg-emerald-600 text-white px-4 py-1">
-                      <Star className="w-3 h-3 mr-1" />
-                      Most Popular
-                    </Badge>
+                {/* Top label */}
+                {plan.topLabel && (
+                  <div className={`text-center text-xs font-extrabold py-1.5 tracking-wide ${
+                    plan.popular ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-white'
+                  }`}>
+                    {plan.popular && '⭐ '}{plan.topLabel}
                   </div>
                 )}
-                <CardHeader className="text-center pb-4">
-                  <CardTitle className="text-2xl font-bold text-slate-800">{plan.name}</CardTitle>
-                  <CardDescription className="text-slate-600 mt-2">{plan.description}</CardDescription>
-                  <div className="mt-4">
-                    <div className="flex items-center justify-center">
-                      {plan.monthlyPrice !== null ? (
+
+                <div className="p-6 flex flex-col h-full">
+
+                  {/* ── Top section: name, price, usage (fixed height feel) ── */}
+                  <div className="space-y-4">
+                    {/* 1. Name + tagline */}
+                    <div>
+                      <h3 className="text-xl font-extrabold text-slate-800">{plan.name}</h3>
+                      <p className="text-sm text-slate-500 mt-1 leading-snug">{plan.tagline}</p>
+                    </div>
+
+                    {/* 2. Price */}
+                    <div className="min-h-[68px]">
+                      {isCustom ? (
                         <>
-                          <span className="text-5xl font-bold text-slate-800">
-                            {getCurrencySymbol()}{getDisplayPrice(plan.monthlyPrice)}
-                          </span>
-                          <span className="text-slate-600 ml-2">{plan.monthlyPrice === 0 ? '' : '/month'}</span>
+                          <div className="text-3xl font-extrabold text-slate-900 mb-0.5">Custom Pricing</div>
+                          <p className="text-xs text-slate-400">Custom AI wallet allocation + enterprise deployment</p>
                         </>
                       ) : (
-                        <span className="text-3xl font-bold text-slate-800">Custom</span>
+                        <>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-4xl font-extrabold text-slate-900">
+                              ${(price as number).toLocaleString()}
+                            </span>
+                            <span className="text-slate-400 text-sm ml-1">
+                              {isAnnual ? '/ year' : '/ month'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {isAnnual ? 'Billed annually · 10 months paid' : 'Billed month to month'}
+                          </p>
+                          {isAnnual && (
+                            <span className="inline-block mt-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                              ✓ +20% wallet credits vs monthly billing
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* 3. Usage estimates */}
+                    <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl p-4">
+                      <div className="flex items-center gap-1.5 mb-3">
+                        <Info className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                        <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">
+                          {isCustom ? 'Typical usage' : 'Typical monthly usage at this tier'}
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-600 font-medium">📄 CV parses</span>
+                          <span className="text-sm font-extrabold text-slate-800">
+                            {cvs}{!isCustom && ' / mo'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-600 font-medium">🎙️ AI interviews</span>
+                          <span className="text-sm font-extrabold text-slate-800">
+                            {ints}{!isCustom && ' / mo'}
+                            {!isCustom && <span className="text-xs font-normal text-slate-400 ml-1">(20 min avg)</span>}
+                          </span>
+                        </div>
+                      </div>
+                      {isCustom && (
+                        <p className="text-xs text-slate-400 mt-2.5 leading-tight">
+                          Custom volume — tailored to your enterprise requirements.
+                        </p>
                       )}
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    {plan.features.map((feature, featureIndex) => (
-                      <div key={featureIndex} className="flex items-start space-x-3">
-                        <Check className="w-5 h-5 text-emerald-600 mt-0.5 flex-shrink-0" />
-                        <span className="text-slate-700 text-sm">{feature}</span>
-                      </div>
-                    ))}
-                    {plan.limitations.map((limitation, limitationIndex) => (
-                      <div key={limitationIndex} className="flex items-start space-x-3">
-                        <X className="w-5 h-5 text-slate-400 mt-0.5 flex-shrink-0" />
-                        <span className="text-slate-500 text-sm">{limitation}</span>
-                      </div>
-                    ))}
+
+                  {/* ── Middle section: features (flex-1 so it fills remaining space) ── */}
+                  <div className="flex-1 space-y-4 mt-4">
+                    {/* 4. What's included */}
+                    <div>
+                      <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-2">
+                        What's included
+                      </p>
+                      <ul className="space-y-1.5">
+                        {plan.coreFeatures.map((f) => (
+                          <li key={f} className="flex items-start gap-2 text-sm text-slate-700">
+                            <Check className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* 5. Dashboard & analytics */}
+                    <div>
+                      <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-2">
+                        Dashboard &amp; analytics
+                      </p>
+                      <ul className="space-y-1.5">
+                        {plan.dashboardFeatures.map((f) => (
+                          <li key={f} className="flex items-start gap-2 text-sm text-slate-700">
+                            <Check className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
-                  {plan.cta === "Contact Sales" ? (
-                    <Button
-                      className={`w-full ${plan.popular ? "sr-button-primary" : "sr-button-secondary"}`}
-                      onClick={() => window.location.href = '/contact'}
+
+                  {/* ── Bottom section: support + CTA (always pinned to bottom) ── */}
+                  <div className="mt-5 space-y-3">
+                    {/* 6. Support */}
+                    <div className="bg-emerald-600 rounded-xl px-4 py-3">
+                      <p className="text-xs font-semibold text-white leading-snug">
+                        🎧 {plan.support}
+                      </p>
+                    </div>
+
+                    {/* 7. CTA */}
+                    <button
+                      onClick={() => handleSelect(plan.name)}
+                      disabled={checkoutLoading === plan.name}
+                      className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+                        plan.popular
+                          ? 'sr-button-primary'
+                          : 'bg-slate-800 hover:bg-emerald-700 text-white'
+                      }`}
                     >
-                      {plan.cta}
-                      <ArrowRight className="w-4 h-4 ml-2" />
-                    </Button>
-                  ) : (
-                    <Button
-                      className={`w-full ${plan.popular ? "sr-button-primary" : "sr-button-secondary"}`}
-                      onClick={() => handlePlanSelect(plan.name)}
-                    >
-                      {plan.cta}
-                      <ArrowRight className="w-4 h-4 ml-2" />
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                      {checkoutLoading === plan.name ? (
+                        <>
+                          <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                          </svg>
+                          Processing...
+                        </>
+                      ) : (
+                        <>{plan.cta} <ArrowRight className="w-4 h-4" /></>
+                      )}
+                    </button>
+                    <p className="text-center text-xs text-slate-400">
+                      {isCustom
+                        ? 'Unlimited team members · Enterprise onboarding'
+                        : 'Unlimited team members · Cancel anytime'}
+                    </p>
+                  </div>
+
+                </div>
+              </div>
+            )
+          })}
         </div>
       </section>
 
-      {/* FAQ Section */}
-      <section className="py-20 bg-slate-50">
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-slate-800 mb-4">Frequently Asked Questions</h2>
-            <p className="text-slate-600">Everything you need to know about our pricing</p>
+      {!isAppContext && (
+        <>
+          {/* ── Skip for Free link ── */}
+          <div className="flex flex-col items-center gap-1 pb-10 pt-2">
+            <button
+              onClick={() => handleSelect('Free Trial')}
+              className="inline-flex items-center gap-1.5 text-slate-400 hover:text-emerald-600 text-sm font-medium transition-colors group"
+            >
+              Not ready to commit?
+              <span className="underline underline-offset-2 font-semibold text-emerald-600 group-hover:no-underline">
+                Skip for Free — start your 7-day trial
+              </span>
+              <ArrowRight className="w-3.5 h-3.5 text-emerald-600" />
+            </button>
+            <span className="text-xs text-slate-300">No credit card required · cancel anytime</span>
           </div>
 
-          <div className="space-y-4">
-            <Card className="sr-card">
-              <CardContent className="p-4">
-                <h3 className="font-semibold text-slate-800 mb-2">Can I change my plan anytime?</h3>
-                <p className="text-slate-600">
-                  Yes, you can upgrade or downgrade your plan at any time. Changes take effect immediately, and we'll
-                  prorate the billing accordingly.
-                </p>
-              </CardContent>
-            </Card>
 
-            <Card className="sr-card">
-              <CardContent className="p-4">
-                <h3 className="font-semibold text-slate-800 mb-2">Is there a free trial?</h3>
-                <p className="text-slate-600">
-                  Yes, we offer a 7-day free trial for all plans. No credit card required to start your trial.
-                </p>
-              </CardContent>
-            </Card>
+          {/* ── FAQ ── */}
+          <section className="py-16 bg-slate-50 px-4">
+            <div className="max-w-2xl mx-auto">
+              <h2 className="text-3xl font-extrabold text-slate-800 text-center mb-2">
+                Common Questions
+              </h2>
+              <p className="text-slate-400 text-sm text-center mb-10">
+                Straight answers on how pricing and plans work
+              </p>
+              <div className="space-y-4">
+                {FAQ_ITEMS.map(({ q, a }) => (
+                  <div key={q} className="sr-card p-5">
+                    <h3 className="font-semibold text-slate-800 mb-1.5">{q}</h3>
+                    <p className="text-slate-500 text-sm leading-relaxed">{a}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
 
-            <Card className="sr-card">
-              <CardContent className="p-4">
-                <h3 className="font-semibold text-slate-800 mb-2">What happens if I exceed my plan limits?</h3>
-                <p className="text-slate-600">
-                  We'll notify you when you're approaching your limits. You can either upgrade your plan or purchase
-                  additional credits as needed.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="sr-card">
-              <CardContent className="p-4">
-                <h3 className="font-semibold text-slate-800 mb-2">Do you offer custom enterprise solutions?</h3>
-                <p className="text-slate-600">
-                  Yes, we work with large enterprises to create custom solutions that fit their specific needs. Contact
-                  our sales team to discuss your requirements.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-
-      <Footer />
-      </div>
+          <Footer />
+        </>
+      )}
+    </div>
   )
 }

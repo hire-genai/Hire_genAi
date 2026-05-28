@@ -335,22 +335,10 @@ export default function BillingContent({ companyId }: BillingContentProps) {
     }
   }
 
-  const handleStripeSubscribe = async (planType: 'monthly' | 'yearly' = 'monthly') => {
+  const handleStripeSubscribe = async (_planType: 'monthly' | 'yearly' = 'monthly') => {
     try {
       setStripeSubStarting(true)
-      const res = await fetch('/api/subscriptions/stripe/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planType }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setToastMessage(data?.error || 'Failed to start Stripe subscription')
-        return
-      }
-      window.location.href = data.subscription.checkoutUrl
-    } catch (e: any) {
-      setToastMessage(e?.message || 'Stripe subscription failed')
+      window.location.href = `/pricing?company_id=${encodeURIComponent(companyId)}`
     } finally {
       setStripeSubStarting(false)
     }

@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
     console.log('Contact message saved:', result)
 
     return NextResponse.json(
-      { 
-        success: true, 
+      {
+        success: true,
         message: 'Your message has been received. We will get back to you soon.',
         data: result
       },
@@ -110,7 +110,7 @@ export async function PATCH(request: NextRequest) {
 
     params.push(id)
     const sql = `UPDATE contact_messages SET ${updates.join(', ')} WHERE id = CAST($${paramIndex} AS UUID) RETURNING *`
-    
+
     const result = await DatabaseService.query(sql, params)
 
     if (!result || result.length === 0) {
@@ -141,30 +141,30 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    let sql = `SELECT * FROM contact_messages`
+    const where: string[] = []
     const params: any[] = []
-    
-    if (status) {
-      sql += ` WHERE status = $1`
-      params.push(status)
-    }
-    
-    sql += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
-    params.push(limit, offset)
 
-    const data = await DatabaseService.query(sql, params)
-    
-    // Get total count
-    let countSql = `SELECT COUNT(*) as total FROM contact_messages`
     if (status) {
-      countSql += ` WHERE status = $1`
+      params.push(status)
+      where.push(`status = $${params.length}`)
     }
-    const countResult = await DatabaseService.query(countSql, status ? [status] : [])
+
+    const whereClause = where.length > 0 ? ` WHERE ${where.join(' AND ')}` : ''
+
+    let sql = `SELECT * FROM contact_messages${whereClause}`
+    sql += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
+    const dataParams = [...params, limit, offset]
+
+    const data = await DatabaseService.query(sql, dataParams)
+
+    // Get total count
+    const countSql = `SELECT COUNT(*) as total FROM contact_messages${whereClause}`
+    const countResult = await DatabaseService.query(countSql, params)
     const total = parseInt(countResult[0]?.total || '0')
 
     return NextResponse.json(
-      { 
-        success: true, 
+      {
+        success: true,
         data: data,
         total,
         limit,

@@ -58,7 +58,7 @@ export default function ContactPage() {
           phoneNumber: formData.phoneNumber,
           subject: formData.subject,
           message: formData.message,
-          agreedToTerms: agreed
+          agreedToTerms: agreed,
         })
       })
 
