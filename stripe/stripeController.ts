@@ -379,6 +379,22 @@ export async function processSuccessfulCheckout(session: Stripe.Checkout.Session
 // ============================================================================
 
 /**
+ * Pull a human-readable plan name out of a Stripe Subscription.
+ * Prefers the expanded product.name; falls back to price.nickname.
+ * Returns null when the subscription wasn't retrieved with product expanded.
+ */
+function extractPlanNameFromSubscription(subscription: Stripe.Subscription): string | null {
+  const price = subscription.items?.data?.[0]?.price as any
+  if (!price) return null
+  const product = price.product
+  if (product && typeof product === 'object' && product.name) {
+    return product.name as string
+  }
+  if (price.nickname) return price.nickname as string
+  return null
+}
+
+/**
  * Map Stripe subscription status to our internal status
  */
 function mapStripeSubscriptionStatus(stripeStatus: string): string {
@@ -615,10 +631,15 @@ export async function processSubscriptionCheckoutCompleted(
   }
 
   // Fetch full subscription details from Stripe
+  // Expand items.data.price.product so we can persist the human-readable product name.
   let subscription: Stripe.Subscription
   try {
     subscription = await stripe.subscriptions.retrieve(subscriptionId, {
-      expand: ['default_payment_method', 'latest_invoice.payment_intent'],
+      expand: [
+        'default_payment_method',
+        'latest_invoice.payment_intent',
+        'items.data.price.product',
+      ],
     })
   } catch (e) {
     console.error('[Stripe] Failed to retrieve subscription:', e)
@@ -626,6 +647,7 @@ export async function processSubscriptionCheckoutCompleted(
   }
 
   const priceId = subscription.items.data[0]?.price?.id || null
+  const planName = extractPlanNameFromSubscription(subscription)
   const status = mapStripeSubscriptionStatus(subscription.status)
   const startTime = subscription.start_date
     ? new Date(subscription.start_date * 1000)
@@ -639,6 +661,7 @@ export async function processSubscriptionCheckoutCompleted(
     provider: 'stripe',
     subscriptionId: subscription.id,
     planId: priceId || undefined,
+    planName: planName || undefined,
     status,
     subscriberEmail: email || undefined,
     startTime,
@@ -811,11 +834,28 @@ export async function processSubscriptionEvent(
   // For deleted event, force status to cancelled
   const finalStatus = eventType === 'customer.subscription.deleted' ? 'cancelled' : mappedStatus
 
+  // Resolve plan name — if the subscription wasn't fetched with expanded product,
+  // fall back to a Stripe API call so we always persist a human-readable name.
+  let planName = extractPlanNameFromSubscription(subscription)
+  if (!planName && priceId) {
+    try {
+      const price = await stripe.prices.retrieve(priceId, { expand: ['product'] })
+      const product = (price as any).product
+      planName =
+        (typeof product === 'object' && product?.name) ||
+        price.nickname ||
+        null
+    } catch (e) {
+      console.error('[Stripe] Failed to retrieve price for plan_name fallback:', e)
+    }
+  }
+
   await DatabaseService.upsertSubscription({
     companyId,
     provider: 'stripe',
     subscriptionId: subscription.id,
     planId: priceId || undefined,
+    planName: planName || undefined,
     status: finalStatus,
     nextBillingTime,
     rawData: subscription,
