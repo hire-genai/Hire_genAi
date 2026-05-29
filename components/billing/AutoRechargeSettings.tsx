@@ -158,10 +158,8 @@ export default function AutoRechargeSettings({ companyId }: AutoRechargeSettings
           <CardDescription>Configure automatic wallet recharge preferences</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-3 py-2">
-            <div className="h-4 bg-gray-100 rounded animate-pulse w-2/3" />
-            <div className="h-4 bg-gray-100 rounded animate-pulse w-1/2" />
-            <div className="h-4 bg-gray-100 rounded animate-pulse w-3/4" />
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
           </div>
         </CardContent>
       </Card>

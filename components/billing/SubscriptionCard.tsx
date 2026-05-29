@@ -27,6 +27,7 @@ export interface SubscriptionInfo {
   id: string
   status: SubscriptionStatus
   planId?: string
+  planName?: string | null
   nextBillingDate?: string
   currentEnd?: string
   cancelAtCycleEnd?: boolean
@@ -58,7 +59,7 @@ export default function SubscriptionCard({
   status,
   trialDaysRemaining = 7,
   trialTotalDays = 7,
-  planName = 'Pro',
+  planName = 'Pro Plan',
   nextBillingDate,
   autoRenewal = true,
   currency = 'USD',
@@ -188,9 +189,9 @@ export default function SubscriptionCard({
         <div className="w-full bg-white rounded-xl border border-slate-100 border-l-[6px] border-l-emerald-600 px-4 sm:px-7 py-5 sm:py-6">
 
           <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
-            <div className="bg-emerald-600 text-white px-3 sm:px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold flex items-center gap-1.5">
+            <div className="bg-emerald-600 text-white px-3 sm:px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold flex items-center gap-1.5 uppercase">
               <Sparkles className="h-3.5 w-3.5" />
-              SUBSCRIBED · {planName.toUpperCase()} PLAN
+              SUBSCRIBED · {(subscription?.planName || planName || 'Pro Plan')}
             </div>
             <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3 sm:px-4 py-1.5 rounded-full">
               <div className="w-2 h-2 bg-green-500 rounded-full" />
@@ -215,9 +216,7 @@ export default function SubscriptionCard({
 
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
               <Button
-                onClick={() => {
-                  window.location.href = getAppUrl(`/pricing?company_id=${encodeURIComponent(companyId)}`)
-                }}
+                onClick={handleUpgrade}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-4 sm:px-5 py-2 text-sm font-medium w-full sm:w-auto justify-center"
               >
                 <Sparkles className="h-3.5 w-3.5 mr-1.5" />
@@ -226,14 +225,14 @@ export default function SubscriptionCard({
               <Button
                 onClick={() => setShowCancelModal(true)}
                 disabled={isCancellingSubscription}
-                className="bg-transparent border border-orange-400 text-orange-500 hover:bg-orange-50 rounded-full px-3 sm:px-4 py-1.5 text-xs font-medium w-full sm:w-auto justify-center"
+                className="bg-transparent border-2 border-orange-500 text-orange-600 hover:bg-orange-50 rounded-full px-4 sm:px-5 py-2 text-sm font-medium w-full sm:w-auto justify-center"
               >
                 {isCancellingSubscription ? (
-                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                 ) : (
-                  <XCircle className="h-3 w-3 mr-1" />
+                  <XCircle className="h-3.5 w-3.5 mr-1.5" />
                 )}
-                Cancel
+                Cancel Subscription
               </Button>
             </div>
           </div>
@@ -253,7 +252,7 @@ export default function SubscriptionCard({
                   <h2 className="text-2xl font-bold text-emerald-900">Cancel plan?</h2>
                 </div>
                 <p className="text-center text-slate-600 text-sm leading-relaxed mb-2">
-                  If you cancel your <strong>{planName} Plan</strong>, you'll lose premium features at the end of current billing cycle (
+                  If you cancel your <strong>Pro Plan</strong>, you'll lose premium features at the end of current billing cycle (
                   {subscription?.nextBillingDate
                     ? new Date(subscription.nextBillingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })
                     : nextBillingDate || 'end of billing cycle'}
@@ -420,7 +419,7 @@ export default function SubscriptionCard({
             <div className="flex justify-between items-center flex-wrap gap-4 mb-6">
               <div className="bg-orange-700 text-white px-5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 shadow-md">
                 <span className="text-lg">{'⏸️'}</span>
-                CANCELLED · {planName.toUpperCase()} (until {subscription?.nextBillingDate
+                CANCELLED · PRO (until {subscription?.nextBillingDate
                   ? new Date(subscription.nextBillingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric' })
                   : nextBillingDate || 'end of cycle'})
               </div>
@@ -432,7 +431,7 @@ export default function SubscriptionCard({
 
             <h3 className="text-2xl font-bold text-orange-800 mb-2">Plan ends on billing date</h3>
             <p className="text-sm text-orange-700 mb-6 leading-relaxed border-l-[3px] border-orange-300 pl-4">
-              Your {planName} features remain active until {subscription?.nextBillingDate
+              Your Pro features remain active until {subscription?.nextBillingDate
                 ? new Date(subscription.nextBillingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })
                 : nextBillingDate || 'end of billing cycle'}. After that, workspace will revert to Free tier.
             </p>
@@ -487,7 +486,7 @@ export default function SubscriptionCard({
             </div>
 
             <div className="text-[1.25rem] font-bold text-[#7a673e] mb-1.5 leading-tight">
-              Your {planName} Plan has ended
+              Your Pro Plan has ended
             </div>
             <div className="text-[0.8rem] text-[#8f7e58] leading-relaxed border-l-[2px] border-[#ddd0aa] pl-3 mb-5">
               Subscription expired. Premium features, priority support & analytics are no longer accessible.
@@ -511,7 +510,7 @@ export default function SubscriptionCard({
                   {isCreatingSubscription ? (
                     <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                   ) : (
-                    <span>Renew {planName} Plan {'→'}</span>
+                    <span>Renew Pro Plan {'→'}</span>
                   )}
                 </Button>
               </div>

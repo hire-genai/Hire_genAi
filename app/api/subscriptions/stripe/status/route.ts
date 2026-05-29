@@ -6,25 +6,6 @@ import { stripe } from '@/stripe/stripeController'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const KNOWN_PLAN_NAMES = ['Starter', 'Professional', 'Business', 'Large', 'Ultra', 'Pro']
-const PRICE_TO_PLAN_NAME: Record<string, string> = {}
-for (const name of KNOWN_PLAN_NAMES.slice(0, 5)) {
-  for (const cycle of ['MONTHLY', 'ANNUAL']) {
-    const priceId = process.env[`STRIPE_PRICE_ID_${name.toUpperCase()}_${cycle}`]
-    if (priceId) PRICE_TO_PLAN_NAME[priceId] = name
-  }
-}
-if (process.env.STRIPE_PRICE_ID_MONTHLY) PRICE_TO_PLAN_NAME[process.env.STRIPE_PRICE_ID_MONTHLY] = 'Pro'
-if (process.env.STRIPE_PRICE_ID_YEARLY)  PRICE_TO_PLAN_NAME[process.env.STRIPE_PRICE_ID_YEARLY]  = 'Pro'
-
-function resolvePlanName(planId: string | null | undefined): string | null {
-  if (!planId) return null
-  // Already a human-readable name (stored by create route or webhook after our fix)
-  if (KNOWN_PLAN_NAMES.some(n => n.toLowerCase() === planId.toLowerCase())) return planId
-  // Legacy: Stripe price ID — try reverse map
-  return PRICE_TO_PLAN_NAME[planId] || null
-}
-
 /**
  * GET /api/subscriptions/stripe/status
  *
@@ -78,7 +59,7 @@ export async function GET(request: NextRequest) {
     ) {
       try {
         stripeData = await stripe.subscriptions.retrieve(subscription.subscription_id, {
-          expand: ['default_payment_method', 'latest_invoice'],
+          expand: ['default_payment_method', 'latest_invoice', 'items.data.price.product'],
         })
 
         // Sync status if changed
@@ -95,6 +76,25 @@ export async function GET(request: NextRequest) {
             nextBilling
           )
         }
+
+        // Backfill plan_name from Stripe if missing in DB
+        if (!subscription.plan_name) {
+          const price: any = stripeData.items?.data?.[0]?.price
+          const product = price?.product
+          const planName =
+            (product && typeof product === 'object' && product.name) ||
+            price?.nickname ||
+            null
+          if (planName) {
+            await DatabaseService.query(
+              `UPDATE company_subscriptions
+                 SET plan_name = $2, updated_at = NOW()
+               WHERE company_id = $1::uuid AND provider = 'stripe'`,
+              [companyId, planName]
+            )
+            subscription.plan_name = planName
+          }
+        }
       } catch (e) {
         console.error('[Stripe Subscription Status] Failed to refresh from Stripe:', e)
       }
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
         id: subscription.subscription_id,
         provider: subscription.provider,
         planId: subscription.plan_id,
-        planName: resolvePlanName(subscription.plan_id),
+        planName: subscription.plan_name || null,
         status: stripeData ? mapStripeStatus(stripeData.status) : subscription.status,
         subscriberEmail: subscription.subscriber_email,
         startTime: subscription.start_time,

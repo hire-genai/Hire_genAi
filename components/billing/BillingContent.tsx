@@ -808,7 +808,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             })()}
             trialDaysRemaining={billingData?.trialDaysRemaining ?? 7}
             trialTotalDays={billingData?.trialTotalDays ?? 7}
-            planName={stripeSubscription?.planName || 'Pro'}
+            planName={stripeSubscription?.planName || 'Pro Plan'}
             nextBillingDate={stripeSubscription?.nextBillingTime || billingData?.nextBillingDate}
             autoRenewal={!stripeSubscription?.cancelAtCycleEnd}
             currency="USD"
@@ -818,6 +818,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
               id: stripeSubscription.id || '',
               status: stripeSubscription.status as any,
               planId: stripeSubscription.planId,
+              planName: stripeSubscription.planName || null,
               nextBillingDate: stripeSubscription.nextBillingTime,
               cancelAtCycleEnd: stripeSubscription.cancelAtCycleEnd,
               subscriberEmail: stripeSubscription.subscriberEmail,

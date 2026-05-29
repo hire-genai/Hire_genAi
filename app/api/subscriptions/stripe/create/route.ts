@@ -136,10 +136,7 @@ export async function POST(request: NextRequest) {
 
     // ─── 6. Store pending subscription record with customer_id ───
     // We don't have the subscription ID yet — that comes from webhook.
-    // Store the human-readable plan name as plan_id (e.g. "Starter") so it
-    // displays correctly on settings; the webhook will keep this value since
-    // upsertSubscription uses COALESCE and we encode it the same way there.
-    const readablePlanId = planName || priceId
+    // Store customer_id so we can match on webhook events.
     await DatabaseService.query(
       `INSERT INTO company_subscriptions (
          company_id, provider, subscription_id, plan_id, status,
@@ -157,7 +154,7 @@ export async function POST(request: NextRequest) {
       [
         companyId,
         `stripe_session_${sessionId}`, // placeholder until webhook gives real subscription_id
-        readablePlanId,
+        priceId,
         email || null,
         url,
         customerId,
