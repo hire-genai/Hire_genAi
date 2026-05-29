@@ -76,15 +76,8 @@ function SignupContent() {
   
   useEffect(() => {
     if (authLoading) return
-    
-    if (user) {
-      router.replace('/dashboard')
-      return
-    }
 
-    const fromRazorpay = localStorage.getItem('razorpay_redirect')
-    if (fromRazorpay) {
-      localStorage.removeItem('razorpay_redirect')
+    if (user) {
       router.replace('/dashboard')
       return
     }
@@ -133,6 +126,9 @@ function SignupContent() {
   const [otpLoading, setOtpLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  // Capture plan/billing from URL on mount — the URL gets rewritten as steps advance
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null)
+  const [selectedBilling, setSelectedBilling] = useState<'monthly' | 'annual'>('annual')
 
   const totalSteps = 5
   const progressPct = useMemo(() => Math.round(((step - 1) / (totalSteps - 1)) * 100), [step])
@@ -159,11 +155,18 @@ function SignupContent() {
   // Initialize step from URL on first render (only after mount)
   useEffect(() => {
     if (!mounted) return
-    
+
     const urlParams = new URLSearchParams(window.location.search)
     const sec = urlParams.get('section')
     const target = sectionToStep(sec)
     setStep(target)
+
+    // Capture plan/billing before URL gets rewritten by step navigation
+    const plan = urlParams.get('plan')
+    const billing = urlParams.get('billing')
+    if (plan) setSelectedPlan(plan)
+    if (billing === 'monthly') setSelectedBilling('monthly')
+    else if (billing === 'annual') setSelectedBilling('annual')
   }, [mounted])
 
   // Update URL whenever step changes (but avoid infinite loop)
@@ -372,6 +375,9 @@ function SignupContent() {
           // Step 5: Consent
           agreeTos: form.agreeTos,
           agreePrivacy: form.agreePrivacy,
+          // Plan selection from /pricing (captured on mount before URL rewrite)
+          planName: selectedPlan || undefined,
+          billing: selectedPlan ? selectedBilling : undefined,
         })
       })
 
@@ -404,38 +410,11 @@ function SignupContent() {
         )
       }
 
-      // Check if user had selected a plan from pricing page
-      const pendingPlan = localStorage.getItem('pendingPlan')
-      
-      if (pendingPlan) {
-        // User came from pricing page → redirect DIRECTLY to Razorpay payment (same tab)
-        localStorage.removeItem('pendingPlan') // Clear after use
-        
-        // Extend session before going to external payment page (30 minutes)
-        const sessionExpiresAt = localStorage.getItem('sessionExpiresAt')
-        if (sessionExpiresAt) {
-          const newExpiry = Date.now() + (30 * 60 * 1000)
-          localStorage.setItem('sessionExpiresAt', newExpiry.toString())
-        }
-        
-        const RAZORPAY_PAYMENT_LINK = process.env.NEXT_PUBLIC_RAZORPAY_PAYMENT_LINK || 'https://pages.razorpay.com/hire-genai'
-        const userEmail = data.user?.email || form.email
-        const callbackUrl = `${window.location.origin}/payment/return`
-        
-        let paymentUrl = RAZORPAY_PAYMENT_LINK
-        const params = new URLSearchParams()
-        if (userEmail) {
-          params.append('email', userEmail)
-        }
-        params.append('callback_url', callbackUrl)
-        
-        if (params.toString()) {
-          paymentUrl += `?${params.toString()}`
-        }
-        localStorage.setItem('razorpay_redirect', 'true')
-        window.location.href = paymentUrl
+      if (data.checkoutUrl) {
+        // Came from /pricing with a plan → Stripe checkout
+        window.location.href = data.checkoutUrl
       } else {
-        // Normal signup → redirect to dashboard
+        // Normal signup → dashboard
         router.push("/dashboard")
       }
     } catch (error: any) {

@@ -457,7 +457,7 @@ export default function CustomerInteractionPage() {
   
   const filteredContacts = contacts.filter(contact => {
     const matchesFilter = contactFilter === "all" || contact.status === contactFilter
-    const matchesSearch = searchQuery === "" || 
+    const matchesSearch = searchQuery === "" ||
       contact.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.work_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -560,19 +560,19 @@ export default function CustomerInteractionPage() {
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
               <TabsList className="bg-slate-800 border border-slate-700">
-                <TabsTrigger 
-                  value="contacts" 
+                <TabsTrigger
+                  value="contacts"
                   className="text-slate-400 hover:text-white data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
                 >
                   <Mail className="h-4 w-4 mr-2" />
                   Contact Requests
-                  {contactStats.new > 0 && (
+                  {contacts.filter(c => c.status === 'new_lead').length > 0 && (
                     <Badge className="ml-2 bg-red-500 text-white text-xs px-1.5 py-0">
-                      {contactStats.new}
+                      {contacts.filter(c => c.status === 'new_lead').length}
                     </Badge>
                   )}
                 </TabsTrigger>
-                                <TabsTrigger 
+                                <TabsTrigger
                   value="google-calendar"
                   className="text-slate-400 hover:text-white data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
                 >
@@ -608,8 +608,8 @@ export default function CustomerInteractionPage() {
             <TabsContent value="contacts" className="mt-0">
               <div className="flex flex-wrap items-center gap-2 mb-6 pb-4 border-b border-slate-700">
                 {STATUS_TABS.map(tab => {
-                  const count = tab.value === 'all' 
-                    ? contacts.length 
+                  const count = tab.value === 'all'
+                    ? contacts.length
                     : contacts.filter(c => c.status === tab.value).length
                   return (
                     <button
@@ -809,7 +809,6 @@ export default function CustomerInteractionPage() {
               </div>
             </TabsContent>
 
-            
             {/* Google Calendar Tab */}
             <TabsContent value="google-calendar" className="mt-0">
               <div className="space-y-4">

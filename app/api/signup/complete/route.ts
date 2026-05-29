@@ -1,14 +1,28 @@
 import { NextRequest, NextResponse } from "next/server"
 import { DatabaseService } from "@/lib/database"
 import crypto from 'crypto'
+import { createSubscriptionCheckoutSession } from '@/stripe/stripeController'
+
+const PLAN_PRICE_IDS: Record<string, string | undefined> = {
+  starter_monthly:      process.env.STRIPE_PRICE_ID_STARTER_MONTHLY,
+  starter_annual:       process.env.STRIPE_PRICE_ID_STARTER_ANNUAL,
+  professional_monthly: process.env.STRIPE_PRICE_ID_PROFESSIONAL_MONTHLY,
+  professional_annual:  process.env.STRIPE_PRICE_ID_PROFESSIONAL_ANNUAL,
+  business_monthly:     process.env.STRIPE_PRICE_ID_BUSINESS_MONTHLY,
+  business_annual:      process.env.STRIPE_PRICE_ID_BUSINESS_ANNUAL,
+  large_monthly:        process.env.STRIPE_PRICE_ID_LARGE_MONTHLY,
+  large_annual:         process.env.STRIPE_PRICE_ID_LARGE_ANNUAL,
+  ultra_monthly:        process.env.STRIPE_PRICE_ID_ULTRA_MONTHLY,
+  ultra_annual:         process.env.STRIPE_PRICE_ID_ULTRA_ANNUAL,
+}
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { 
-      email, 
+    const {
+      email,
       otp,
       // Step 1: Company Information
       companyName,
@@ -33,7 +47,10 @@ export async function POST(req: NextRequest) {
       jobTitle,
       // Step 5: Consent
       agreeTos,
-      agreePrivacy
+      agreePrivacy,
+      // Optional: plan selection from /pricing
+      planName,
+      billing,
     } = body
     
     // Validate required fields
@@ -160,6 +177,44 @@ export async function POST(req: NextRequest) {
     `
     await DatabaseService.query(consumeOtpQuery, [normEmail, codeHash])
 
+    // If a plan was selected from /pricing, create a Stripe checkout session
+    let checkoutUrl: string | null = null
+    if (planName && process.env.STRIPE_SECRET_KEY) {
+      const cycle = billing === 'monthly' ? 'monthly' : 'annual'
+      const priceId = PLAN_PRICE_IDS[`${String(planName).toLowerCase()}_${cycle}`]
+      if (priceId) {
+        try {
+          const origin = req.headers.get('origin') || `https://${req.headers.get('host') || 'hire-genai.com'}`
+          const { url } = await createSubscriptionCheckoutSession({
+            companyId: company.id,
+            userId: user.id,
+            email: normEmail,
+            priceId,
+            planType: billing === 'monthly' ? 'monthly' : 'yearly',
+            origin,
+          })
+          checkoutUrl = url
+
+          // Store pending subscription record
+          await DatabaseService.query(
+            `INSERT INTO company_subscriptions (
+               company_id, provider, subscription_id, plan_id, status,
+               subscriber_email, updated_at
+             ) VALUES ($1::uuid, 'stripe', $2, $3, 'pending', $4, NOW())
+             ON CONFLICT (company_id, provider) DO UPDATE SET
+               plan_id = EXCLUDED.plan_id,
+               status = 'pending',
+               subscriber_email = COALESCE(EXCLUDED.subscriber_email, company_subscriptions.subscriber_email),
+               updated_at = NOW()`,
+            [company.id, `stripe_pending_${user.id}`, priceId, normEmail]
+          )
+        } catch (e) {
+          console.error('[Signup] Failed to create Stripe checkout session:', e)
+          // Non-fatal: user is created, they can subscribe later from settings
+        }
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       user: {
@@ -183,6 +238,7 @@ export async function POST(req: NextRequest) {
         refreshToken,
         expiresAt: session.expires_at,
       },
+      checkoutUrl,
     })
   } catch (error: any) {
     console.error('Error completing signup:', error)

@@ -3,6 +3,19 @@ import { DatabaseService } from '@/lib/database'
 import { cookies } from 'next/headers'
 import { createSubscriptionCheckoutSession } from '@/stripe/stripeController'
 
+const PLAN_PRICE_IDS: Record<string, string | undefined> = {
+  starter_monthly:      process.env.STRIPE_PRICE_ID_STARTER_MONTHLY,
+  starter_annual:       process.env.STRIPE_PRICE_ID_STARTER_ANNUAL,
+  professional_monthly: process.env.STRIPE_PRICE_ID_PROFESSIONAL_MONTHLY,
+  professional_annual:  process.env.STRIPE_PRICE_ID_PROFESSIONAL_ANNUAL,
+  business_monthly:     process.env.STRIPE_PRICE_ID_BUSINESS_MONTHLY,
+  business_annual:      process.env.STRIPE_PRICE_ID_BUSINESS_ANNUAL,
+  large_monthly:        process.env.STRIPE_PRICE_ID_LARGE_MONTHLY,
+  large_annual:         process.env.STRIPE_PRICE_ID_LARGE_ANNUAL,
+  ultra_monthly:        process.env.STRIPE_PRICE_ID_ULTRA_MONTHLY,
+  ultra_annual:         process.env.STRIPE_PRICE_ID_ULTRA_ANNUAL,
+}
+
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
@@ -58,17 +71,27 @@ export async function POST(request: NextRequest) {
     // ─── 2. Parse request body ───
     const body = await request.json().catch(() => ({}))
     const planType: 'monthly' | 'yearly' = body?.planType === 'yearly' ? 'yearly' : 'monthly'
+    const planName: string | undefined = body?.planName
+    const billing: string = body?.billing === 'annual' ? 'annual' : 'monthly'
 
     // ─── 3. Get price ID from env ───
-    const priceId =
-      planType === 'yearly'
+    // If planName is provided (from /pricing page), look up per-plan price ID.
+    // Otherwise fall back to legacy STRIPE_PRICE_ID_MONTHLY / YEARLY.
+    let priceId: string | undefined
+    if (planName) {
+      const key = `${planName.toLowerCase()}_${billing}`
+      priceId = PLAN_PRICE_IDS[key]
+    }
+    if (!priceId) {
+      priceId = planType === 'yearly'
         ? process.env.STRIPE_PRICE_ID_YEARLY
         : process.env.STRIPE_PRICE_ID_MONTHLY
+    }
 
     if (!priceId) {
-      console.error(`[Stripe Subscription Create] Price ID not configured for: ${planType}`)
+      console.error(`[Stripe Subscription Create] Price ID not configured for: ${planName || planType}`)
       return NextResponse.json(
-        { error: `Subscription plan not configured for ${planType}. Please contact support.` },
+        { error: `Subscription plan not configured. Please contact support.` },
         { status: 500 }
       )
     }

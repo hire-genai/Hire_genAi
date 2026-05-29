@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Menu, X } from "lucide-react"
+import { Menu, X, UserCircle } from "lucide-react"
 
 interface NavbarProps {
   isFixed?: boolean
@@ -63,13 +63,10 @@ export default function Navbar({ isFixed = false, showAnnouncement = false }: Na
               </nav>
             </div>
             <div className="hidden md:flex items-center space-x-4">
-              <Link href="/login">
-                <Button
-                  variant="ghost"
-                  className="text-gray-700 hover:text-emerald-600 font-medium"
-                >
-                  Login
-                </Button>
+              <Link href="/settings?tab=payment" title="Settings">
+                <button className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-600 hover:text-emerald-600">
+                  <UserCircle className="h-6 w-6" />
+                </button>
               </Link>
               <Link href="/signup">
                 <Button className="sr-button-primary">Get started</Button>
@@ -129,9 +126,9 @@ export default function Navbar({ isFixed = false, showAnnouncement = false }: Na
                   <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
                     <Button
                       variant="ghost"
-                      className="w-full justify-start text-gray-700 hover:text-emerald-600 hover:bg-gray-50 font-medium transition-colors"
+                      className="w-full justify-start text-gray-700 hover:text-emerald-600 hover:bg-gray-50 font-medium transition-colors gap-2"
                     >
-                      Login
+                      <UserCircle className="h-5 w-5" /> Login
                     </Button>
                   </Link>
                   <Link href="/signup" onClick={() => setMobileMenuOpen(false)}>
