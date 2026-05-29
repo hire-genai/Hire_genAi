@@ -10,6 +10,18 @@ if (!stripeSecretKey) {
   console.warn('[Stripe] STRIPE_SECRET_KEY is not set. Stripe endpoints will fail.')
 }
 
+// Reverse map: Stripe price ID → human-readable plan name (e.g. "Starter")
+const PLAN_NAMES_LIST = ['Starter', 'Professional', 'Business', 'Large', 'Ultra']
+const STRIPE_PRICE_TO_PLAN_NAME: Record<string, string> = {}
+for (const name of PLAN_NAMES_LIST) {
+  for (const cycle of ['MONTHLY', 'ANNUAL']) {
+    const pid = process.env[`STRIPE_PRICE_ID_${name.toUpperCase()}_${cycle}`]
+    if (pid) STRIPE_PRICE_TO_PLAN_NAME[pid] = name
+  }
+}
+if (process.env.STRIPE_PRICE_ID_MONTHLY) STRIPE_PRICE_TO_PLAN_NAME[process.env.STRIPE_PRICE_ID_MONTHLY] = 'Pro'
+if (process.env.STRIPE_PRICE_ID_YEARLY)  STRIPE_PRICE_TO_PLAN_NAME[process.env.STRIPE_PRICE_ID_YEARLY]  = 'Pro'
+
 export const stripe = new Stripe(stripeSecretKey || 'sk_test_placeholder', {
   apiVersion: '2025-01-27.acacia' as any,
 })
@@ -803,6 +815,10 @@ export async function processSubscriptionEvent(
   }
 
   const priceId = subscription.items.data[0]?.price?.id || null
+  // Use human-readable plan name if we can resolve it; fall back to price ID
+  const resolvedPlanId = priceId
+    ? (STRIPE_PRICE_TO_PLAN_NAME[priceId] || priceId)
+    : undefined
   const mappedStatus = mapStripeSubscriptionStatus(subscription.status)
   const nextBillingTime = (subscription as any).current_period_end
     ? new Date((subscription as any).current_period_end * 1000)
@@ -815,7 +831,7 @@ export async function processSubscriptionEvent(
     companyId,
     provider: 'stripe',
     subscriptionId: subscription.id,
-    planId: priceId || undefined,
+    planId: resolvedPlanId,
     status: finalStatus,
     nextBillingTime,
     rawData: subscription,

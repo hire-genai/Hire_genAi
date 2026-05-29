@@ -215,16 +215,25 @@ export default function SubscriptionCard({
 
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
               <Button
+                onClick={() => {
+                  window.location.href = getAppUrl(`/pricing?company_id=${encodeURIComponent(companyId)}`)
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-4 sm:px-5 py-2 text-sm font-medium w-full sm:w-auto justify-center"
+              >
+                <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                Upgrade Plan
+              </Button>
+              <Button
                 onClick={() => setShowCancelModal(true)}
                 disabled={isCancellingSubscription}
-                className="bg-transparent border-2 border-orange-500 text-orange-600 hover:bg-orange-50 rounded-full px-4 sm:px-5 py-2 text-sm font-medium w-full sm:w-auto justify-center"
+                className="bg-transparent border border-orange-400 text-orange-500 hover:bg-orange-50 rounded-full px-3 sm:px-4 py-1.5 text-xs font-medium w-full sm:w-auto justify-center"
               >
                 {isCancellingSubscription ? (
-                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                 ) : (
-                  <XCircle className="h-3.5 w-3.5 mr-1.5" />
+                  <XCircle className="h-3 w-3 mr-1" />
                 )}
-                Cancel Subscription
+                Cancel
               </Button>
             </div>
           </div>
