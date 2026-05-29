@@ -243,6 +243,7 @@ export default function PricingPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const [currentPlanName, setCurrentPlanName] = useState<string | null>(null)
 
   // Read company_id from URL — present when opened from app settings page
   useEffect(() => {
@@ -250,6 +251,19 @@ export default function PricingPage() {
     const cid = params.get('company_id')
     setCompanyId(cid)
   }, [])
+
+  // Fetch current subscription plan when in app context
+  useEffect(() => {
+    if (!companyId) return
+    fetch('/api/subscriptions/stripe/status')
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && data.hasSubscription && data.isActive && data.subscription?.planName) {
+          setCurrentPlanName(data.subscription.planName)
+        }
+      })
+      .catch(() => {})
+  }, [companyId])
 
   useEffect(() => {
     const scrollTo = new URLSearchParams(window.location.search).get('scroll')
@@ -403,18 +417,28 @@ export default function PricingPage() {
             const cvs      = isAnnual ? plan.annualCVs      : plan.monthlyCVs
             const ints     = isAnnual ? plan.annualInterviews : plan.monthlyInterviews
             const isCustom = plan.monthlyPrice === null
+            const isCurrentPlan = !!currentPlanName && plan.name.toLowerCase() === currentPlanName.toLowerCase()
 
             return (
               <div
                 key={plan.name}
                 className={`relative flex flex-col rounded-2xl overflow-hidden transition-all duration-200 ${
-                  plan.popular
+                  isCurrentPlan
+                    ? 'bg-white ring-2 ring-emerald-500 shadow-xl sm:scale-[1.02]'
+                    : plan.popular
                     ? 'bg-white ring-2 ring-emerald-500 shadow-xl sm:scale-[1.02]'
                     : 'bg-white border border-gray-200 shadow-md hover:bg-emerald-50/25 hover:border-emerald-200 hover:shadow-xl hover:-translate-y-1'
                 }`}
               >
-                {/* Top label */}
-                {plan.topLabel && (
+                {/* Current plan banner */}
+                {isCurrentPlan && (
+                  <div className="text-center text-xs font-extrabold py-1.5 tracking-wide bg-emerald-600 text-white">
+                    ✓ Current Plan
+                  </div>
+                )}
+
+                {/* Top label — skip if current plan banner is shown */}
+                {plan.topLabel && !isCurrentPlan && (
                   <div className={`text-center text-xs font-extrabold py-1.5 tracking-wide ${
                     plan.popular ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-white'
                   }`}>
@@ -536,15 +560,19 @@ export default function PricingPage() {
 
                     {/* 7. CTA */}
                     <button
-                      onClick={() => handleSelect(plan.name)}
-                      disabled={checkoutLoading === plan.name}
-                      className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
-                        plan.popular
-                          ? 'sr-button-primary'
-                          : 'bg-slate-800 hover:bg-emerald-700 text-white'
+                      onClick={() => !isCurrentPlan && handleSelect(plan.name)}
+                      disabled={checkoutLoading === plan.name || isCurrentPlan}
+                      className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all disabled:cursor-not-allowed ${
+                        isCurrentPlan
+                          ? 'bg-emerald-600 text-white opacity-80 cursor-default'
+                          : plan.popular
+                          ? 'sr-button-primary disabled:opacity-60'
+                          : 'bg-slate-800 hover:bg-emerald-700 text-white disabled:opacity-60'
                       }`}
                     >
-                      {checkoutLoading === plan.name ? (
+                      {isCurrentPlan ? (
+                        <>✓ Current Plan</>
+                      ) : checkoutLoading === plan.name ? (
                         <>
                           <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>

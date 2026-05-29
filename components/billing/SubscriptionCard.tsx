@@ -58,7 +58,7 @@ export default function SubscriptionCard({
   status,
   trialDaysRemaining = 7,
   trialTotalDays = 7,
-  planName = 'Pro Plan',
+  planName = 'Pro',
   nextBillingDate,
   autoRenewal = true,
   currency = 'USD',
@@ -190,7 +190,7 @@ export default function SubscriptionCard({
           <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
             <div className="bg-emerald-600 text-white px-3 sm:px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
-              SUBSCRIBED · PRO PLAN
+              SUBSCRIBED · {planName.toUpperCase()} PLAN
             </div>
             <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3 sm:px-4 py-1.5 rounded-full">
               <div className="w-2 h-2 bg-green-500 rounded-full" />
@@ -244,7 +244,7 @@ export default function SubscriptionCard({
                   <h2 className="text-2xl font-bold text-emerald-900">Cancel plan?</h2>
                 </div>
                 <p className="text-center text-slate-600 text-sm leading-relaxed mb-2">
-                  If you cancel your <strong>Pro Plan</strong>, you'll lose premium features at the end of current billing cycle (
+                  If you cancel your <strong>{planName} Plan</strong>, you'll lose premium features at the end of current billing cycle (
                   {subscription?.nextBillingDate
                     ? new Date(subscription.nextBillingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })
                     : nextBillingDate || 'end of billing cycle'}
@@ -411,7 +411,7 @@ export default function SubscriptionCard({
             <div className="flex justify-between items-center flex-wrap gap-4 mb-6">
               <div className="bg-orange-700 text-white px-5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 shadow-md">
                 <span className="text-lg">{'⏸️'}</span>
-                CANCELLED · PRO (until {subscription?.nextBillingDate
+                CANCELLED · {planName.toUpperCase()} (until {subscription?.nextBillingDate
                   ? new Date(subscription.nextBillingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric' })
                   : nextBillingDate || 'end of cycle'})
               </div>
@@ -423,7 +423,7 @@ export default function SubscriptionCard({
 
             <h3 className="text-2xl font-bold text-orange-800 mb-2">Plan ends on billing date</h3>
             <p className="text-sm text-orange-700 mb-6 leading-relaxed border-l-[3px] border-orange-300 pl-4">
-              Your Pro features remain active until {subscription?.nextBillingDate
+              Your {planName} features remain active until {subscription?.nextBillingDate
                 ? new Date(subscription.nextBillingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })
                 : nextBillingDate || 'end of billing cycle'}. After that, workspace will revert to Free tier.
             </p>
@@ -478,7 +478,7 @@ export default function SubscriptionCard({
             </div>
 
             <div className="text-[1.25rem] font-bold text-[#7a673e] mb-1.5 leading-tight">
-              Your Pro Plan has ended
+              Your {planName} Plan has ended
             </div>
             <div className="text-[0.8rem] text-[#8f7e58] leading-relaxed border-l-[2px] border-[#ddd0aa] pl-3 mb-5">
               Subscription expired. Premium features, priority support & analytics are no longer accessible.
@@ -502,7 +502,7 @@ export default function SubscriptionCard({
                   {isCreatingSubscription ? (
                     <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                   ) : (
-                    <span>Renew Pro Plan {'→'}</span>
+                    <span>Renew {planName} Plan {'→'}</span>
                   )}
                 </Button>
               </div>

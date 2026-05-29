@@ -6,6 +6,18 @@ import { stripe } from '@/stripe/stripeController'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+const PLAN_NAMES = ['Starter', 'Professional', 'Business', 'Large', 'Ultra']
+const PRICE_TO_PLAN_NAME: Record<string, string> = {}
+for (const name of PLAN_NAMES) {
+  for (const cycle of ['MONTHLY', 'ANNUAL']) {
+    const priceId = process.env[`STRIPE_PRICE_ID_${name.toUpperCase()}_${cycle}`]
+    if (priceId) PRICE_TO_PLAN_NAME[priceId] = name
+  }
+}
+// Legacy single-tier env vars
+if (process.env.STRIPE_PRICE_ID_MONTHLY) PRICE_TO_PLAN_NAME[process.env.STRIPE_PRICE_ID_MONTHLY] = 'Pro'
+if (process.env.STRIPE_PRICE_ID_YEARLY) PRICE_TO_PLAN_NAME[process.env.STRIPE_PRICE_ID_YEARLY] = 'Pro'
+
 /**
  * GET /api/subscriptions/stripe/status
  *
@@ -91,6 +103,7 @@ export async function GET(request: NextRequest) {
         id: subscription.subscription_id,
         provider: subscription.provider,
         planId: subscription.plan_id,
+        planName: subscription.plan_id ? (PRICE_TO_PLAN_NAME[subscription.plan_id] || null) : null,
         status: stripeData ? mapStripeStatus(stripeData.status) : subscription.status,
         subscriberEmail: subscription.subscriber_email,
         startTime: subscription.start_time,

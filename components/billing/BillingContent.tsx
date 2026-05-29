@@ -808,7 +808,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
             })()}
             trialDaysRemaining={billingData?.trialDaysRemaining ?? 7}
             trialTotalDays={billingData?.trialTotalDays ?? 7}
-            planName="Pro Plan"
+            planName={stripeSubscription?.planName || 'Pro'}
             nextBillingDate={stripeSubscription?.nextBillingTime || billingData?.nextBillingDate}
             autoRenewal={!stripeSubscription?.cancelAtCycleEnd}
             currency="USD"
