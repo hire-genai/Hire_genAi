@@ -794,6 +794,17 @@ export async function processSubscriptionCheckoutCompleted(
     console.error('[Stripe] activateCompanyFromSubscription error:', e)
   }
 
+  // Cancel old subscription if this was a plan switch
+  const oldSubId = session.metadata?.old_subscription_id
+  if (session.metadata?.is_plan_switch === 'true' && oldSubId && oldSubId !== subscription.id) {
+    try {
+      await stripe.subscriptions.cancel(oldSubId)
+      console.log(`[Stripe] Plan switch: cancelled old subscription ${oldSubId} → new ${subscription.id}`)
+    } catch (e) {
+      console.error('[Stripe] Failed to cancel old subscription on plan switch:', e)
+    }
+  }
+
   console.log(
     `[Stripe] Subscription stored — company: ${companyId}, subscription: ${subscription.id}, status: ${status}`
   )
@@ -831,6 +842,15 @@ export async function processSubscriptionEvent(
   const nextBillingTime = (subscription as any).current_period_end
     ? new Date((subscription as any).current_period_end * 1000)
     : undefined
+
+  // For deleted event, skip if the company already has a newer subscription (plan switch)
+  if (eventType === 'customer.subscription.deleted') {
+    const current = await DatabaseService.getSubscription(companyId, 'stripe')
+    if (current && current.subscription_id !== subscription.id) {
+      console.log(`[Stripe] Skipping deletion of old subscription ${subscription.id} — current is ${current.subscription_id}`)
+      return
+    }
+  }
 
   // For deleted event, force status to cancelled
   const finalStatus = eventType === 'customer.subscription.deleted' ? 'cancelled' : mappedStatus
@@ -1226,10 +1246,15 @@ export async function createSubscriptionCheckoutSession(params: {
   priceId: string
   planType: string
   origin: string
+  oldSubscriptionId?: string | null
 }): Promise<{ url: string | null; sessionId: string; customerId: string }> {
-  const { companyId, userId, email, priceId, planType, origin } = params
+  const { companyId, userId, email, priceId, planType, origin, oldSubscriptionId } = params
 
   const customerId = await getOrCreateStripeCustomer({ companyId, email, userId })
+
+  const switchMeta = oldSubscriptionId
+    ? { is_plan_switch: 'true', old_subscription_id: oldSubscriptionId }
+    : {}
 
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
@@ -1242,6 +1267,7 @@ export async function createSubscriptionCheckoutSession(params: {
       email: email || '',
       plan_type: planType,
       purpose: 'subscription',
+      ...switchMeta,
     },
     subscription_data: {
       metadata: {

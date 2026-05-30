@@ -244,6 +244,7 @@ export default function PricingPage() {
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [currentPlanName, setCurrentPlanName] = useState<string | null>(null)
+  const [hasActivePlan, setHasActivePlan] = useState(false)
 
   // Read company_id from URL — present when opened from app settings page
   useEffect(() => {
@@ -263,6 +264,7 @@ export default function PricingPage() {
         if (data?.ok && data.hasSubscription && data.isActive) {
           const name: string = data.subscription?.planName || ''
           setCurrentPlanName(name)
+          setHasActivePlan(true)
           // Auto-switch billing toggle to match the user's plan cadence
           const lower = name.toLowerCase()
           if (lower.includes('annual') || lower.includes('yearly') || lower.includes('year')) {
@@ -608,6 +610,8 @@ export default function PricingPage() {
                         </>
                       ) : isCurrent ? (
                         <><Check className="w-4 h-4" /> Your Current Plan</>
+                      ) : hasActivePlan && isAppContext ? (
+                        <>Switch to {plan.name} <ArrowRight className="w-4 h-4" /></>
                       ) : (
                         <>{plan.cta} <ArrowRight className="w-4 h-4" /></>
                       )}
