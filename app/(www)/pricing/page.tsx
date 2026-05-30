@@ -185,14 +185,14 @@ const PLANS: PlanDef[] = [
     name: "Enterprise",
     tagline: "Ultimate scale for enterprise hiring infrastructure.",
     topLabel: "🔥 Ultimate Scale",
-    monthlyPrice: null,
-    annualPrice: null,
-    monthlyWallet: null,
-    annualWallet: null,
-    monthlyCVs: "Custom",
-    annualCVs: "Custom",
-    monthlyInterviews: "Custom",
-    annualInterviews: "Custom",
+    monthlyPrice: 4999,
+    annualPrice: 49990,
+    monthlyWallet: 4999,
+    annualWallet: 5999,
+    monthlyCVs: "~10,000",
+    annualCVs: "~12,000",
+    monthlyInterviews: "~200",
+    annualInterviews: "~240",
     coreFeatures: [
       "Enterprise-grade ATS",
       "Multi-tenant architecture",
@@ -236,6 +236,17 @@ const FAQ_ITEMS = [
     a: "Absolutely. For teams needing more than Enterprise-scale volume or custom integrations, contact our sales team for a tailored proposal.",
   },
 ]
+
+// Shortened support label map
+function shortSupport(support: string): string {
+  if (support.startsWith("Standard Support")) return "Standard Support · 72h"
+  if (support.startsWith("Priority Support")) return "Priority Support · 48h"
+  if (support.startsWith("Business Support")) return "Business Support · 24h"
+  if (support.startsWith("Large Support")) return "Large Support · 12h"
+  if (support.startsWith("Ultra Support")) return "Ultra Support · 6h"
+  if (support.startsWith("Enterprise SLA")) return "Enterprise SLA · 2h critical"
+  return support
+}
 
 export default function PricingPage() {
   const router = useRouter()
@@ -435,13 +446,18 @@ export default function PricingPage() {
 
       {/* ── 6 Pricing cards ── */}
       <section className="px-4 py-10 max-w-[1380px] mx-auto">
+        {/* All-plans feature banner */}
+        <p className="text-center text-sm text-slate-400 mb-6">
+          ✓ All plans include full ATS · Unlimited team members · Same features — only usage volume and support tier differ
+        </p>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
           {PLANS.map((plan) => {
-            const price    = isAnnual ? plan.annualPrice    : plan.monthlyPrice
-            const cvs      = isAnnual ? plan.annualCVs      : plan.monthlyCVs
-            const ints     = isAnnual ? plan.annualInterviews : plan.monthlyInterviews
-            const isCustom = plan.monthlyPrice === null
-            const isCurrent = isCurrentPlan(plan.name)
+            const price      = isAnnual ? plan.annualPrice    : plan.monthlyPrice
+            const cvs        = isAnnual ? plan.annualCVs      : plan.monthlyCVs
+            const ints       = isAnnual ? plan.annualInterviews : plan.monthlyInterviews
+            const isEnterprise = plan.name === 'Enterprise'
+            const isCurrent  = isCurrentPlan(plan.name)
 
             return (
               <div
@@ -462,7 +478,7 @@ export default function PricingPage() {
                   </div>
                 )}
 
-                {/* Top label */}
+                {/* Top label strip (only when present) */}
                 {plan.topLabel && (
                   <div className={`text-center text-xs font-extrabold py-1.5 tracking-wide ${
                     plan.popular ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-white'
@@ -471,128 +487,91 @@ export default function PricingPage() {
                   </div>
                 )}
 
-                <div className="p-6 flex flex-col h-full">
+                <div className="p-5 flex flex-col gap-4">
 
-                  {/* ── Top section: name, price, usage (fixed height feel) ── */}
-                  <div className="space-y-4">
-                    {/* 1. Name + tagline */}
-                    <div>
-                      <h3 className="text-xl font-extrabold text-slate-800">{plan.name}</h3>
-                      <p className="text-sm text-slate-500 mt-1 leading-snug">{plan.tagline}</p>
+                  {/* ── Row 1: plan name + tagline ── */}
+                  <div>
+                    <h3 className="text-lg font-extrabold text-slate-800 leading-tight">{plan.name}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5 leading-snug">{plan.tagline}</p>
+                  </div>
+
+                  {/* ── Row 2: price + wallet value ── */}
+                  <div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-extrabold text-slate-900">
+                        ${(price as number).toLocaleString()}
+                      </span>
+                      <span className="text-slate-400 text-sm ml-1">
+                        {isAnnual ? '/ year' : '/ month'}
+                      </span>
                     </div>
-
-                    {/* 2. Price */}
-                    <div className="min-h-[68px]">
-                      {isCustom ? (
-                        <>
-                          <div className="text-3xl font-extrabold text-slate-900 mb-0.5">Custom Pricing</div>
-                          <p className="text-xs text-slate-400">Custom AI wallet allocation + enterprise deployment</p>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-4xl font-extrabold text-slate-900">
-                              ${(price as number).toLocaleString()}
-                            </span>
-                            <span className="text-slate-400 text-sm ml-1">
-                              {isAnnual ? '/ year' : '/ month'}
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-400 mt-0.5">
-                            {isAnnual ? 'Billed annually · 10 months paid' : 'Billed month to month'}
-                          </p>
-                          {isAnnual && (
-                            <span className="inline-block mt-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                              ✓ +20% wallet credits vs monthly billing
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </div>
-
-                    {/* 3. Usage estimates */}
-                    <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl p-4">
-                      <div className="flex items-center gap-1.5 mb-3">
-                        <Info className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                        <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">
-                          {isCustom ? 'Typical usage' : 'Typical monthly usage at this tier'}
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-600 font-medium">📄 CV parses</span>
-                          <span className="text-sm font-extrabold text-slate-800">
-                            {cvs}{!isCustom && ' / mo'}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-600 font-medium">🎙️ AI interviews</span>
-                          <span className="text-sm font-extrabold text-slate-800">
-                            {ints}{!isCustom && ' / mo'}
-                            {!isCustom && <span className="text-xs font-normal text-slate-400 ml-1">(20 min avg)</span>}
-                          </span>
-                        </div>
-                      </div>
-                      {!isCustom && (
-                        <p className="text-xs text-slate-500 mt-2.5 italic">
-                          Rough estimates — actual usage depends on interview duration &amp; workflow.
+                    <div className="mt-2 flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                      <span className="text-base">💳</span>
+                      <div>
+                        <p className="text-xs font-bold text-emerald-800 leading-tight">
+                          ${(isAnnual ? plan.annualWallet : plan.monthlyWallet)?.toLocaleString()} AI credits included
                         </p>
-                      )}
-                      {isCustom && (
-                        <p className="text-xs text-slate-400 mt-2.5 leading-tight">
-                          Custom volume — tailored to your enterprise requirements.
+                        <p className="text-[10px] text-emerald-600 leading-tight">
+                          {isAnnual ? '+20% extra credits vs monthly billing' : 'Full amount loaded into your AI wallet'}
                         </p>
-                      )}
+                      </div>
                     </div>
                   </div>
 
-                  {/* ── Middle section: features (flex-1 so it fills remaining space) ── */}
-                  <div className="flex-1 space-y-4 mt-4">
-                    {/* 4. What's included */}
-                    <div>
-                      <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-2">
-                        What's included
-                      </p>
-                      <ul className="space-y-1.5">
-                        {plan.coreFeatures.map((f) => (
-                          <li key={f} className="flex items-start gap-2 text-sm text-slate-700">
-                            <Check className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                            {f}
-                          </li>
-                        ))}
-                      </ul>
+                  {/* ── Row 3: usage capacity ── */}
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">Typical monthly AI usage</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
+                        <div className="text-xl font-extrabold text-slate-900">{cvs}</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">candidates screened</div>
+                      </div>
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
+                        <div className="text-xl font-extrabold text-slate-900">{ints}</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">AI video rounds</div>
+                      </div>
                     </div>
-
-                    {/* 5. Dashboard & analytics */}
-                    <div>
-                      <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-2">
-                        Dashboard &amp; analytics
-                      </p>
-                      <ul className="space-y-1.5">
-                        {plan.dashboardFeatures.map((f) => (
-                          <li key={f} className="flex items-start gap-2 text-sm text-slate-700">
-                            <Check className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                            {f}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1.5 leading-snug">
+                      {isEnterprise
+                        ? '📞 Talk to sales — no preset limits. Volume scales to your needs.'
+                        : '📌 Illustrative averages — soft guidance only. No hard stop at these numbers.'}
+                    </p>
                   </div>
 
-                  {/* ── Bottom section: support + CTA (always pinned to bottom) ── */}
-                  <div className="mt-5 space-y-3">
-                    {/* 6. Support */}
-                    <div className="bg-emerald-600 rounded-xl px-4 py-3">
-                      <p className="text-xs font-semibold text-white leading-snug">
-                        🎧 {plan.support}
-                      </p>
-                    </div>
+                  {/* ── Row 4: what you actually get ── */}
+                  <div className="border border-slate-100 rounded-xl overflow-hidden divide-y divide-slate-100">
+                    {[
+                      { icon: "⚡", label: "AI CV Reports", desc: "Every resume scored, ranked & explained instantly" },
+                      { icon: "🎥", label: "AI Video Interviews + Reports", desc: "Automated rounds — questions, recording & post-interview AI summary" },
+                      { icon: "❓", label: "Auto Interview Questions", desc: "Role-specific questions generated before every round" },
+                      { icon: "📋", label: "Unlimited Job Postings", desc: "No cap on active roles — post as many as you need" },
+                      { icon: "🤝", label: "Client & Agent Connect", desc: "Share pipelines, roles & updates with external clients or partners" },
+                      { icon: "🔄", label: "Delegation, Feedback & Audit", desc: "Assign to team, collect feedback, full audit trail" },
+                      { icon: "📊", label: "Recruiter · Manager · Director", desc: "Dedicated KPI dashboards for every role in your team" },
+                    ].map(({ icon, label, desc }) => (
+                      <div key={label} className="flex items-start gap-2.5 px-3 py-2.5 bg-white hover:bg-slate-50 transition-colors">
+                        <span className="text-base mt-0.5 flex-shrink-0">{icon}</span>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-800 leading-tight">{label}</p>
+                          <p className="text-[11px] text-slate-400 leading-snug mt-0.5">{desc}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
 
-                    {/* 7. CTA */}
+                  {/* ── Row 5: support chip ── */}
+                  <div>
+                    <span className="inline-flex items-center gap-1.5 bg-emerald-600 text-white text-xs font-semibold px-3 py-1.5 rounded-full">
+                      🎧 {shortSupport(plan.support)}
+                    </span>
+                  </div>
+
+                  {/* ── Row 5: CTA ── */}
+                  <div className="space-y-1.5">
                     <button
                       onClick={() => handleSelect(plan.name)}
                       disabled={checkoutLoading === plan.name || isCurrent}
-                      className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+                      className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                         isCurrent
                           ? 'bg-emerald-50 text-emerald-700 border-2 border-emerald-600'
                           : plan.popular
@@ -617,7 +596,7 @@ export default function PricingPage() {
                       )}
                     </button>
                     <p className="text-center text-xs text-slate-400">
-                      {isCustom
+                      {isEnterprise
                         ? 'Unlimited team members · Enterprise onboarding'
                         : 'Unlimited team members · Cancel anytime'}
                     </p>
