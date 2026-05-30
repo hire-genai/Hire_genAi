@@ -1343,6 +1343,7 @@ CREATE TABLE company_subscriptions (
   subscription_id   VARCHAR(255) NOT NULL,
   plan_id           VARCHAR(255),
   plan_name         VARCHAR(255),
+  plan_amount       NUMERIC(12,2),
   status            VARCHAR(50),
   subscriber_email  VARCHAR(255),
   start_time        TIMESTAMPTZ,

@@ -29,6 +29,7 @@ import {
 
 interface SavedCardSettingsProps {
   companyId: string
+  initialData?: any
 }
 
 interface SavedCard {
@@ -38,14 +39,14 @@ interface SavedCard {
   savedAt: string | null
 }
 
-export default function SavedCardSettings({ companyId }: SavedCardSettingsProps) {
+export default function SavedCardSettings({ companyId, initialData }: SavedCardSettingsProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
 
-  const [loading, setLoading] = useState(true)
-  const [hasSavedCard, setHasSavedCard] = useState(false)
-  const [card, setCard] = useState<SavedCard | null>(null)
-  const [autoRechargeEnabled, setAutoRechargeEnabled] = useState(false)
+  const [loading, setLoading] = useState(!initialData)
+  const [hasSavedCard, setHasSavedCard] = useState(initialData?.hasSavedCard || false)
+  const [card, setCard] = useState<SavedCard | null>(initialData?.card || null)
+  const [autoRechargeEnabled, setAutoRechargeEnabled] = useState(initialData?.autoRechargeEnabled || false)
 
   const [addingCard, setAddingCard] = useState(false)
   const [removingCard, setRemovingCard] = useState(false)
@@ -75,10 +76,10 @@ export default function SavedCardSettings({ companyId }: SavedCardSettingsProps)
     }
   }, [showFeedback])
 
-  // On mount: load card info
+  // On mount: load card info only if no initial data provided
   useEffect(() => {
-    if (companyId) loadSavedCard()
-  }, [companyId, loadSavedCard])
+    if (companyId && !initialData) loadSavedCard()
+  }, [companyId, initialData, loadSavedCard])
 
   // Handle return from Stripe Checkout (setup mode)
   useEffect(() => {

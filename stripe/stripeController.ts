@@ -826,6 +826,7 @@ export async function processSubscriptionEvent(
   }
 
   const priceId = subscription.items.data[0]?.price?.id || null
+  const priceAmount = subscription.items.data[0]?.price?.unit_amount ? subscription.items.data[0].price.unit_amount / 100 : null
   const mappedStatus = mapStripeSubscriptionStatus(subscription.status)
   const nextBillingTime = (subscription as any).current_period_end
     ? new Date((subscription as any).current_period_end * 1000)
@@ -856,6 +857,7 @@ export async function processSubscriptionEvent(
     subscriptionId: subscription.id,
     planId: priceId || undefined,
     planName: planName || undefined,
+    planAmount: priceAmount || undefined,
     status: finalStatus,
     nextBillingTime,
     rawData: subscription,

@@ -111,13 +111,14 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
   const planId = subscription.plan_id
   const status = subscription.status
   const customerId = subscription.customer_id
+  const planAmount = subscription.plan?.item?.amount ? subscription.plan.item.amount / 100 : null
   const notes = subscription.notes || {}
   const shortUrl = subscription.short_url || null
   const currentStart = subscription.current_start ? new Date(subscription.current_start * 1000) : null
   const currentEnd = subscription.current_end ? new Date(subscription.current_end * 1000) : null
   const chargeAt = subscription.charge_at ? new Date(subscription.charge_at * 1000) : null
 
-  console.log(`[Razorpay Webhook] Subscription: ${subscriptionId}, Status: ${status}, Plan: ${planId}`)
+  console.log(`[Razorpay Webhook] Subscription: ${subscriptionId}, Status: ${status}, Plan: ${planId}, Amount: ₹${planAmount}`)
   console.log(`[Razorpay Webhook] Notes:`, notes)
 
   // ─── Find company by notes or customer email ───
@@ -172,6 +173,7 @@ async function handleSubscriptionEvent(event: any, eventType: string) {
           provider: 'razorpay',
           subscriptionId,
           planId,
+          planAmount,
           status: 'active',
           subscriberEmail,
           startTime: currentStart || new Date(),

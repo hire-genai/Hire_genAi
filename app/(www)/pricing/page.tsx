@@ -531,6 +531,11 @@ export default function PricingPage() {
                           </span>
                         </div>
                       </div>
+                      {!isCustom && (
+                        <p className="text-xs text-slate-500 mt-2.5 italic">
+                          Rough estimates — actual usage depends on interview duration &amp; workflow.
+                        </p>
+                      )}
                       {isCustom && (
                         <p className="text-xs text-slate-400 mt-2.5 leading-tight">
                           Custom volume — tailored to your enterprise requirements.
