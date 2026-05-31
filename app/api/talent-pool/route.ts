@@ -73,6 +73,8 @@ export async function GET(request: NextRequest) {
         -- Get rejection info from most recent application
         (SELECT a.rejection_stage FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid AND a.current_stage = 'rejected' ORDER BY a.updated_at DESC LIMIT 1) AS rejection_stage,
         (SELECT a.rejection_reason FROM applications a WHERE a.candidate_id = c.id AND a.company_id = $1::uuid AND a.current_stage = 'rejected' ORDER BY a.updated_at DESC LIMIT 1) AS rejection_reason,
+        -- Get job title they applied for (most recent application)
+        (SELECT j.title FROM applications a JOIN job_postings j ON a.job_id = j.id WHERE a.candidate_id = c.id AND a.company_id = $1::uuid ORDER BY a.created_at DESC LIMIT 1) AS applied_job_title,
         -- Get added by user name
         COALESCE(u.full_name, 'System') AS added_by_name
       FROM talent_pool_entries tp
@@ -176,6 +178,15 @@ export async function GET(request: NextRequest) {
         : []
       const companies = parsedCompanies.length > 0 ? parsedCompanies : manualCompanies
 
+      // Position: show job title they applied for; fallback to their current title
+      const position: string = e.applied_job_title || e.current_title || 'Not specified'
+
+      // Experience: prefer candidates.experience_years; fallback to resume-extracted total years
+      const experienceYears: number | null =
+        e.experience_years != null
+          ? (typeof e.experience_years === 'string' ? parseFloat(e.experience_years) || null : e.experience_years)
+          : (extracted.total_experience_years_estimate ?? null)
+
       const appHistory = appHistoryMap[e.candidate_id] || []
 
       // Build combined history
@@ -202,13 +213,13 @@ export async function GET(request: NextRequest) {
         poolId: e.pool_id,
         candidateId: e.candidate_id,
         name: e.full_name,
-        position: e.current_title || 'Not specified',
+        position,
         email: e.email,
         phone: e.phone || '',
         location: e.location || '',
         currentCompany: e.current_company || '',
         companies,
-        experienceYears: e.experience_years,
+        experienceYears,
         linkedinUrl: e.linkedin_url || '',
         resumeUrl: e.resume_url || '',
         photoUrl: e.photo_url || '',

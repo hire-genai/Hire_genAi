@@ -82,6 +82,8 @@ export default function BillingContent({ companyId }: BillingContentProps) {
   const [usageData, setUsageData] = useState<any>(null)
   const [loadingUsage, setLoadingUsage] = useState(false)
   const [currentTab, setCurrentTab] = useState<string>("overview")
+  const [savedCardData, setSavedCardData] = useState<any>(null)
+  const [autoRechargeData, setAutoRechargeData] = useState<any>(null)
   // Stripe subscription state
   const [stripeSubscription, setStripeSubscription] = useState<any>(null)
   const [stripeSubLoading, setStripeSubLoading] = useState(false)
@@ -290,26 +292,43 @@ export default function BillingContent({ companyId }: BillingContentProps) {
       } catch {
         countryCode = 'US'
       }
-      
-      const res = await fetch(`/api/billing/status?companyId=${companyId}&country=${countryCode}`)
-      const data = await res.json()
-      if (data.ok) {
-        setBillingData(data.billing)
-        setAutoRecharge(data.billing.autoRechargeEnabled)
+
+      // Fetch all data in parallel
+      const [billingRes, savedCardRes, autoRechargeRes] = await Promise.all([
+        fetch(`/api/billing/status?companyId=${companyId}&country=${countryCode}`),
+        fetch('/api/billing/stripe/saved-card', { credentials: 'include' }),
+        fetch('/api/billing/auto-recharge-settings', { credentials: 'include' })
+      ])
+
+      const billingResp = await billingRes.json()
+      const savedCardResp = await savedCardRes.json()
+      const autoRechargeResp = await autoRechargeRes.json()
+
+      if (billingResp.ok) {
+        setBillingData(billingResp.billing)
+        setAutoRecharge(billingResp.billing.autoRechargeEnabled)
         // Store subscription info for SubscriptionCard
-        if (data.subscription) {
+        if (billingResp.subscription) {
           setSubscriptionData({
-            id: data.subscription.id,
-            status: data.subscription.status || 'unknown',
-            planId: data.subscription.planId,
-            nextBillingDate: data.subscription.nextBillingDate,
-            currentEnd: data.subscription.currentEnd,
-            cancelAtCycleEnd: data.subscription.cancelAtCycleEnd,
-            subscriberEmail: data.subscription.subscriberEmail
+            id: billingResp.subscription.id,
+            status: billingResp.subscription.status || 'unknown',
+            planId: billingResp.subscription.planId,
+            nextBillingDate: billingResp.subscription.nextBillingDate,
+            currentEnd: billingResp.subscription.currentEnd,
+            cancelAtCycleEnd: billingResp.subscription.cancelAtCycleEnd,
+            subscriberEmail: billingResp.subscription.subscriberEmail
           })
         } else {
           setSubscriptionData(null)
         }
+      }
+
+      // Store saved card and auto-recharge data for child components
+      if (savedCardResp.ok) {
+        setSavedCardData(savedCardResp)
+      }
+      if (autoRechargeResp.ok) {
+        setAutoRechargeData(autoRechargeResp)
       }
     } catch (error) {
       console.error('Failed to load billing data:', error)
@@ -833,10 +852,10 @@ export default function BillingContent({ companyId }: BillingContentProps) {
           />
 
           {/* Saved Card for Auto-Recharge */}
-          <SavedCardSettings companyId={companyId} />
+          <SavedCardSettings companyId={companyId} initialData={savedCardData} />
 
           {/* Auto-Recharge Settings */}
-          <AutoRechargeSettings companyId={companyId} />
+          <AutoRechargeSettings companyId={companyId} initialData={autoRechargeData} />
 
         </TabsContent>
 

@@ -187,6 +187,37 @@ export async function POST(req: NextRequest) {
           [resolvedCompanyId, candidateId]
         )
       }
+
+      // Back-fill candidates.current_title and experience_years from resume if still empty
+      try {
+        const appRows = await DatabaseService.query(
+          `SELECT qualification_explanations FROM applications WHERE id = $1::uuid`,
+          [resolvedApplicationId]
+        ) as any[]
+        if (appRows.length > 0 && appRows[0].qualification_explanations) {
+          const qual = typeof appRows[0].qualification_explanations === 'string'
+            ? JSON.parse(appRows[0].qualification_explanations)
+            : appRows[0].qualification_explanations
+          const extracted = qual?.extracted || {}
+          const titleFromResume: string | null =
+            (Array.isArray(extracted.work_experience) && extracted.work_experience[0]?.title) ||
+            (Array.isArray(extracted.titles) && extracted.titles[0]) ||
+            null
+          const expFromResume: number | null = extracted.total_experience_years_estimate ?? null
+
+          if (titleFromResume || expFromResume != null) {
+            await DatabaseService.query(
+              `UPDATE candidates SET
+                current_title = CASE WHEN current_title IS NULL OR TRIM(current_title) = '' THEN $1 ELSE current_title END,
+                experience_years = CASE WHEN experience_years IS NULL OR TRIM(experience_years::text) = '' THEN $2 ELSE experience_years END
+               WHERE id = $3::uuid`,
+              [titleFromResume, expFromResume != null ? String(expFromResume) : null, candidateId]
+            )
+          }
+        }
+      } catch (backfillErr: any) {
+        console.warn('⚠️ Candidate back-fill skipped:', backfillErr?.message)
+      }
     }
 
 

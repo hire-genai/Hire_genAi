@@ -40,18 +40,22 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // ─── 2. Fetch auto-recharge settings from company_billing ───
+    // ─── 2. Fetch auto-recharge settings from company_billing + active subscription plan info ───
     const query = `
-      SELECT 
-        auto_recharge_enabled,
-        auto_recharge_amount,
-        auto_recharge_threshold
-      FROM company_billing 
-      WHERE company_id = $1::uuid
+      SELECT
+        cb.auto_recharge_enabled,
+        cb.auto_recharge_amount,
+        cb.auto_recharge_threshold,
+        cs.plan_amount,
+        cs.plan_name
+      FROM company_billing cb
+      LEFT JOIN company_subscriptions cs ON cb.company_id = cs.company_id AND cs.status IN ('active', 'past_due')
+      WHERE cb.company_id = $1::uuid
+      LIMIT 1
     `
-    
+
     const result = await DatabaseService.query(query, [companyId])
-    
+
     if (result.length === 0) {
       // Return default values if no billing record exists
       return NextResponse.json({
@@ -59,19 +63,25 @@ export async function GET(request: NextRequest) {
         settings: {
           auto_recharge_enabled: false,
           auto_recharge_amount: 2.00,
-          auto_recharge_threshold: 50.00
+          auto_recharge_threshold: 50.00,
+          planAmount: null,
+          planName: null
         }
       })
     }
 
     const settings = result[0]
-    
+    const planAmount = settings.plan_amount ? parseFloat(settings.plan_amount) : null
+    const planName = settings.plan_name || null
+
     return NextResponse.json({
       ok: true,
       settings: {
         auto_recharge_enabled: settings.auto_recharge_enabled || false,
-        auto_recharge_amount: parseFloat(settings.auto_recharge_amount) || 2.00,
-        auto_recharge_threshold: parseFloat(settings.auto_recharge_threshold) || 50.00
+        auto_recharge_amount: parseFloat(settings.auto_recharge_amount) || (planAmount || 2.00),
+        auto_recharge_threshold: parseFloat(settings.auto_recharge_threshold) || 50.00,
+        planAmount,
+        planName
       }
     })
 
@@ -121,9 +131,8 @@ export async function POST(request: NextRequest) {
 
     // ─── 2. Parse and validate request body ───
     const body = await request.json()
-    const { auto_recharge_enabled, auto_recharge_amount, auto_recharge_threshold } = body
+    const { auto_recharge_enabled } = body
 
-    // Validate required fields
     if (typeof auto_recharge_enabled !== 'boolean') {
       return NextResponse.json(
         { error: 'auto_recharge_enabled must be a boolean' },
@@ -131,65 +140,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (auto_recharge_amount !== undefined) {
-      const amount = parseFloat(auto_recharge_amount)
-      if (isNaN(amount) || amount < 2) {
-        return NextResponse.json(
-          { error: 'auto_recharge_amount must be at least 2' },
-          { status: 400 }
-        )
-      }
-    }
-
-    if (auto_recharge_threshold !== undefined) {
-      const threshold = parseFloat(auto_recharge_threshold)
-      if (isNaN(threshold) || threshold < 0) {
-        return NextResponse.json(
-          { error: 'auto_recharge_threshold must be a positive number' },
-          { status: 400 }
-        )
-      }
-    }
-
-    // ─── 3. Update auto-recharge settings in company_billing ───
+    // ─── 3. Save only the enabled flag; threshold is fixed at $10 ───
     const upsertQuery = `
-      INSERT INTO company_billing (
-        company_id, 
-        auto_recharge_enabled, 
-        auto_recharge_amount, 
-        auto_recharge_threshold,
-        updated_at
-      )
-      VALUES ($1::uuid, $2, $3, $4, NOW())
-      ON CONFLICT (company_id) 
-      DO UPDATE SET 
+      INSERT INTO company_billing (company_id, auto_recharge_enabled, auto_recharge_threshold, updated_at)
+      VALUES ($1::uuid, $2, 10, NOW())
+      ON CONFLICT (company_id)
+      DO UPDATE SET
         auto_recharge_enabled = $2,
-        auto_recharge_amount = COALESCE($3, company_billing.auto_recharge_amount),
-        auto_recharge_threshold = COALESCE($4, company_billing.auto_recharge_threshold),
+        auto_recharge_threshold = 10,
         updated_at = NOW()
-      RETURNING 
-        auto_recharge_enabled,
-        auto_recharge_amount,
-        auto_recharge_threshold
+      RETURNING auto_recharge_enabled
     `
+    await DatabaseService.query(upsertQuery, [companyId, auto_recharge_enabled])
 
-    const result = await DatabaseService.query(upsertQuery, [
-      companyId,
-      auto_recharge_enabled,
-      auto_recharge_amount || null,
-      auto_recharge_threshold || null
-    ])
-
-    const updatedSettings = result[0]
-
-    return NextResponse.json({
-      ok: true,
-      settings: {
-        auto_recharge_enabled: updatedSettings.auto_recharge_enabled,
-        auto_recharge_amount: parseFloat(updatedSettings.auto_recharge_amount),
-        auto_recharge_threshold: parseFloat(updatedSettings.auto_recharge_threshold)
-      }
-    })
+    return NextResponse.json({ ok: true, settings: { auto_recharge_enabled } })
 
   } catch (error: any) {
     console.error('[Auto-Recharge Settings] POST Error:', error)

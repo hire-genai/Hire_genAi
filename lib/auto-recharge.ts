@@ -35,32 +35,36 @@ export async function checkAndAutoRecharge(companyId: string, force = false): Pr
   const idempotencyKey = randomUUID()
   
   try {
-    // ─── 1. Fetch auto-recharge settings from company_billing ───
+    // ─── 1. Fetch billing state + plan amount from active subscription ───
     const billingQuery = `
-      SELECT 
-        wallet_balance,
-        auto_recharge_enabled,
-        auto_recharge_amount,
-        auto_recharge_threshold
-      FROM company_billing 
-      WHERE company_id = $1::uuid
+      SELECT
+        cb.wallet_balance,
+        cb.auto_recharge_enabled,
+        cs.plan_amount
+      FROM company_billing cb
+      LEFT JOIN company_subscriptions cs ON cb.company_id = cs.company_id AND cs.status IN ('active', 'past_due')
+      WHERE cb.company_id = $1::uuid
+      LIMIT 1
     `
-    
+
     const billingResult = await DatabaseService.query(billingQuery, [companyId])
-    
+
     if (billingResult.length === 0) {
-      return {
-        success: true,
-        triggered: false,
-        message: 'No billing record found for company'
-      }
+      return { success: true, triggered: false, message: 'No billing record found for company' }
     }
 
     const billing = billingResult[0]
     const walletBalance = parseFloat(billing.wallet_balance) || 0
     const autoRechargeEnabled = billing.auto_recharge_enabled || false
-    const autoRechargeAmount = parseFloat(billing.auto_recharge_amount) || 2
-    const autoRechargeThreshold = parseFloat(billing.auto_recharge_threshold) || 50
+    // Amount always comes from the active plan; threshold is fixed at $10
+    const autoRechargeAmount = billing.plan_amount ? parseFloat(billing.plan_amount) : null
+    const autoRechargeThreshold = 10
+
+    if (!autoRechargeAmount) {
+      return { success: true, triggered: false, message: 'No active plan found — cannot determine recharge amount' }
+    }
+
+    console.log(`[Auto-Recharge] company=${companyId} balance=${walletBalance} threshold=${autoRechargeThreshold} amount=${autoRechargeAmount} enabled=${autoRechargeEnabled}`)
 
     // ─── 2. Check if auto-recharge is enabled ───
     if (!autoRechargeEnabled) {

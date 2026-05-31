@@ -8,7 +8,7 @@ import { X, Plus, Minus, Save, Send, CheckCircle, Sparkles, Loader2, RefreshCw }
 import { useAuth } from '@/contexts/auth-context'
 
 interface JobPostingFormProps {
-  onClose: () => void
+  onClose: (saved?: boolean) => void
   initialData?: Partial<JobFormData>
   mode?: 'create' | 'view'
   jobId?: string
@@ -718,7 +718,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
         alert('A similar job was just created. Please check the job listing or modify the details to create a unique job.')
       } else {
         alert(isDraft ? 'Job saved as draft!' : 'Job published successfully!')
-        onClose()
+        onClose(true)
       }
     } catch (error) {
       console.error('Error saving job:', error)
@@ -763,7 +763,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                 <option value="cancelled">Cancelled</option>
               </select>
             </div>
-            <Button variant="ghost" size="icon" onClick={onClose} className="bg-transparent">
+            <Button variant="ghost" size="icon" onClick={() => onClose()} className="bg-transparent">
               <X className="h-5 w-5" />
             </Button>
           </div>

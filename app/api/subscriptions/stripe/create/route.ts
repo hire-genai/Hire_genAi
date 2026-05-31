@@ -98,19 +98,17 @@ export async function POST(request: NextRequest) {
 
     // ─── 4. Check for existing active subscription (any provider) ───
     const existing = await DatabaseService.getActiveSubscription(companyId)
+    let oldSubscriptionId: string | null = null
+
     if (existing && existing.status === 'active') {
-      return NextResponse.json(
-        {
-          error: 'Active subscription already exists',
-          subscription: {
-            id: existing.subscription_id,
-            provider: existing.provider,
-            status: existing.status,
-            nextBillingDate: existing.next_billing_time,
-          },
-        },
-        { status: 400 }
-      )
+      if (existing.plan_id === priceId) {
+        return NextResponse.json(
+          { error: 'You are already on this plan' },
+          { status: 400 }
+        )
+      }
+      // Different plan — allow switch; cancel old sub after new checkout completes
+      oldSubscriptionId = existing.subscription_id || null
     }
 
     // ─── 5. Create Stripe checkout session ───
@@ -125,6 +123,7 @@ export async function POST(request: NextRequest) {
       priceId,
       planType,
       origin,
+      oldSubscriptionId,
     })
 
     if (!url) {
@@ -135,9 +134,9 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── 6. Store pending subscription record with customer_id ───
-    // We don't have the subscription ID yet — that comes from webhook.
-    // Store customer_id so we can match on webhook events.
-    await DatabaseService.query(
+    // For plan switches, skip — keep the existing active record intact until the
+    // checkout.session.completed webhook fires and upserts the new subscription.
+    if (!oldSubscriptionId) await DatabaseService.query(
       `INSERT INTO company_subscriptions (
          company_id, provider, subscription_id, plan_id, status,
          subscriber_email, subscription_link, customer_id, updated_at

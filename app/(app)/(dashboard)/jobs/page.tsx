@@ -353,14 +353,14 @@ export default function JobsPage() {
 		}
 	}, [company?.id, fetchJobs])
 
-	// Handle job posting dialog close - refresh data
-	const handleJobPostingClose = () => {
+	// Handle job posting dialog close - only refetch when a job was actually saved/edited
+	const handleJobPostingClose = (saved?: boolean) => {
 		setShowJobPostingDialog(false)
 		setJobFormInitialData(null)
 		setJobFormMode('create')
 		setJobFormJobId(null)
 		setJobFormCompanySlug(null)
-		fetchJobs() // Refresh jobs list after add/update
+		if (saved) fetchJobs()
 	}
 
 	// Function to apply filters to jobs (excluding status filter)

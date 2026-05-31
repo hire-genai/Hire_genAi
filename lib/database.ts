@@ -4809,6 +4809,7 @@ export class DatabaseService {
     subscriptionId: string
     planId?: string
     planName?: string
+    planAmount?: number | null
     status: string
     subscriberEmail?: string
     startTime?: Date
@@ -4822,15 +4823,16 @@ export class DatabaseService {
 
     const q = `
       INSERT INTO company_subscriptions (
-        company_id, provider, subscription_id, plan_id, plan_name, status,
+        company_id, provider, subscription_id, plan_id, plan_name, plan_amount, status,
         subscriber_email, start_time, next_billing_time, subscription_link, raw_data, updated_at
       ) VALUES (
-        $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW()
+        $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW()
       )
       ON CONFLICT (company_id, provider) DO UPDATE SET
         subscription_id = EXCLUDED.subscription_id,
         plan_id = COALESCE(EXCLUDED.plan_id, company_subscriptions.plan_id),
         plan_name = COALESCE(EXCLUDED.plan_name, company_subscriptions.plan_name),
+        plan_amount = COALESCE(EXCLUDED.plan_amount, company_subscriptions.plan_amount),
         status = EXCLUDED.status,
         subscriber_email = COALESCE(EXCLUDED.subscriber_email, company_subscriptions.subscriber_email),
         start_time = COALESCE(EXCLUDED.start_time, company_subscriptions.start_time),
@@ -4846,6 +4848,7 @@ export class DatabaseService {
       data.subscriptionId,
       data.planId || null,
       data.planName || null,
+      data.planAmount || null,
       data.status,
       data.subscriberEmail || null,
       data.startTime?.toISOString() || null,
