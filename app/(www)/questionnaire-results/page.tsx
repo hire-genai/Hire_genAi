@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getAppUrl } from "@/lib/domain-config"
 import Link from "next/link"
+import { Skeleton } from "@/components/ui/skeleton-loader"
 
 export default function QuestionnaireResults() {
   const [score, setScore] = useState(0)
   const [contactInfo, setContactInfo] = useState({ name: "", email: "", company: "" })
+  const [freeTrialDays, setFreeTrialDays] = useState(14)
 
   useEffect(() => {
     // Get data from URL params or localStorage (only on client side)
@@ -41,6 +43,11 @@ export default function QuestionnaireResults() {
       }
     }
 
+    // Fetch trial days from API
+    fetch('/api/billing/status?getTrialDays=true')
+      .then(res => res.json())
+      .then(data => setFreeTrialDays(data.trialDays))
+      .catch(error => console.error('Error fetching trial days:', error))
     }, [])
 
   const getResultsText = () => {
@@ -112,9 +119,10 @@ export default function QuestionnaireResults() {
   const resultsText = getResultsText()
   const recommendations = getRecommendations()
 
-  const handleGetFullReport = () => {
-    window.location.href = '/demo-report'
-  }
+  const timeSaving = Math.round((score / 100) * 40)
+  const improvementPotential = Math.round(((100 - score) / 100) * 80)
+  const timeToHireReduction = Math.round((score / 100) * 21)
+
 
   return (
     <div className="min-h-screen bg-white">
@@ -175,10 +183,14 @@ export default function QuestionnaireResults() {
 
       {/* Results Content */}
       <section className="py-12 sm:py-20 bg-white">
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 text-center">
-          <div className="mb-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
+          {/* Score Section */}
+          <div className="mb-16 text-center">
+            <h2 className="text-2xl sm:text-4xl font-bold text-slate-800 mb-4">{resultsText.title}</h2>
+            <p className="text-lg sm:text-xl text-slate-600 mb-8 max-w-2xl mx-auto">{resultsText.description}</p>
+
             <div
-              className="w-32 h-32 sm:w-48 sm:h-48 mx-auto rounded-full flex flex-col items-center justify-center relative"
+              className="w-32 h-32 sm:w-48 sm:h-48 mx-auto rounded-full flex flex-col items-center justify-center relative mb-8"
               style={{
                 background: `conic-gradient(#059669 0% ${score}%, #f0f4ff ${score}% 100%)`,
               }}
@@ -190,40 +202,67 @@ export default function QuestionnaireResults() {
             </div>
           </div>
 
-          <h2 className="text-2xl sm:text-4xl font-bold text-slate-800 mb-4">{resultsText.title}</h2>
-          <p className="text-lg sm:text-xl text-slate-600 mb-8 max-w-2xl mx-auto">{resultsText.description}</p>
+          {/* Full Report Card */}
+          <Card className="overflow-hidden shadow-sm mb-8 bg-gradient-to-br from-slate-50 to-emerald-50">
+            <div className="bg-gradient-to-r from-emerald-600 to-purple-600 text-white p-4 sm:p-6 text-center">
+              <h2 className="text-2xl sm:text-3xl font-bold mb-2">{contactInfo.name}'s Recruitment Efficiency Report</h2>
+              <p className="text-emerald-100">Personalized analysis and actionable recommendations</p>
+            </div>
 
-          <Card className="bg-slate-50 p-4 sm:p-5 mb-6 text-left">
-            <h3 className="text-xl sm:text-2xl font-bold text-center mb-6">Your Personalized Recommendations</h3>
-            <ul className="space-y-4">
-              {recommendations.map((rec, index) => (
-                <li key={index} className="flex items-start pb-4 border-b border-slate-200 last:border-0">
-                  <span className="text-emerald-600 font-bold mr-4">✓</span>
-                  <span className="text-slate-700">{rec}</span>
-                </li>
-              ))}
-            </ul>
+            <CardContent className="p-3 sm:p-4">
+              <div className="mb-4">
+                <h3 className="text-lg font-bold text-emerald-600 mb-2 pb-1 border-b-2 border-emerald-100">Key Metrics</h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                  <Card className="bg-white text-center p-2 border border-slate-200">
+                    <div className="text-2xl font-bold text-emerald-600 mb-1">{score}</div>
+                    <div className="text-xs text-slate-600">Efficiency Score</div>
+                  </Card>
+                  <Card className="bg-white text-center p-2 border border-slate-200">
+                    <div className="text-2xl font-bold text-emerald-600 mb-1">{timeSaving}</div>
+                    <div className="text-xs text-slate-600">Hours Saved</div>
+                  </Card>
+                  <Card className="bg-white text-center p-2 border border-slate-200">
+                    <div className="text-2xl font-bold text-emerald-600 mb-1">{improvementPotential}%</div>
+                    <div className="text-xs text-slate-600">Improvement</div>
+                  </Card>
+                  <Card className="bg-white text-center p-2 border border-slate-200">
+                    <div className="text-2xl font-bold text-emerald-600 mb-1">{timeToHireReduction}</div>
+                    <div className="text-xs text-slate-600">Days Reduction</div>
+                  </Card>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <h3 className="text-lg font-bold text-emerald-600 mb-2 pb-1 border-b-2 border-emerald-100">Your Recommendations</h3>
+                <ul className="space-y-2">
+                  {recommendations.map((rec, index) => (
+                    <li key={index} className="flex items-start text-sm">
+                      <Check className="w-4 h-4 text-emerald-600 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-slate-700">{rec}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <Card className="bg-gradient-to-r from-emerald-600 to-purple-600 text-white p-3 text-center">
+                <h3 className="text-lg font-bold mb-2">Ready to Transform?</h3>
+                <p className="text-sm mb-3">Start your 7-day free trial and experience AI-driven recruitment</p>
+                <Link href={getAppUrl('/signup?section=company')}>
+                  <Button className="bg-white text-emerald-600 hover:bg-gray-100 font-bold px-6 py-2 text-sm rounded-full">
+                    Start 7-Day Free Trial
+                  </Button>
+                </Link>
+                <p className="text-xs mt-2 text-emerald-100">No credit card required • Cancel anytime</p>
+              </Card>
+            </CardContent>
           </Card>
 
-          <Card className="bg-slate-50 p-4 sm:p-5 max-w-lg mx-auto">
-            <h3 className="text-xl sm:text-2xl font-bold mb-4">Get Your Full Detailed Report</h3>
-            <p className="text-slate-600 mb-6">
-              Enter your email to receive your complete recruitment efficiency analysis with customized action plan.
-            </p>
-            <Button
-              onClick={handleGetFullReport}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-4 sm:py-6 text-base sm:text-lg"
-            >
-              Get My Full Report
-            </Button>
-            <p className="text-sm text-slate-500 mt-4">It's completely free and you get immediate recommendations</p>
-          </Card>
-
-          <div className="mt-8">
+          <div className="text-center">
             <Button
               variant="outline"
               onClick={() => window.history.back()}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 mx-auto"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Assessment

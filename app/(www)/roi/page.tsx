@@ -6,15 +6,15 @@ import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import Navbar from '@/components/layout/Navbar'
-import { 
-  Calculator, 
-  ChartLine, 
-  Brain, 
-  Expand, 
-  GraduationCap, 
-  Zap, 
-  DollarSign, 
-  Clock, 
+import {
+  Calculator,
+  ChartLine,
+  Brain,
+  Expand,
+  GraduationCap,
+  Zap,
+  DollarSign,
+  Clock,
   BarChart3,
   Infinity,
   SlidersHorizontal,
@@ -37,6 +37,16 @@ import {
   Globe
 } from 'lucide-react'
 import Footer from '@/components/layout/Footer'
+
+// Plans for recommendation (matches /pricing page)
+const PLANS_LOOKUP = [
+  { name: 'Starter',      monthly: 99,   annual: 990,   cvCap: 200,   interviewCap: 4   },
+  { name: 'Professional', monthly: 499,  annual: 4990,  cvCap: 1000,  interviewCap: 20  },
+  { name: 'Business',     monthly: 999,  annual: 9990,  cvCap: 2000,  interviewCap: 40  },
+  { name: 'Large',        monthly: 2999, annual: 29990, cvCap: 6000,  interviewCap: 120 },
+  { name: 'Ultra',        monthly: 3999, annual: 39990, cvCap: 8000,  interviewCap: 160 },
+  { name: 'Enterprise',   monthly: 4999, annual: 49990, cvCap: 10000, interviewCap: 200 },
+]
 
 // Currency configuration based on country
 const CURRENCY_CONFIG: Record<string, { code: string; symbol: string; rate: number; locale: string }> = {
@@ -65,7 +75,6 @@ const CURRENCY_CONFIG: Record<string, { code: string; symbol: string; rate: numb
   NZ: { code: 'NZD', symbol: 'NZ$', rate: 1.67, locale: 'en-NZ' },
   CH: { code: 'CHF', symbol: 'CHF', rate: 0.88, locale: 'de-CH' },
   HK: { code: 'HKD', symbol: 'HK$', rate: 7.82, locale: 'zh-HK' },
-  // European countries
   DE: { code: 'EUR', symbol: '€', rate: 0.92, locale: 'de-DE' },
   FR: { code: 'EUR', symbol: '€', rate: 0.92, locale: 'fr-FR' },
   IT: { code: 'EUR', symbol: '€', rate: 0.92, locale: 'it-IT' },
@@ -83,10 +92,12 @@ const CURRENCY_CONFIG: Record<string, { code: string; symbol: string; rate: numb
 }
 
 export default function ROIPage() {
-  // Currency state
-  const [userCountry, setUserCountry] = useState<string>('US')
-  const [currencyConfig, setCurrencyConfig] = useState(CURRENCY_CONFIG['US'])
-  const [isLoadingLocation, setIsLoadingLocation] = useState(true)
+  // Fixed USD pricing — no country detection
+  const currencyConfig = CURRENCY_CONFIG['US']
+
+  // AI pricing fetched from env via API
+  const [aiCvCost, setAiCvCost] = useState(0.50)
+  const [aiInterviewCost, setAiInterviewCost] = useState(0.50)
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -103,50 +114,87 @@ export default function ROIPage() {
     }
   }, [])
 
-  // Input states
+  // Fetch AI cost config from env vars
+  useEffect(() => {
+    fetch('/api/roi-config')
+      .then(r => r.json())
+      .then(data => {
+        if (data.cvCost != null) setAiCvCost(data.cvCost)
+        if (data.interviewCostPerMin != null) setAiInterviewCost(data.interviewCostPerMin)
+      })
+      .catch(() => {})
+  }, [])
+
+  // Job parameters
   const [jobPostings, setJobPostings] = useState(5)
   const [cvsPerJob, setCvsPerJob] = useState(100)
-  const [months, setMonths] = useState(12)
+  const [months, setMonths] = useState(1)
 
-  // Human recruiter inputs
-  const [humanCvTime, setHumanCvTime] = useState(5)
-  const [humanHourlyRate, setHumanHourlyRate] = useState(45)
-  const [humanShortlistRate, setHumanShortlistRate] = useState(15)
-  const [humanInterviewTime, setHumanInterviewTime] = useState(45)
-  const [humanQualifiedRate, setHumanQualifiedRate] = useState(30)
+  // Human recruiter inputs (string state for better input control)
+  const [humanCvTime, setHumanCvTime] = useState('5')
+  const [numRecruiters, setNumRecruiters] = useState('3')
+  const [recruiterHourlyRate, setRecruiterHourlyRate] = useState('30')
+  const [recruiterHoursPerDay, setRecruiterHoursPerDay] = useState('8')
+  const [recruiterDaysPerWeek, setRecruiterDaysPerWeek] = useState('5')
 
-  // AI recruiter inputs
-  const [aiCvCost] = useState(0.5)
-  const [aiInterviewCost] = useState(0.5)
-  const [aiShortlistRate, setAiShortlistRate] = useState(20)
-  const [aiInterviewTime] = useState(30)
-  const [aiQualifiedRate, setAiQualifiedRate] = useState(40)
+  // Shared fields (same value in both Human and AI sections)
+  const [shortlistRate, setShortlistRate] = useState('15')
+  const [interviewTime, setInterviewTime] = useState('20')
+  const [qualifiedRate, setQualifiedRate] = useState('30')
 
-  // Calculate all values
+  // AI fixed display values
+  const AI_AGENTS = 1
+  const AI_HOURS_PER_DAY = 24
+  const AI_DAYS_PER_WEEK = 7
+  const AI_HOURLY_RATE_DISPLAY = 10
+
   const calculations = useMemo(() => {
+    // Parse string states to numbers
+    const numRecruitersParsed = parseInt(numRecruiters) || 1
+    const recruiterHourlyRateParsed = parseInt(recruiterHourlyRate) || 5
+    const recruiterHoursPerDayParsed = parseInt(recruiterHoursPerDay) || 1
+    const recruiterDaysPerWeekParsed = parseInt(recruiterDaysPerWeek) || 1
+    const humanCvTimeParsed = parseInt(humanCvTime) || 1
+    const shortlistRateParsed = parseInt(shortlistRate) || 1
+    const interviewTimeParsed = parseInt(interviewTime) || 10
+    const qualifiedRateParsed = parseInt(qualifiedRate) || 1
+
     const totalCvsPerMonth = jobPostings * cvsPerJob
     const totalCvsOverall = totalCvsPerMonth * months
 
-    // Human calculations (with 30% overhead for benefits)
-    const humanEffectiveHourlyRate = humanHourlyRate * 1.3
-    const humanCvCostPerMonth = totalCvsPerMonth * (humanCvTime / 60) * humanEffectiveHourlyRate
-    const humanInterviewsPerMonth = totalCvsPerMonth * (humanShortlistRate / 100)
-    const humanInterviewCostPerMonth = humanInterviewsPerMonth * (humanInterviewTime / 60) * humanEffectiveHourlyRate
+    // Shared pipeline
+    const interviewsPerMonth = totalCvsPerMonth * (shortlistRateParsed / 100)
+    const qualifiedPerMonth = interviewsPerMonth * (qualifiedRateParsed / 100)
+    const totalInterviews = Math.round(interviewsPerMonth * months)
+    const totalQualified = Math.round(qualifiedPerMonth * months)
 
-    // Add turnover and training costs (15% of total)
-    const humanTotalPerMonth = (humanCvCostPerMonth + humanInterviewCostPerMonth) * 1.15
+    // Human: Fixed salary cost model (recruiter is always paid regardless of volume)
+    // Monthly salary = recruiters × rate × hours/day × days/week × 4.33 weeks
+    const humanMonthlyFixedCost = numRecruitersParsed * recruiterHourlyRateParsed * recruiterHoursPerDayParsed * recruiterDaysPerWeekParsed * 4.33
+    const humanMonthlyWithBenefits = humanMonthlyFixedCost * 1.3   // 30% benefits overhead
+    const humanTotalPerMonth = humanMonthlyWithBenefits * 1.15     // 15% turnover & training overhead
     const humanTotalOverall = humanTotalPerMonth * months
-    const humanQualifiedPerMonth = humanInterviewsPerMonth * (humanQualifiedRate / 100)
-    const humanQualifiedOverall = humanQualifiedPerMonth * months
 
-    // AI calculations
+    // Breakdown: split fixed cost by proportion of task time (CV vs interview)
+    const cvHoursPerMonth = totalCvsPerMonth * (humanCvTimeParsed / 60)
+    const interviewHoursPerMonth = interviewsPerMonth * (interviewTimeParsed / 60)
+    const totalTaskHours = cvHoursPerMonth + interviewHoursPerMonth || 1
+    const humanCvCostTotal = (cvHoursPerMonth / totalTaskHours) * humanTotalOverall
+    const humanInterviewCostTotal = (interviewHoursPerMonth / totalTaskHours) * humanTotalOverall
+
+    const humanQualifiedOverall = qualifiedPerMonth * months
+    const humanPerCandidate = humanQualifiedOverall > 0 ? humanTotalOverall / humanQualifiedOverall : 0
+    const humanAvailableHoursPerMonth = Math.round(numRecruitersParsed * recruiterHoursPerDayParsed * recruiterDaysPerWeekParsed * 4.33)
+
+    // AI: Usage-based cost (pay only for what you use)
     const aiCvCostPerMonth = totalCvsPerMonth * aiCvCost
-    const aiInterviewsPerMonth = totalCvsPerMonth * (aiShortlistRate / 100)
-    const aiInterviewCostPerMonth = aiInterviewsPerMonth * aiInterviewTime * aiInterviewCost
+    const aiInterviewCostPerMonth = interviewsPerMonth * interviewTimeParsed * aiInterviewCost
     const aiTotalPerMonth = aiCvCostPerMonth + aiInterviewCostPerMonth
     const aiTotalOverall = aiTotalPerMonth * months
-    const aiQualifiedPerMonth = aiInterviewsPerMonth * (aiQualifiedRate / 100)
-    const aiQualifiedOverall = aiQualifiedPerMonth * months
+    const aiCvCostTotal = aiCvCostPerMonth * months
+    const aiInterviewCostTotal = aiInterviewCostPerMonth * months
+    const aiQualifiedOverall = qualifiedPerMonth * months
+    const aiPerCandidate = aiQualifiedOverall > 0 ? aiTotalOverall / aiQualifiedOverall : 0
 
     // Savings
     const savings = humanTotalOverall - aiTotalOverall
@@ -162,81 +210,69 @@ export default function ROIPage() {
     else if (totalVolume <= 2000) scalabilityFactor = '10x'
     else scalabilityFactor = '20x+'
 
-    // ROI percentage
     const baseROI = 85
     const volumeBonus = Math.min(15, Math.floor(totalVolume / 100))
     const totalROI = baseROI + volumeBonus
 
+    // Recommend plan: find cheapest plan whose wallet covers monthly AI usage
+    // Plan monthly price = wallet credit (pay-per-use consumed from wallet)
+    const recommendedPlan = PLANS_LOOKUP.find(p => aiTotalPerMonth <= p.monthly)
+      ?? PLANS_LOOKUP[PLANS_LOOKUP.length - 1]
+
+    // Annual savings vs monthly: plan annual price = 10× monthly (2 months free)
+    const annualMonthlyCost = Math.round(recommendedPlan.annual / 12)
+    const annualSavingsPerYear = (recommendedPlan.monthly * 12) - recommendedPlan.annual
+    const annualSavingsPct = Math.round(annualSavingsPerYear / (recommendedPlan.monthly * 12) * 100)
+
+    // ROI payback: how many months until cumulative savings cover plan subscription
+    // Real monthly savings with AI plan = humanTotalPerMonth - recommendedPlan.monthly
+    const realMonthlySavings = humanTotalPerMonth - recommendedPlan.monthly
+    const paybackMonths = realMonthlySavings > 0
+      ? recommendedPlan.monthly / realMonthlySavings
+      : null
+
     return {
       totalCvsOverall,
-      totalInterviews: Math.round(humanInterviewsPerMonth * months),
-      totalQualified: Math.round(humanQualifiedOverall),
-      humanCvCostTotal: humanCvCostPerMonth * months,
-      humanInterviewCostTotal: humanInterviewCostPerMonth * months,
+      totalInterviews,
+      totalQualified,
+      humanCvCostTotal,
+      humanInterviewCostTotal,
       humanTotalOverall,
-      humanPerCandidate: humanQualifiedOverall > 0 ? humanTotalOverall / humanQualifiedOverall : 0,
-      aiCvCostTotal: aiCvCostPerMonth * months,
-      aiInterviewCostTotal: aiInterviewCostPerMonth * months,
+      humanTotalPerMonth,
+      humanPerCandidate,
+      humanAvailableHoursPerMonth,
+      aiCvCostTotal,
+      aiInterviewCostTotal,
       aiTotalOverall,
-      aiPerCandidate: aiQualifiedOverall > 0 ? aiTotalOverall / aiQualifiedOverall : 0,
+      aiTotalPerMonth,
+      aiPerCandidate,
       savings,
       savingsPercentage,
       monthlySavingsValue,
       scalabilityFactor,
-      totalROI
+      totalROI,
+      recommendedPlan,
+      annualMonthlyCost,
+      annualSavingsPerYear,
+      annualSavingsPct,
+      paybackMonths
     }
-  }, [jobPostings, cvsPerJob, months, humanCvTime, humanHourlyRate, humanShortlistRate, humanInterviewTime, humanQualifiedRate, aiCvCost, aiInterviewCost, aiShortlistRate, aiInterviewTime, aiQualifiedRate])
-
-  // Detect user's country on mount
-  useEffect(() => {
-    const detectCountry = async () => {
-      try {
-        // Use free IP geolocation API
-        const response = await fetch('https://ipapi.co/json/')
-        if (response.ok) {
-          const data = await response.json()
-          const countryCode = data.country_code || 'US'
-          setUserCountry(countryCode)
-          
-          // Set currency config based on country
-          if (CURRENCY_CONFIG[countryCode]) {
-            setCurrencyConfig(CURRENCY_CONFIG[countryCode])
-          } else {
-            // Default to USD for unknown countries
-            setCurrencyConfig(CURRENCY_CONFIG['US'])
-          }
-        }
-      } catch (error) {
-        console.log('Could not detect location, using USD')
-        setCurrencyConfig(CURRENCY_CONFIG['US'])
-      } finally {
-        setIsLoadingLocation(false)
-      }
-    }
-    
-    detectCountry()
-  }, [])
-
-  // Handle manual currency change
-  const handleCurrencyChange = (countryCode: string) => {
-    setUserCountry(countryCode)
-    setCurrencyConfig(CURRENCY_CONFIG[countryCode] || CURRENCY_CONFIG['US'])
-  }
+  }, [jobPostings, cvsPerJob, months, humanCvTime, numRecruiters, recruiterHourlyRate, recruiterHoursPerDay, recruiterDaysPerWeek, shortlistRate, interviewTime, qualifiedRate, aiCvCost, aiInterviewCost])
 
   const resetToDefaults = () => {
     setJobPostings(5)
     setCvsPerJob(100)
-    setMonths(12)
-    setHumanCvTime(5)
-    setHumanHourlyRate(45)
-    setHumanShortlistRate(15)
-    setHumanInterviewTime(45)
-    setHumanQualifiedRate(30)
-    setAiShortlistRate(20)
-    setAiQualifiedRate(40)
+    setMonths(1)
+    setHumanCvTime('5')
+    setNumRecruiters('3')
+    setRecruiterHourlyRate('30')
+    setRecruiterHoursPerDay('8')
+    setRecruiterDaysPerWeek('5')
+    setShortlistRate('15')
+    setInterviewTime('45')
+    setQualifiedRate('30')
   }
 
-  // Format currency based on user's location
   const formatCurrency = (valueInUSD: number) => {
     const convertedValue = valueInUSD * currencyConfig.rate
     return new Intl.NumberFormat(currencyConfig.locale, {
@@ -246,8 +282,7 @@ export default function ROIPage() {
       maximumFractionDigits: 0
     }).format(convertedValue)
   }
-  
-  // Format small amounts (for per-CV costs etc.)
+
   const formatSmallCurrency = (valueInUSD: number) => {
     const convertedValue = valueInUSD * currencyConfig.rate
     return new Intl.NumberFormat(currencyConfig.locale, {
@@ -258,104 +293,69 @@ export default function ROIPage() {
     }).format(convertedValue)
   }
 
+
   return (
     <div className="min-h-screen bg-white overflow-x-hidden">
       <Navbar />
 
-      <div className="w-full w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-8 sm:py-16">
+      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-4 sm:py-8">
         {/* Hero Header */}
-        <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl sm:rounded-3xl p-6 sm:p-12 mb-8 sm:mb-12 text-white overflow-hidden border border-emerald-500/20">
+        <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl sm:rounded-2xl p-4 sm:p-8 mb-6 sm:mb-8 text-white overflow-hidden border border-emerald-500/20">
           <div className="absolute top-4 right-4 sm:top-6 sm:right-6 bg-emerald-500 text-white px-3 py-1 sm:px-4 sm:py-2 rounded-full font-bold flex items-center gap-1 sm:gap-2 shadow-lg text-sm sm:text-base">
             <ChartLine className="w-5 h-5" />
             ROI: Up to {calculations.totalROI}%
           </div>
-          
-          <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-4 flex flex-wrap items-center gap-2 sm:gap-3 pr-16 sm:pr-20">
-            <Bot className="w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 text-emerald-400 flex-shrink-0" />
+
+          <h1 className="text-lg sm:text-2xl md:text-3xl font-bold mb-2 flex flex-wrap items-center gap-2 pr-16 sm:pr-20">
+            <Bot className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-400 flex-shrink-0" />
             <span className="break-words">AI Recruiter <span className="text-emerald-400">ROI Calculator</span></span>
           </h1>
-          <p className="text-base sm:text-lg md:text-xl opacity-90 max-w-3xl mb-4 sm:mb-8 text-slate-200">
+          <p className="text-sm sm:text-base opacity-90 max-w-3xl mb-3 text-slate-200">
             Your Permanent Hiring Expert That Scales With Your Needs & Retains Institutional Knowledge
           </p>
 
           {/* AI Permanent Banner */}
-          <div className="bg-emerald-500/10 backdrop-blur-sm rounded-xl sm:rounded-2xl p-4 sm:p-8 border-2 border-emerald-500/30 max-w-4xl mb-4 sm:mb-8">
-            <h3 className="text-base sm:text-lg md:text-xl font-bold mb-2 sm:mb-4 flex flex-wrap items-center gap-2 text-emerald-300">
-              <Infinity className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
-              <span className="break-words">AI Recruiter: Your Permanent Scalable Resource</span>
+          <div className="bg-emerald-500/10 rounded-lg p-3 border border-emerald-500/30 mb-3">
+            <h3 className="text-xs font-bold mb-1 flex items-center gap-1.5 text-emerald-300">
+              <Infinity className="w-3.5 h-3.5 flex-shrink-0" />
+              AI Recruiter: Your Permanent Scalable Resource
             </h3>
-            <p className="opacity-90 mb-4 sm:mb-6 text-slate-200 text-sm sm:text-base">
+            <p className="opacity-75 mb-2 text-slate-300 text-[11px] leading-snug">
               Unlike human recruiters who leave, our AI becomes a permanent asset that grows smarter over time, retaining all organizational knowledge and scaling instantly with your hiring demands.
             </p>
-            
-            <div className="grid grid-cols-1 gap-3">
-              <div className="bg-emerald-500/10 backdrop-blur-sm rounded-lg p-3 sm:p-4 text-center border border-emerald-500/20">
-                <Brain className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 text-emerald-300" />
-                <div className="font-medium text-slate-200 text-sm sm:text-base">Knowledge Retention</div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <div className="bg-emerald-500/10 rounded p-1.5 text-center border border-emerald-500/20">
+                <Brain className="w-3.5 h-3.5 mx-auto mb-0.5 text-emerald-300" />
+                <div className="text-slate-200 text-[10px]">Knowledge Retention</div>
               </div>
-              <div className="bg-emerald-500/10 backdrop-blur-sm rounded-lg p-3 sm:p-4 text-center border border-emerald-500/20">
-                <Expand className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 text-emerald-300" />
-                <div className="font-medium text-slate-200 text-sm sm:text-base">Instant Scalability</div>
+              <div className="bg-emerald-500/10 rounded p-1.5 text-center border border-emerald-500/20">
+                <Expand className="w-3.5 h-3.5 mx-auto mb-0.5 text-emerald-300" />
+                <div className="text-slate-200 text-[10px]">Instant Scalability</div>
               </div>
-              <div className="bg-emerald-500/10 backdrop-blur-sm rounded-lg p-3 sm:p-4 text-center border border-emerald-500/20">
-                <GraduationCap className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 text-emerald-300" />
-                <div className="font-medium text-slate-200 text-sm sm:text-base">Continuous Learning</div>
+              <div className="bg-emerald-500/10 rounded p-1.5 text-center border border-emerald-500/20">
+                <GraduationCap className="w-3.5 h-3.5 mx-auto mb-0.5 text-emerald-300" />
+                <div className="text-slate-200 text-[10px]">Continuous Learning</div>
               </div>
             </div>
-          </div>
-
-          {/* Currency Selector */}
-          <div className="flex items-center flex-wrap gap-2 sm:gap-3 mb-4 sm:mb-6">
-            <Globe className="w-5 h-5 text-emerald-300" />
-            <span className="text-slate-300 text-sm">Currency:</span>
-            <select
-              value={userCountry}
-              onChange={(e) => handleCurrencyChange(e.target.value)}
-              className="bg-emerald-500/20 border border-emerald-500/30 rounded-lg px-2 sm:px-3 py-1 sm:py-1.5 text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 max-w-[120px] sm:max-w-none"
-            >
-              <option value="US" className="bg-slate-800">🇺🇸 USD ($)</option>
-              <option value="IN" className="bg-slate-800">🇮🇳 INR (₹)</option>
-              <option value="SG" className="bg-slate-800">🇸🇬 SGD (S$)</option>
-              <option value="GB" className="bg-slate-800">🇬🇧 GBP (£)</option>
-              <option value="DE" className="bg-slate-800">🇪🇺 EUR (€)</option>
-              <option value="AE" className="bg-slate-800">🇦🇪 AED (د.إ)</option>
-              <option value="AU" className="bg-slate-800">🇦🇺 AUD (A$)</option>
-              <option value="CA" className="bg-slate-800">🇨🇦 CAD (C$)</option>
-              <option value="JP" className="bg-slate-800">🇯🇵 JPY (¥)</option>
-              <option value="CN" className="bg-slate-800">🇨🇳 CNY (¥)</option>
-              <option value="PK" className="bg-slate-800">🇵🇰 PKR (₨)</option>
-              <option value="MY" className="bg-slate-800">🇲🇾 MYR (RM)</option>
-              <option value="SA" className="bg-slate-800">🇸🇦 SAR (ر.س)</option>
-              <option value="BR" className="bg-slate-800">🇧🇷 BRL (R$)</option>
-              <option value="MX" className="bg-slate-800">🇲🇽 MXN ($)</option>
-              <option value="CH" className="bg-slate-800">🇨🇭 CHF</option>
-              <option value="HK" className="bg-slate-800">🇭🇰 HKD (HK$)</option>
-              <option value="KR" className="bg-slate-800">🇰🇷 KRW (₩)</option>
-              <option value="SE" className="bg-slate-800">🇸🇪 SEK (kr)</option>
-              <option value="ZA" className="bg-slate-800">🇿🇦 ZAR (R)</option>
-            </select>
-            {isLoadingLocation && (
-              <span className="text-emerald-300 text-xs animate-pulse">Detecting location...</span>
-            )}
           </div>
 
           {/* Benefits */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-            <div className="bg-emerald-500/10 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center gap-2 border border-emerald-500/20 text-xs sm:text-sm">
-              <Zap className="w-4 h-4 text-emerald-300 flex-shrink-0" />
-              <span className="text-slate-200">Process CVs 10x faster</span>
+          <div className="grid grid-cols-2 gap-1.5">
+            <div className="bg-emerald-500/10 backdrop-blur-sm rounded-md px-2 py-1 flex items-center gap-1.5 border border-emerald-500/20">
+              <Zap className="w-3 h-3 text-emerald-300 flex-shrink-0" />
+              <span className="text-slate-200 text-xs">Process CVs 10x faster</span>
             </div>
-            <div className="bg-emerald-500/10 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center gap-2 border border-emerald-500/20 text-xs sm:text-sm">
-              <DollarSign className="w-4 h-4 text-emerald-300 flex-shrink-0" />
-              <span className="text-slate-200 break-words">{formatSmallCurrency(0.50)}/CV + {formatSmallCurrency(0.50)}/min</span>
+            <div className="bg-emerald-500/10 backdrop-blur-sm rounded-md px-2 py-1 flex items-center gap-1.5 border border-emerald-500/20">
+              <DollarSign className="w-3 h-3 text-emerald-300 flex-shrink-0" />
+              <span className="text-slate-200 text-xs">Usage-based AI pricing</span>
             </div>
-            <div className="bg-emerald-500/10 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center gap-2 border border-emerald-500/20 text-xs sm:text-sm">
-              <Clock className="w-4 h-4 text-emerald-300 flex-shrink-0" />
-              <span className="text-slate-200">24/7 availability</span>
+            <div className="bg-emerald-500/10 backdrop-blur-sm rounded-md px-2 py-1 flex items-center gap-1.5 border border-emerald-500/20">
+              <Clock className="w-3 h-3 text-emerald-300 flex-shrink-0" />
+              <span className="text-slate-200 text-xs">24/7 availability</span>
             </div>
-            <div className="bg-emerald-500/10 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center gap-2 border border-emerald-500/20 text-xs sm:text-sm">
-              <BarChart3 className="w-4 h-4 text-emerald-300 flex-shrink-0" />
-              <span className="text-slate-200">Knowledge stays forever</span>
+            <div className="bg-emerald-500/10 backdrop-blur-sm rounded-md px-2 py-1 flex items-center gap-1.5 border border-emerald-500/20">
+              <BarChart3 className="w-3 h-3 text-emerald-300 flex-shrink-0" />
+              <span className="text-slate-200 text-xs">Knowledge stays forever</span>
             </div>
           </div>
         </div>
@@ -369,15 +369,22 @@ export default function ROIPage() {
               Job & Recruitment Parameters
             </h2>
 
-            {/* Scalability Section */}
-            <div className="bg-gradient-to-r from-emerald-50 to-blue-50 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-4 sm:mb-6 border-2 border-dashed border-emerald-300">
-              <h4 className="font-bold text-emerald-600 mb-2 flex items-center gap-2">
-                <ChartLine className="w-5 h-5" />
-                Scalability Simulation
-              </h4>
-              <p className="text-sm text-gray-600">
-                See how AI instantly scales with your hiring volume fluctuations while maintaining consistent quality and cost efficiency.
-              </p>
+            {/* Time Period — TOP */}
+            <div className="mb-4 sm:mb-6">
+              <label className="block font-semibold text-gray-700 mb-2 text-sm sm:text-base">
+                Time Period for Calculation
+              </label>
+              <div className="flex items-center gap-2 sm:gap-4">
+                <input
+                  type="range"
+                  min="1"
+                  max="24"
+                  value={months}
+                  onChange={(e) => setMonths(parseInt(e.target.value))}
+                  className="flex-1 h-2 bg-emerald-100 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                />
+                <span className="min-w-[70px] sm:min-w-[90px] font-bold text-emerald-600 text-base sm:text-lg text-right">{months} month{months > 1 ? 's' : ''}</span>
+              </div>
             </div>
 
             {/* Job Postings Slider */}
@@ -416,211 +423,215 @@ export default function ROIPage() {
               </div>
             </div>
 
-            {/* Human Recruiter Section */}
-            <h3 className="text-base sm:text-lg font-bold text-emerald-600 mt-6 sm:mt-8 mb-3 sm:mb-4 pb-2 sm:pb-3 border-b-2 border-emerald-50 flex items-center gap-2 sm:gap-3">
-              <UserCheck className="w-5 sm:w-6 h-5 sm:h-6 bg-emerald-50 p-1 rounded-lg" />
+            {/* ── Human Recruiter Limitations ── */}
+            <h3 className="text-base sm:text-lg font-bold text-red-600 mt-6 sm:mt-8 mb-3 sm:mb-4 pb-2 sm:pb-3 border-b-2 border-red-100 flex items-center gap-2 sm:gap-3">
+              <UserCheck className="w-5 sm:w-6 h-5 sm:h-6 bg-red-50 p-1 rounded-lg" />
               Human Recruiter Limitations
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            {/* 3-col grid: row1 = Recruiters, Hourly Rate, Hours/Day */}
+            <div className="grid grid-cols-3 gap-3 mb-3">
               <div>
-                <label className="block font-semibold text-gray-700 mb-2 text-sm">
-                  Minutes to Review 1 CV
-                </label>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">Recruiters</label>
+                <div className="flex w-full">
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={numRecruiters}
+                    onChange={(e) => setNumRecruiters(e.target.value)}
+                    onBlur={(e) => setNumRecruiters(String(parseInt(e.target.value) || 1))}
+                    className="flex-1 px-2 py-1.5 border-2 border-gray-200 rounded-l-lg focus:border-emerald-500 focus:outline-none text-sm w-0"
+                  />
+                  <span className="bg-gray-100 px-2 py-1.5 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-xs">ppl</span>
+                </div>
+              </div>
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">Hourly Rate (Always)</label>
+                <div className="flex w-full">
+                  <input
+                    type="number"
+                    min="5"
+                    max="500"
+                    value={recruiterHourlyRate}
+                    onChange={(e) => setRecruiterHourlyRate(e.target.value)}
+                    onBlur={(e) => setRecruiterHourlyRate(String(parseInt(e.target.value) || 5))}
+                    className="flex-1 px-2 py-1.5 border-2 border-gray-200 rounded-l-lg focus:border-emerald-500 focus:outline-none text-sm w-0"
+                  />
+                  <span className="bg-gray-100 px-2 py-1.5 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-xs">$/hr</span>
+                </div>
+              </div>
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">Hours per Day</label>
+                <div className="flex w-full">
+                  <input
+                    type="number"
+                    min="1"
+                    max="16"
+                    value={recruiterHoursPerDay}
+                    onChange={(e) => setRecruiterHoursPerDay(e.target.value)}
+                    onBlur={(e) => setRecruiterHoursPerDay(String(parseInt(e.target.value) || 1))}
+                    className="flex-1 px-2 py-1.5 border-2 border-gray-200 rounded-l-lg focus:border-emerald-500 focus:outline-none text-sm w-0"
+                  />
+                  <span className="bg-gray-100 px-2 py-1.5 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-xs">hrs</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 3-col grid: row2 = Days/Week, Min/CV, Capacity */}
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">Days per Week</label>
+                <div className="flex w-full">
+                  <input
+                    type="number"
+                    min="1"
+                    max="7"
+                    value={recruiterDaysPerWeek}
+                    onChange={(e) => setRecruiterDaysPerWeek(e.target.value)}
+                    onBlur={(e) => setRecruiterDaysPerWeek(String(parseInt(e.target.value) || 1))}
+                    className="flex-1 px-2 py-1.5 border-2 border-gray-200 rounded-l-lg focus:border-emerald-500 focus:outline-none text-sm w-0"
+                  />
+                  <span className="bg-gray-100 px-2 py-1.5 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-xs">days</span>
+                </div>
+              </div>
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">Min to Review 1 CV</label>
                 <div className="flex w-full">
                   <input
                     type="number"
                     min="1"
                     max="30"
                     value={humanCvTime}
-                    onChange={(e) => setHumanCvTime(parseInt(e.target.value) || 1)}
-                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-l-lg focus:border-emerald-500 focus:outline-none"
+                    onChange={(e) => setHumanCvTime(e.target.value)}
+                    onBlur={(e) => setHumanCvTime(String(parseInt(e.target.value) || 1))}
+                    className="flex-1 px-2 py-1.5 border-2 border-gray-200 rounded-l-lg focus:border-emerald-500 focus:outline-none text-sm w-0"
                   />
-                  <span className="bg-gray-100 px-3 py-2 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600">min</span>
+                  <span className="bg-gray-100 px-2 py-1.5 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-xs">min</span>
                 </div>
               </div>
               <div>
-                <label className="block font-semibold text-gray-700 mb-2 text-sm">
-                  Hourly Rate + Benefits
-                </label>
-                <div className="flex w-full">
-                  <input
-                    type="number"
-                    min="15"
-                    max="100"
-                    value={humanHourlyRate}
-                    onChange={(e) => setHumanHourlyRate(parseInt(e.target.value) || 15)}
-                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-l-lg focus:border-emerald-500 focus:outline-none"
-                  />
-                  <span className="bg-gray-100 px-3 py-2 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600">{currencyConfig.symbol}/hr</span>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">Capacity</label>
+                <div className="flex w-full items-center bg-gray-50 border-2 border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-600">
+                  <strong className="text-gray-800">{calculations.humanAvailableHoursPerMonth.toLocaleString()}</strong>&nbsp;hrs/mo
                 </div>
-                <div className="text-xs text-gray-500 mt-1">≈ {formatSmallCurrency(humanHourlyRate)}/hr</div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            {/* 3-col grid: row3 = Shortlist %, Interview Time, Qualified % */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
               <div>
-                <label className="block font-semibold text-gray-700 mb-2 text-xs sm:text-sm">
-                  % CVs Shortlisted for Interview
-                </label>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">% Shortlisted</label>
                 <div className="flex w-full">
                   <input
                     type="number"
                     min="1"
-                    max="50"
-                    value={humanShortlistRate}
-                    onChange={(e) => setHumanShortlistRate(parseInt(e.target.value) || 1)}
-                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-l-lg focus:border-emerald-500 focus:outline-none text-sm"
+                    max="100"
+                    value={shortlistRate}
+                    onChange={(e) => setShortlistRate(e.target.value)}
+                    onBlur={(e) => setShortlistRate(String(parseInt(e.target.value) || 1))}
+                    className="flex-1 px-2 py-1.5 border-2 border-gray-200 rounded-l-lg focus:border-emerald-500 focus:outline-none text-sm w-0"
                   />
-                  <span className="bg-gray-100 px-2 sm:px-3 py-2 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-sm">%</span>
+                  <span className="bg-gray-100 px-2 py-1.5 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-xs">%</span>
                 </div>
               </div>
               <div>
-                <label className="block font-semibold text-gray-700 mb-2 text-xs sm:text-sm">
-                  Interview Time per Candidate
-                </label>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">Interview Time</label>
                 <div className="flex w-full">
                   <input
                     type="number"
                     min="10"
                     max="120"
-                    value={humanInterviewTime}
-                    onChange={(e) => setHumanInterviewTime(parseInt(e.target.value) || 10)}
-                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-l-lg focus:border-emerald-500 focus:outline-none text-sm"
+                    value={interviewTime}
+                    onChange={(e) => setInterviewTime(e.target.value)}
+                    onBlur={(e) => setInterviewTime(String(parseInt(e.target.value) || 10))}
+                    className="flex-1 px-2 py-1.5 border-2 border-gray-200 rounded-l-lg focus:border-emerald-500 focus:outline-none text-sm w-0"
                   />
-                  <span className="bg-gray-100 px-2 sm:px-3 py-2 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-sm">min</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mb-4 sm:mb-6">
-              <label className="block font-semibold text-gray-700 mb-2 text-sm">
-                % Candidates Qualified After Interview
-              </label>
-              <div className="flex max-w-[200px]">
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={humanQualifiedRate}
-                  onChange={(e) => setHumanQualifiedRate(parseInt(e.target.value) || 1)}
-                  className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-l-lg focus:border-emerald-500 focus:outline-none"
-                />
-                <span className="bg-gray-100 px-3 py-2 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600">%</span>
-              </div>
-            </div>
-
-            {/* AI Recruiter Section */}
-            <h3 className="text-base sm:text-lg font-bold text-emerald-600 mt-6 sm:mt-8 mb-3 sm:mb-4 pb-2 sm:pb-3 border-b-2 border-emerald-50 flex items-center gap-2 sm:gap-3">
-              <Bot className="w-5 sm:w-6 h-5 sm:h-6 bg-emerald-50 p-1 rounded-lg" />
-              AI Recruiter Advantages
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block font-semibold text-gray-700 mb-2 text-sm">
-                  Cost per CV Evaluation
-                </label>
-                <div className="flex w-full">
-                  <input
-                    type="text"
-                    value={formatSmallCurrency(aiCvCost)}
-                    disabled
-                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg bg-emerald-50 text-emerald-700 font-medium"
-                  />
+                  <span className="bg-gray-100 px-2 py-1.5 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-xs">min</span>
                 </div>
               </div>
               <div>
-                <label className="block font-semibold text-gray-700 mb-2 text-sm">
-                  Cost per Interview Minute
-                </label>
-                <div className="flex w-full">
-                  <input
-                    type="text"
-                    value={`${formatSmallCurrency(aiInterviewCost)}/min`}
-                    disabled
-                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg bg-emerald-50 text-emerald-700 font-medium"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block font-semibold text-gray-700 mb-2 text-xs sm:text-sm">
-                  % CVs Shortlisted for Interview
-                </label>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">% Qualified</label>
                 <div className="flex w-full">
                   <input
                     type="number"
                     min="1"
-                    max="50"
-                    value={aiShortlistRate}
-                    onChange={(e) => setAiShortlistRate(parseInt(e.target.value) || 1)}
-                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-l-lg focus:border-emerald-500 focus:outline-none text-sm"
+                    max="100"
+                    value={qualifiedRate}
+                    onChange={(e) => setQualifiedRate(e.target.value)}
+                    onBlur={(e) => setQualifiedRate(String(parseInt(e.target.value) || 1))}
+                    className="flex-1 px-2 py-1.5 border-2 border-gray-200 rounded-l-lg focus:border-emerald-500 focus:outline-none text-sm w-0"
                   />
-                  <span className="bg-gray-100 px-2 sm:px-3 py-2 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-sm">%</span>
+                  <span className="bg-gray-100 px-2 py-1.5 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-xs">%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── AI Recruiter Advantages ── */}
+            <h3 className="text-base sm:text-lg font-bold text-emerald-600 mt-6 sm:mt-8 mb-3 sm:mb-4 pb-2 sm:pb-3 border-b-2 border-emerald-100 flex items-center gap-2 sm:gap-3">
+              <Bot className="w-5 sm:w-6 h-5 sm:h-6 bg-emerald-50 p-1 rounded-lg" />
+              AI Recruiter Advantages
+            </h3>
+
+            {/* AI Advantages — clean 2-row x 3-col grid */}
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">AI Agent</label>
+                <div className="flex w-full">
+                  <input type="text" value={AI_AGENTS} disabled className="flex-1 px-2 py-1.5 border-2 border-gray-200 rounded-l-lg bg-gray-50 text-gray-700 font-medium text-sm w-0" />
+                  <span className="bg-gray-100 px-2 py-1.5 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-xs">agent</span>
                 </div>
               </div>
               <div>
-                <label className="block font-semibold text-gray-700 mb-2 text-xs sm:text-sm">
-                  AI Interview Time per Candidate
-                </label>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">Hourly Rate</label>
+                <div className="flex w-full items-center border-2 border-gray-200 rounded-lg px-2 py-1.5 bg-gray-50">
+                  <span className="text-xs italic text-gray-400">As per usage</span>
+                </div>
+              </div>
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">Hours / Day</label>
                 <div className="flex w-full">
-                  <input
-                    type="number"
-                    value={aiInterviewTime}
-                    disabled
-                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-l-lg bg-gray-50 text-gray-500 text-sm"
-                  />
-                  <span className="bg-gray-100 px-2 sm:px-3 py-2 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-sm">min</span>
+                  <input type="text" value={AI_HOURS_PER_DAY} disabled className="flex-1 px-2 py-1.5 border-2 border-gray-200 rounded-l-lg bg-gray-50 text-gray-700 font-medium text-sm w-0" />
+                  <span className="bg-gray-100 px-2 py-1.5 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-xs">hrs</span>
                 </div>
               </div>
             </div>
 
-            <div className="mb-4 sm:mb-6">
-              <label className="block font-semibold text-gray-700 mb-2 text-sm">
-                % Candidates Qualified After Interview
-              </label>
-              <div className="flex max-w-[200px]">
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={aiQualifiedRate}
-                  onChange={(e) => setAiQualifiedRate(parseInt(e.target.value) || 1)}
-                  className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-l-lg focus:border-emerald-500 focus:outline-none"
-                />
-                <span className="bg-gray-100 px-3 py-2 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600">%</span>
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">Days / Week</label>
+                <div className="flex w-full">
+                  <input type="text" value={AI_DAYS_PER_WEEK} disabled className="flex-1 px-2 py-1.5 border-2 border-gray-200 rounded-l-lg bg-gray-50 text-gray-700 font-medium text-sm w-0" />
+                  <span className="bg-gray-100 px-2 py-1.5 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-xs">days</span>
+                </div>
+              </div>
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">% Shortlisted</label>
+                <div className="flex w-full">
+                  <input type="number" value={shortlistRate} disabled className="flex-1 px-2 py-1.5 border-2 border-gray-200 rounded-l-lg bg-gray-50 text-gray-700 font-medium text-sm w-0" />
+                  <span className="bg-gray-100 px-2 py-1.5 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-xs">%</span>
+                </div>
+              </div>
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">Interview Time</label>
+                <div className="flex w-full">
+                  <input type="number" value={interviewTime} disabled className="flex-1 px-2 py-1.5 border-2 border-gray-200 rounded-l-lg bg-gray-50 text-gray-700 font-medium text-sm w-0" />
+                  <span className="bg-gray-100 px-2 py-1.5 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-xs">min</span>
+                </div>
               </div>
             </div>
 
-            {/* Time Period Slider */}
-            <div className="mb-4 sm:mb-6">
-              <label className="block font-semibold text-gray-700 mb-2 text-sm sm:text-base">
-                Time Period for Calculation
-              </label>
-              <div className="flex items-center gap-2 sm:gap-4">
-                <input
-                  type="range"
-                  min="1"
-                  max="24"
-                  value={months}
-                  onChange={(e) => setMonths(parseInt(e.target.value))}
-                  className="flex-1 h-2 bg-emerald-100 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                />
-                <span className="min-w-[60px] sm:min-w-[80px] font-bold text-emerald-600 text-base sm:text-lg">{months} months</span>
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">% Qualified</label>
+                <div className="flex w-full">
+                  <input type="number" value={qualifiedRate} disabled className="flex-1 px-2 py-1.5 border-2 border-gray-200 rounded-l-lg bg-gray-50 text-gray-700 font-medium text-sm w-0" />
+                  <span className="bg-gray-100 px-2 py-1.5 border-2 border-l-0 border-gray-200 rounded-r-lg text-gray-600 text-xs">%</span>
+                </div>
               </div>
             </div>
+            <div className="text-xs text-gray-400 mb-4">Shared values mirror the Human section.</div>
 
-            {/* Reset Button */}
-            <button
-              onClick={resetToDefaults}
-              className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all text-sm sm:text-base"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reset to Default Values
-            </button>
           </div>
 
           {/* Results Section */}
@@ -630,121 +641,246 @@ export default function ROIPage() {
               Cost Analysis & Results
             </h2>
 
-            {/* Metrics */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
-              <div className="bg-emerald-50 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center border border-emerald-100">
-                <div className="text-sm text-gray-600 mb-1">Total CVs Processed</div>
-                <div className="text-2xl font-bold text-emerald-600">{calculations.totalCvsOverall.toLocaleString()}</div>
-                <div className="text-xs text-gray-500">in {months} months</div>
-              </div>
-              <div className="bg-emerald-50 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center border border-emerald-100">
-                <div className="text-sm text-gray-600 mb-1">Interviews Conducted</div>
-                <div className="text-2xl font-bold text-emerald-600">{calculations.totalInterviews.toLocaleString()}</div>
-                <div className="text-xs text-gray-500">in {months} months</div>
-              </div>
-              <div className="bg-emerald-50 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center border border-emerald-100">
-                <div className="text-sm text-gray-600 mb-1">Qualified Candidates</div>
-                <div className="text-2xl font-bold text-emerald-600">{calculations.totalQualified.toLocaleString()}</div>
-                <div className="text-xs text-gray-500">in {months} months</div>
-              </div>
-            </div>
-
-            {/* Comparison */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-6">
+            {/* Comparison cards (metrics embedded inside) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-4">
               {/* Human Cost */}
-              <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-5 border-2 border-red-200">
-                <div className="text-base sm:text-lg font-bold text-gray-700 mb-1 sm:mb-2">Human Recruiter</div>
-                <div className="text-xl sm:text-2xl md:text-3xl font-bold text-red-500 mb-1 sm:mb-2">{formatCurrency(calculations.humanTotalOverall)}</div>
-                <div className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-4">~{formatCurrency(calculations.humanPerCandidate)} per qualified candidate</div>
-                
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between py-2 border-b border-red-200">
-                    <span className="text-xs sm:text-sm">CV Screening Cost</span>
-                    <span className="text-xs sm:text-sm">{formatCurrency(calculations.humanCvCostTotal)}</span>
+              <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border-2 border-red-200">
+                <div className="text-base sm:text-lg font-bold text-gray-700 mb-1">Human Recruiter</div>
+                <div className="text-xl sm:text-2xl md:text-3xl font-bold text-red-500 mb-1">{formatCurrency(calculations.humanTotalOverall)}</div>
+                <div className="text-xs text-gray-600 mb-3">~{formatSmallCurrency(calculations.humanPerCandidate)} per qualified candidate</div>
+
+                {/* Embedded metrics */}
+                <div className="grid grid-cols-3 gap-1.5 mb-3">
+                  <div className="bg-white/70 rounded p-1.5 text-center">
+                    <div className="text-[10px] text-gray-500">CVs</div>
+                    <div className="text-sm font-bold text-red-600">{calculations.totalCvsOverall.toLocaleString()}</div>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-red-200">
-                    <span className="text-xs sm:text-sm">Interview Cost</span>
-                    <span className="text-xs sm:text-sm">{formatCurrency(calculations.humanInterviewCostTotal)}</span>
+                  <div className="bg-white/70 rounded p-1.5 text-center">
+                    <div className="text-[10px] text-gray-500">Interviews</div>
+                    <div className="text-sm font-bold text-red-600">{calculations.totalInterviews.toLocaleString()}</div>
                   </div>
-                  <div className="flex justify-between py-2 font-bold text-red-500 border-t-2 border-red-300 mt-2">
-                    <span className="text-xs sm:text-sm">Total Cost</span>
-                    <span className="text-xs sm:text-sm">{formatCurrency(calculations.humanTotalOverall)}</span>
+                  <div className="bg-white/70 rounded p-1.5 text-center">
+                    <div className="text-[10px] text-gray-500">Qualified</div>
+                    <div className="text-sm font-bold text-red-600">{calculations.totalQualified.toLocaleString()}</div>
                   </div>
+                </div>
+
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between py-1 border-b border-red-200">
+                    <span className="text-xs">CV Screening Cost</span>
+                    <span className="text-xs">{formatCurrency(calculations.humanCvCostTotal)}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-red-200">
+                    <span className="text-xs">Interview Cost</span>
+                    <span className="text-xs">{formatCurrency(calculations.humanInterviewCostTotal)}</span>
+                  </div>
+                  <div className="flex justify-between py-1 font-bold text-red-500 border-t-2 border-red-300 mt-1">
+                    <span className="text-xs">Total Cost</span>
+                    <span className="text-xs">{formatCurrency(calculations.humanTotalOverall)}</span>
+                  </div>
+                </div>
+                <div className="mt-2 text-[11px] text-red-600 bg-red-100 rounded p-1.5">
+                  Incl. 30% benefits + 15% turnover overhead
                 </div>
               </div>
 
               {/* AI Cost */}
-              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-5 border-2 border-green-200 relative overflow-hidden">
-                <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 sm:px-3 py-0.5 sm:py-1 rounded-full font-bold">
-                  Permanent Resource
+              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border-2 border-green-200 relative overflow-hidden">
+                <div className="absolute top-2 right-2 bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                  Permanent
                 </div>
-                <div className="text-base sm:text-lg font-bold text-gray-700 mb-1 sm:mb-2">AI Recruiter</div>
-                <div className="text-xl sm:text-2xl md:text-3xl font-bold text-green-500 mb-1 sm:mb-2">{formatCurrency(calculations.aiTotalOverall)}</div>
-                <div className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-4">~${calculations.aiPerCandidate.toFixed(1)} per qualified candidate</div>
-                
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between py-2 border-b border-green-200">
-                    <span className="text-xs sm:text-sm">CV Screening Cost</span>
-                    <span className="text-xs sm:text-sm">{formatCurrency(calculations.aiCvCostTotal)}</span>
+                <div className="text-base sm:text-lg font-bold text-gray-700 mb-1">AI Recruiter</div>
+                <div className="text-xl sm:text-2xl md:text-3xl font-bold text-green-500 mb-1">{formatCurrency(calculations.aiTotalOverall)}</div>
+                <div className="text-xs text-gray-600 mb-3">~{formatSmallCurrency(calculations.aiPerCandidate)} per qualified candidate</div>
+
+                {/* Embedded metrics */}
+                <div className="grid grid-cols-3 gap-1.5 mb-3">
+                  <div className="bg-white/70 rounded p-1.5 text-center">
+                    <div className="text-[10px] text-gray-500">CVs</div>
+                    <div className="text-sm font-bold text-green-600">{calculations.totalCvsOverall.toLocaleString()}</div>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-green-200">
-                    <span className="text-xs sm:text-sm">Interview Cost</span>
-                    <span className="text-xs sm:text-sm">{formatCurrency(calculations.aiInterviewCostTotal)}</span>
+                  <div className="bg-white/70 rounded p-1.5 text-center">
+                    <div className="text-[10px] text-gray-500">Interviews</div>
+                    <div className="text-sm font-bold text-green-600">{calculations.totalInterviews.toLocaleString()}</div>
                   </div>
-                  <div className="flex justify-between py-2 font-bold text-green-500 border-t-2 border-green-300 mt-2">
-                    <span className="text-xs sm:text-sm">Total Cost</span>
-                    <span className="text-xs sm:text-sm">{formatCurrency(calculations.aiTotalOverall)}</span>
+                  <div className="bg-white/70 rounded p-1.5 text-center">
+                    <div className="text-[10px] text-gray-500">Qualified</div>
+                    <div className="text-sm font-bold text-green-600">{calculations.totalQualified.toLocaleString()}</div>
                   </div>
+                </div>
+
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between py-1 border-b border-green-200">
+                    <span className="text-xs">CV Screening Cost</span>
+                    <span className="text-xs">{formatCurrency(calculations.aiCvCostTotal)}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-green-200">
+                    <span className="text-xs">Interview Cost</span>
+                    <span className="text-xs">{formatCurrency(calculations.aiInterviewCostTotal)}</span>
+                  </div>
+                  <div className="flex justify-between py-1 font-bold text-green-500 border-t-2 border-green-300 mt-1">
+                    <span className="text-xs">Total Cost</span>
+                    <span className="text-xs">{formatCurrency(calculations.aiTotalOverall)}</span>
+                  </div>
+                </div>
+                <div className="mt-2 text-[11px] text-green-600 bg-green-100 rounded p-1.5">
+                  Usage-based pricing — pay only for what you use
                 </div>
               </div>
             </div>
 
-            {/* Savings Container */}
-            <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl sm:rounded-2xl p-5 sm:p-8 text-white text-center shadow-lg">
-              <div className="text-base sm:text-lg font-semibold mb-2 sm:mb-3 flex items-center justify-center gap-2">
-                <PiggyBank className="w-5 h-5 sm:w-7 sm:h-7" />
-                Your Potential Savings with AI
-              </div>
-
-              <div className="text-2xl sm:text-3xl md:text-4xl font-bold mb-1 sm:mb-2">
-                {formatCurrency(calculations.savings)}
-              </div>
-              <div className="text-base sm:text-xl mb-4 sm:mb-6 opacity-90">
-                ({calculations.savingsPercentage}% cost reduction)
-              </div>
-
-              <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 sm:gap-6 mb-4 sm:mb-6 max-w-lg mx-auto">
-                <div className="bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/20">
-                  <div className="text-xs sm:text-sm mb-1 opacity-75">Monthly Savings</div>
-                  <div className="text-xl sm:text-2xl font-bold">{formatCurrency(calculations.monthlySavingsValue)}</div>
+            {/* Minimized Savings Strip */}
+            <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-xl p-3 sm:p-4 text-white shadow-md mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <PiggyBank className="w-5 h-5 flex-shrink-0" />
+                  <div>
+                    <div className="text-[11px] opacity-80 leading-tight">Potential Savings</div>
+                    <div className="text-lg sm:text-xl font-bold leading-tight">{formatCurrency(calculations.savings)}</div>
+                  </div>
                 </div>
-                <div className="bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/20">
-                  <div className="text-xs sm:text-sm mb-1 opacity-75">Scalability Factor</div>
-                  <div className="text-xl sm:text-2xl font-bold">{calculations.scalabilityFactor}</div>
+                <div className="bg-white/15 rounded-lg px-2 py-1 text-center min-w-[70px]">
+                  <div className="text-[10px] opacity-80">Reduction</div>
+                  <div className="text-sm font-bold">{calculations.savingsPercentage}%</div>
+                </div>
+                <div className="bg-white/15 rounded-lg px-2 py-1 text-center min-w-[70px]">
+                  <div className="text-[10px] opacity-80">Monthly</div>
+                  <div className="text-sm font-bold">{formatCurrency(calculations.monthlySavingsValue)}</div>
+                </div>
+                <div className="bg-white/15 rounded-lg px-2 py-1 text-center min-w-[70px]">
+                  <div className="text-[10px] opacity-80">Scale</div>
+                  <div className="text-sm font-bold">{calculations.scalabilityFactor}</div>
                 </div>
               </div>
-
             </div>
 
-            {/* AI Permanent Resource Advantages */}
-            <div className="mt-8">
-              <h3 className="text-lg font-bold text-emerald-600 text-center mb-6">AI Permanent Resource Advantages</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                <div className="bg-emerald-50 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center border border-emerald-100 hover:shadow-md transition-shadow">
-                  <div className="text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2">Knowledge Retention</div>
-                  <div className="text-xl sm:text-2xl md:text-3xl font-bold text-emerald-600">100%</div>
-                  <div className="text-xs text-gray-500">Zero knowledge loss</div>
+            {/* Compact Comparison Table */}
+            <div className="border border-gray-200 rounded-lg overflow-hidden mb-4">
+              <table className="w-full text-[11px] sm:text-xs">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-2 py-1.5 text-left font-bold text-red-600 border-b border-gray-200">Human Recruiter</th>
+                    <th className="px-2 py-1.5 text-left font-bold text-emerald-600 border-b border-gray-200">AI Recruiter</th>
+                  </tr>
+                </thead>
+                <tbody className="text-gray-700">
+                  <tr className="border-b border-gray-100">
+                    <td className="px-2 py-1.5">Works 8 hrs/day, 5 days/week</td>
+                    <td className="px-2 py-1.5">Works 24 hrs/day, 7 days/week</td>
+                  </tr>
+                  <tr className="border-b border-gray-100 bg-gray-50/50">
+                    <td className="px-2 py-1.5">Limited by recruiter availability</td>
+                    <td className="px-2 py-1.5">Always available</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="px-2 py-1.5">Screening starts when recruiter is available</td>
+                    <td className="px-2 py-1.5">Screening starts immediately upon application</td>
+                  </tr>
+                  <tr className="border-b border-gray-100 bg-gray-50/50">
+                    <td className="px-2 py-1.5">Hiring queues can build up</td>
+                    <td className="px-2 py-1.5">Processes candidates on demand</td>
+                  </tr>
+                  <tr>
+                    <td className="px-2 py-1.5">Capacity constrained</td>
+                    <td className="px-2 py-1.5">Scales instantly to any volume</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Plan Recommendation Card */}
+            <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl p-4 mb-4 border border-emerald-500/30">
+              {/* Header */}
+              <div className="flex items-center gap-2 mb-2">
+                <div className="bg-emerald-500 rounded-lg p-1.5 flex-shrink-0">
+                  <Bot className="w-4 h-4 text-white" />
                 </div>
-                <div className="bg-emerald-50 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center border border-emerald-100 hover:shadow-md transition-shadow">
-                  <div className="text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2">Scalability Factor</div>
-                  <div className="text-xl sm:text-2xl md:text-3xl font-bold text-emerald-600">{calculations.scalabilityFactor}</div>
-                  <div className="text-xs text-gray-500">Instant capacity increase</div>
+                <div>
+                  <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wide">AI recommends based on your ROI</div>
+                  <div className="text-white font-bold text-sm leading-tight">
+                    <span className="text-emerald-400">{calculations.recommendedPlan.name} Plan</span>
+                    <span className="text-slate-400 text-xs font-normal ml-2">
+                      — covers your {formatCurrency(calculations.aiTotalPerMonth)}/mo AI usage
+                    </span>
+                  </div>
                 </div>
-                <div className="bg-emerald-50 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center border border-emerald-100 hover:shadow-md transition-shadow">
-                  <div className="text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2">Uptime</div>
-                  <div className="text-xl sm:text-2xl md:text-3xl font-bold text-emerald-600">99.9%</div>
-                  <div className="text-xs text-gray-500">Always available</div>
+              </div>
+
+              {/* Why this plan */}
+              <div className="bg-white/5 rounded-lg p-2 mb-3 border border-white/10">
+                <p className="text-[10px] text-slate-300 leading-snug">
+                  <span className="text-emerald-300 font-semibold">Why {calculations.recommendedPlan.name}?</span> Your AI usage is {formatCurrency(calculations.aiTotalPerMonth)}/month. This plan's wallet includes {formatCurrency(calculations.recommendedPlan.monthly)}/month in credits, so all your CV screening and interview costs are covered with zero overages. Plus, you save {formatCurrency(calculations.savings)} vs human recruiters in this {months > 1 ? `${months}-month` : 'month-long'} period.
+                </p>
+              </div>
+
+              {/* Price tiles — clickable */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {/* Monthly */}
+                <Link href="/pricing">
+                  <div className="bg-white/5 border border-white/10 hover:border-white/30 hover:bg-white/10 rounded-lg p-2 cursor-pointer transition-all">
+                    <div className="text-[9px] text-slate-400 uppercase tracking-wide mb-1">Monthly</div>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-xl font-bold text-white">${calculations.recommendedPlan.monthly.toLocaleString()}</span>
+                      <span className="text-[10px] text-slate-400">/mo</span>
+                    </div>
+                    <div className="text-[9px] text-slate-500 mt-0.5">Billed monthly</div>
+                  </div>
+                </Link>
+                {/* Annual */}
+                <Link href="/pricing">
+                  <div className="bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-500/60 hover:bg-emerald-500/20 rounded-lg p-2 cursor-pointer transition-all">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-[9px] text-emerald-400 uppercase tracking-wide">Annual</div>
+                      <div className="bg-emerald-500 text-white text-[8px] font-bold px-1 py-0.5 rounded-full">
+                        Save {calculations.annualSavingsPct}%
+                      </div>
+                    </div>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-xl font-bold text-white">${calculations.annualMonthlyCost.toLocaleString()}</span>
+                      <span className="text-[10px] text-slate-400">/mo</span>
+                    </div>
+                    <div className="text-[9px] text-emerald-300 mt-0.5">
+                      ${calculations.recommendedPlan.annual.toLocaleString()}/yr
+                    </div>
+                  </div>
+                </Link>
+              </div>
+
+              {/* ROI payback + CTA */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[11px] text-slate-400 leading-snug">
+                  {calculations.paybackMonths === null ? (
+                    <span className="text-yellow-400">Plan cost exceeds human savings — review inputs</span>
+                  ) : calculations.paybackMonths < 1 ? (
+                    <span className="text-emerald-400">Pays back in <strong className="text-emerald-300">&lt; 1 month</strong> vs human recruiters</span>
+                  ) : (
+                    <span>Pays back in <strong className="text-emerald-300">~{Math.ceil(calculations.paybackMonths)} month{Math.ceil(calculations.paybackMonths) === 1 ? '' : 's'}</strong> vs human recruiters</span>
+                  )}
                 </div>
+                <Link href="/pricing" className="flex-shrink-0">
+                  <button className="bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                    See All Plans →
+                  </button>
+                </Link>
+              </div>
+            </div>
+
+            {/* AI Permanent Resource Advantages — compact 3-column */}
+            <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-4 grid grid-cols-3 gap-4">
+              <div className="text-center">
+                <div className="text-xs text-gray-600 mb-1">Knowledge Retention</div>
+                <div className="text-2xl font-bold text-emerald-600">100%</div>
+                <div className="text-[10px] text-gray-500 mt-1">Zero loss</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs text-gray-600 mb-1">Scalability</div>
+                <div className="text-2xl font-bold text-emerald-600">{calculations.scalabilityFactor}</div>
+                <div className="text-[10px] text-gray-500 mt-1">Instant scale</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs text-gray-600 mb-1">Uptime</div>
+                <div className="text-2xl font-bold text-emerald-600">99.9%</div>
+                <div className="text-[10px] text-gray-500 mt-1">Always on</div>
               </div>
             </div>
           </div>
@@ -757,13 +893,13 @@ export default function ROIPage() {
             <span>Why AI is Your Permanent Hiring Asset</span>
           </h3>
 
-          <div className="grid grid-cols-1 gap-4 sm:gap-6">
-            <div className="bg-gradient-to-br from-emerald-50 to-blue-50 p-4 sm:p-6 rounded-xl border-l-4 border-emerald-500 hover:shadow-md transition-shadow">
-              <h4 className="text-sm sm:text-base md:text-lg font-bold text-emerald-600 mb-2 sm:mb-4 flex items-center gap-2">
-                <Brain className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                Institutional Knowledge Retention
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="bg-emerald-50 p-3 sm:p-4 rounded-xl border-l-4 border-emerald-500 hover:shadow-md transition-shadow">
+              <h4 className="text-xs sm:text-sm font-bold text-emerald-600 mb-2 flex items-center gap-2">
+                <Brain className="w-4 h-4 flex-shrink-0" />
+                Knowledge Retention
               </h4>
-              <ul className="space-y-1 sm:space-y-2 text-gray-700 text-xs sm:text-sm">
+              <ul className="space-y-1 text-gray-700 text-xs">
                 <li><strong>Never loses expertise:</strong> Unlike human recruiters who leave, AI retains all hiring knowledge permanently</li>
                 <li><strong>Continuous learning:</strong> Gets smarter with every hire, understanding your company culture better over time</li>
                 <li><strong>Consistent standards:</strong> Maintains uniform evaluation criteria across all hiring cycles</li>
@@ -771,12 +907,12 @@ export default function ROIPage() {
               </ul>
             </div>
 
-            <div className="bg-gradient-to-br from-emerald-50 to-blue-50 p-4 sm:p-6 rounded-xl border-l-4 border-emerald-500 hover:shadow-md transition-shadow">
-              <h4 className="text-sm sm:text-base md:text-lg font-bold text-emerald-600 mb-2 sm:mb-4 flex items-center gap-2">
-                <Expand className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+            <div className="bg-emerald-50 p-3 sm:p-4 rounded-xl border-l-4 border-emerald-500 hover:shadow-md transition-shadow">
+              <h4 className="text-xs sm:text-sm font-bold text-emerald-600 mb-2 flex items-center gap-2">
+                <Expand className="w-4 h-4 flex-shrink-0" />
                 Instant Scalability
               </h4>
-              <ul className="space-y-1 sm:space-y-2 text-gray-700 text-xs sm:text-sm">
+              <ul className="space-y-1 text-gray-700 text-xs">
                 <li><strong>Handles volume spikes:</strong> Process 10 or 10,000 CVs with equal efficiency</li>
                 <li><strong>No hiring delays:</strong> No need to recruit and train additional human recruiters</li>
                 <li><strong>24/7 availability:</strong> Works nights, weekends, holidays without overtime pay</li>
@@ -784,12 +920,12 @@ export default function ROIPage() {
               </ul>
             </div>
 
-            <div className="bg-gradient-to-br from-emerald-50 to-blue-50 p-4 sm:p-6 rounded-xl border-l-4 border-emerald-500 hover:shadow-md transition-shadow">
-              <h4 className="text-sm sm:text-base md:text-lg font-bold text-emerald-600 mb-2 sm:mb-4 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                Continuous Cost Efficiency
+            <div className="bg-emerald-50 p-3 sm:p-4 rounded-xl border-l-4 border-emerald-500 hover:shadow-md transition-shadow">
+              <h4 className="text-xs sm:text-sm font-bold text-emerald-600 mb-2 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 flex-shrink-0" />
+                Cost Efficiency
               </h4>
-              <ul className="space-y-1 sm:space-y-2 text-gray-700 text-xs sm:text-sm">
+              <ul className="space-y-1 text-gray-700 text-xs">
                 <li><strong>Usage-based pricing:</strong> Pay only for what you use with no fixed overhead</li>
                 <li><strong>No turnover costs:</strong> Eliminates recruitment, training, and severance costs</li>
                 <li><strong>Predictable expenses:</strong> Simple per-CV and per-interview minute pricing</li>
@@ -797,12 +933,12 @@ export default function ROIPage() {
               </ul>
             </div>
 
-            <div className="bg-gradient-to-br from-emerald-50 to-blue-50 p-4 sm:p-6 rounded-xl border-l-4 border-emerald-500 hover:shadow-md transition-shadow">
-              <h4 className="text-sm sm:text-base md:text-lg font-bold text-emerald-600 mb-2 sm:mb-4 flex items-center gap-2">
-                <Shield className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                Risk Mitigation & Compliance
+            <div className="bg-emerald-50 p-3 sm:p-4 rounded-xl border-l-4 border-emerald-500 hover:shadow-md transition-shadow">
+              <h4 className="text-xs sm:text-sm font-bold text-emerald-600 mb-2 flex items-center gap-2">
+                <Shield className="w-4 h-4 flex-shrink-0" />
+                Risk & Compliance
               </h4>
-              <ul className="space-y-1 sm:space-y-2 text-gray-700 text-xs sm:text-sm">
+              <ul className="space-y-1 text-gray-700 text-xs">
                 <li><strong>Reduced bias:</strong> Consistent, objective evaluations minimize discrimination risks</li>
                 <li><strong>Audit trail:</strong> Complete documentation of all hiring decisions</li>
                 <li><strong>Compliance adherence:</strong> Always follows configured hiring policies and regulations</li>
@@ -812,28 +948,28 @@ export default function ROIPage() {
           </div>
 
           {/* Scalability Demonstration */}
-          <div className="bg-gradient-to-r from-emerald-50 to-blue-50 rounded-xl p-4 sm:p-6 mt-4 sm:mt-8 border-2 border-dashed border-emerald-300">
-            <h4 className="font-bold text-emerald-600 mb-2 sm:mb-3 flex items-center gap-2 text-sm sm:text-base">
-              <Rocket className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-              Scalability Demonstration
+          <div className="bg-emerald-50 rounded-lg p-3 mt-4 border border-emerald-300">
+            <h4 className="font-bold text-emerald-600 mb-2 flex items-center gap-1.5 text-xs">
+              <Rocket className="w-3.5 h-3.5 flex-shrink-0" />
+              Scalability Demo
             </h4>
-            <p className="text-gray-600 mb-3 sm:mb-4 text-xs sm:text-sm">
+            <p className="text-gray-600 mb-2 text-[11px]">
               Try adjusting the "Number of Job Postings" slider above to see how AI instantly scales with increased demand while maintaining cost efficiency.
             </p>
-            
-            <div className="grid grid-cols-1 gap-3 sm:gap-4">
-              <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm">
-                <strong className="text-emerald-600 text-xs sm:text-sm">AI Response to 10x Volume Increase:</strong>
-                <ul className="mt-1 sm:mt-2 text-xs text-gray-600">
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white p-2 rounded-lg shadow-sm">
+                <strong className="text-emerald-600 text-[11px]">AI Response:</strong>
+                <ul className="mt-1 text-[10px] text-gray-600 space-y-0.5">
                   <li>• Instant capacity adjustment</li>
                   <li>• No quality degradation</li>
                   <li>• Linear cost scaling only</li>
                 </ul>
               </div>
-              <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm">
-                <strong className="text-red-500 text-xs sm:text-sm">Human Response to 10x Volume Increase:</strong>
-                <ul className="mt-1 sm:mt-2 text-xs text-gray-600">
-                  <li>• 3-6 month hiring/training delay</li>
+              <div className="bg-white p-2 rounded-lg shadow-sm">
+                <strong className="text-red-500 text-[11px]">Human Response:</strong>
+                <ul className="mt-1 text-[10px] text-gray-600 space-y-0.5">
+                  <li>• 3-6 month hiring delay</li>
                   <li>• Quality consistency issues</li>
                   <li>• Exponential cost increases</li>
                 </ul>
@@ -843,28 +979,28 @@ export default function ROIPage() {
         </div>
 
         {/* Explanation Section */}
-        <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-8 shadow-lg mb-6 sm:mb-8 border border-gray-100">
-          <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-emerald-600 mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
-            <Info className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-500 flex-shrink-0" />
+        <div className="bg-white rounded-xl p-4 shadow-lg mb-4 border border-gray-100">
+          <h3 className="text-base sm:text-lg font-bold text-emerald-600 mb-3 flex items-center gap-2">
+            <Info className="w-5 h-5 text-emerald-500 flex-shrink-0" />
             <span>How This Calculator Works</span>
           </h3>
-          
+
           <p className="text-gray-700 mb-3 sm:mb-4 leading-relaxed text-xs sm:text-sm">
-            This calculator compares the costs of using human recruiters versus an AI-powered recruitment system that becomes your permanent hiring asset.
+            This calculator compares the total cost of human recruiters versus an AI-powered recruitment system.
           </p>
-          
+
           <p className="text-gray-700 mb-3 sm:mb-4 leading-relaxed text-xs sm:text-sm">
-            <strong className="text-emerald-600">Key Value Proposition:</strong> The AI recruiter isn't just a tool - it's a permanent member of your team that never leaves, continuously improves, and instantly scales with your needs.
+            <strong className="text-emerald-600">Human Recruiter Cost Model:</strong> Calculated as a fixed salary cost — you pay recruiters regardless of volume. Formula: Recruiters × Rate × Hours/day × Days/week × 4.33 weeks × 1.3 (benefits) × 1.15 (turnover overhead).
           </p>
-          
+
           <p className="text-gray-700 mb-3 sm:mb-4 leading-relaxed text-xs sm:text-sm">
-            <strong className="text-emerald-600">Human Recruiter Hidden Costs:</strong> The model accounts for full costs including salary, benefits, training time, and turnover costs.
+            <strong className="text-emerald-600">AI Cost Model:</strong> Pure pay-per-use — {formatSmallCurrency(aiCvCost)}/CV screened + {formatSmallCurrency(aiInterviewCost)}/minute of interview. Prices reflect actual platform pricing from configuration.
           </p>
-          
+
           <p className="text-gray-700 mb-4 sm:mb-6 leading-relaxed text-xs sm:text-sm">
-            <strong className="text-emerald-600">AI Permanent Advantages:</strong> Beyond direct cost savings, the AI provides continuous knowledge accumulation, instant scalability, and 24/7 availability.
+            <strong className="text-emerald-600">Shared Parameters:</strong> Shortlist rate, interview duration, and qualification rate are identical for both sides — ensuring a fair, apples-to-apples comparison.
           </p>
-          
+
           <div className="bg-emerald-50 border-l-4 border-emerald-500 p-3 sm:p-5 rounded-r-lg">
             <p className="text-gray-700 italic text-xs sm:text-sm">
               <strong className="text-emerald-600">Strategic Insight:</strong> AI handles the scalable, repetitive tasks of initial screening and interviewing, while human recruiters provide interpersonal skills for final decisions.
