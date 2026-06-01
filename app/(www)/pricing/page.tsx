@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import Navbar from "@/components/layout/Navbar"
 import Footer from "@/components/layout/Footer"
 import { getAppUrl } from "@/lib/domain-config"
@@ -391,26 +392,26 @@ export default function PricingPage() {
       )}
 
       {/* ── Header ── */}
-      <section className="sr-hero-bg py-16 text-center px-4">
-        <span className="inline-block text-xs font-bold tracking-widest uppercase text-emerald-700 bg-emerald-50 border border-emerald-200 px-5 py-1.5 rounded-full mb-6">
+      <section className="sr-hero-bg py-11 text-center px-4">
+        <span className="inline-block text-xs font-bold tracking-widest uppercase text-emerald-700 bg-emerald-50 border border-emerald-200 px-5 py-1.5 rounded-full mb-4">
           ⚡ AI Recruiting OS · Full ATS + AI Interview
         </span>
-        <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-800 leading-tight tracking-tight mb-4">
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-800 leading-tight tracking-tight mb-3">
           Simple, transparent pricing.<br />
           <span className="sr-text-gradient">Pay for what you use.</span>
         </h1>
-        <p className="text-slate-500 text-lg max-w-2xl mx-auto mb-5">
+        <p className="text-slate-500 text-base max-w-2xl mx-auto mb-4">
           All paid plans include <strong className="text-slate-700">every ATS feature</strong> — Dashboard, Job Listings,
           Talent Pool, Application List, Delegation, Feedback, and full analytics.<br />
           <span className="text-slate-600">No hidden user limits. Only support level &amp; usage caps change.</span>
         </p>
-        <div className="inline-flex items-center gap-2 bg-white border border-gray-200 shadow-sm text-slate-600 text-sm font-semibold px-5 py-2 rounded-full">
+        <div className="inline-flex items-center gap-2 bg-white border border-gray-200 shadow-sm text-slate-600 text-sm font-semibold px-4 py-2 rounded-full">
           🧑‍🤝‍🧑 Unlimited team members on every paid plan — invite your whole recruiting team.
         </div>
       </section>
 
       {/* ── Billing toggle ── */}
-      <div className="flex justify-center pt-10 pb-3">
+      <div className="flex justify-center pt-8 pb-1">
         <div className="inline-flex bg-gray-100 rounded-full p-1 gap-1">
           <button
             onClick={() => setBilling('monthly')}
@@ -439,17 +440,22 @@ export default function PricingPage() {
       </div>
 
       {isAnnual && (
-        <p className="text-center text-sm font-medium text-emerald-700 pb-2 px-4">
+        <p className="text-center text-sm font-medium text-emerald-700 pb-1 px-4 pt-1">
           📅 Annual: pay for 10 months · stay active for 12 · wallet credits &amp; usage increase by 20%
         </p>
       )}
 
       {/* ── 6 Pricing cards ── */}
-      <section className="px-4 py-10 max-w-[1380px] mx-auto">
-        {/* All-plans feature banner */}
-        <p className="text-center text-sm text-slate-400 mb-6">
-          ✓ All plans include full ATS · Unlimited team members · Same features — only usage volume and support tier differ
-        </p>
+      <section className="px-4 py-6 max-w-[1380px] mx-auto">
+        {/* ROI Assessment CTA */}
+        <div className="text-center mb-4 pb-3 border-b border-gray-200">
+          <p className="text-slate-600 text-sm mb-1">
+            Not sure which package is right for you?
+          </p>
+          <p className="text-slate-700 font-semibold text-sm">
+            Take our <Link href="/roi" className="text-emerald-600 hover:text-emerald-700 underline">ROI Assessment</Link> to receive a personalized recommendation based on your hiring volume, recruitment costs, and expected savings.
+          </p>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
           {PLANS.map((plan) => {
