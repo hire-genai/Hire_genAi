@@ -1,0 +1,90 @@
+name: Playwright E2E Tests
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  test:
+    name: E2E Tests (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ matrix.browser }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-${{ matrix.browser }}-
+
+      - name: Install Playwright browsers with deps
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+
+      - name: Install Playwright system deps only (cached browsers)
+        run: npx playwright install-deps ${{ matrix.browser }}
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+
+      - name: Run Playwright tests
+        run: npm run test:ci
+        env:
+          CI: true
+          NODE_ENV: test
+          BASE_URL: http://localhost:3000
+          # ── Database ──────────────────────────────────────────────────────────
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          # ── OpenAI ────────────────────────────────────────────────────────────
+          OPENAI_ADMIN_KEY: ${{ secrets.OPENAI_ADMIN_KEY || 'sk-test-placeholder' }}
+          OPENAI_ORG_ID: ${{ secrets.OPENAI_ORG_ID || 'org-placeholder' }}
+          # ── Payments ──────────────────────────────────────────────────────────
+          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID || 'rzp_test_placeholder' }}
+          RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET || 'placeholder_razorpay_secret' }}
+          # ── Email ─────────────────────────────────────────────────────────────
+          SMTP_HOST: ${{ secrets.SMTP_HOST || 'localhost' }}
+          SMTP_PORT: '587'
+          SMTP_USER: ${{ secrets.SMTP_USER || 'test@example.com' }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS || 'placeholder_smtp_pass' }}
+          # ── Encryption ────────────────────────────────────────────────────────
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY || 'dGVzdC1lbmNyeXB0aW9uLWtleS0zMi1ieXRlcw==' }}
+          # ── Azure ─────────────────────────────────────────────────────────────
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY || 'placeholder' }}
+          # ── Blob ──────────────────────────────────────────────────────────────
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN || 'placeholder' }}
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload videos and screenshots on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results-${{ matrix.browser }}
+          path: test-results/
+          retention-days: 7

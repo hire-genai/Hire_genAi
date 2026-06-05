@@ -208,11 +208,12 @@ export default function ContactPage() {
                   </div>
 
                   <div className="flex items-center gap-2.5">
-                    <Checkbox
+                    <input
+                      type="checkbox"
                       id="terms"
                       checked={agreed}
-                      onCheckedChange={(checked) => setAgreed(checked as boolean)}
-                      className="flex-shrink-0"
+                      onChange={(e) => setAgreed(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-600 flex-shrink-0 cursor-pointer"
                     />
                     <Label htmlFor="terms" className="text-sm text-slate-600 cursor-pointer">
                       I agree to the <Link href="/terms" className="text-emerald-600 hover:underline">Terms & Conditions</Link> and <Link href="/privacy" className="text-emerald-600 hover:underline">Privacy Policy</Link>

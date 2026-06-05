@@ -49,13 +49,30 @@ export default function ROIPage() {
   const [recruiterCount, setRecruiterCount] = useState(1)
   const [cvsPerReq, setCvsPerReq] = useState(100)
   const [shortlistRate, setShortlistRate] = useState(15)
-  const [qualRate, setQualRate] = useState(80)
+  const [qualRate, setQualRate] = useState(15)
   const [hourlyRate, setHourlyRate] = useState(30)
   const [workDays, setWorkDays] = useState(5)
   const [dailyHours, setDailyHours] = useState(6)
   const [otherOpen, setOtherOpen] = useState(false)
   const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly')
   const router = useRouter()
+
+  // Default values for blur restoration
+  const DEFAULTS = { recruiterCount: 1, cvsPerReq: 100, shortlistRate: 15, qualRate: 15, hourlyRate: 30, workDays: 5, dailyHours: 6 }
+
+  // Safe onChange: allow empty values during typing, restore on blur
+  const handleInputChange = (value: string, setter: (v: number) => void, allowFloat = false) => {
+    if (value === '') {
+      setter(NaN) // Allow empty state during typing
+      return
+    }
+    const num = allowFloat ? parseFloat(value) : parseInt(value)
+    if (!isNaN(num)) setter(num)
+  }
+
+  const handleInputBlur = (value: number, setter: (v: number) => void, defaultVal: number) => {
+    if (isNaN(value) || value === 0) setter(defaultVal) // Restore default only on blur if empty
+  }
 
   const jdVolume = recruiterCount * 5
 
@@ -153,7 +170,15 @@ export default function ROIPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Recruiters</label>
-              <input type="number" value={recruiterCount} min={1} max={50} onChange={e => setRecruiterCount(parseInt(e.target.value) || 1)} className="w-full px-2.5 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-emerald-500 focus:outline-none" />
+              <input
+                type="number"
+                value={isNaN(recruiterCount) ? '' : recruiterCount}
+                min={1}
+                max={50}
+                onChange={e => handleInputChange(e.target.value, setRecruiterCount)}
+                onBlur={() => handleInputBlur(recruiterCount, setRecruiterCount, DEFAULTS.recruiterCount)}
+                className="w-full px-2.5 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-emerald-500 focus:outline-none"
+              />
               <p className="text-[9px] text-gray-400 mt-0.5">× 5 JDs/mo</p>
             </div>
             <div>
@@ -163,27 +188,80 @@ export default function ROIPage() {
             </div>
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">CVs / Req</label>
-              <input type="number" value={cvsPerReq} min={10} max={500} step={10} onChange={e => setCvsPerReq(parseInt(e.target.value) || 10)} className="w-full px-2.5 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-emerald-500 focus:outline-none" />
+              <input
+                type="number"
+                value={isNaN(cvsPerReq) ? '' : cvsPerReq}
+                min={10}
+                max={500}
+                step={10}
+                onChange={e => handleInputChange(e.target.value, setCvsPerReq)}
+                onBlur={() => handleInputBlur(cvsPerReq, setCvsPerReq, DEFAULTS.cvsPerReq)}
+                className="w-full px-2.5 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-emerald-500 focus:outline-none"
+              />
             </div>
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Shortlist %</label>
-              <input type="number" value={shortlistRate} min={1} max={100} step={5} onChange={e => setShortlistRate(parseInt(e.target.value) || 1)} className="w-full px-2.5 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-emerald-500 focus:outline-none" />
+              <input
+                type="number"
+                value={isNaN(shortlistRate) ? '' : shortlistRate}
+                min={1}
+                max={100}
+                step={5}
+                onChange={e => handleInputChange(e.target.value, setShortlistRate)}
+                onBlur={() => handleInputBlur(shortlistRate, setShortlistRate, DEFAULTS.shortlistRate)}
+                className="w-full px-2.5 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-emerald-500 focus:outline-none"
+              />
             </div>
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Qualified %</label>
-              <input type="number" value={qualRate} min={1} max={100} step={5} onChange={e => setQualRate(parseInt(e.target.value) || 1)} className="w-full px-2.5 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-emerald-500 focus:outline-none" />
+              <input
+                type="number"
+                value={isNaN(qualRate) ? '' : qualRate}
+                min={1}
+                max={100}
+                step={5}
+                onChange={e => handleInputChange(e.target.value, setQualRate)}
+                onBlur={() => handleInputBlur(qualRate, setQualRate, DEFAULTS.qualRate)}
+                className="w-full px-2.5 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-emerald-500 focus:outline-none"
+              />
             </div>
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Hourly Rate $</label>
-              <input type="number" value={hourlyRate} min={5} max={500} step={5} onChange={e => setHourlyRate(parseInt(e.target.value) || 5)} className="w-full px-2.5 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-emerald-500 focus:outline-none" />
+              <input
+                type="number"
+                value={isNaN(hourlyRate) ? '' : hourlyRate}
+                min={5}
+                max={500}
+                step={5}
+                onChange={e => handleInputChange(e.target.value, setHourlyRate)}
+                onBlur={() => handleInputBlur(hourlyRate, setHourlyRate, DEFAULTS.hourlyRate)}
+                className="w-full px-2.5 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-emerald-500 focus:outline-none"
+              />
             </div>
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Days / Week</label>
-              <input type="number" value={workDays} min={1} max={7} onChange={e => setWorkDays(parseInt(e.target.value) || 1)} className="w-full px-2.5 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-emerald-500 focus:outline-none" />
+              <input
+                type="number"
+                value={isNaN(workDays) ? '' : workDays}
+                min={1}
+                max={7}
+                onChange={e => handleInputChange(e.target.value, setWorkDays)}
+                onBlur={() => handleInputBlur(workDays, setWorkDays, DEFAULTS.workDays)}
+                className="w-full px-2.5 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-emerald-500 focus:outline-none"
+              />
             </div>
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Hours / Day</label>
-              <input type="number" value={dailyHours} min={1} max={16} step={0.5} onChange={e => setDailyHours(parseFloat(e.target.value) || 1)} className="w-full px-2.5 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-emerald-500 focus:outline-none" />
+              <input
+                type="number"
+                value={isNaN(dailyHours) ? '' : dailyHours}
+                min={1}
+                max={16}
+                step={0.5}
+                onChange={e => handleInputChange(e.target.value, setDailyHours, true)}
+                onBlur={() => handleInputBlur(dailyHours, setDailyHours, DEFAULTS.dailyHours)}
+                className="w-full px-2.5 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-emerald-500 focus:outline-none"
+              />
             </div>
           </div>
           <div className="mt-3 bg-emerald-50 text-emerald-700 text-xs px-3 py-2 rounded-lg inline-block">
