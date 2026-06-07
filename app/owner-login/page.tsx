@@ -78,7 +78,7 @@ export default function OwnerLoginPage() {
       } else {
         setSuccess("Login successful! Redirecting...")
         setTimeout(() => {
-          router.push("/admin-hiregenai/overview")
+          router.push(data.redirect || "/admin-hiregenai/overview")
         }, 1500)
       }
     } catch (err) {

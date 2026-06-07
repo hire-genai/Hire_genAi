@@ -954,9 +954,10 @@ test.describe("Company Onboarding Flow", () => {
         });
       });
 
-      // Navigate with ?plan=professional&billing=monthly
+      // Navigate with ?plan=professional&billing=monthly, then run the form
+      // without re-navigating so the plan/billing params are preserved in state
       await signupPage.goto({ plan: "professional", billing: "monthly" });
-      await signupPage.fullSignup(VALID_SIGNUP);
+      await signupPage.fullSignup(VALID_SIGNUP, { skipGoto: true });
 
       expect(signupPayload.planName).toBe("professional");
       expect(signupPayload.billing).toBe("monthly");

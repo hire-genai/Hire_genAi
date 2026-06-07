@@ -53,6 +53,8 @@ export async function GET(req: NextRequest) {
         c.id as company_id,
         c.name as company_name,
         COALESCE(app_counts.interview_count, 0) as interview_count,
+        COALESCE(all_apps.application_count, 0) as application_count,
+        COALESCE(cv_cnt.cv_count, 0) as cv_parsed_count,
         COALESCE(cv_costs.total, 0) as cv_cost,
         COALESCE(qg_costs.total, 0) as questions_cost,
         COALESCE(vi_costs.total, 0) as video_cost
@@ -64,6 +66,16 @@ export async function GET(req: NextRequest) {
         JOIN interviews i ON i.application_id = a.id
         GROUP BY a.job_id
        ) app_counts ON app_counts.job_id = jp.id
+       LEFT JOIN (
+        SELECT job_id, COUNT(*) as application_count
+        FROM applications
+        GROUP BY job_id
+       ) all_apps ON all_apps.job_id = jp.id
+       LEFT JOIN (
+        SELECT job_id, COUNT(*) as cv_count
+        FROM cv_parsing_usage
+        GROUP BY job_id
+       ) cv_cnt ON cv_cnt.job_id = jp.id
        LEFT JOIN (
         SELECT job_id, SUM(cost) as total FROM cv_parsing_usage GROUP BY job_id
        ) cv_costs ON cv_costs.job_id = jp.id
@@ -84,7 +96,9 @@ export async function GET(req: NextRequest) {
       status: r.status,
       companyId: r.company_id,
       companyName: r.company_name || "Unknown",
-      interviewCount: parseInt(r.interview_count || "0"),
+      interviewCount: Number(r.interview_count ?? 0),
+      applicationCount: Number(r.application_count ?? 0),
+      cvParsedCount: Number(r.cv_parsed_count ?? 0),
       cvCost: parseFloat(r.cv_cost || "0"),
       questionsCost: parseFloat(r.questions_cost || "0"),
       videoCost: parseFloat(r.video_cost || "0"),

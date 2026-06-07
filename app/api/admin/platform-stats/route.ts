@@ -127,11 +127,52 @@ export async function GET(req: NextRequest) {
       alerts = alertRows as any[]
     } catch { /* table may not exist yet */ }
 
-    // Platform stats
+    // Platform stats (all-time counts)
     const companyCount = await DatabaseService.query(`SELECT COUNT(*) as count FROM companies`)
     const userCount = await DatabaseService.query(`SELECT COUNT(*) as count FROM users`)
     const jobCount = await DatabaseService.query(`SELECT COUNT(*) as count FROM job_postings WHERE status = 'open'`)
     const interviewCount = await DatabaseService.query(`SELECT COUNT(*) as count FROM interviews WHERE interview_status = 'Completed'`)
+
+    // New companies in selected period
+    const newCompanyRows = await DatabaseService.query(
+      `SELECT COUNT(*) as count FROM companies WHERE created_at >= $1 AND created_at <= $2`,
+      [startDate + " 00:00:00", endDate + " 23:59:59"]
+    )
+
+    // Per-feature usage breakdown in selected period
+    const cvRows = await DatabaseService.query(
+      `SELECT COUNT(*) as count, COALESCE(SUM(cost), 0) as cost
+       FROM cv_parsing_usage WHERE created_at >= $1 AND created_at <= $2`,
+      [startDate + " 00:00:00", endDate + " 23:59:59"]
+    )
+    const qgRows = await DatabaseService.query(
+      `SELECT COUNT(*) as count, COALESCE(SUM(cost), 0) as cost
+       FROM question_generation_usage WHERE created_at >= $1 AND created_at <= $2`,
+      [startDate + " 00:00:00", endDate + " 23:59:59"]
+    )
+    const viRows = await DatabaseService.query(
+      `SELECT COUNT(*) as count, COALESCE(SUM(cost), 0) as cost,
+              COALESCE(SUM(duration_minutes), 0) as minutes
+       FROM video_interview_usage WHERE created_at >= $1 AND created_at <= $2`,
+      [startDate + " 00:00:00", endDate + " 23:59:59"]
+    )
+
+    // Top companies by spend in period
+    const topCompanyRows = await DatabaseService.query(
+      `SELECT c.name, COALESCE(SUM(u.cost), 0) as total_spend
+       FROM companies c
+       JOIN (
+         SELECT company_id, cost, created_at FROM cv_parsing_usage WHERE created_at >= $1 AND created_at <= $2
+         UNION ALL
+         SELECT company_id, cost, created_at FROM question_generation_usage WHERE created_at >= $1 AND created_at <= $2
+         UNION ALL
+         SELECT company_id, cost, created_at FROM video_interview_usage WHERE created_at >= $1 AND created_at <= $2
+       ) u ON u.company_id = c.id
+       GROUP BY c.id, c.name
+       ORDER BY total_spend DESC
+       LIMIT 5`,
+      [startDate + " 00:00:00", endDate + " 23:59:59"]
+    )
 
     return NextResponse.json({
       ok: true,
@@ -148,7 +189,27 @@ export async function GET(req: NextRequest) {
         users: parseInt((userCount[0] as any)?.count || "0"),
         openJobs: parseInt((jobCount[0] as any)?.count || "0"),
         completedInterviews: parseInt((interviewCount[0] as any)?.count || "0"),
+        newCompanies: parseInt((newCompanyRows[0] as any)?.count || "0"),
       },
+      usageBreakdown: {
+        cvParses: {
+          count: parseInt((cvRows[0] as any)?.count || "0"),
+          cost: parseFloat((cvRows[0] as any)?.cost || "0"),
+        },
+        questions: {
+          count: parseInt((qgRows[0] as any)?.count || "0"),
+          cost: parseFloat((qgRows[0] as any)?.cost || "0"),
+        },
+        videoInterviews: {
+          count: parseInt((viRows[0] as any)?.count || "0"),
+          cost: parseFloat((viRows[0] as any)?.cost || "0"),
+          minutes: parseFloat((viRows[0] as any)?.minutes || "0"),
+        },
+      },
+      topCompanies: (topCompanyRows as any[]).map(r => ({
+        name: r.name,
+        spend: parseFloat(r.total_spend || "0"),
+      })),
       trend,
       alerts,
     })

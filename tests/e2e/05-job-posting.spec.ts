@@ -494,10 +494,11 @@ test.describe("Job Posting — Positive Scenarios", () => {
     await jobsPage.openNewJobForm();
     await jobsPage.expectFormVisible();
 
-    // Fill required fields
+    // Fill required fields — advance to Step 2 before filling description
     await jobsPage.fillJobTitle(newJobTitle);
     await jobsPage.fillLocation("Austin, TX");
     await jobsPage.fillExperienceYears("3");
+    await jobsPage.nextStep();
     await jobsPage.fillJobDescription(
       "Develop and maintain automated test suites for our web application."
     );
@@ -568,12 +569,13 @@ test.describe("Job Posting — Positive Scenarios", () => {
     // Confirm initial listing does NOT yet have the new job
     const initialCount = await jobsPage.getJobCardCount();
 
-    // Open form and fill required fields
+    // Open form and fill required fields — advance to Step 2 before description
     await jobsPage.openNewJobForm();
     await jobsPage.expectFormVisible();
     await jobsPage.fillJobTitle(newJobTitle);
     await jobsPage.fillLocation("Seattle, WA");
     await jobsPage.fillExperienceYears("4");
+    await jobsPage.nextStep();
     await jobsPage.fillJobDescription("Manage CI/CD pipelines and cloud infrastructure.");
     await jobsPage.fillRequiredSkills("Kubernetes, Terraform, AWS");
     await jobsPage.publishJob();
@@ -947,11 +949,12 @@ test.describe("Job Posting — Negative Scenarios", () => {
     await jobsPage.openNewJobForm();
     await jobsPage.expectFormVisible();
 
-    // Fill an excessively long title (300 chars)
+    // Fill an excessively long title (300 chars) — advance to Step 2 before description
     const longTitle = "A".repeat(300);
     await jobsPage.fillJobTitle(longTitle);
     await jobsPage.fillLocation("Chicago, IL");
     await jobsPage.fillExperienceYears("2");
+    await jobsPage.nextStep();
     await jobsPage.fillJobDescription("A job description for validation testing.");
     await jobsPage.fillRequiredSkills("Java, Spring Boot");
 
@@ -1019,10 +1022,11 @@ test.describe("Job Posting — Negative Scenarios", () => {
     await jobsPage.openNewJobForm();
     await jobsPage.expectFormVisible();
 
-    // Fill required fields
+    // Fill required fields — advance to Step 2 before description
     await jobsPage.fillJobTitle("Backend Developer");
     await jobsPage.fillLocation("Denver, CO");
     await jobsPage.fillExperienceYears("3");
+    await jobsPage.nextStep();
     await jobsPage.fillJobDescription("Build scalable backend services.");
     await jobsPage.fillRequiredSkills("Node.js, PostgreSQL");
 

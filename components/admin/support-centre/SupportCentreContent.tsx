@@ -263,7 +263,7 @@ export default function SupportCentreContent({
                     <p className="text-xs text-slate-400">View and respond to customer support requests</p>
                   </div>
                 </div>
-                <Link href="/support-hiregenai/admin">
+                <Link href="/admin-hiregenai/support-centre">
                   <Button className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2">
                     Open Support
                     <ArrowRight className="h-4 w-4" />
@@ -369,7 +369,7 @@ export default function SupportCentreContent({
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-2">
-                              <Link href="/support-hiregenai/admin">
+                              <Link href="/admin-hiregenai/support-centre">
                                 <Button size="sm" variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700">
                                   <Eye className="h-3 w-3 mr-1" />
                                   View

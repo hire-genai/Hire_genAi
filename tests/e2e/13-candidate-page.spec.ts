@@ -425,8 +425,9 @@ test.describe('Candidate Page — Resume Preview', () => {
 
   test('7.1 Resume link visible for candidates with resumeUrl', async ({ page }) => {
     await setup(page)
-    // Alice has a resumeUrl — should show a Resume or PDF link/button
-    const resumeLink = page.getByText(/Resume|View CV|PDF/i).first()
+    // Alice has a resumeUrl — the Resume button uses an img icon with an accessible name,
+    // not visible text, so match via role rather than text content.
+    const resumeLink = page.getByRole('button', { name: /Resume/i }).first()
     await expect(resumeLink).toBeVisible({ timeout: 5000 })
   })
 

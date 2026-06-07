@@ -1036,15 +1036,18 @@ test.describe("ROI Calculator & Pricing Integration", () => {
       }
     });
 
-    test("Pricing page CTA for Enterprise plan links to /contact", async ({ page }) => {
+    test("Pricing page CTA for Enterprise plan goes to signup like other plans", async ({ page }) => {
       await page.goto(PRICING_URL, { waitUntil: "domcontentloaded" });
 
-      // Click the Enterprise CTA
-      const enterpriseCta = page.locator('button').filter({ hasText: /Talk to Sales/ }).first();
-      await expect(enterpriseCta).toBeVisible();
+      // Switch to monthly for deterministic plan param
+      await page.getByRole("button", { name: /^Monthly$/i }).click();
+
+      // Enterprise now uses the same Stripe checkout flow as other plans
+      const enterpriseCta = page.locator('button').filter({ hasText: /Choose Enterprise/ }).first();
+      await expect(enterpriseCta).toBeVisible({ timeout: 10_000 });
       await enterpriseCta.click();
 
-      await expect(page).toHaveURL(/\/contact/, { timeout: 10_000 });
+      await expect(page).toHaveURL(/\/signup/, { timeout: 10_000 });
     });
 
     test("ROI page Get Started CTA uses billing param from toggle", async ({ page }) => {

@@ -50,27 +50,29 @@ async function mockBookingAPIs(page: Page, bookingSuccess = true) {
 
 /** Navigate to a future date on the calendar and select a time slot */
 async function selectDateAndTime(page: Page) {
-  // Navigate to the next month (find calendar nav button containing ChevronRight icon)
-  // Use aria-label or position to avoid picking up other chevrons
-  const nextBtn = page.locator('button').filter({ has: page.locator('[class*="lucide-chevron-right"]') }).first()
-  const nextBtnFallback = page.getByRole('button').nth(2) // 3rd button is typically next-month
-  await (await nextBtn.isVisible().catch(() => false) ? nextBtn : nextBtnFallback).click()
-  await page.waitForTimeout(300)
+  // The next-month button is the last button inside the flex row that also contains the h3
+  // month heading (structure: [prev-btn][h3 heading][next-btn]).
+  // Locate via the heading's parent to avoid any navbar button index assumptions.
+  const monthHeadingRow = page
+    .locator('h3')
+    .filter({ hasText: /\w+ \d{4}/ })
+    .first()
+    .locator('..')  // parent div (the calendar nav row)
+  await monthHeadingRow.locator('button').last().click()
+  await page.waitForTimeout(500)
 
-  // Click day 15 — always future in next month, avoids day-10 edge cases
-  await page.getByRole('button', { name: /^15$/ }).first().click()
-  await page.waitForTimeout(300)
+  // Click day 15 — always a future date in next month
+  await page.getByRole('button', { name: '15', exact: true }).first().click()
+  await page.waitForTimeout(500)
 
-  // Wait for time slots to appear (fetchBookedSlots must complete)
-  // Try 9:00am first, fall back to first available slot
-  const slot9am = page.getByRole('button', { name: /^9:00am$/ })
-  const hasSlot = await slot9am.isVisible({ timeout: 8000 }).catch(() => false)
+  // Wait for time slot buttons (format: "9:00am", "9:30am", etc.)
+  const slot9am = page.getByRole('button', { name: '9:00am', exact: true })
+  const hasSlot = await slot9am.isVisible({ timeout: 8_000 }).catch(() => false)
   if (hasSlot) {
     await slot9am.click()
   } else {
-    // Click the first time slot button (any format like "9:00am", "10:00am" etc.)
     const anySlot = page.locator('button').filter({ hasText: /^\d+:\d+(am|pm)$/ }).first()
-    await anySlot.waitFor({ state: 'visible', timeout: 5000 })
+    await anySlot.waitFor({ state: 'visible', timeout: 8_000 })
     await anySlot.click()
   }
   await page.waitForTimeout(200)

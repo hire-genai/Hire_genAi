@@ -417,6 +417,12 @@ async function openWizardAtStep2(
   jobsPage: JobsPage,
   title: string = "Senior React Developer"
 ): Promise<void> {
+  // Dismiss any overlay left open by a previous test before opening fresh wizard
+  const staleOverlay = page.locator('div.fixed.inset-0')
+  if (await staleOverlay.isVisible({ timeout: 500 }).catch(() => false)) {
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(300)
+  }
   await jobsPage.openNewJobForm();
   await jobsPage.expectFormVisible();
 
@@ -548,10 +554,13 @@ test.describe("JD Creation — Positive Scenarios", () => {
       timeout: 10_000,
     });
 
-    // Step 1 input fields should be immediately focusable
+    // Step 1 input fields should be immediately focusable.
+    // Use jobsPage.jobTitleInput (placeholder "e.g. Senior Full Stack Developer")
+    // as the canonical title field — it's the same element, just more specific.
     const titleInput = page
       .locator(
-        "input[name='jobTitle'], input[id='jobTitle'], input[placeholder*='Job Title' i]"
+        "input[name='jobTitle'], input[id='jobTitle'], " +
+        "input[placeholder*='Job Title' i], input[placeholder*='Senior Full Stack' i]"
       )
       .first();
     await expect(titleInput).toBeVisible({ timeout: 8_000 });

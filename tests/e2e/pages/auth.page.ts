@@ -783,9 +783,11 @@ export class SignupPage {
    *   otp: "123456",
    * });
    */
-  async fullSignup(data: SignupData): Promise<void> {
+  async fullSignup(data: SignupData, options?: { skipGoto?: boolean }): Promise<void> {
     // ── Navigate ────────────────────────────────────────────────────────────
-    await this.goto();
+    if (!options?.skipGoto) {
+      await this.goto();
+    }
 
     // ── Step 1: Company Information ─────────────────────────────────────────
     await this.expectStep(1);

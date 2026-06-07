@@ -20,7 +20,7 @@ export default function CompaniesPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Companies</h1>
-          <p className="text-slate-400">Manage all companies and their billing</p>
+          <p className="text-slate-400">Manage all companies in your platform</p>
         </div>
         {fetchData && (
           <DashboardDateFilter onApply={fetchData} defaultPreset="last90Days" />

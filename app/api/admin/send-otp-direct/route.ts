@@ -42,14 +42,23 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    let isTeamMember = false
     if (!ALLOWED_EMAILS.includes(normalizedEmail)) {
-      return NextResponse.json(
-        { error: "Access restricted", restricted: true },
-        { status: 403 }
-      )
+      // Check team members table
+      try {
+        const teamRows = await DatabaseService.query(
+          `SELECT email FROM admin_team_members WHERE email = $1`,
+          [normalizedEmail]
+        ) as any[]
+        isTeamMember = teamRows.length > 0
+      } catch { /* table may not exist yet */ }
+
+      if (!isTeamMember) {
+        return NextResponse.json({ error: "Access restricted", restricted: true }, { status: 403 })
+      }
     }
 
-    const userType = ADMIN_EMAILS.includes(normalizedEmail) ? "ADMIN" : "SUPPORT"
+    const userType = ADMIN_EMAILS.includes(normalizedEmail) ? "ADMIN" : isTeamMember ? "TEAM" : "SUPPORT"
     console.log(`✅ ${userType} user attempting login: ${normalizedEmail}`)
 
     const code = Math.floor(100000 + Math.random() * 900000).toString()

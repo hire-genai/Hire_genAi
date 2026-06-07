@@ -184,8 +184,11 @@ test.describe('Talent Pool — Page Load', () => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_DATA) })
     })
     await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' })
-    // Skeleton should appear immediately
-    const skeleton = page.locator('[class*="skeleton"], [class*="animate-pulse"]').first()
+    // Loading indicator should appear immediately (either CSS skeleton or text)
+    const skeleton = page
+      .locator('[class*="skeleton"], [class*="animate-pulse"]')
+      .or(page.getByText(/^Loading\.\.\.$/))
+      .first()
     await expect(skeleton).toBeVisible({ timeout: 3000 })
   })
 
