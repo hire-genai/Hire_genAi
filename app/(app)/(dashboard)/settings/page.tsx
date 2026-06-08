@@ -29,6 +29,7 @@ import { Settings, User, Bell, Lock, Building2, Users, CreditCard, Plus, Trash2,
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
+import BillingContent from '@/components/billing/BillingContent'
 
 // Industries list (same as signup)
 const industries = [
@@ -67,7 +68,7 @@ const countryOptions = [
 ]
 
 type UserRole = 'director' | 'manager' | 'recruiter' | string
-type SettingsTab = 'company' | 'users' | 'agency'
+type SettingsTab = 'company' | 'users' | 'payment' | 'agency'
 type AgencySubTab = 'performance' | 'onboarding'
 
 // Helper to get currency symbol
@@ -101,10 +102,12 @@ export default function SettingsPage() {
   const [showAddUserDialog, setShowAddUserDialog] = useState(false)
   const [newUser, setNewUser] = useState({ name: '', email: '', role: 'recruiter' as UserRole })
 
-  // Auto-switch tab based on URL param
+  // Auto-switch tab based on URL param ?tab=payment
   useEffect(() => {
     const tabParam = searchParams.get('tab')
-    if (tabParam === 'company') {
+    if (tabParam === 'payment') {
+      setActiveTab('payment')
+    } else if (tabParam === 'company') {
       setActiveTab('company')
     } else if (tabParam === 'users') {
       setActiveTab('users')
@@ -547,6 +550,17 @@ export default function SettingsPage() {
           </Button>
           <Button
             variant="ghost"
+            className={`flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium rounded-lg transition-colors ${
+              activeTab === 'payment' 
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white shadow-sm' 
+                : 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
+            onClick={() => setActiveTab('payment')}
+          >
+            <CreditCard className="h-4 w-4" />
+            <span className="hidden sm:inline">Payment</span>
+            <span className="sm:hidden">Payment</span>
+          </Button>
           <Button
             variant="ghost"
             className={`flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium rounded-lg transition-colors ${
@@ -922,7 +936,7 @@ export default function SettingsPage() {
               <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded">
                 <h3 className="text-sm font-semibold text-emerald-900 mb-2">Role Permissions:</h3>
                 <ul className="text-xs text-emerald-800 space-y-1">
-                  <li><strong>Director:</strong> Full access to all features including user management, analytics and reports</li>
+                  <li><strong>Director:</strong> Full access to all features including user management, billing, analytics and reports</li>
                   <li><strong>Manager:</strong> Can manage job postings, applications, recruiters and team members</li>
                   <li><strong>Recruiter:</strong> Can manage assigned applications and candidates</li>
                 </ul>
@@ -1040,6 +1054,10 @@ export default function SettingsPage() {
             </Card>
           )}
 
+          {/* Payment Settings */}
+          {activeTab === 'payment' && (
+            <BillingContent companyId={company?.id || ''} />
+          )}
 
           
           
