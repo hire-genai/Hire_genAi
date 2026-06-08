@@ -5,31 +5,21 @@ export const dynamic = 'force-dynamic';
 import { ReactNode, useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import {
-  BarChart3,
-  Briefcase,
-  Users,
-  DollarSign,
-  AlertTriangle,
-  Settings,
-  LogOut,
-  Menu,
-  X,
-  MessageCircle,
-  Headphones,
-  Lightbulb,
+  BarChart3, Briefcase, Users, AlertTriangle, LogOut,
+  Menu, X, MessageCircle, Headphones, Lightbulb, Shield,
 } from "lucide-react"
+import { AdminUserContext } from "./_context/AdminUserContext"
 import { Button } from "@/components/ui/button"
 
-const navItems = [
-  { id: "overview", label: "Overview", icon: BarChart3 },
-  { id: "jobs", label: "Jobs", icon: Briefcase },
-  { id: "companies", label: "Companies", icon: Users },
-  { id: "billing", label: "Billing & Usage", icon: DollarSign },
-  { id: "anomalies", label: "Anomalies", icon: AlertTriangle },
-  { id: "customer-interaction", label: "Customer Interaction", icon: MessageCircle },
-  { id: "support-centre", label: "Support Centre", icon: Headphones },
-  { id: "product-feedback", label: "Product Feedback", icon: Lightbulb },
-  { id: "settings", label: "Settings", icon: Settings },
+const ALL_NAV_ITEMS = [
+  { id: "overview",              label: "Overview",              icon: BarChart3,    ownerOnly: true  },
+  { id: "companies",             label: "Companies",             icon: Users,        ownerOnly: false },
+  { id: "jobs",                  label: "Company Usage",         icon: Briefcase,    ownerOnly: false },
+  { id: "anomalies",             label: "Anomalies",             icon: AlertTriangle, ownerOnly: false },
+  { id: "customer-interaction",  label: "Customer Interaction",  icon: MessageCircle, ownerOnly: false },
+  { id: "support-centre",        label: "Support Centre",        icon: Headphones,   ownerOnly: false },
+  { id: "product-feedback",      label: "Product Feedback",      icon: Lightbulb,    ownerOnly: false },
+  { id: "team",                  label: "Team Management",       icon: Shield,       ownerOnly: true  },
 ]
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
@@ -39,6 +29,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [authenticated, setAuthenticated] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [userRole, setUserRole] = useState<string>("unknown")
+  const [assignedTabs, setAssignedTabs] = useState<string[] | null>(null)
+  const [assignedSupportTiers, setAssignedSupportTiers] = useState<string[] | null>(null)
 
   const currentTab = pathname.split("/").pop() || "overview"
 
@@ -59,9 +52,23 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           router.push("/owner-login")
           return
         }
+        const data = await res.json()
+        const role = data.user?.role ?? "unknown"
+        const tabs: string[] | null = data.user?.assignedTabs ?? null
+
+        setUserRole(role)
+        setAssignedTabs(tabs)
+        setAssignedSupportTiers(data.user?.assignedSupportTiers ?? null)
         setAuthenticated(true)
         setLoading(false)
 
+        // Enforce access: redirect team members away from tabs they can't access
+        if (role === "team" && Array.isArray(tabs) && tabs.length > 0) {
+          const currentTabId = pathname.split("/").pop() || "overview"
+          if (!tabs.includes(currentTabId)) {
+            router.replace(`/admin-hiregenai/${tabs[0]}`)
+          }
+        }
       } catch (error) {
         console.error("Auth check failed:", error)
         router.push("/owner-login")
@@ -87,6 +94,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   return (
+    <AdminUserContext.Provider value={{ role: userRole, assignedTabs, assignedSupportTiers }}>
     <div className="flex h-screen overflow-hidden bg-slate-950">
       {/* Desktop Sidebar */}
       <aside
@@ -116,7 +124,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
         {/* Nav Items - Scrollable */}
         <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto scrollbar-hide">
-          {navItems.map((item) => {
+          {ALL_NAV_ITEMS.filter(item => {
+            // Owner-only tabs only visible to admin role
+            if (item.ownerOnly && userRole !== "admin") return false
+            // Team members only see their assigned tabs
+            if (userRole === "team" && assignedTabs !== null) return assignedTabs.includes(item.id)
+            return true
+          }).map((item) => {
             const Icon = item.icon
             const isActive = currentTab === item.id
 
@@ -189,7 +203,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
         {/* Mobile Nav Items */}
         <nav className="flex-1 p-4 space-y-2">
-          {navItems.map((item) => {
+          {ALL_NAV_ITEMS.filter(item => {
+            if (item.ownerOnly && userRole !== "admin") return false
+            if (userRole === "team" && assignedTabs !== null) return assignedTabs.includes(item.id)
+            return true
+          }).map((item) => {
             const Icon = item.icon
             const isActive = currentTab === item.id
 
@@ -252,5 +270,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <div className="p-4 md:p-8">{children}</div>
       </main>
     </div>
+    </AdminUserContext.Provider>
   )
 }

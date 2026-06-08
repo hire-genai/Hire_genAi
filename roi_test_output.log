@@ -1,0 +1,436 @@
+
+> my-v0-project@0.1.0 test:e2e
+> playwright test 04-roi-calculator.spec.ts
+
+[2m[WebServer] [22m
+[2m[WebServer] [22m> my-v0-project@0.1.0 dev
+[2m[WebServer] [22m> next dev
+[2m[WebServer] [22m
+[2m[WebServer] [22m   [1m[38;2;173;127;168m▲ Next.js 16.0.10[39m[22m (Turbopack)
+[2m[WebServer] [22m   - Local:         http://localhost:3000
+[2m[WebServer] [22m   - Network:       http://192.168.68.55:3000
+[2m[WebServer] [22m   - Environments: .env.local
+[2m[WebServer] [22m
+[2m[WebServer] [22m [32m[1m✓[22m[39m Starting...
+[2m[WebServer] [22m[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[2m[WebServer] [22m [33m[1m⚠[22m[39m The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+[2m[WebServer] [22m [32m[1m✓[22m[39m Ready in 1591ms
+[2m[WebServer] [22m [37m[1m○[22m[39m Compiling / ...
+[global.setup] Starting — direct session injection (no OTP, no DB)
+[global.setup] BASE_URL = http://localhost:3000
+[2m[WebServer] [22m GET / [32m200[39m in 6.7s[2m (compile: 6.3s, proxy.ts: 75ms, render: 284ms)[22m
+[2m[WebServer] [22m GET / [32m200[39m in 222ms[2m (compile: 8ms, proxy.ts: 9ms, render: 206ms)[22m
+[global.setup] Session written to localStorage + cookie
+[2m[WebServer] [22m GET /dashboard [32m200[39m in 1415ms[2m (compile: 1234ms, proxy.ts: 6ms, render: 175ms)[22m
+[global.setup] Dashboard accessible at: http://localhost:3000/dashboard
+[global.setup] Auth state saved → c:\hire_genai\tests\e2e\.auth\user.json
+[global.setup] Setup complete ✓
+
+Running 52 tests using 2 workers
+
+[2m[WebServer] [22m GET /roi [32m200[39m in 932ms[2m (compile: 396ms, proxy.ts: 5ms, render: 531ms)[22m
+[2m[WebServer] [22m GET /roi [32m200[39m in 1047ms[2m (compile: 603ms, proxy.ts: 6ms, render: 439ms)[22m
+  ok  1 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:240:9 › ROI Calculator & Pricing Integration › Positive scenarios › ROI calculator page loads successfully (2.1s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 362ms[2m (compile: 7ms, proxy.ts: 5ms, render: 350ms)[22m
+  ok  3 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:267:9 › ROI Calculator & Pricing Integration › Positive scenarios › Changing Recruiters recalculates ROI outputs (1.5s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 167ms[2m (compile: 4ms, proxy.ts: 4ms, render: 159ms)[22m
+  ok  4 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:290:9 › ROI Calculator & Pricing Integration › Positive scenarios › Changing CVs / Req recalculates ROI outputs (1.2s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 153ms[2m (compile: 4ms, proxy.ts: 3ms, render: 146ms)[22m
+  ok  5 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:305:9 › ROI Calculator & Pricing Integration › Positive scenarios › Changing Shortlist % recalculates ROI outputs (1.1s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 151ms[2m (compile: 5ms, proxy.ts: 3ms, render: 143ms)[22m
+  ok  6 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:320:9 › ROI Calculator & Pricing Integration › Positive scenarios › Changing Qualified % does not crash the page (1.2s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 153ms[2m (compile: 4ms, proxy.ts: 4ms, render: 145ms)[22m
+  ok  7 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:335:9 › ROI Calculator & Pricing Integration › Positive scenarios › Changing Hourly Rate recalculates Monthly Savings (1.1s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 152ms[2m (compile: 4ms, proxy.ts: 3ms, render: 145ms)[22m
+  ok  8 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:357:9 › ROI Calculator & Pricing Integration › Positive scenarios › Changing Days / Week recalculates ROI outputs (1.1s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 132ms[2m (compile: 3ms, proxy.ts: 3ms, render: 126ms)[22m
+  ok  9 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:374:9 › ROI Calculator & Pricing Integration › Positive scenarios › Changing Hours / Day recalculates ROI outputs (1.2s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 138ms[2m (compile: 4ms, proxy.ts: 3ms, render: 131ms)[22m
+  ok 10 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:387:9 › ROI Calculator & Pricing Integration › Positive scenarios › All KPI metric cards display positive numbers with default inputs (841ms)
+  x   2 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:253:9 › ROI Calculator & Pricing Integration › Positive scenarios › Default values are pre-filled in all inputs (11.6s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 254ms[2m (compile: 5ms, proxy.ts: 5ms, render: 243ms)[22m
+  ok 11 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:410:9 › ROI Calculator & Pricing Integration › Positive scenarios › Screening Time reduction is fixed at 80% (1.4s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 344ms[2m (compile: 6ms, proxy.ts: 4ms, render: 334ms)[22m
+  ok 12 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:438:9 › ROI Calculator & Pricing Integration › Positive scenarios › Qualification Effort reduction is fixed at 50% (947ms)
+[2m[WebServer] [22m GET /roi [32m200[39m in 329ms[2m (compile: 28ms, proxy.ts: 12ms, render: 289ms)[22m
+[2m[WebServer] [22m GET /roi [32m200[39m in 332ms[2m (compile: 30ms, proxy.ts: 11ms, render: 291ms)[22m
+  ok 14 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:447:9 › ROI Calculator & Pricing Integration › Positive scenarios › Productivity Index is greater than 1x with default inputs (892ms)
+  ok 13 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:424:9 › ROI Calculator & Pricing Integration › Positive scenarios › Ranking Time reduction is fixed at approximately 92% (1.6s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 336ms[2m (compile: 5ms, proxy.ts: 6ms, render: 325ms)[22m
+[2m[WebServer] [22m GET /roi [32m200[39m in 258ms[2m (compile: 12ms, proxy.ts: 8ms, render: 238ms)[22m
+  ok 16 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:468:9 › ROI Calculator & Pricing Integration › Positive scenarios › Recommended Plan is Starter for default 1 recruiter (100 CVs/req = 500 CVs total <= 200 cap → Starter) (1.0s)
+  ok 15 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:457:9 › ROI Calculator & Pricing Integration › Positive scenarios › Monthly Savings card shows positive dollar amount (1.3s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 416ms[2m (compile: 14ms, proxy.ts: 5ms, render: 397ms)[22m
+[2m[WebServer] [22m GET /roi [32m200[39m in 301ms[2m (compile: 17ms, proxy.ts: 13ms, render: 270ms)[22m
+  x  17 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:479:9 › ROI Calculator & Pricing Integration › Positive scenarios › Recommended Plan updates to Starter when CV volume is low (1.6s)
+  x  18 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:490:9 › ROI Calculator & Pricing Integration › Positive scenarios › Recommended Plan updates to Enterprise for very high volume (1.9s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 381ms[2m (compile: 4ms, proxy.ts: 4ms, render: 374ms)[22m
+[2m[WebServer] [22m GET /roi [32m200[39m in 315ms[2m (compile: 38ms, proxy.ts: 12ms, render: 265ms)[22m
+[2m[WebServer] [22m GET /pricing [32m200[39m in 1364ms[2m (compile: 1012ms, proxy.ts: 78ms, render: 274ms)[22m
+  ok 19 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:503:9 › ROI Calculator & Pricing Integration › Positive scenarios › "View all plans" link navigates to pricing page (2.9s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 217ms[2m (compile: 4ms, proxy.ts: 5ms, render: 208ms)[22m
+[2m[WebServer] [22m GET /signup?plan=Professional&billing=monthly [32m200[39m in 1758ms[2m (compile: 1307ms, proxy.ts: 20ms, render: 431ms)[22m
+[2m[WebServer] [22m GET /signup?section=company [32m200[39m in 67ms[2m (compile: 7ms, proxy.ts: 7ms, render: 53ms)[22m
+  x  21 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:536:9 › ROI Calculator & Pricing Integration › Positive scenarios › Billing toggle switches between Monthly and Annual pricing display (1.8s)
+  x  20 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:516:9 › ROI Calculator & Pricing Integration › Positive scenarios › "Get Started" CTA navigates to signup with plan pre-selected (4.5s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 467ms[2m (compile: 6ms, proxy.ts: 4ms, render: 457ms)[22m
+[2m[WebServer] [22m GET /pricing [32m200[39m in 432ms[2m (compile: 9ms, proxy.ts: 10ms, render: 414ms)[22m
+  x  22 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:565:9 › ROI Calculator & Pricing Integration › Positive scenarios › ROI Insight percentage updates when inputs change (1.9s)
+  x  23 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:587:9 › ROI Calculator & Pricing Integration › Positive scenarios › Pricing page billing toggle switches between monthly and annual (2.4s)
+[2m[WebServer] [22m GET /pricing [32m200[39m in 438ms[2m (compile: 5ms, proxy.ts: 5ms, render: 428ms)[22m
+[2m[WebServer] [22m GET /pricing [32m200[39m in 411ms[2m (compile: 30ms, proxy.ts: 13ms, render: 368ms)[22m
+[2m[WebServer] [22m GET /signup?plan=Starter&billing=monthly [32m200[39m in 44ms[2m (compile: 6ms, proxy.ts: 4ms, render: 34ms)[22m
+[2m[WebServer] [22m GET /signup?section=company [32m200[39m in 31ms[2m (compile: 6ms, proxy.ts: 6ms, render: 19ms)[22m
+  ok 25 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:616:9 › ROI Calculator & Pricing Integration › Positive scenarios › Pricing page plan CTA button navigates to signup with plan param (2.5s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 549ms[2m (compile: 8ms, proxy.ts: 4ms, render: 537ms)[22m
+  x  26 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:635:9 › ROI Calculator & Pricing Integration › Positive scenarios › ROI Insight value is mathematically reasonable with defaults (1.4s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 220ms[2m (compile: 4ms, proxy.ts: 4ms, render: 212ms)[22m
+  ok 27 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:655:9 › ROI Calculator & Pricing Integration › Positive scenarios › Cost/Req vs Human is below 100% (AI is cheaper than human-only) (1.1s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 156ms[2m (compile: 3ms, proxy.ts: 3ms, render: 150ms)[22m
+  ok 28 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:675:9 › ROI Calculator & Pricing Integration › Negative scenarios › Setting Recruiters to 0 does not crash or show NaN (1.3s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 189ms[2m (compile: 3ms, proxy.ts: 3ms, render: 182ms)[22m
+  ok 29 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:691:9 › ROI Calculator & Pricing Integration › Negative scenarios › Setting CVs / Req to 0 does not show NaN or Infinity (1.2s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 148ms[2m (compile: 4ms, proxy.ts: 5ms, render: 140ms)[22m
+  ok 30 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:705:9 › ROI Calculator & Pricing Integration › Negative scenarios › Typing non-numeric text in Recruiters is handled gracefully (1.4s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 148ms[2m (compile: 3ms, proxy.ts: 2ms, render: 142ms)[22m
+  x  24 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:606:9 › ROI Calculator & Pricing Integration › Positive scenarios › Pricing page has ROI Assessment link pointing to /roi (11.6s)
+  ok 31 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:723:9 › ROI Calculator & Pricing Integration › Negative scenarios › Typing non-numeric text in CVs / Req is handled gracefully (1.2s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 221ms[2m (compile: 6ms, proxy.ts: 5ms, render: 210ms)[22m
+  ok 32 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:753:9 › ROI Calculator & Pricing Integration › Negative scenarios › Extremely large CVs / Req does not show NaN (1.6s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 350ms[2m (compile: 7ms, proxy.ts: 4ms, render: 339ms)[22m
+[2m[WebServer] [22m GET /roi [32m200[39m in 309ms[2m (compile: 17ms, proxy.ts: 9ms, render: 282ms)[22m
+  ok 34 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:771:9 › ROI Calculator & Pricing Integration › Negative scenarios › Shortlist % at 1 (minimum) does not crash the page (1.5s)
+  ok 33 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:737:9 › ROI Calculator & Pricing Integration › Negative scenarios › Extremely large Recruiters value does not overflow or show NaN (2.0s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 454ms[2m (compile: 7ms, proxy.ts: 5ms, render: 442ms)[22m
+[2m[WebServer] [22m GET /roi [32m200[39m in 322ms[2m (compile: 19ms, proxy.ts: 12ms, render: 291ms)[22m
+  ok 35 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:782:9 › ROI Calculator & Pricing Integration › Negative scenarios › Shortlist % at 100 (maximum) does not crash the page (1.5s)
+  ok 36 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:795:9 › ROI Calculator & Pricing Integration › Negative scenarios › Hourly Rate of 0 does not show NaN (savings become 0) (1.5s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 388ms[2m (compile: 6ms, proxy.ts: 5ms, render: 377ms)[22m
+[2m[WebServer] [22m GET /roi [32m200[39m in 360ms[2m (compile: 15ms, proxy.ts: 8ms, render: 337ms)[22m
+  ok 38 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:827:9 › ROI Calculator & Pricing Integration › Responsive behavior › ROI page renders correctly at mobile viewport (375x812) (862ms)
+  ok 37 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:809:9 › ROI Calculator & Pricing Integration › Negative scenarios › Hours / Day of 0 does not show NaN (1.5s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 307ms[2m (compile: 5ms, proxy.ts: 4ms, render: 298ms)[22m
+  ok 39 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:840:9 › ROI Calculator & Pricing Integration › Responsive behavior › All input fields are visible and accessible on mobile (1.1s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 380ms[2m (compile: 33ms, proxy.ts: 7ms, render: 340ms)[22m
+[2m[WebServer] [22m GET /roi [32m200[39m in 345ms[2m (compile: 5ms, proxy.ts: 5ms, render: 335ms)[22m
+  ok 40 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:856:9 › ROI Calculator & Pricing Integration › Responsive behavior › KPI cards are visible on mobile viewport (1.5s)
+[2m[WebServer] [22m GET /pricing [32m200[39m in 515ms[2m (compile: 16ms, proxy.ts: 4ms, render: 495ms)[22m
+  ok 41 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:873:9 › ROI Calculator & Pricing Integration › Responsive behavior › Billing toggle is functional on mobile viewport (2.1s)
+  ok 42 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:898:9 › ROI Calculator & Pricing Integration › Responsive behavior › Pricing page renders correctly at mobile viewport (1.8s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 359ms[2m (compile: 6ms, proxy.ts: 5ms, render: 348ms)[22m
+  ok 43 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:921:9 › ROI Calculator & Pricing Integration › Mathematical output verification › Productivity Index matches hHrs/aHrs ratio for default inputs (1.3s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 399ms[2m (compile: 17ms, proxy.ts: 11ms, render: 371ms)[22m
+[2m[WebServer] [22m GET /roi [32m200[39m in 936ms[2m (compile: 41ms, proxy.ts: 5ms, render: 890ms)[22m
+  ok 44 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:944:9 › ROI Calculator & Pricing Integration › Mathematical output verification › Monthly Savings increases proportionally when recruiter count doubles (2.4s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 643ms[2m (compile: 36ms, proxy.ts: 81ms, render: 526ms)[22m
+  x  45 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:960:9 › ROI Calculator & Pricing Integration › Mathematical output verification › Monthly Savings increases when hourly rate increases (2.3s)
+  ok 46 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:975:9 › ROI Calculator & Pricing Integration › Mathematical output verification › Fixed KPI values remain constant as inputs change (3.0s)
+[2m[WebServer] [22m GET /pricing [32m200[39m in 313ms[2m (compile: 5ms, proxy.ts: 4ms, render: 304ms)[22m
+[2m[WebServer] [22m GET /roi [32m200[39m in 346ms[2m (compile: 7ms, proxy.ts: 5ms, render: 334ms)[22m
+[2m[WebServer] [22m GET /pricing [32m200[39m in 259ms[2m (compile: 40ms, proxy.ts: 50ms, render: 168ms)[22m
+[2m[WebServer] [22m GET /contact [32m200[39m in 1435ms[2m (compile: 979ms, proxy.ts: 19ms, render: 436ms)[22m
+  ok 47 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:1011:9 › ROI Calculator & Pricing Integration › ROI to Pricing integration › Pricing page CTA for Enterprise plan links to /contact (3.3s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 356ms[2m (compile: 5ms, proxy.ts: 5ms, render: 346ms)[22m
+  ok 48 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:997:9 › ROI Calculator & Pricing Integration › ROI to Pricing integration › Navigating from ROI to pricing shows the full plan list (2.9s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 617ms[2m (compile: 76ms, proxy.ts: 27ms, render: 513ms)[22m
+[2m[WebServer] [22m GET /signup?plan=Professional&billing=monthly [32m200[39m in 57ms[2m (compile: 9ms, proxy.ts: 6ms, render: 43ms)[22m
+[2m[WebServer] [22m GET /signup?section=company [32m200[39m in 40ms[2m (compile: 5ms, proxy.ts: 4ms, render: 30ms)[22m
+  ok 50 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:1037:9 › ROI Calculator & Pricing Integration › ROI to Pricing integration › ROI page Get Started CTA passes monthly billing param when Monthly is selected (2.5s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 260ms[2m (compile: 5ms, proxy.ts: 5ms, render: 250ms)[22m
+  ok 51 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:1052:9 › ROI Calculator & Pricing Integration › ROI to Pricing integration › Get Started Free button in CTA section navigates to /signup (1.3s)
+[2m[WebServer] [22m GET /roi [32m200[39m in 130ms[2m (compile: 5ms, proxy.ts: 3ms, render: 123ms)[22m
+  ok 52 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:1063:9 › ROI Calculator & Pricing Integration › ROI to Pricing integration › Book a Demo button in CTA section is visible (1.2s)
+  x  49 [authenticated] › tests\e2e\04-roi-calculator.spec.ts:1022:9 › ROI Calculator & Pricing Integration › ROI to Pricing integration › ROI page Get Started CTA uses billing param from toggle (11.6s)
+[global.teardown] Removed c:\hire_genai\tests\e2e\.auth\user.json
+[global.teardown] Teardown complete.
+
+
+  1) [authenticated] › tests\e2e\04-roi-calculator.spec.ts:253:9 › ROI Calculator & Pricing Integration › Positive scenarios › Default values are pre-filled in all inputs 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveValue[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator:  locator('label').filter({ hasText: /^Qualified %$/i }).locator('xpath=parent::div//input[not(@readonly)]').first()
+    Expected: [32m"80"[39m
+    Received: [31m"15"[39m
+    Timeout:  10000ms
+
+    Call log:
+    [2m  - Expect "toHaveValue" with timeout 10000ms[22m
+    [2m  - waiting for locator('label').filter({ hasText: /^Qualified %$/i }).locator('xpath=parent::div//input[not(@readonly)]').first()[22m
+    [2m    23 × locator resolved to <input min="1" step="5" max="100" value="15" type="number" class="w-full px-2.5 py-2 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-emerald-500 focus:outline-none"/>[22m
+    [2m       - unexpected value "15"[22m
+
+
+      257 |       await expect(roiPage.cvsPerReqInput).toHaveValue(DEFAULTS.cvsPerReq);
+      258 |       await expect(roiPage.shortlistPctInput).toHaveValue(DEFAULTS.shortlistPct);
+    > 259 |       await expect(roiPage.qualifiedPctInput).toHaveValue(DEFAULTS.qualifiedPct);
+          |                                               ^
+      260 |       await expect(roiPage.hourlyRateInput).toHaveValue(DEFAULTS.hourlyRate);
+      261 |       await expect(roiPage.daysPerWeekInput).toHaveValue(DEFAULTS.daysPerWeek);
+      262 |       await expect(roiPage.hoursPerDayInput).toHaveValue(DEFAULTS.hoursPerDay);
+        at c:\hire_genai\tests\e2e\04-roi-calculator.spec.ts:259:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\04-roi-calculator-ROI-Calc-4fe8c-re-pre-filled-in-all-inputs-authenticated\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\04-roi-calculator-ROI-Calc-4fe8c-re-pre-filled-in-all-inputs-authenticated\error-context.md
+
+  2) [authenticated] › tests\e2e\04-roi-calculator.spec.ts:479:9 › ROI Calculator & Pricing Integration › Positive scenarios › Recommended Plan updates to Starter when CV volume is low 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoContain[2m([22m[32mexpected[39m[2m) // indexOf[22m
+
+    Expected substring: [32m"starter"[39m
+    Received string:    [31m"professional"[39m
+
+      485 |
+      486 |       const planName = await roiPage.getRecommendedPlanName();
+    > 487 |       expect(planName.toLowerCase()).toContain("starter");
+          |                                      ^
+      488 |     });
+      489 |
+      490 |     test("Recommended Plan updates to Enterprise for very high volume", async ({ page }) => {
+        at c:\hire_genai\tests\e2e\04-roi-calculator.spec.ts:487:38
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\04-roi-calculator-ROI-Calc-b3d8c-arter-when-CV-volume-is-low-authenticated\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\04-roi-calculator-ROI-Calc-b3d8c-arter-when-CV-volume-is-low-authenticated\error-context.md
+
+  3) [authenticated] › tests\e2e\04-roi-calculator.spec.ts:490:9 › ROI Calculator & Pricing Integration › Positive scenarios › Recommended Plan updates to Enterprise for very high volume 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoContain[2m([22m[32mexpected[39m[2m) // indexOf[22m
+
+    Expected substring: [32m"enterprise"[39m
+    Received string:    [31m"large"[39m
+
+      496 |
+      497 |       const planName = await roiPage.getRecommendedPlanName();
+    > 498 |       expect(planName.toLowerCase()).toContain("enterprise");
+          |                                      ^
+      499 |     });
+      500 |
+      501 |     // ── 17. "View all plans" navigates to /pricing ────────────────────────
+        at c:\hire_genai\tests\e2e\04-roi-calculator.spec.ts:498:38
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\04-roi-calculator-ROI-Calc-30b6c-rprise-for-very-high-volume-authenticated\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\04-roi-calculator-ROI-Calc-30b6c-rprise-for-very-high-volume-authenticated\error-context.md
+
+  4) [authenticated] › tests\e2e\04-roi-calculator.spec.ts:516:9 › ROI Calculator & Pricing Integration › Positive scenarios › "Get Started" CTA navigates to signup with plan pre-selected 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoMatch[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected pattern: [32m/[?&]plan=/[39m
+    Received string:  [31m"http://localhost:3000/signup?section=company"[39m
+
+      529 |       // Should navigate to signup with plan query param
+      530 |       await expect(page).toHaveURL(/\/signup/, { timeout: 10_000 });
+    > 531 |       expect(page.url()).toMatch(/[?&]plan=/);
+          |                          ^
+      532 |     });
+      533 |
+      534 |     // ── 19. Billing toggle in plan section switches pricing ───────────────
+        at c:\hire_genai\tests\e2e\04-roi-calculator.spec.ts:531:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\04-roi-calculator-ROI-Calc-b6ace-gnup-with-plan-pre-selected-authenticated\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\04-roi-calculator-ROI-Calc-b6ace-gnup-with-plan-pre-selected-authenticated\error-context.md
+
+  5) [authenticated] › tests\e2e\04-roi-calculator.spec.ts:536:9 › ROI Calculator & Pricing Integration › Positive scenarios › Billing toggle switches between Monthly and Annual pricing display 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoContain[2m([22m[32mexpected[39m[2m) // indexOf[22m
+
+    Expected substring: [32m"billed annually"[39m
+    Received string:    [31m"get started with professional plan ($499/mo) →"[39m
+
+      551 |       const ctaBtn = page.locator('button').filter({ hasText: /Get Started with .+ Plan/ }).first();
+      552 |       const ctaText = await ctaBtn.textContent();
+    > 553 |       expect(ctaText?.toLowerCase()).toContain("billed annually");
+          |                                      ^
+      554 |
+      555 |       // Switch back to Monthly
+      556 |       await monthlyBtn.click();
+        at c:\hire_genai\tests\e2e\04-roi-calculator.spec.ts:553:38
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\04-roi-calculator-ROI-Calc-65650--and-Annual-pricing-display-authenticated\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\04-roi-calculator-ROI-Calc-65650--and-Annual-pricing-display-authenticated\error-context.md
+
+  6) [authenticated] › tests\e2e\04-roi-calculator.spec.ts:565:9 › ROI Calculator & Pricing Integration › Positive scenarios › ROI Insight percentage updates when inputs change 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoMatch[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected pattern: [32m/%|\+/[39m
+    Received string:  [31m"Recommended Based on Your Volume"[39m
+
+      576 |
+      577 |       // Both should contain "%" or "+"
+    > 578 |       expect(roiBefore).toMatch(/%|\+/);
+          |                         ^
+      579 |       expect(roiAfter).toMatch(/%|\+/);
+      580 |
+      581 |       // The values should differ
+        at c:\hire_genai\tests\e2e\04-roi-calculator.spec.ts:578:25
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\04-roi-calculator-ROI-Calc-6c40e--updates-when-inputs-change-authenticated\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\04-roi-calculator-ROI-Calc-6c40e--updates-when-inputs-change-authenticated\error-context.md
+
+  7) [authenticated] › tests\e2e\04-roi-calculator.spec.ts:587:9 › ROI Calculator & Pricing Integration › Positive scenarios › Pricing page billing toggle switches between monthly and annual 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('text=$99')
+    Expected: visible
+    Error: strict mode violation: locator('text=$99') resolved to 4 elements:
+        1) <span class="text-3xl font-extrabold text-slate-900">…</span> aka getByText('$99', { exact: true })
+        2) <p class="text-xs font-bold text-emerald-800 leading-tight">…</p> aka getByText('$99 AI credits included')
+        3) <span class="text-3xl font-extrabold text-slate-900">…</span> aka getByText('$999', { exact: true })
+        4) <p class="text-xs font-bold text-emerald-800 leading-tight">…</p> aka getByText('$999 AI credits included')
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for locator('text=$99')[22m
+
+
+      599 |
+      600 |       // Starter plan shows $99 / month when monthly is selected
+    > 601 |       await expect(page.locator("text=$99")).toBeVisible();
+          |                                              ^
+      602 |     });
+      603 |
+      604 |     // ── 22. Pricing page ROI Assessment link goes to /roi ─────────────────
+        at c:\hire_genai\tests\e2e\04-roi-calculator.spec.ts:601:46
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\04-roi-calculator-ROI-Calc-2e342--between-monthly-and-annual-authenticated\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\04-roi-calculator-ROI-Calc-2e342--between-monthly-and-annual-authenticated\error-context.md
+
+  8) [authenticated] › tests\e2e\04-roi-calculator.spec.ts:606:9 › ROI Calculator & Pricing Integration › Positive scenarios › Pricing page has ROI Assessment link pointing to /roi 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoContainText[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: locator('a[href="/roi"]').first()
+    Expected substring: [32m"ROI[7m Assessment[27m"[39m
+    Received string:    [31m"ROI"[39m
+    Timeout: 10000ms
+
+    Call log:
+    [2m  - Expect "toContainText" with timeout 10000ms[22m
+    [2m  - waiting for locator('a[href="/roi"]').first()[22m
+    [2m    23 × locator resolved to <a href="/roi" class="text-gray-700 hover:text-emerald-600 px-3 py-2 text-sm font-medium transition-colors cursor-pointer">ROI</a>[22m
+    [2m       - unexpected value "ROI"[22m
+
+
+      609 |       const roiLink = page.locator('a[href="/roi"]').first();
+      610 |       await expect(roiLink).toBeVisible();
+    > 611 |       await expect(roiLink).toContainText("ROI Assessment");
+          |                             ^
+      612 |     });
+      613 |
+      614 |     // ── 23. Pricing page plan CTA links to signup ─────────────────────────
+        at c:\hire_genai\tests\e2e\04-roi-calculator.spec.ts:611:29
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\04-roi-calculator-ROI-Calc-6bed2-ssment-link-pointing-to-roi-authenticated\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\04-roi-calculator-ROI-Calc-6bed2-ssment-link-pointing-to-roi-authenticated\error-context.md
+
+  9) [authenticated] › tests\e2e\04-roi-calculator.spec.ts:635:9 › ROI Calculator & Pricing Integration › Positive scenarios › ROI Insight value is mathematically reasonable with defaults 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoMatch[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected pattern: [32m/^\d[\d,]*%(\+)?$/[39m
+    Received string:  [31m"Recommended Based on Your Volume"[39m
+
+      642 |
+      643 |       // Should be either "X%" or "1,000%+"
+    > 644 |       expect(roiText).toMatch(/^\d[\d,]*%(\+)?$/);
+          |                       ^
+      645 |
+      646 |       // If it is a normal percentage (not capped), check it is positive
+      647 |       if (!roiText.includes("+")) {
+        at c:\hire_genai\tests\e2e\04-roi-calculator.spec.ts:644:23
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\04-roi-calculator-ROI-Calc-0cf35-ly-reasonable-with-defaults-authenticated\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\04-roi-calculator-ROI-Calc-0cf35-ly-reasonable-with-defaults-authenticated\error-context.md
+
+  10) [authenticated] › tests\e2e\04-roi-calculator.spec.ts:960:9 › ROI Calculator & Pricing Integration › Mathematical output verification › Monthly Savings increases when hourly rate increases 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeGreaterThan[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: > [32m1513[39m
+    Received:   [31m1513[39m
+
+      967 |
+      968 |       // $50/h vs $30/h — savings should be ~5/3 times larger
+    > 969 |       expect(savings50).toBeGreaterThan(savings30);
+          |                         ^
+      970 |       const ratio = savings50 / savings30;
+      971 |       expect(ratio).toBeGreaterThan(1.4);
+      972 |       expect(ratio).toBeLessThan(1.9);
+        at c:\hire_genai\tests\e2e\04-roi-calculator.spec.ts:969:25
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\04-roi-calculator-ROI-Calc-6161b--when-hourly-rate-increases-authenticated\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\04-roi-calculator-ROI-Calc-6161b--when-hourly-rate-increases-authenticated\error-context.md
+
+  11) [authenticated] › tests\e2e\04-roi-calculator.spec.ts:1022:9 › ROI Calculator & Pricing Integration › ROI to Pricing integration › ROI page Get Started CTA uses billing param from toggle 
+
+    Error: [2mexpect([22m[31mpage[39m[2m).[22mtoHaveURL[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Expected pattern: [32m/\/signup/[39m
+    Received string:  [31m"http://localhost:3000/roi"[39m
+    Timeout: 10000ms
+
+    Call log:
+    [2m  - Expect "toHaveURL" with timeout 10000ms[22m
+    [2m    23 × unexpected value "http://localhost:3000/roi"[22m
+
+
+      1031 |       await ctaBtn.click();
+      1032 |
+    > 1033 |       await expect(page).toHaveURL(/\/signup/, { timeout: 10_000 });
+           |                          ^
+      1034 |       expect(page.url()).toMatch(/billing=annual/);
+      1035 |     });
+      1036 |
+        at c:\hire_genai\tests\e2e\04-roi-calculator.spec.ts:1033:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\04-roi-calculator-ROI-Calc-b43ec-s-billing-param-from-toggle-authenticated\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\04-roi-calculator-ROI-Calc-b43ec-s-billing-param-from-toggle-authenticated\error-context.md
+
+  11 failed
+    [authenticated] › tests\e2e\04-roi-calculator.spec.ts:253:9 › ROI Calculator & Pricing Integration › Positive scenarios › Default values are pre-filled in all inputs 
+    [authenticated] › tests\e2e\04-roi-calculator.spec.ts:479:9 › ROI Calculator & Pricing Integration › Positive scenarios › Recommended Plan updates to Starter when CV volume is low 
+    [authenticated] › tests\e2e\04-roi-calculator.spec.ts:490:9 › ROI Calculator & Pricing Integration › Positive scenarios › Recommended Plan updates to Enterprise for very high volume 
+    [authenticated] › tests\e2e\04-roi-calculator.spec.ts:516:9 › ROI Calculator & Pricing Integration › Positive scenarios › "Get Started" CTA navigates to signup with plan pre-selected 
+    [authenticated] › tests\e2e\04-roi-calculator.spec.ts:536:9 › ROI Calculator & Pricing Integration › Positive scenarios › Billing toggle switches between Monthly and Annual pricing display 
+    [authenticated] › tests\e2e\04-roi-calculator.spec.ts:565:9 › ROI Calculator & Pricing Integration › Positive scenarios › ROI Insight percentage updates when inputs change 
+    [authenticated] › tests\e2e\04-roi-calculator.spec.ts:587:9 › ROI Calculator & Pricing Integration › Positive scenarios › Pricing page billing toggle switches between monthly and annual 
+    [authenticated] › tests\e2e\04-roi-calculator.spec.ts:606:9 › ROI Calculator & Pricing Integration › Positive scenarios › Pricing page has ROI Assessment link pointing to /roi 
+    [authenticated] › tests\e2e\04-roi-calculator.spec.ts:635:9 › ROI Calculator & Pricing Integration › Positive scenarios › ROI Insight value is mathematically reasonable with defaults 
+    [authenticated] › tests\e2e\04-roi-calculator.spec.ts:960:9 › ROI Calculator & Pricing Integration › Mathematical output verification › Monthly Savings increases when hourly rate increases 
+    [authenticated] › tests\e2e\04-roi-calculator.spec.ts:1022:9 › ROI Calculator & Pricing Integration › ROI to Pricing integration › ROI page Get Started CTA uses billing param from toggle 
+  41 passed (1.4m)

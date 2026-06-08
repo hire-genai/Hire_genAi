@@ -211,7 +211,7 @@ const PLANS: PlanDef[] = [
     ],
     support: "Enterprise SLA · 2h critical response · 24/7 dedicated success manager",
     popular: false,
-    cta: "Talk to Sales",
+    cta: "Choose Enterprise",
   },
 ]
 
@@ -312,11 +312,6 @@ export default function PricingPage() {
   }, [])
 
   const handleSelect = async (planName: string) => {
-    if (planName === 'Enterprise') {
-      window.location.href = companyId ? getAppUrl('/contact') : '/contact'
-      return
-    }
-
     // App context — user is logged in, call Stripe checkout directly
     if (companyId) {
       if (planName === 'Free Trial') return
@@ -539,7 +534,7 @@ export default function PricingPage() {
                     </div>
                     <p className="text-[10px] text-slate-400 mt-1.5 leading-snug">
                       {isEnterprise
-                        ? '📞 Talk to sales — no preset limits. Volume scales to your needs.'
+                        ? '📌 Illustrative averages — no preset limits. Volume scales to your needs.'
                         : '📌 Illustrative averages — soft guidance only. No hard stop at these numbers.'}
                     </p>
                   </div>
@@ -602,9 +597,7 @@ export default function PricingPage() {
                       )}
                     </button>
                     <p className="text-center text-xs text-slate-400">
-                      {isEnterprise
-                        ? 'Unlimited team members · Enterprise onboarding'
-                        : 'Unlimited team members · Cancel anytime'}
+                      Unlimited team members · Cancel anytime
                     </p>
                   </div>
 

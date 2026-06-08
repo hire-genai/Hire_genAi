@@ -32,13 +32,34 @@ export async function GET(req: NextRequest) {
         c.name as company_name,
         u.full_name as user_name,
         u.email as user_email,
-        COALESCE(tc.comment_count, 0) as message_count
+        COALESCE(tc.comment_count, 0) as message_count,
+        (SELECT tc2.author_role FROM ticket_comments tc2 WHERE tc2.ticket_id = st.id ORDER BY tc2.created_at DESC LIMIT 1) as last_message_from,
+        (SELECT tc2.created_at FROM ticket_comments tc2 WHERE tc2.ticket_id = st.id ORDER BY tc2.created_at DESC LIMIT 1) as last_message_at,
+        (SELECT LEFT(tc2.message, 120) FROM ticket_comments tc2 WHERE tc2.ticket_id = st.id ORDER BY tc2.created_at DESC LIMIT 1) as last_message_preview,
+        (
+          SELECT CASE
+            WHEN LOWER(COALESCE(cs.plan_name, cs.plan_id, '')) LIKE '%enterprise%' THEN 'Enterprise'
+            WHEN LOWER(COALESCE(cs.plan_name, cs.plan_id, '')) LIKE '%ultra%' THEN 'Ultra'
+            WHEN LOWER(COALESCE(cs.plan_name, cs.plan_id, '')) LIKE '%large%' THEN 'Large'
+            WHEN LOWER(COALESCE(cs.plan_name, cs.plan_id, '')) LIKE '%business%' THEN 'Business'
+            WHEN LOWER(COALESCE(cs.plan_name, cs.plan_id, '')) LIKE '%professional%' THEN 'Professional'
+            WHEN LOWER(COALESCE(cs.plan_name, cs.plan_id, '')) LIKE '%starter%' THEN 'Starter'
+            ELSE NULL
+          END
+          FROM company_subscriptions cs
+          WHERE cs.company_id = st.company_id
+            AND cs.status IN ('active', 'authenticated', 'created')
+            AND COALESCE(cs.plan_name, cs.plan_id, '') <> ''
+          ORDER BY CASE cs.provider WHEN 'razorpay' THEN 0 ELSE 1 END,
+                   CASE cs.status WHEN 'active' THEN 0 WHEN 'authenticated' THEN 1 ELSE 2 END
+          LIMIT 1
+        ) as plan_tier
       FROM support_tickets st
       LEFT JOIN companies c ON c.id = st.company_id
       LEFT JOIN users u ON u.id = st.created_by
       LEFT JOIN (
-        SELECT ticket_id, COUNT(*) as comment_count 
-        FROM ticket_comments 
+        SELECT ticket_id, COUNT(*) as comment_count
+        FROM ticket_comments
         GROUP BY ticket_id
       ) tc ON tc.ticket_id = st.id
       WHERE 1=1
@@ -87,8 +108,12 @@ export async function GET(req: NextRequest) {
       user_email: t.user_email || "Unknown",
       user_name: t.user_name || t.user_email?.split("@")[0] || "Unknown",
       company_name: t.company_name || "Unknown",
-      message_count: t.message_count,
+      message_count: Number(t.message_count ?? 0),
       first_message: t.description?.substring(0, 100) || "",
+      last_message_from: t.last_message_from ?? null,
+      last_message_at: t.last_message_at ?? null,
+      last_message_preview: t.last_message_preview ?? null,
+      plan_tier: t.plan_tier ?? "Trial",
       created_at: t.created_at,
       updated_at: t.updated_at,
     }))

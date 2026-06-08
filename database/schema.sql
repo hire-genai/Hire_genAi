@@ -2132,10 +2132,41 @@ CREATE INDEX IF NOT EXISTS idx_job_postings_created_by ON job_postings (created_
 -- ============================================================================
 
 -- Auto-expire delegations whose end_date has passed
-UPDATE delegations 
-SET status = 'expired' 
-WHERE status = 'active' 
+UPDATE delegations
+SET status = 'expired'
+WHERE status = 'active'
   AND end_date < CURRENT_DATE;
+
+
+-- ============================================================================
+-- 22. ADMIN TEAM MEMBERS (new table for team management)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS admin_team_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email CITEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  assigned_tabs TEXT[] NOT NULL DEFAULT '{}',
+  assigned_support_tiers TEXT[] DEFAULT NULL,
+  invited_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indexes for quick lookups
+CREATE INDEX IF NOT EXISTS idx_admin_team_members_email ON admin_team_members (email);
+CREATE INDEX IF NOT EXISTS idx_admin_team_members_created_at ON admin_team_members (created_at DESC);
+
+-- Trigger to auto-update updated_at
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_updated_at_admin_team_members') THEN
+    CREATE TRIGGER set_updated_at_admin_team_members
+      BEFORE UPDATE ON admin_team_members
+      FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+  END IF;
+END;
+$$;
 
 
 -- ============================================================================

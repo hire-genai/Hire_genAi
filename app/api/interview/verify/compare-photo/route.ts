@@ -61,14 +61,41 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: 'Application ID is required' }, { status: 400 })
     }
 
+    // Upload base64 photo to Vercel Blob if it's a data URL
+    let photoUrlToStore: string | null = capturedPhotoUrl || null
+
+    if (capturedPhotoUrl && capturedPhotoUrl.startsWith('data:image/')) {
+      try {
+        let imageFormat = 'jpg'
+        let contentType = 'image/jpeg'
+        if (capturedPhotoUrl.startsWith('data:image/png;')) {
+          imageFormat = 'png'; contentType = 'image/png'
+        } else if (capturedPhotoUrl.startsWith('data:image/webp;')) {
+          imageFormat = 'webp'; contentType = 'image/webp'
+        }
+
+        const base64Data = capturedPhotoUrl.replace(/^data:image\/\w+;base64,/, '')
+        const buffer = Buffer.from(base64Data, 'base64')
+        const filename = `verification-photos/${applicationId}/${Date.now()}.${imageFormat}`
+
+        const { put } = await import('@vercel/blob')
+        const blob = await put(filename, buffer, { access: 'public', contentType })
+        photoUrlToStore = blob.url
+        console.log(`[Photo Compare] ✅ Uploaded verification photo to Blob: ${photoUrlToStore}`)
+      } catch (blobErr: any) {
+        console.error('[Photo Compare] Blob upload failed, skipping photo storage:', blobErr?.message)
+        photoUrlToStore = null
+      }
+    }
+
     // Ensure interview record exists, then update verification data
     await DatabaseService.ensureInterviewRecord(applicationId)
 
     // Update interviews table with verification status
     // Distance is stored for internal logging only, NEVER shown to users
     const updateQuery = `
-      UPDATE interviews 
-      SET 
+      UPDATE interviews
+      SET
         verification_photo_url = $2,
         photo_verified = $3,
         photo_match_score = $4,
@@ -76,11 +103,11 @@ export async function POST(req: Request) {
       WHERE application_id = $1::uuid
       RETURNING id
     `
-    
+
     try {
       await (DatabaseService as any).query(updateQuery, [
-        applicationId, 
-        capturedPhotoUrl || null,
+        applicationId,
+        photoUrlToStore,
         verified,
         distance || 0 // Store raw distance (0-1 scale) for internal logs
       ])
@@ -90,8 +117,8 @@ export async function POST(req: Request) {
 
     console.log(`[Photo Compare] Application ${applicationId}: verified=${verified}, distance=${distance}`)
 
-    return NextResponse.json({ 
-      ok: true, 
+    return NextResponse.json({
+      ok: true,
       verified,
       message: verified ? 'Photo verification successful' : 'Photo verification failed'
     })

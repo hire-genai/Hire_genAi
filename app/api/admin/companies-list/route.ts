@@ -52,9 +52,13 @@ export async function GET(req: NextRequest) {
         COALESCE(cb.wallet_balance, 0) as wallet_balance,
         COALESCE(cb.current_month_spent, 0) as month_spent,
         COALESCE(cb.total_spent, 0) as total_spent,
+        cb.status as billing_status,
         COALESCE(u.user_count, 0) as user_count,
-        cs.plan_id as subscription_plan,
-        cs.status as subscription_status
+        (SELECT COUNT(*) FROM job_postings jp WHERE jp.company_id = c.id) as job_count,
+        cs.plan_name,
+        cs.status as subscription_status,
+        cs.next_billing_time,
+        cs.cancel_at_cycle_end
        FROM companies c
        LEFT JOIN company_billing cb ON cb.company_id = c.id
        LEFT JOIN (
@@ -62,23 +66,46 @@ export async function GET(req: NextRequest) {
         FROM users
         GROUP BY company_id
        ) u ON u.company_id = c.id
-       LEFT JOIN company_subscriptions cs ON cs.company_id = c.id
+       LEFT JOIN LATERAL (
+         SELECT plan_name, plan_id, status, next_billing_time, cancel_at_cycle_end, provider
+         FROM company_subscriptions cs2
+         WHERE cs2.company_id = c.id
+         ORDER BY
+           CASE WHEN COALESCE(cs2.plan_name, cs2.plan_id, '') <> '' THEN 0 ELSE 1 END,
+           CASE cs2.provider WHEN 'razorpay' THEN 0 WHEN 'paypal' THEN 1 ELSE 2 END,
+           CASE cs2.status WHEN 'active' THEN 0 WHEN 'authenticated' THEN 1 WHEN 'created' THEN 2 ELSE 3 END
+         LIMIT 1
+       ) cs ON TRUE
        ${whereClause}
        ORDER BY c.created_at DESC`,
       params
     )
 
-    const companies = (rows as any[]).map((r) => ({
-      id: r.id,
-      name: r.name,
-      status: r.subscription_status || r.status || "active",
-      walletBalance: parseFloat(r.wallet_balance || "0"),
-      monthSpent: parseFloat(r.month_spent || "0"),
-      totalSpent: parseFloat(r.total_spent || "0"),
-      userCount: parseInt(r.user_count || "0"),
-      subscriptionPlan: r.subscription_plan || "Free",
-      createdAt: r.created_at,
-    }))
+    const trialDays = parseInt(process.env.TRIAL_DAYS || "9")
+    const now = Date.now()
+
+    const companies = (rows as any[]).map((r) => {
+      const createdAt = new Date(r.created_at)
+      const daysSinceCreation = Math.floor((now - createdAt.getTime()) / (1000 * 60 * 60 * 24))
+      const trialDaysLeft = Math.max(0, trialDays - daysSinceCreation)
+
+      return {
+        id: r.id,
+        name: r.name,
+        billingStatus: String(r.billing_status || r.status || "trial"),
+        subscriptionStatus: r.subscription_status ?? null,
+        planName: r.plan_name || r.plan_id || null,
+        trialDaysLeft,
+        cancelAtCycleEnd: Boolean(r.cancel_at_cycle_end),
+        nextBillingTime: r.next_billing_time ?? null,
+        walletBalance: parseFloat(String(r.wallet_balance ?? "0")),
+        monthSpent: parseFloat(String(r.month_spent ?? "0")),
+        totalSpent: parseFloat(String(r.total_spent ?? "0")),
+        userCount: Number(r.user_count ?? 0),
+        jobCount: Number(r.job_count ?? 0),
+        createdAt: r.created_at,
+      }
+    })
 
     return NextResponse.json({ ok: true, companies })
   } catch (error: any) {

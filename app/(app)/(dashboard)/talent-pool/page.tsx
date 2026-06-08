@@ -477,7 +477,7 @@ export default function TalentPoolPage() {
           <table className="w-full">
             <thead className="border-b">
               <tr>
-                <th className="px-3 py-3 text-left bg-gray-50 border-r border-gray-200">
+                <th className="px-2 py-2 text-left bg-gray-50 border-r border-gray-200">
                   <input
                     type="checkbox"
                     checked={selectedCandidates.length === filteredCandidates.length && filteredCandidates.length > 0}
@@ -488,24 +488,24 @@ export default function TalentPoolPage() {
                     className="w-3.5 h-3.5 rounded border-gray-300"
                   />
                 </th>
-                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Candidate Name</th>
-                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Email / Phone</th>
-                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Exp</th>
-                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">LinkedIn / Resume</th>
-                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[120px]">Position</th>
-                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide min-w-[200px]">Skills</th>
-                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Previous Company Set</th>
-                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">CV / Interview Score</th>
-                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Status / Source</th>
-                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Last Contact</th>
-                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-700 bg-gray-50 uppercase tracking-wide sticky right-0 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)] border-l border-gray-200">Action</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Candidate Name</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Email / Phone</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Exp</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">LinkedIn / Resume</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Position</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Skills</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Previous Company Set</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">CV / Interview Score</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Status / Source</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Last Contact</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 uppercase tracking-wide sticky right-0 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)] border-l border-gray-200">Action</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
               {filteredCandidates.map((candidate, index) => (
                 <tr key={index} className="hover:bg-gray-50 transition-colors border-b">
                   {/* Checkbox */}
-                  <td className="px-3 py-3 border-r border-gray-100">
+                  <td className="px-2 py-2 border-r border-gray-100">
                     <input
                       type="checkbox"
                       checked={selectedCandidates.includes(candidate.email)}
@@ -517,63 +517,65 @@ export default function TalentPoolPage() {
                     />
                   </td>
                   {/* Candidate Name */}
-                  <td className="px-3 py-3 border-r border-gray-100 min-w-[140px]">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-[10px] shrink-0">
+                  <td className="px-2 py-2 border-r border-gray-100">
+                    <div style={{maxWidth:160,overflowX:'auto',whiteSpace:'nowrap',scrollbarWidth:'thin'}} className="cell-scroll flex items-center gap-1.5">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-[10px] shrink-0">
                         {candidate.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                       </div>
                       <button
                         onClick={() => { setSelectedCandidateDetails(candidate); setShowCandidateDetailsDialog(true) }}
-                        className="text-xs font-medium text-blue-600 hover:text-blue-800 underline decoration-dotted cursor-pointer transition-colors text-left leading-tight whitespace-nowrap"
+                        className="text-[11px] font-medium text-blue-600 hover:text-blue-800 underline decoration-dotted cursor-pointer transition-colors text-left leading-tight whitespace-nowrap"
                       >
                         {candidate.name}
                       </button>
                     </div>
                   </td>
                   {/* Email / Phone */}
-                  <td className="px-3 py-3 border-r border-gray-100">
-                    <div className="text-xs text-gray-700 whitespace-nowrap">{candidate.email || '—'}</div>
-                    <div className="text-[10px] text-gray-500 mt-0.5 whitespace-nowrap">{candidate.phone || '—'}</div>
+                  <td className="px-2 py-2 border-r border-gray-100">
+                    <div style={{maxWidth:160,overflowX:'auto',whiteSpace:'nowrap',scrollbarWidth:'thin'}} className="cell-scroll">
+                      <div className="text-[11px] text-gray-700">{candidate.email || '—'}</div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">{candidate.phone || '—'}</div>
+                    </div>
                   </td>
                   {/* Exp */}
-                  <td className="px-3 py-3 border-r border-gray-100">
+                  <td className="px-2 py-2 border-r border-gray-100">
                     {candidate.experienceYears != null ? (
-                      <span className="inline-block bg-indigo-50 text-indigo-700 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-indigo-200 whitespace-nowrap">
+                      <span className="inline-block bg-indigo-50 text-indigo-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-indigo-200 whitespace-nowrap">
                         {candidate.experienceYears} yr{candidate.experienceYears !== 1 ? 's' : ''}
                       </span>
                     ) : <span className="text-[10px] text-gray-400">—</span>}
                   </td>
                   {/* LinkedIn / Resume */}
-                  <td className="px-3 py-3 border-r border-gray-100">
-                    <div className="flex items-center gap-2">
+                  <td className="px-2 py-2 border-r border-gray-100">
+                    <div className="flex items-center gap-1">
                       {candidate.linkedinUrl ? (
                         <a href={candidate.linkedinUrl} target="_blank" rel="noopener noreferrer" title="LinkedIn"
-                          className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors">
-                          <Linkedin className="h-4 w-4 text-green-600 fill-green-600" strokeWidth={2} />
+                          className="inline-flex items-center justify-center w-6 h-6 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors">
+                          <Linkedin className="h-3.5 w-3.5 text-green-600 fill-green-600" strokeWidth={2} />
                         </a>
                       ) : (
-                        <span title="No LinkedIn" className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-50 border border-gray-200">
-                          <Linkedin className="h-4 w-4 text-gray-400" strokeWidth={2} />
+                        <span title="No LinkedIn" className="inline-flex items-center justify-center w-6 h-6 rounded bg-gray-50 border border-gray-200">
+                          <Linkedin className="h-3.5 w-3.5 text-gray-400" strokeWidth={2} />
                         </span>
                       )}
                       {candidate.resumeUrl ? (
                         <a href={candidate.resumeUrl} target="_blank" rel="noopener noreferrer" title="Resume"
-                          className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors">
-                          <FileText className="h-4 w-4 text-green-600" strokeWidth={2} />
+                          className="inline-flex items-center justify-center w-6 h-6 rounded bg-green-50 hover:bg-green-100 border border-green-200 transition-colors">
+                          <FileText className="h-3.5 w-3.5 text-green-600" strokeWidth={2} />
                         </a>
                       ) : (
-                        <span title="No Resume" className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-50 border border-gray-200">
-                          <FileText className="h-4 w-4 text-gray-400" strokeWidth={2} />
+                        <span title="No Resume" className="inline-flex items-center justify-center w-6 h-6 rounded bg-gray-50 border border-gray-200">
+                          <FileText className="h-3.5 w-3.5 text-gray-400" strokeWidth={2} />
                         </span>
                       )}
                     </div>
                   </td>
                   {/* Position */}
-                  <td className="px-3 py-3 border-r border-gray-100">
-                    <div className="text-xs text-gray-700 leading-tight">{candidate.position || '—'}</div>
+                  <td className="px-2 py-2 border-r border-gray-100">
+                    <div style={{maxWidth:120,overflowX:'auto',whiteSpace:'nowrap',scrollbarWidth:'thin'}} className="cell-scroll text-[11px] text-gray-700">{candidate.position || '—'}</div>
                   </td>
                   {/* Skills */}
-                  <td className="px-3 py-3 border-r border-gray-100">
+                  <td className="px-2 py-2 border-r border-gray-100">
                     {candidate.skills.length > 0 ? (
                       <div className="max-h-[80px] overflow-y-auto flex flex-wrap gap-1" style={{scrollbarWidth:'thin', scrollbarColor:'#e5e7eb transparent'}}>
                         {candidate.skills.map((skill, i) => (
@@ -585,7 +587,7 @@ export default function TalentPoolPage() {
                     ) : <span className="text-[10px] text-gray-400">—</span>}
                   </td>
                   {/* Company Set */}
-                  <td className="px-3 py-3 border-r border-gray-100">
+                  <td className="px-2 py-2 border-r border-gray-100">
                     {(() => {
                       const companyList = (candidate.companies && candidate.companies.length > 0)
                         ? candidate.companies
@@ -602,44 +604,48 @@ export default function TalentPoolPage() {
                     })()}
                   </td>
                   {/* CV / Interview Score */}
-                  <td className="px-3 py-3 border-r border-gray-100">
-                    <Badge className="bg-emerald-100 text-emerald-800 font-semibold text-[10px] px-1.5 py-0 h-auto">
-                      {candidate.cvScore || 'N/A'}
-                    </Badge>
-                    <div className="mt-1">
-                      <Badge className={`text-[10px] px-1.5 py-0 h-auto ${candidate.interviewScore ? 'bg-purple-100 text-purple-800 font-semibold' : 'bg-gray-100 text-gray-500'}`}>
-                        {candidate.interviewScore || 'N/A'}
+                  <td className="px-2 py-2 border-r border-gray-100">
+                    <div style={{maxWidth:90,overflowX:'auto',whiteSpace:'nowrap',scrollbarWidth:'thin'}} className="cell-scroll">
+                      <Badge className="bg-emerald-100 text-emerald-800 font-semibold text-[10px] px-1.5 py-0 h-auto">
+                        {candidate.cvScore || 'N/A'}
                       </Badge>
+                      <div className="mt-1">
+                        <Badge className={`text-[10px] px-1.5 py-0 h-auto ${candidate.interviewScore ? 'bg-purple-100 text-purple-800 font-semibold' : 'bg-gray-100 text-gray-500'}`}>
+                          {candidate.interviewScore || 'N/A'}
+                        </Badge>
+                      </div>
                     </div>
                   </td>
                   {/* Status / Source */}
-                  <td className="px-3 py-3 border-r border-gray-100">
-                    <Badge className={`text-[10px] px-1.5 py-0 h-auto ${candidate.status === 'Active Interest' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
-                      {candidate.status}
-                    </Badge>
-                    <div className="text-[10px] text-gray-500 mt-1 whitespace-nowrap">{candidate.source}</div>
+                  <td className="px-2 py-2 border-r border-gray-100">
+                    <div style={{maxWidth:90,overflowX:'auto',whiteSpace:'nowrap',scrollbarWidth:'thin'}} className="cell-scroll">
+                      <Badge className={`text-[10px] px-1.5 py-0 h-auto ${candidate.status === 'Active Interest' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
+                        {candidate.status}
+                      </Badge>
+                      <div className="text-[10px] text-gray-500 mt-1">{candidate.source}</div>
+                    </div>
                   </td>
                   {/* Last Contact */}
-                  <td className="px-3 py-3 border-r border-gray-100">
-                    <div className="text-[10px] text-gray-600 whitespace-nowrap">{candidate.lastContact}</div>
+                  <td className="px-2 py-2 border-r border-gray-100">
+                    <div style={{maxWidth:80,overflowX:'auto',whiteSpace:'nowrap',scrollbarWidth:'thin'}} className="cell-scroll text-[10px] text-gray-600">{candidate.lastContact}</div>
                   </td>
                   {/* Action - sticky */}
-                  <td className="px-3 py-3 sticky right-0 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] border-l border-gray-100">
-                    <div className="flex gap-1.5">
+                  <td className="px-2 py-2 sticky right-0 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] border-l border-gray-100">
+                    <div className="flex gap-1">
                       <button
                         onClick={() => { setSelectedCandidateDetails(candidate); setShowCandidateDetailsDialog(true) }}
                         title="View Profile"
-                        className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 bg-white hover:bg-gray-50 transition-colors"
+                        className="inline-flex items-center justify-center w-6 h-6 rounded border border-gray-200 bg-white hover:bg-gray-50 transition-colors"
                       >
-                        <Settings2 className="h-3.5 w-3.5 text-gray-600" />
+                        <Settings2 className="h-3 w-3 text-gray-600" />
                       </button>
                       <button
                         onClick={() => { setSelectedCandidates([candidate.email]); setShowEmailDialog(true) }}
                         title="Send Email"
                         disabled={!canModify}
-                        className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 bg-white hover:bg-gray-50 transition-colors disabled:opacity-40"
+                        className="inline-flex items-center justify-center w-6 h-6 rounded border border-gray-200 bg-white hover:bg-gray-50 transition-colors disabled:opacity-40"
                       >
-                        <Mail className="h-3.5 w-3.5 text-gray-600" />
+                        <Mail className="h-3 w-3 text-gray-600" />
                       </button>
                     </div>
                   </td>
@@ -1650,6 +1656,7 @@ ${companyName} Talent Acquisition Team`
         </DialogContent>
       </Dialog>
 
+      <style>{`.cell-scroll::-webkit-scrollbar{height:3px;width:3px}.cell-scroll::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:9px}.cell-scroll::-webkit-scrollbar-track{background:transparent}`}</style>
       <style jsx global>{`
         .tp-no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
         .tp-no-scrollbar::-webkit-scrollbar { width: 0; height: 0; display: none; }

@@ -139,7 +139,7 @@ Talent Acquisition Team`
             `UPDATE applications
                 SET current_stage = 'ai_interview'
               WHERE id = $1::uuid
-                AND (current_stage IS NULL OR current_stage IN ('screening', 'cv_qualified'))
+                AND (current_stage IS NULL OR current_stage = 'screening')
               RETURNING id`,
             [interviewId]
           ) as any[]

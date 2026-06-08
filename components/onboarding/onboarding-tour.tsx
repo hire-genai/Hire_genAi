@@ -43,16 +43,19 @@ export default function OnboardingTour() {
     // Only show tour if user is logged in
     if (!user?.id) return
 
+    // Skip tour in Playwright E2E test environment
+    if (localStorage.getItem('hasSeenOnboardingTour') === 'true') return
+
     // Check if THIS specific user has seen the tour (user-specific key)
     const tourKey = `hasSeenOnboardingTour_${user.id}`
     const hasSeenTour = localStorage.getItem(tourKey)
-    
+
     if (!hasSeenTour) {
       // Show tour after a short delay for better UX
       const timer = setTimeout(() => {
         setIsOpen(true)
       }, 500)
-      
+
       return () => clearTimeout(timer)
     }
   }, [user?.id])

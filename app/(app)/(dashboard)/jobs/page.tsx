@@ -214,31 +214,27 @@ export default function JobsPage() {
 		}
 	}, [company?.id, user?.role, user?.id, recruiterFilter])
 
-	// Check trial status and enforce/restore jobs based on trial status
+	// Check trial status and enforce/restore jobs based on trial status (background only)
 	const checkAndEnforceTrialExpiry = useCallback(async () => {
 		if (!company?.id) return
 		try {
 			const response = await fetch(`/api/billing/status?companyId=${company.id}`)
 			const result = await response.json()
 			if (result.ok && result.billing?.isTrialExpired) {
-				// Trial expired - put jobs on hold
-				console.log('?? [Trial Check] Trial expired, enforcing hold on jobs/interviews')
-				await fetch('/api/jobs/enforce-trial-expiry', {
+				fetch('/api/jobs/enforce-trial-expiry', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ companyId: company.id })
-				})
+				}).catch(() => {})
 			} else if (result.ok && !result.billing?.isTrialExpired) {
-				// Trial NOT expired - restore jobs that were on hold due to trial expiry
-				console.log('?? [Trial Check] Trial active, restoring jobs from trial expiry hold')
-				await fetch('/api/jobs/restore-from-trial-expiry', {
+				fetch('/api/jobs/restore-from-trial-expiry', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ companyId: company.id })
-				})
+				}).catch(() => {})
 			}
 		} catch (error) {
-			console.error('Failed to check/enforce trial expiry:', error)
+			// silent — trial enforcement is non-critical
 		}
 	}, [company?.id])
 
@@ -343,13 +339,10 @@ export default function JobsPage() {
 	// Fetch jobs on mount and when dependencies change
 	useEffect(() => {
 		if (company?.id) {
-			// First check trial status, then fetch jobs
-			checkAndEnforceTrialExpiry().then(() => {
-				fetchJobs()
-			}).catch(() => {
-				// Even if trial check fails, still fetch jobs
-				fetchJobs()
-			})
+			// Fetch jobs immediately — don't wait for trial check
+			fetchJobs()
+			// Trial enforcement runs in background, does not block UI
+			checkAndEnforceTrialExpiry().catch(() => {})
 		}
 	}, [company?.id, fetchJobs])
 

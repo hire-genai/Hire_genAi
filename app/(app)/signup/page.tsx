@@ -426,48 +426,48 @@ function SignupContent() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div style={{ minHeight: '100vh', background: '#03110A', color: '#fff' }}>
       {/* Top Bar */}
-      <header className="bg-white border-b border-slate-200">
+      <header style={{ background: 'rgba(3,17,10,0.97)', borderBottom: '1px solid rgba(0,177,79,0.15)', backdropFilter: 'blur(20px)' }}>
         <div className="max-w-2xl md:max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-          <nav className="flex items-center text-sm text-slate-600 gap-2">
+          <nav className="flex items-center text-sm gap-2" style={{ color: 'rgba(255,255,255,0.6)' }}>
             <Home className="w-4 h-4" />
-            <Link href="/" className="hover:text-emerald-600">Home</Link>
-            <span className="text-slate-400">/</span>
+            <Link href="/" style={{ color: 'rgba(255,255,255,0.6)' }} className="hover:text-white">Home</Link>
+            <span style={{ color: 'rgba(255,255,255,0.3)' }}>/</span>
             <span className="font-bold">
-              <Link href="/signup" className="hover:text-emerald-600">
-                <span className="text-slate-800">Hire</span>
-                <span className="sr-text-gradient">GenAI</span>
+              <Link href="/signup" style={{ textDecoration: 'none' }}>
+                <span style={{ color: '#fff' }}>Hire-</span>
+                <span style={{ color: '#00B14F' }}>GenAI</span>
               </Link>
             </span>
           </nav>
-          <Badge variant="outline" className="rounded-full border-emerald-200 text-emerald-700 bg-emerald-50">Step {step} of {totalSteps}</Badge>
+          <span style={{ fontSize: '12px', fontWeight: 600, color: '#00B14F', background: 'rgba(0,177,79,0.12)', border: '1px solid rgba(0,177,79,0.3)', borderRadius: '100px', padding: '4px 12px' }}>Step {step} of {totalSteps}</span>
         </div>
       </header>
 
       {/* Progress */}
       <div className="max-w-2xl md:max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-        <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-          <div className="h-full bg-emerald-500" style={{ width: `${progressPct}%` }} />
+        <div style={{ height: '4px', width: '100%', background: 'rgba(255,255,255,0.08)', borderRadius: '100px', overflow: 'hidden' }}>
+          <div style={{ height: '100%', background: 'linear-gradient(90deg,#00B14F,#00C853)', width: `${progressPct}%`, transition: 'width 0.4s ease' }} />
         </div>
       </div>
 
       {/* Form */}
       <div className="max-w-2xl md:max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <h1 className="text-3xl md:text-4xl font-bold text-slate-800 tracking-tight">Company Registration</h1>
-        <p className="text-slate-600 mt-1">Complete all steps to set up your HireGenAI account</p>
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight" style={{ color: '#fff' }}>Company Registration</h1>
+        <p style={{ color: 'rgba(255,255,255,0.5)', marginTop: '4px' }}>Complete all steps to set up your HireGenAI account</p>
 
         {/* Error Message Display */}
         {errorMessage && (
-          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
-            <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div style={{ marginTop: '16px', padding: '14px 16px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <svg className="w-5 h-5 flex-shrink-0" style={{ color: '#EF4444' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span className="text-red-700 text-sm font-medium">{errorMessage}</span>
-            <button 
+            <span style={{ color: '#FCA5A5', fontSize: '14px', fontWeight: 500 }}>{errorMessage}</span>
+            <button
               type="button"
               onClick={() => setErrorMessage(null)}
-              className="ml-auto text-red-500 hover:text-red-700"
+              style={{ marginLeft: 'auto', color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer' }}
             >
               ✕
             </button>
@@ -476,13 +476,13 @@ function SignupContent() {
 
         <form onSubmit={onSubmit} className="mt-6">
           {step === 1 && (
-            <Card className="sr-card">
+            <Card className="sr-card" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px' }}>
               <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-                  <Building2 className="w-5 h-5 text-emerald-600" />
+                <div className="mx-auto mb-2 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(0,177,79,0.15)' }}>
+                  <Building2 className="w-5 h-5" style={{ color: '#00B14F' }} />
                 </div>
-                <CardTitle className="text-2xl">Company Information</CardTitle>
-                <CardDescription>Tell us about your company and what you do</CardDescription>
+                <CardTitle className="text-2xl" style={{ color: '#fff' }}>Company Information</CardTitle>
+                <CardDescription style={{ color: 'rgba(255,255,255,0.5)' }}>Tell us about your company and what you do</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -528,13 +528,13 @@ function SignupContent() {
           )}
 
           {step === 2 && (
-            <Card className="sr-card">
+            <Card className="sr-card" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px' }}>
               <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                  <MapPin className="w-5 h-5 text-blue-600" />
+                <div className="mx-auto mb-2 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(59,130,246,0.15)' }}>
+                  <MapPin className="w-5 h-5" style={{ color: '#60A5FA' }} />
                 </div>
-                <CardTitle className="text-2xl">Contact Information</CardTitle>
-                <CardDescription>Where is your company located?</CardDescription>
+                <CardTitle className="text-2xl" style={{ color: '#fff' }}>Contact Information</CardTitle>
+                <CardDescription style={{ color: 'rgba(255,255,255,0.5)' }}>Where is your company located?</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -577,13 +577,13 @@ function SignupContent() {
           )}
 
           {step === 3 && (
-            <Card className="sr-card">
+            <Card className="sr-card" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px' }}>
               <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-indigo-600" />
+                <div className="mx-auto mb-2 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(99,102,241,0.15)' }}>
+                  <FileText className="w-5 h-5" style={{ color: '#A5B4FC' }} />
                 </div>
-                <CardTitle className="text-2xl">Legal Information</CardTitle>
-                <CardDescription>Legal details for compliance and verification</CardDescription>
+                <CardTitle className="text-2xl" style={{ color: '#fff' }}>Legal Information</CardTitle>
+                <CardDescription style={{ color: 'rgba(255,255,255,0.5)' }}>Legal details for compliance and verification</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -601,8 +601,8 @@ function SignupContent() {
                     <Input id="registrationNumber" value={form.registrationNumber} onChange={onField("registrationNumber")} className="sr-input" />
                   </div>
                 </div>
-                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" />
+                <div className="rounded-md p-3 text-sm flex items-start gap-2" style={{ background: 'rgba(0,177,79,0.08)', border: '1px solid rgba(0,177,79,0.2)', color: 'rgba(255,255,255,0.6)' }}>
+                  <CheckCircle2 className="w-4 h-4 mt-0.5" style={{ color: '#00B14F' }} />
                   This information is used for verification purposes and is kept secure and confidential.
                 </div>
               </CardContent>
@@ -610,13 +610,13 @@ function SignupContent() {
           )}
 
           {step === 4 && (
-            <Card className="sr-card">
+            <Card className="sr-card" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px' }}>
               <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
-                  <User2 className="w-5 h-5 text-purple-600" />
+                <div className="mx-auto mb-2 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(168,85,247,0.15)' }}>
+                  <User2 className="w-5 h-5" style={{ color: '#C084FC' }} />
                 </div>
-                <CardTitle className="text-2xl">Manager Account</CardTitle>
-                <CardDescription>Set up the primary manager account</CardDescription>
+                <CardTitle className="text-2xl" style={{ color: '#fff' }}>Manager Account</CardTitle>
+                <CardDescription style={{ color: 'rgba(255,255,255,0.5)' }}>Set up the primary manager account</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -672,9 +672,9 @@ function SignupContent() {
                     </div>
                   )}
                   {otpVerified ? (
-                    <div className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md p-3">Email verified successfully.</div>
+                    <div className="text-sm rounded-md p-3" style={{ color: '#6EE7B7', background: 'rgba(0,177,79,0.1)', border: '1px solid rgba(0,177,79,0.3)' }}>Email verified successfully.</div>
                   ) : (otpSent ? (
-                    <p className="text-xs text-slate-500">Enter the 6-digit code we sent to {form.email}. In development, check terminal logs for the code.</p>
+                    <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Enter the 6-digit code we sent to {form.email}. In development, check terminal logs for the code.</p>
                   ) : null)}
                 </div>
                 <div className="space-y-2">
@@ -686,47 +686,47 @@ function SignupContent() {
           )}
 
           {step === 5 && (
-            <Card className="sr-card">
+            <Card className="sr-card" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px' }}>
               <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                <div className="mx-auto mb-2 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(0,177,79,0.15)' }}>
+                  <CheckCircle2 className="w-5 h-5" style={{ color: '#00B14F' }} />
                 </div>
-                <CardTitle className="text-2xl">Review & Complete</CardTitle>
-                <CardDescription>Review your information and complete registration</CardDescription>
+                <CardTitle className="text-2xl" style={{ color: '#fff' }}>Review & Complete</CardTitle>
+                <CardDescription style={{ color: 'rgba(255,255,255,0.5)' }}>Review your information and complete registration</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="rounded-lg border p-4">
-                    <h3 className="font-semibold mb-3">Company Summary</h3>
-                    <div className="text-sm text-slate-600 space-y-1">
-                      <div><span className="text-slate-500">Company:</span> {form.companyName || "—"}</div>
-                      <div><span className="text-slate-500">Industry:</span> {form.industry || "—"}</div>
-                      <div><span className="text-slate-500">Size:</span> {form.companySize || "—"}</div>
-                      <div><span className="text-slate-500">Location:</span> {[form.city, form.state, countryOptions.find(c => c.code === form.country)?.name].filter(Boolean).join(', ') || "—"}</div>
+                  <div className="rounded-lg p-4" style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)' }}>
+                    <h3 className="font-semibold mb-3" style={{ color: '#fff' }}>Company Summary</h3>
+                    <div className="text-sm space-y-1" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                      <div><span style={{ color: 'rgba(255,255,255,0.4)' }}>Company:</span> {form.companyName || "—"}</div>
+                      <div><span style={{ color: 'rgba(255,255,255,0.4)' }}>Industry:</span> {form.industry || "—"}</div>
+                      <div><span style={{ color: 'rgba(255,255,255,0.4)' }}>Size:</span> {form.companySize || "—"}</div>
+                      <div><span style={{ color: 'rgba(255,255,255,0.4)' }}>Location:</span> {[form.city, form.state, countryOptions.find(c => c.code === form.country)?.name].filter(Boolean).join(', ') || "—"}</div>
                     </div>
                   </div>
-                  <div className="rounded-lg border p-4">
-                    <h3 className="font-semibold mb-3">Administrator</h3>
-                    <div className="text-sm text-slate-600 space-y-1">
-                      <div><span className="text-slate-500">Name:</span> {[form.firstName, form.lastName].filter(Boolean).join(' ') || "—"}</div>
-                      <div><span className="text-slate-500">Email:</span> {form.email || "—"}</div>
-                      <div><span className="text-slate-500">Title:</span> {form.jobTitle || "Not specified"}</div>
+                  <div className="rounded-lg p-4" style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)' }}>
+                    <h3 className="font-semibold mb-3" style={{ color: '#fff' }}>Administrator</h3>
+                    <div className="text-sm space-y-1" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                      <div><span style={{ color: 'rgba(255,255,255,0.4)' }}>Name:</span> {[form.firstName, form.lastName].filter(Boolean).join(' ') || "—"}</div>
+                      <div><span style={{ color: 'rgba(255,255,255,0.4)' }}>Email:</span> {form.email || "—"}</div>
+                      <div><span style={{ color: 'rgba(255,255,255,0.4)' }}>Title:</span> {form.jobTitle || "Not specified"}</div>
                     </div>
                   </div>
                 </div>
 
-                <Separator />
+                <Separator style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
 
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm">
+                  <div className="flex items-center gap-2 text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>
                     <input id="tos" type="checkbox" className="h-4 w-4" checked={form.agreeTos} onChange={(e) => setForm(f => ({...f, agreeTos: e.target.checked}))} />
-                    <label htmlFor="tos">I agree to the <a className="text-emerald-600 hover:underline" href="#">Terms of Service</a> and <a className="text-emerald-600 hover:underline" href="#">Privacy Policy</a> *</label>
+                    <label htmlFor="tos">I agree to the <a style={{ color: '#00B14F' }} href="#">Terms of Service</a> and <a style={{ color: '#00B14F' }} href="#">Privacy Policy</a> *</label>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
+                  <div className="flex items-center gap-2 text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>
                     <input id="privacy" type="checkbox" className="h-4 w-4" checked={form.agreePrivacy} onChange={(e) => setForm(f => ({...f, agreePrivacy: e.target.checked}))} />
                     <label htmlFor="privacy">I consent to the processing of my personal data as described in the Privacy Policy *</label>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
+                  <div className="flex items-center gap-2 text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
                     <input id="marketing" type="checkbox" className="h-4 w-4" checked={form.agreeMarketing} onChange={(e) => setForm(f => ({...f, agreeMarketing: e.target.checked}))} />
                     <label htmlFor="marketing">I would like to receive product updates and marketing communications (optional)</label>
                   </div>
@@ -737,15 +737,15 @@ function SignupContent() {
 
           {/* Actions */}
           <div className="mt-6 flex items-center justify-between">
-            <Button type="button" variant="outline" onClick={prev} disabled={step === 1}>
+            <Button type="button" variant="outline" onClick={prev} disabled={step === 1} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.8)' }}>
               <ChevronLeft className="w-4 h-4 mr-2" /> Previous
             </Button>
             {step < totalSteps ? (
-              <Button type="button" className="sr-button-primary" onClick={next} disabled={!isStepValid()}>
+              <Button type="button" onClick={next} disabled={!isStepValid()} style={{ background: 'linear-gradient(135deg,#00B14F,#00C853)', color: '#fff', border: 'none', opacity: !isStepValid() ? 0.5 : 1 }}>
                 Next <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             ) : (
-              <Button type="submit" className="sr-button-primary" disabled={!form.agreeTos || !form.agreePrivacy || submitting}>
+              <Button type="submit" disabled={!form.agreeTos || !form.agreePrivacy || submitting} style={{ background: 'linear-gradient(135deg,#00B14F,#00C853)', color: '#fff', border: 'none', opacity: !form.agreeTos || !form.agreePrivacy || submitting ? 0.5 : 1 }}>
                 {submitting ? (
                   <>
                     <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
@@ -759,13 +759,13 @@ function SignupContent() {
           </div>
         </form>
 
-        <div className="text-center text-sm text-slate-500 mt-8">
-          Need help? <a className="text-emerald-600 hover:underline" href="/contact">Contact our support team</a>
+        <div className="text-center text-sm mt-8" style={{ color: 'rgba(255,255,255,0.4)' }}>
+          Need help? <a style={{ color: '#00B14F' }} href="/contact">Contact our support team</a>
         </div>
       </div>
 
       {/* Footer */}
-      <footer className="bg-slate-900 text-white py-16">
+      <footer className="text-white py-16" style={{ background: 'rgba(255,255,255,0.02)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Main Footer Content */}
           <div className="grid grid-cols-2 md:grid-cols-12 gap-6 md:gap-12 mb-12">
@@ -922,10 +922,10 @@ function SignupContent() {
 export default function SignupPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div style={{ minHeight: '100vh', background: '#03110A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto mb-4"></div>
-          <p className="text-slate-600">Loading...</p>
+          <div style={{ width: 36, height: 36, border: '3px solid rgba(0,177,79,0.3)', borderTopColor: '#00B14F', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }}></div>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px' }}>Loading...</p>
         </div>
       </div>
     }>

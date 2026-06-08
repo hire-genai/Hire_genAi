@@ -1,0 +1,441 @@
+{
+  "companies": [
+    {
+      "name": "Playwright Test Corp",
+      "slug": "playwright-test-corp",
+      "email": "test@playwrightcorp.com",
+      "domain": "playwrightcorp.com",
+      "password": "PW-Test-Corp-2024!",
+      "industry": "Technology",
+      "size": "11-50",
+      "website": "https://playwrightcorp.com",
+      "phone": "+1-555-0100",
+      "street": "123 Playwright Avenue",
+      "city": "San Francisco",
+      "state": "CA",
+      "postalCode": "94105",
+      "country": "United States",
+      "legalCompanyName": "Playwright Test Corporation Inc.",
+      "taxId": "12-3456789",
+      "registrationNumber": "REG-2024-PW"
+    },
+    {
+      "name": "Acme Hiring Co",
+      "slug": "acme-hiring-co",
+      "email": "admin@acmehiring.com",
+      "domain": "acmehiring.com",
+      "password": "Acme-Hiring-2024!",
+      "industry": "Finance",
+      "size": "51-200",
+      "website": "https://acmehiring.com",
+      "phone": "+1-555-0200",
+      "street": "456 Market Street",
+      "city": "New York",
+      "state": "NY",
+      "postalCode": "10001",
+      "country": "United States",
+      "legalCompanyName": "Acme Hiring Company LLC",
+      "taxId": "98-7654321",
+      "registrationNumber": "REG-2024-AH"
+    },
+    {
+      "name": "Beta Recruiting Ltd",
+      "slug": "beta-recruiting-ltd",
+      "email": "contact@betarecruiting.io",
+      "domain": "betarecruiting.io",
+      "password": "Beta-Recruit-2024!",
+      "industry": "Healthcare",
+      "size": "201-500",
+      "website": "https://betarecruiting.io",
+      "phone": "+1-555-0300",
+      "street": "789 Innovation Drive",
+      "city": "Austin",
+      "state": "TX",
+      "postalCode": "78701",
+      "country": "United States",
+      "legalCompanyName": "Beta Recruiting Limited",
+      "taxId": "55-1234567",
+      "registrationNumber": "REG-2024-BR"
+    }
+  ],
+
+  "users": [
+    {
+      "name": "Test Recruiter",
+      "firstName": "Test",
+      "lastName": "Recruiter",
+      "email": "recruiter@playwrightcorp.com",
+      "jobTitle": "Talent Acquisition Specialist",
+      "role": "recruiter",
+      "companyDomain": "playwrightcorp.com"
+    },
+    {
+      "name": "Test Manager",
+      "firstName": "Test",
+      "lastName": "Manager",
+      "email": "manager@playwrightcorp.com",
+      "jobTitle": "Hiring Manager",
+      "role": "hiring_manager",
+      "companyDomain": "playwrightcorp.com"
+    },
+    {
+      "name": "Test Admin",
+      "firstName": "Test",
+      "lastName": "Admin",
+      "email": "admin@playwrightcorp.com",
+      "jobTitle": "HR Director",
+      "role": "admin",
+      "companyDomain": "playwrightcorp.com"
+    }
+  ],
+
+  "jobs": [
+    {
+      "title": "Senior Software Engineer",
+      "department": "Engineering",
+      "description": "We are looking for a Senior Software Engineer to join our engineering team. You will design and implement scalable backend services and collaborate with cross-functional teams to deliver high-quality software.",
+      "requirements": "5+ years of experience with TypeScript and Node.js. Strong knowledge of React and PostgreSQL. Experience with cloud platforms (AWS or GCP). Excellent communication skills.",
+      "requiredSkills": ["TypeScript", "React", "Node.js"],
+      "preferredSkills": ["PostgreSQL", "Docker", "AWS"],
+      "education": "Bachelor's degree in Computer Science or equivalent",
+      "salary_min": 80000,
+      "salary_max": 120000,
+      "currency": "USD",
+      "location": "Remote",
+      "type": "full-time",
+      "workMode": "remote",
+      "experienceYears": "3-5",
+      "numberOfOpenings": "2",
+      "status": "open"
+    },
+    {
+      "title": "Product Designer",
+      "department": "Design",
+      "description": "We are seeking a Product Designer with a strong portfolio of UX/UI work. You will lead the design process from discovery through delivery, working closely with engineers and product managers.",
+      "requirements": "3+ years of product design experience. Proficiency in Figma. Strong understanding of design systems, accessibility standards, and user research methodologies.",
+      "requiredSkills": ["Figma", "UX Research", "Prototyping"],
+      "preferredSkills": ["Framer", "Design Systems", "HTML/CSS"],
+      "education": "Bachelor's degree in Design, HCI, or equivalent",
+      "salary_min": 70000,
+      "salary_max": 100000,
+      "currency": "USD",
+      "location": "New York, NY",
+      "type": "full-time",
+      "workMode": "hybrid",
+      "experienceYears": "3-5",
+      "numberOfOpenings": "1",
+      "status": "open"
+    },
+    {
+      "title": "Data Analyst",
+      "department": "Analytics",
+      "description": "Join our analytics team to turn complex datasets into actionable insights. You will build dashboards, run A/B tests, and partner with product and marketing teams to drive data-informed decisions.",
+      "requirements": "2+ years of experience in data analysis. Proficiency in SQL and Python. Experience with BI tools such as Tableau or Looker. Strong statistical reasoning skills.",
+      "requiredSkills": ["SQL", "Python", "Tableau"],
+      "preferredSkills": ["dbt", "BigQuery", "R"],
+      "education": "Bachelor's degree in Statistics, Mathematics, or a related field",
+      "salary_min": 60000,
+      "salary_max": 85000,
+      "currency": "USD",
+      "location": "Austin, TX",
+      "type": "full-time",
+      "workMode": "onsite",
+      "experienceYears": "1-3",
+      "numberOfOpenings": "1",
+      "status": "open"
+    },
+    {
+      "title": "Marketing Coordinator",
+      "department": "Marketing",
+      "description": "We are hiring a part-time Marketing Coordinator to support our content calendar, social media presence, and email campaigns. Ideal for a creative self-starter who can hit the ground running.",
+      "requirements": "1+ years of marketing experience. Familiarity with HubSpot or Mailchimp. Strong writing and editing skills. Ability to manage multiple projects simultaneously.",
+      "requiredSkills": ["Content Writing", "Social Media", "Email Marketing"],
+      "preferredSkills": ["HubSpot", "SEO", "Canva"],
+      "education": "Bachelor's degree in Marketing, Communications, or equivalent",
+      "salary_min": 25000,
+      "salary_max": 40000,
+      "currency": "USD",
+      "location": "Remote",
+      "type": "part-time",
+      "workMode": "remote",
+      "experienceYears": "0-2",
+      "numberOfOpenings": "1",
+      "status": "open"
+    },
+    {
+      "title": "DevOps Engineer",
+      "department": "Infrastructure",
+      "description": "We need an experienced DevOps Engineer to own our CI/CD pipelines, infrastructure-as-code, and cloud cost optimisation. You will work alongside our engineering teams to improve reliability and deployment velocity.",
+      "requirements": "4+ years of DevOps or platform engineering experience. Hands-on experience with Kubernetes, Terraform, and AWS. Strong scripting skills in Bash or Python.",
+      "requiredSkills": ["Kubernetes", "Terraform", "AWS"],
+      "preferredSkills": ["Helm", "ArgoCD", "Datadog"],
+      "education": "Bachelor's degree in Computer Science, Engineering, or equivalent",
+      "salary_min": 90000,
+      "salary_max": 130000,
+      "currency": "USD",
+      "location": "Remote",
+      "type": "contract",
+      "workMode": "remote",
+      "experienceYears": "3-5",
+      "numberOfOpenings": "1",
+      "status": "open"
+    }
+  ],
+
+  "candidates": [
+    {
+      "id": "cand-001",
+      "name": "Alice Johnson",
+      "email": "alice.johnson@example.com",
+      "phone": "+1-555-0101",
+      "experience_years": 5,
+      "skills": ["TypeScript", "React", "Node.js", "PostgreSQL"],
+      "education": "Bachelor's in Computer Science — MIT",
+      "qualified": true,
+      "score": 88,
+      "verdict": "Strong Match",
+      "stage": "ai_interview"
+    },
+    {
+      "id": "cand-002",
+      "name": "Bob Smith",
+      "email": "bob.smith@example.com",
+      "phone": "+1-555-0102",
+      "experience_years": 3,
+      "skills": ["React", "JavaScript", "CSS", "Node.js"],
+      "education": "Bachelor's in Information Technology — UCLA",
+      "qualified": true,
+      "score": 72,
+      "verdict": "Good Match",
+      "stage": "ai_interview"
+    },
+    {
+      "id": "cand-003",
+      "name": "Carol White",
+      "email": "carol.white@example.com",
+      "phone": "+1-555-0103",
+      "experience_years": 1,
+      "skills": ["HTML", "CSS", "Basic JavaScript"],
+      "education": "Diploma in Web Design — City College",
+      "qualified": false,
+      "score": 45,
+      "verdict": "Weak Match",
+      "stage": "applied"
+    },
+    {
+      "id": "cand-004",
+      "name": "David Brown",
+      "email": "david.brown@example.com",
+      "phone": "+1-555-0104",
+      "experience_years": 2,
+      "skills": ["Java", "Spring Boot", "MySQL"],
+      "education": "Bachelor's in Electronics Engineering — State University",
+      "qualified": false,
+      "score": 30,
+      "verdict": "Reject",
+      "stage": "applied"
+    },
+    {
+      "id": "cand-005",
+      "name": "Eva Martinez",
+      "email": "eva.martinez@example.com",
+      "phone": "+1-555-0105",
+      "experience_years": 4,
+      "skills": ["React", "TypeScript", "REST APIs", "Git"],
+      "education": "Master's in Computer Science — University of Texas",
+      "qualified": true,
+      "score": 65,
+      "verdict": "Moderate Match",
+      "stage": "ai_interview"
+    },
+    {
+      "id": "cand-006",
+      "name": "Frank Lee",
+      "email": "frank.lee@example.com",
+      "phone": "+1-555-0106",
+      "experience_years": 7,
+      "skills": ["TypeScript", "Node.js", "AWS", "Kubernetes", "Docker"],
+      "education": "Bachelor's in Software Engineering — Carnegie Mellon",
+      "qualified": true,
+      "score": 95,
+      "verdict": "Exceptional Match",
+      "stage": "offer"
+    },
+    {
+      "id": "cand-007",
+      "name": "Grace Kim",
+      "email": "grace.kim@example.com",
+      "phone": "+1-555-0107",
+      "experience_years": 6,
+      "skills": ["Python", "Django", "PostgreSQL", "Redis", "AWS"],
+      "education": "Bachelor's in Computer Engineering — Georgia Tech",
+      "qualified": true,
+      "score": 80,
+      "verdict": "Strong Match",
+      "stage": "ai_interview"
+    },
+    {
+      "id": "cand-008",
+      "name": "Henry Osei",
+      "email": "henry.osei@example.com",
+      "phone": "+1-555-0108",
+      "experience_years": 0,
+      "skills": ["Python", "Pandas", "Excel"],
+      "education": "Recent Graduate — BSc Statistics, University of Ghana",
+      "qualified": false,
+      "score": 22,
+      "verdict": "Reject",
+      "stage": "applied"
+    },
+    {
+      "id": "cand-009",
+      "name": "Iris Patel",
+      "email": "iris.patel@example.com",
+      "phone": "+1-555-0109",
+      "experience_years": 4,
+      "skills": ["React", "GraphQL", "TypeScript", "Jest"],
+      "education": "Bachelor's in Information Systems — University of Michigan",
+      "qualified": true,
+      "score": 76,
+      "verdict": "Good Match",
+      "stage": "ai_interview"
+    },
+    {
+      "id": "cand-010",
+      "name": "James Nguyen",
+      "email": "james.nguyen@example.com",
+      "phone": "+1-555-0110",
+      "experience_years": 2,
+      "skills": ["PHP", "Laravel", "MySQL", "jQuery"],
+      "education": "Associate Degree in Computer Science — Community College",
+      "qualified": false,
+      "score": 38,
+      "verdict": "Weak Match",
+      "stage": "applied"
+    }
+  ],
+
+  "subscriptionPlans": [
+    {
+      "name": "Starter",
+      "slug": "starter",
+      "monthlyPrice": 99,
+      "annualPrice": 990,
+      "annualSavingsPercent": 17,
+      "supportTier": "Standard Support",
+      "cta": "Choose Starter",
+      "features": [
+        "Unlimited job postings",
+        "AI CV evaluation & scoring",
+        "AI video interviews"
+      ]
+    },
+    {
+      "name": "Professional",
+      "slug": "professional",
+      "monthlyPrice": 499,
+      "annualPrice": 4990,
+      "annualSavingsPercent": 17,
+      "supportTier": "Priority Support",
+      "cta": "Choose Professional",
+      "features": [
+        "Unlimited job postings",
+        "AI CV evaluation & scoring",
+        "AI video interviews",
+        "Advanced analytics",
+        "Priority support"
+      ]
+    },
+    {
+      "name": "Business",
+      "slug": "business",
+      "monthlyPrice": 999,
+      "annualPrice": 9990,
+      "annualSavingsPercent": 17,
+      "supportTier": "Business Support",
+      "cta": "Choose Business",
+      "features": [
+        "Unlimited job postings",
+        "AI CV evaluation & scoring",
+        "AI video interviews",
+        "Advanced analytics",
+        "Custom branding",
+        "Business support"
+      ]
+    },
+    {
+      "name": "Large",
+      "slug": "large",
+      "monthlyPrice": 2999,
+      "annualPrice": 29990,
+      "annualSavingsPercent": 17,
+      "supportTier": "Large Support",
+      "cta": "Choose Large",
+      "features": [
+        "Unlimited job postings",
+        "AI CV evaluation & scoring",
+        "AI video interviews",
+        "Advanced analytics",
+        "Custom branding",
+        "Dedicated account manager",
+        "Large Support"
+      ]
+    },
+    {
+      "name": "Ultra",
+      "slug": "ultra",
+      "monthlyPrice": 3999,
+      "annualPrice": 39990,
+      "annualSavingsPercent": 17,
+      "supportTier": "Ultra Support",
+      "cta": "Choose Ultra",
+      "features": [
+        "Unlimited job postings",
+        "AI CV evaluation & scoring",
+        "AI video interviews",
+        "Advanced analytics",
+        "Custom branding",
+        "Dedicated account manager",
+        "SLA guarantee",
+        "Ultra Support"
+      ]
+    },
+    {
+      "name": "Enterprise",
+      "slug": "enterprise",
+      "monthlyPrice": 4999,
+      "annualPrice": 49990,
+      "annualSavingsPercent": 17,
+      "supportTier": "Enterprise SLA",
+      "cta": "Talk to Sales",
+      "ctaHref": "/contact",
+      "features": [
+        "Unlimited job postings",
+        "AI CV evaluation & scoring",
+        "AI video interviews",
+        "Advanced analytics",
+        "Custom branding",
+        "Dedicated account manager",
+        "Enterprise SLA",
+        "Custom integrations",
+        "SSO / SAML support"
+      ]
+    }
+  ],
+
+  "stripeCards": {
+    "valid": "4242424242424242",
+    "declined": "4000000000000002",
+    "insufficientFunds": "4000000000009995",
+    "requiresAuth": "4000002500003155",
+    "expired": "4000000000000069",
+    "incorrectCvc": "4000000000000127",
+    "fraudulent": "4100000000000019"
+  },
+
+  "otpCodes": {
+    "valid": "123456",
+    "expired": "000000",
+    "invalid": "999999"
+  }
+}

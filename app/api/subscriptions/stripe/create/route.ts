@@ -14,6 +14,8 @@ const PLAN_PRICE_IDS: Record<string, string | undefined> = {
   large_annual:         process.env.STRIPE_PRICE_ID_LARGE_ANNUAL,
   ultra_monthly:        process.env.STRIPE_PRICE_ID_ULTRA_MONTHLY,
   ultra_annual:         process.env.STRIPE_PRICE_ID_ULTRA_ANNUAL,
+  enterprise_monthly:   process.env.STRIPE_PRICE_ID_ENTERPRISE_MONTHLY,
+  enterprise_annual:    process.env.STRIPE_PRICE_ID_ENTERPRISE_ANNUAL,
 }
 
 export const runtime = 'nodejs'

@@ -41,11 +41,23 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    let isTeamMember = false
+    let teamAssignedTabs: string[] = []
     if (!ALLOWED_EMAILS.includes(normalizedEmail)) {
-      return NextResponse.json(
-        { error: "Access restricted", restricted: true },
-        { status: 403 }
-      )
+      try {
+        const teamRows = await DatabaseService.query(
+          `SELECT assigned_tabs FROM admin_team_members WHERE email = $1`,
+          [normalizedEmail]
+        ) as any[]
+        if (teamRows.length > 0) {
+          isTeamMember = true
+          teamAssignedTabs = teamRows[0].assigned_tabs || []
+        }
+      } catch { /* table may not exist yet */ }
+
+      if (!isTeamMember) {
+        return NextResponse.json({ error: "Access restricted", restricted: true }, { status: 403 })
+      }
     }
 
     const challengeRows = await DatabaseService.query(
@@ -102,10 +114,19 @@ export async function POST(req: NextRequest) {
 
     await DatabaseService.query(`DELETE FROM otp_challenges WHERE id = $1`, [record.id])
 
+    // Determine where to redirect after login
+    let redirect = "/admin-hiregenai/overview"
+    if (isTeamMember && teamAssignedTabs.length > 0) {
+      redirect = `/admin-hiregenai/${teamAssignedTabs[0]}`
+    } else if (SUPPORT_EMAILS.includes(normalizedEmail)) {
+      redirect = "/admin-hiregenai/support-centre"
+    }
+
     const response = NextResponse.json({
       ok: true,
       message: "Login successful",
       sessionToken,
+      redirect,
     })
 
     response.cookies.set("admin_session", sessionToken, {

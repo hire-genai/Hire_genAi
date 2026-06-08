@@ -5,10 +5,10 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useState as useStateNav } from "react";
 import { Button } from "@/components/ui/button";
-import Navbar from "@/components/layout/Navbar";
+import { WwwNavbar } from "@/components/layout/www-nav";
 import Link from "next/link";
 import { Zap } from "lucide-react";
-import Footer from "@/components/layout/Footer";
+import WwwFooter from "@/components/layout/www-footer";
 
 // Screen identifiers
 const SCREENS = ["job", "candidate", "interview", "assessment"] as const;
@@ -654,7 +654,7 @@ export default function DemoEnPage() {
 
   return (
     <div className={`page-wrap ${initialLoading ? "page-wrap--loading" : ""}`}>
-      <Navbar />
+      <WwwNavbar />
       
       {/* Announcement Banner */}
       <div className="bg-emerald-50 border-b border-emerald-100">
@@ -2267,7 +2267,7 @@ export default function DemoEnPage() {
         )}
       </div>
 
-      <Footer />
+      <WwwFooter />
 
       <style jsx>{`
         :global(body) {
@@ -2279,7 +2279,7 @@ export default function DemoEnPage() {
           position: relative;
           min-height: 100vh;
           padding: 0;
-          background: #ffffff;
+          background: #03110A;
         }
         .page-wrap--loading .content-shell {
           opacity: 0;
