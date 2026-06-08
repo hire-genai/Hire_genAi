@@ -319,28 +319,28 @@ export function RecruitmentQuestionnaire() {
   }
 
   return (
-    <section className="py-12 sm:py-20 bg-gradient-to-br from-slate-50 to-emerald-50">
+    <section className="py-12 sm:py-20 bg-gradient-to-br from-[var(--dark)] to-[var(--dark2)] reveal">
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           <div>
-            <div className="inline-block bg-emerald-100 text-emerald-600 px-4 py-2 rounded-full text-sm font-semibold mb-6">
+            <div className="inline-block bg-[rgba(0,177,79,0.15)] text-[var(--primary-light)] px-4 py-2 rounded-full text-sm font-semibold mb-6 reveal-left">
               AI-Powered Recruitment
             </div>
-            <h1 className="text-4xl lg:text-5xl font-bold text-slate-800 mb-6 leading-tight">
+            <h1 className="text-4xl lg:text-5xl font-bold text-[var(--text)] mb-6 leading-tight reveal">
               Feeling Frustrated That You're Not Finding Quality Candidates Even Though You're Spending Hours Screening?
             </h1>
-            <p className="text-xl text-slate-600 mb-8">
+            <p className="text-xl text-[var(--text-muted)] mb-8 reveal">
               Answer 10 questions to find out why you're experiencing this frustration and get your personalized report.
             </p>
 
             <div className="space-y-6">
               <div className="flex items-start">
-                <div className="w-6 h-6 bg-emerald-600 rounded-full flex items-center justify-center mr-4 flex-shrink-0 mt-1">
+                <div className="w-6 h-6 bg-[var(--primary)] rounded-full flex items-center justify-center mr-4 flex-shrink-0 mt-1">
                   <Check className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <strong className="text-slate-800">Get your personalized score</strong>
-                  <p className="text-slate-600">See how your recruitment process compares to industry standards</p>
+                  <strong className="text-[var(--text)]">Get your personalized score</strong>
+                  <p className="text-[var(--text-muted)]">See how your recruitment process compares to industry standards</p>
                 </div>
               </div>
               <div className="flex items-start">
@@ -348,8 +348,8 @@ export function RecruitmentQuestionnaire() {
                   <Check className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <strong className="text-slate-800">Receive custom recommendations</strong>
-                  <p className="text-slate-600">Get actionable insights to improve your hiring efficiency</p>
+                  <strong className="text-[var(--text)]">Receive custom recommendations</strong>
+                  <p className="text-[var(--text-muted)]">Get actionable insights to improve your hiring efficiency</p>
                 </div>
               </div>
               <div className="flex items-start">
@@ -357,30 +357,30 @@ export function RecruitmentQuestionnaire() {
                   <Check className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <strong className="text-slate-800">Learn time-saving strategies</strong>
-                  <p className="text-slate-600">Discover how to automate screening and save hours each week</p>
+                  <strong className="text-[var(--text)]">Learn time-saving strategies</strong>
+                  <p className="text-[var(--text-muted)]">Discover how to automate screening and save hours each week</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <Card className="shadow-sm">
+          <Card className="shadow-lg border-[var(--border)] bg-[var(--dark2)] reveal-right">
             <CardContent className="p-4 sm:p-5">
               <div className="text-center mb-5">
-                <h2 className="text-2xl font-bold text-slate-800 mb-2">Recruitment Efficiency Assessment</h2>
-                <p className="text-slate-600">Answer 10 questions to get your personalized report</p>
+                <h2 className="text-2xl font-bold text-[var(--text)] mb-2">Recruitment Efficiency Assessment</h2>
+                <p className="text-[var(--text-muted)]">Answer 10 questions to get your personalized report</p>
               </div>
 
-              <div className="h-2 bg-slate-200 rounded-full mb-5 overflow-hidden">
+              <div className="h-2 bg-[var(--border)] rounded-full mb-5 overflow-hidden">
                 <div
-                  className="h-full bg-emerald-600 transition-all duration-500 ease-out"
+                  className="h-full bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] transition-all duration-500 ease-out"
                   style={{ width: `${progressPercentage}%` }}
                 />
               </div>
 
               {currentQuestion === 0 && (
                 <div className="space-y-4 animate-in fade-in duration-500">
-                  <h3 className="text-xl font-semibold mb-4">Let's get started with your contact information</h3>
+                  <h3 className="text-xl font-semibold mb-4 text-[var(--text)]">Let's get started with your contact information</h3>
                   <div>
                     <Label htmlFor="name">Full Name</Label>
                     <Input
@@ -424,7 +424,7 @@ export function RecruitmentQuestionnaire() {
 
               {currentQuestion > 0 && currentQuestion <= questions.length && (
                 <div className="animate-in fade-in duration-500">
-                  <h3 className="text-xl font-semibold mb-4">{questions[currentQuestion - 1].title}</h3>
+                  <h3 className="text-xl font-semibold mb-4 text-[var(--text)]">{questions[currentQuestion - 1].title}</h3>
                   <div className="space-y-3 mb-5">
                     {questions[currentQuestion - 1].options.map((option) => (
                       <div

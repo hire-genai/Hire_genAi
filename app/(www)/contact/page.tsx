@@ -3,24 +3,16 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 import Link from "next/link"
-import { ArrowRight, Mail, MessageSquare, Zap, Facebook, Instagram, Youtube, Linkedin, Lock, Star, Loader2 } from "lucide-react"
-import Navbar from "@/components/layout/Navbar"
+import { ArrowRight, Mail, MessageSquare, Zap, Loader2 } from "lucide-react"
+import { WwwNavbar } from "@/components/layout/www-nav"
+import WwwFooter from "@/components/layout/www-footer"
+
+const inp: React.CSSProperties = { width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', color: '#fff', fontSize: '15px', padding: '12px 14px', outline: 'none', boxSizing: 'border-box', transition: 'border .2s' };
+const lab: React.CSSProperties = { display: 'block', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '6px' };
 
 export default function ContactPage() {
-  const [formData, setFormData] = useState({
-    fullName: '',
-    workEmail: '',
-    companyName: '',
-    phoneNumber: '',
-    subject: '',
-    message: ''
-  })
+  const [formData, setFormData] = useState({ fullName: '', workEmail: '', companyName: '', phoneNumber: '', subject: '', message: '' })
   const [agreed, setAgreed] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -31,9 +23,7 @@ export default function ContactPage() {
     if (scrollTo) {
       const timer = setTimeout(() => {
         const element = document.getElementById(scrollTo)
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth' })
-        }
+        if (element) element.scrollIntoView({ behavior: 'smooth' })
         window.history.replaceState({}, '', '/contact')
       }, 300)
       return () => clearTimeout(timer)
@@ -43,34 +33,17 @@ export default function ContactPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!agreed || isLoading) return
-    
     setIsLoading(true)
     try {
       const response = await fetch('/api/contact', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fullName: formData.fullName,
-          workEmail: formData.workEmail,
-          companyName: formData.companyName,
-          phoneNumber: formData.phoneNumber,
-          subject: formData.subject,
-          message: formData.message,
-          agreedToTerms: agreed,
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullName: formData.fullName, workEmail: formData.workEmail, companyName: formData.companyName, phoneNumber: formData.phoneNumber, subject: formData.subject, message: formData.message, agreedToTerms: agreed })
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to submit form')
-      }
-
-      const result = await response.json()
-      console.log('Form submitted successfully:', result)
+      if (!response.ok) throw new Error('Failed to submit form')
+      await response.json()
       setSubmitted(true)
     } catch (error) {
-      console.error('Error submitting form:', error)
       alert('Failed to send message. Please try again.')
     } finally {
       setIsLoading(false)
@@ -78,276 +51,106 @@ export default function ContactPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50">
-      <Navbar />
-      
-      {/* Announcement Banner */}
-      <div className="bg-emerald-50 border-b border-emerald-100">
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-3">
-          <div className="flex items-center justify-center">
-            <div className="flex items-center space-x-2 text-emerald-800">
-              <Zap className="w-4 h-4" />
-              <span className="text-sm font-medium">HireGenAI Launches All-New AI-Powered Recruitment Suite</span>
-            </div>
-          </div>
+    <div style={{ minHeight: '100vh', background: '#03110A', color: '#fff' }}>
+      <WwwNavbar />
+
+      <div style={{ paddingTop: '68px' }}>
+        {/* Hero */}
+        <div style={{ textAlign: 'center', padding: '60px 24px 48px', animation: 'fadeIn 0.7s ease-out both' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#00B14F', marginBottom: '12px' }}>Contact Us</div>
+          <h1 style={{ fontSize: 'clamp(32px,4vw,56px)', fontWeight: 900, lineHeight: 1.1, marginBottom: '16px' }}>
+            Get in <span style={{ background: 'linear-gradient(135deg,#00B14F,#06B6D4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Touch</span>
+          </h1>
+          <p style={{ fontSize: '18px', color: 'rgba(255,255,255,0.5)', maxWidth: '480px', margin: '0 auto', lineHeight: 1.7 }}>
+            Have questions about Hire-GenAI? We&rsquo;d love to hear from you. Send us a message and we&rsquo;ll respond as soon as possible.
+          </p>
         </div>
-      </div>
 
-      <div className="w-full px-4 xl:px-12 py-16">
-        <div className="grid lg:grid-cols-2 gap-12 items-start">
-          {/* Left Side - Info */}
+        {/* Main content */}
+        <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '0 24px 80px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: '40px', alignItems: 'start', animation: 'fadeIn 0.7s ease-out 0.15s both' }}>
+
+          {/* Left: Info */}
           <div>
-            <h1 className="text-4xl lg:text-5xl font-bold text-slate-800 mb-6">
-              Get in <span className="text-emerald-600">Touch</span>
-            </h1>
-            <p className="text-lg text-slate-600 mb-8">
-              Have questions about HireGenAI? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
-            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '40px' }}>
+              {[
+                { Icon: Mail, bg: 'rgba(0,177,79,0.15)', ic: '#00B14F', title: 'Email Us', sub: 'support@hire-genai.com' },
+                { Icon: MessageSquare, bg: 'rgba(59,130,246,0.15)', ic: '#60A5FA', title: 'Live Chat', sub: 'Available Mon-Fri, 9am-6pm IST' },
+                { Icon: Zap, bg: 'rgba(245,158,11,0.15)', ic: '#FCD34D', title: 'Response Time', sub: 'Within 24 hours' },
+              ].map(({ Icon, bg, ic, title, sub }) => (
+                <div key={title} style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', padding: '20px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', transition: 'border-color .2s' }}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(0,177,79,0.3)') }
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)') }>
+                  <div style={{ width: 48, height: 48, background: bg, borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon style={{ width: 22, height: 22, color: ic }} />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '4px' }}>{title}</div>
+                    <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>{sub}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
 
-            <div className="space-y-6">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Mail className="w-6 h-6 text-emerald-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-800 mb-1">Email Us</h3>
-                  <p className="text-slate-600">support@hire-genai.com</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <MessageSquare className="w-6 h-6 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-800 mb-1">Live Chat</h3>
-                  <p className="text-slate-600">Available Mon-Fri, 9am-6pm IST</p>
-                </div>
-              </div>
+            <div style={{ background: 'linear-gradient(135deg,rgba(0,177,79,0.1),rgba(6,182,212,0.06))', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px', padding: '24px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '14px' }}>Prefer to talk directly?</div>
+              <a href="/book-meeting" className="btn-primary" style={{ display: 'inline-flex', padding: '12px 22px', fontSize: '14px' }}>📅 Book a Meeting →</a>
             </div>
           </div>
 
-          {/* Right Side - Form */}
-          <div className="bg-white rounded-2xl shadow-xl p-8">
+          {/* Right: Form */}
+          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '20px', padding: '36px' }}>
             {!submitted ? (
               <>
-                <h2 className="text-2xl font-bold text-slate-800 mb-6">Leave a Message</h2>
-                
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <h2 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '28px' }}>Leave a Message</h2>
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                  {[
+                    { id: 'fullName', label: 'Full Name', placeholder: 'Your full name', type: 'text', required: true },
+                    { id: 'workEmail', label: 'Work Email', placeholder: 'you@company.com', type: 'email', required: true },
+                    { id: 'companyName', label: 'Company Name', placeholder: 'Your company name', type: 'text', required: true },
+                    { id: 'phoneNumber', label: 'Phone Number (Optional)', placeholder: '+1 (555) 123-4567', type: 'tel', required: false },
+                    { id: 'subject', label: 'Subject', placeholder: 'How can we help?', type: 'text', required: true },
+                  ].map(f => (
+                    <div key={f.id}>
+                      <label style={lab}>{f.label}</label>
+                      <input type={f.type} value={(formData as any)[f.id]} onChange={e => setFormData({...formData, [f.id]: e.target.value})} placeholder={f.placeholder} required={f.required} style={inp}
+                        onFocus={e => (e.currentTarget.style.borderColor = 'rgba(0,177,79,0.5)')}
+                        onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)')} />
+                    </div>
+                  ))}
                   <div>
-                    <Label htmlFor="fullName" className="text-slate-700">Full Name</Label>
-                    <Input
-                      id="fullName"
-                      value={formData.fullName}
-                      onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                      className="mt-1"
-                      placeholder="Your full name"
-                      required
-                    />
+                    <label style={lab}>Your Message</label>
+                    <textarea value={formData.message} onChange={e => setFormData({...formData, message: e.target.value})} placeholder="Tell us more about your needs..." required style={{ ...inp, minHeight: '120px', resize: 'vertical' } as React.CSSProperties}
+                      onFocus={e => (e.currentTarget.style.borderColor = 'rgba(0,177,79,0.5)')}
+                      onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)')} />
                   </div>
-
-                  <div>
-                    <Label htmlFor="workEmail" className="text-slate-700">Work Email</Label>
-                    <Input
-                      id="workEmail"
-                      type="email"
-                      value={formData.workEmail}
-                      onChange={(e) => setFormData({...formData, workEmail: e.target.value})}
-                      className="mt-1"
-                      placeholder="you@company.com"
-                      required
-                    />
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    <input type="checkbox" id="terms" checked={agreed} onChange={e => setAgreed(e.target.checked)} style={{ marginTop: '2px', flexShrink: 0, cursor: 'pointer' }} />
+                    <label htmlFor="terms" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', lineHeight: 1.6 }}>
+                      I agree to the <Link href="/terms" style={{ color: '#00B14F' }}>Terms & Conditions</Link> and <Link href="/privacy" style={{ color: '#00B14F' }}>Privacy Policy</Link>
+                    </label>
                   </div>
-
-                  <div>
-                    <Label htmlFor="companyName" className="text-slate-700">Company Name</Label>
-                    <Input
-                      id="companyName"
-                      value={formData.companyName}
-                      onChange={(e) => setFormData({...formData, companyName: e.target.value})}
-                      className="mt-1"
-                      placeholder="Your company name"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="phoneNumber" className="text-slate-700">Phone Number (Optional)</Label>
-                    <Input
-                      id="phoneNumber"
-                      type="tel"
-                      value={formData.phoneNumber}
-                      onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})}
-                      className="mt-1"
-                      placeholder="+1 (555) 123-4567"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="subject" className="text-slate-700">Subject</Label>
-                    <Input
-                      id="subject"
-                      value={formData.subject}
-                      onChange={(e) => setFormData({...formData, subject: e.target.value})}
-                      className="mt-1"
-                      placeholder="How can we help?"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="message" className="text-slate-700">Your Message</Label>
-                    <Textarea
-                      id="message"
-                      value={formData.message}
-                      onChange={(e) => setFormData({...formData, message: e.target.value})}
-                      className="mt-1 min-h-[120px]"
-                      placeholder="Tell us more about your needs..."
-                      required
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2.5">
-                    <input
-                      type="checkbox"
-                      id="terms"
-                      checked={agreed}
-                      onChange={(e) => setAgreed(e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-600 flex-shrink-0 cursor-pointer"
-                    />
-                    <Label htmlFor="terms" className="text-sm text-slate-600 cursor-pointer">
-                      I agree to the <Link href="/terms" className="text-emerald-600 hover:underline">Terms & Conditions</Link> and <Link href="/privacy" className="text-emerald-600 hover:underline">Privacy Policy</Link>
-                    </Label>
-                  </div>
-
-                  <Button 
-                    type="submit"
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-6 text-lg"
-                    disabled={!agreed || isLoading}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Sending...
-                      </>
-                    ) : (
-                      <>
-                        Send Message
-                        <ArrowRight className="w-5 h-5 ml-2" />
-                      </>
-                    )}
-                  </Button>
+                  <button type="submit" disabled={!agreed || isLoading} style={{ height: '52px', background: 'linear-gradient(135deg,#00B14F,#00C853)', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '16px', fontWeight: 700, cursor: agreed && !isLoading ? 'pointer' : 'not-allowed', opacity: agreed && !isLoading ? 1 : 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', transition: 'opacity .2s' }}>
+                    {isLoading ? <><Loader2 style={{ width: 18, height: 18, animation: 'spin 0.8s linear infinite' }} /> Sending...</> : <>Send Message <ArrowRight style={{ width: 18, height: 18 }} /></>}
+                  </button>
                 </form>
               </>
             ) : (
-              <div className="text-center py-8">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                <div style={{ width: 72, height: 72, background: 'rgba(0,177,79,0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                  <svg style={{ width: 36, height: 36, color: '#00B14F' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-2">Message Sent!</h2>
-                <p className="text-slate-600 mb-6">
-                  Thank you for reaching out. We'll get back to you within 24 hours.
-                </p>
-                <Link href="/">
-                  <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                    Return to Home
-                  </Button>
-                </Link>
+                <h2 style={{ fontSize: '24px', fontWeight: 800, marginBottom: '8px' }}>Message Sent!</h2>
+                <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '28px', lineHeight: 1.7 }}>Thank you for reaching out. We&rsquo;ll get back to you within 24 hours.</p>
+                <a href="/" className="btn-primary" style={{ display: 'inline-flex', padding: '12px 28px' }}>Return to Home</a>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="bg-slate-900 text-white py-16">
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
-          <div className="grid grid-cols-2 md:grid-cols-12 gap-6 md:gap-12 mb-12">
-            <div className="col-span-2 md:col-span-3">
-              <h3 className="text-2xl font-bold mb-2">
-                <span className="text-white">Hire</span>
-                <span className="text-emerald-400">GenAI</span>
-              </h3>
-              <p className="text-sm text-slate-400 mb-4">By SKYGENAI</p>
-              <p className="text-slate-400 mb-6 text-sm leading-relaxed">
-                HireGenAI pre-screens and interviews candidates, helping you shortlist talent 20x faster and more efficiently.
-              </p>
-              <p className="text-slate-400 mb-6 text-sm font-medium">
-                Email: <a href="mailto:support@hire-genai.com" className="text-emerald-400 hover:text-emerald-300 transition-colors">support@hire-genai.com</a>
-              </p>
-              <div className="flex space-x-4">
-                <a href="#" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  <Facebook className="w-5 h-5" />
-                </a>
-                <a href="#" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  <Instagram className="w-5 h-5" />
-                </a>
-                <a href="#" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  <Youtube className="w-5 h-5" />
-                </a>
-                <a href="https://www.linkedin.com/company/hire-genai" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  <Linkedin className="w-5 h-5" />
-                </a>
-              </div>
-            </div>
-
-            <div className="col-span-1 md:col-span-2">
-              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Product</h4>
-              <ul className="space-y-3 text-slate-400 text-sm">
-                <li><Link href="/demo-en" className="hover:text-emerald-400 transition-colors">Try the Demo</Link></li>
-                <li><Link href="/pricing" className="hover:text-emerald-400 transition-colors">Pricing</Link></li>
-                <li><Link href="/?scroll=assessment" className="hover:text-emerald-400 transition-colors cursor-pointer">Assessment</Link></li>
-                <li><Link href="/?scroll=faq" className="hover:text-emerald-400 transition-colors cursor-pointer">FAQs</Link></li>
-              </ul>
-            </div>
-
-            <div className="col-span-1 md:col-span-2">
-              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Company</h4>
-              <ul className="space-y-3 text-slate-400 text-sm">
-                <li><Link href="/about" className="hover:text-emerald-400 transition-colors">About us</Link></li>
-                <li><Link href="/contact" className="text-emerald-400 font-medium">Contact</Link></li>
-                <li><Link href="/book-meeting" className="hover:text-emerald-400 transition-colors">Book a Meeting</Link></li>
-                <li><Link href="/owner-login" className="hover:text-emerald-400 transition-colors">Admin</Link></li>
-              </ul>
-            </div>
-
-            <div className="col-span-1 md:col-span-2">
-              <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Legal</h4>
-              <ul className="space-y-3 text-slate-400 text-sm">
-                <li><Link href="/privacy" className="hover:text-emerald-400 transition-colors">Privacy Policy</Link></li>
-                <li><Link href="/terms" className="hover:text-emerald-400 transition-colors">Terms and Conditions</Link></li>
-              </ul>
-            </div>
-
-            <div className="col-span-1 md:col-span-3">
-              <div className="space-y-4">
-                <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                  <p className="text-xs text-slate-400 mb-2 font-semibold">Trustpilot</p>
-                  <div className="flex items-center gap-2 mb-2">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                    ))}
-                  </div>
-                  <p className="text-sm font-semibold text-white">TrustScore 4.5</p>
-                </div>
-                <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Lock className="w-4 h-4 text-emerald-400" />
-                    <p className="text-sm font-semibold text-white">GDPR COMPLIANT</p>
-                  </div>
-                  <p className="text-xs text-slate-400">Your data is secure and compliant</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-slate-800 pt-8 text-center text-slate-400 text-sm">
-            <p>&copy; 2025 HireGenAI. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <WwwFooter />
     </div>
   )
 }

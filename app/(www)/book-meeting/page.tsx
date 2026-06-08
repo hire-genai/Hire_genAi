@@ -2,16 +2,11 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { Clock, Globe, MapPin, Zap, Facebook, Instagram, Youtube, Linkedin, Lock, Star, Loader2, ArrowRight, Calendar, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
+import { Clock, Globe, MapPin, Loader2, ArrowRight, Calendar, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import Link from "next/link"
-import Navbar from "@/components/layout/Navbar"
+import { WwwNavbar } from "@/components/layout/www-nav"
 
 // Generate time slots from 9:00am to 6:00pm with 30-minute intervals
 const generateTimeSlots = () => {
@@ -361,135 +356,96 @@ export default function BookMeetingPage() {
     }
   }
 
-  return (
-    <div className="min-h-screen bg-white">
-      <Navbar />
-      
-      {/* Announcement Banner */}
-      <div className="bg-emerald-50 border-b border-emerald-100">
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-3">
-          <div className="flex items-center justify-center">
-            <div className="flex items-center space-x-2 text-emerald-800">
-              <Zap className="w-4 h-4" />
-              <span className="text-sm font-medium">HireGenAI Launches All-New AI-Powered Recruitment Suite</span>
-            </div>
-          </div>
-        </div>
-      </div>
+  const darkInp: React.CSSProperties = { width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', color: '#fff', fontSize: '15px', padding: '11px 14px', outline: 'none', boxSizing: 'border-box' };
 
-      <div className="w-full px-4 xl:px-12 py-8">
-        <div className="bg-white rounded-2xl shadow-lg overflow-visible min-h-[600px]">
-          <div className="flex flex-col lg:flex-row">
+  return (
+    <div style={{ minHeight: '100vh', background: '#03110A', color: '#fff' }}>
+      <WwwNavbar />
+
+      <div style={{ paddingTop: '68px' }}>
+      <div style={{ maxWidth: '960px', margin: '0 auto', padding: '24px 16px 48px' }}>
+        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px', overflow: 'hidden' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', minHeight: '520px' }}>
             {/* Left Column - Meeting Info */}
-            <div className="lg:w-80 border-b lg:border-b-0 lg:border-r border-slate-200 p-8">
-              
+            <div style={{ borderRight: '1px solid rgba(255,255,255,0.08)', padding: '24px', flexShrink: 0 }}>
+
               {/* Logo */}
-              <div className="flex items-center gap-2 mb-8">
-                <div className="w-8 h-8 bg-emerald-600 rounded flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">H</span>
-                </div>
-                <span className="text-xl font-bold">
-                  <span className="text-slate-800">Hire</span>
-                  <span className="text-emerald-500">GenAI</span>
-                </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+                <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg,#00B14F,#00C853)', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 800, color: '#fff' }}>⚡</div>
+                <span style={{ fontSize: '16px', fontWeight: 800 }}>Hire-<span style={{ color: '#00B14F' }}>GenAI</span></span>
               </div>
 
               {/* Profile */}
-              <div className="mb-6">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 mb-4 flex items-center justify-center text-white text-2xl font-semibold">
-                  T
-                </div>
-                <p className="text-slate-600 text-sm mb-1">HireGenAI Team</p>
-                <h2 className="text-2xl font-bold text-slate-800 mb-4">30 Minute Meeting</h2>
-                
-                <div className="flex items-center gap-2 text-slate-600 mb-2">
-                  <Clock className="w-4 h-4" />
-                  <span className="text-sm">30 min</span>
-                </div>
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg,#00B14F,#06B6D4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 700, color: '#fff', marginBottom: '10px' }}>T</div>
+                <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '2px' }}>HireGenAI Team</p>
+                <h2 style={{ fontSize: '17px', fontWeight: 800, marginBottom: '14px' }}>30 Minute Meeting</h2>
 
-                <div className="flex items-center gap-2 text-slate-600 mb-2">
-                  <Globe className="w-4 h-4" />
-                  <span className="text-sm">India Standard Time</span>
-                </div>
-
-                <div className="flex items-center gap-2 text-slate-600">
-                  <MapPin className="w-4 h-4" />
-                  <span className="text-sm">Google Meet</span>
-                </div>
+                {[['⏱', '30 min'],['🌏', 'India Standard Time'],['📹', 'Google Meet']].map(([icon, text]) => (
+                  <div key={text as string} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontSize: '13px', color: 'rgba(255,255,255,0.55)' }}>
+                    <span style={{ fontSize: '14px' }}>{icon}</span><span>{text}</span>
+                  </div>
+                ))}
               </div>
 
               {/* Step Indicator */}
-              <div className="mt-8 pt-6 border-t border-slate-200">
-                <div className="flex items-center gap-2">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step >= 1 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                    {step > 1 ? <CheckCircle2 className="w-4 h-4" /> : '1'}
-                  </div>
-                  <div className={`flex-1 h-1 ${step >= 2 ? 'bg-emerald-600' : 'bg-slate-200'}`}></div>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step >= 2 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                    {step > 2 ? <CheckCircle2 className="w-4 h-4" /> : '2'}
-                  </div>
-                  <div className={`flex-1 h-1 ${step >= 3 ? 'bg-emerald-600' : 'bg-slate-200'}`}></div>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step >= 3 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                    {step >= 3 ? <CheckCircle2 className="w-4 h-4" /> : '3'}
-                  </div>
+              <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {[1,2,3].map((n, i) => (
+                    <React.Fragment key={n}>
+                      <div style={{ width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, background: step >= n ? '#00B14F' : 'rgba(255,255,255,0.1)', color: step >= n ? '#fff' : 'rgba(255,255,255,0.4)', transition: 'all .3s', flexShrink: 0 }}>
+                        {step > n ? <CheckCircle2 style={{ width: 16, height: 16 }} /> : n}
+                      </div>
+                      {i < 2 && <div style={{ flex: 1, height: 2, background: step > n ? '#00B14F' : 'rgba(255,255,255,0.1)', transition: 'background .3s' }} />}
+                    </React.Fragment>
+                  ))}
                 </div>
-                <div className="flex justify-between mt-2 text-xs text-slate-500">
-                  <span>Time</span>
-                  <span>Details</span>
-                  <span>Done</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>
+                  <span>Time</span><span>Details</span><span>Done</span>
                 </div>
               </div>
             </div>
 
             {/* Right Column - Step Content */}
-            <div className="flex-1 p-8">
+            <div style={{ padding: '24px', minWidth: 0 }}>
               {/* Step 1: Calendar & Time Selection */}
               {step === 1 && (
-                <div className="flex flex-col lg:flex-row gap-8">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: '24px', alignItems: 'start' }}>
                   {/* Calendar Section */}
-                  <div className="flex-1">
+                  <div style={{ minWidth: 0 }}>
                     {/* Month Navigation */}
-                    <div className="flex items-center justify-between mb-6">
-                      <button 
-                        onClick={handlePrevMonth}
-                        className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-600"
-                      >
-                        <ChevronLeft className="w-5 h-5" />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                      <button onClick={handlePrevMonth} style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <ChevronLeft style={{ width: 16, height: 16 }} />
                       </button>
-                      <h3 className="text-lg font-semibold text-slate-800">{formatMonthYear()}</h3>
-                      <button 
-                        onClick={handleNextMonth}
-                        className="p-2 hover:bg-emerald-100 rounded-full transition-colors text-emerald-600"
-                      >
-                        <ChevronRight className="w-5 h-5" />
+                      <h3 style={{ fontSize: '17px', fontWeight: 700 }}>{formatMonthYear()}</h3>
+                      <button onClick={handleNextMonth} style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(0,177,79,0.15)', border: '1px solid rgba(0,177,79,0.3)', color: '#00B14F', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <ChevronRight style={{ width: 16, height: 16 }} />
                       </button>
                     </div>
 
                     {/* Days of Week Header */}
-                    <div className="grid grid-cols-7 gap-1 mb-2">
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '4px', marginBottom: '8px' }}>
                       {DAYS_OF_WEEK.map(day => (
-                        <div key={day} className="text-center text-xs font-medium text-slate-500 py-2">
-                          {day}
-                        </div>
+                        <div key={day} style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.35)', padding: '8px 0', letterSpacing: '0.05em' }}>{day}</div>
                       ))}
                     </div>
 
                     {/* Calendar Grid */}
-                    <div className="grid grid-cols-7 gap-1">
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '4px' }}>
                       {calendarDays.map((day, index) => (
-                        <div key={index} className="aspect-square flex items-center justify-center">
+                        <div key={index} style={{ aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {day !== null && (
                             <button
                               onClick={() => handleDateSelect(day)}
                               disabled={!isDateSelectable(day)}
-                              className={`w-10 h-10 rounded-full text-sm font-medium transition-all
-                                ${isDateSelected(day) 
-                                  ? 'bg-emerald-600 text-white' 
-                                  : isDateSelectable(day)
-                                    ? 'text-emerald-600 hover:bg-emerald-100'
-                                    : 'text-slate-300 cursor-not-allowed'
-                                }
-                              `}
+                              style={{
+                                width: 36, height: 36, borderRadius: '50%', fontSize: '13px', fontWeight: 600, border: 'none', cursor: isDateSelectable(day) ? 'pointer' : 'not-allowed', transition: 'all .2s',
+                                background: isDateSelected(day) ? '#00B14F' : 'transparent',
+                                color: isDateSelected(day) ? '#fff' : isDateSelectable(day) ? '#00B14F' : 'rgba(255,255,255,0.2)',
+                              }}
+                              onMouseEnter={e => { if (isDateSelectable(day) && !isDateSelected(day)) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,177,79,0.15)' }}
+                              onMouseLeave={e => { if (!isDateSelected(day)) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
                             >
                               {day}
                             </button>
@@ -499,67 +455,43 @@ export default function BookMeetingPage() {
                     </div>
 
                     {/* Timezone */}
-                    <div className="mt-6 pt-4 border-t border-slate-200">
-                      <p className="text-sm text-slate-500 mb-1">Time zone</p>
-                      <div className="flex items-center gap-2 text-slate-700">
-                        <Globe className="w-4 h-4" />
-                        <span className="text-sm">India Standard Time ({currentTime})</span>
+                    <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                      <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>Time zone</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'rgba(255,255,255,0.6)' }}>
+                        <Globe style={{ width: 16, height: 16 }} />
+                        <span>India Standard Time ({currentTime})</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Time Slots Section */}
-                  <div className="lg:flex-1 lg:max-w-xs">
+                  <div style={{ width: '220px' }}>
                     {selectedDate ? (
                       <>
-                        <h4 className="text-lg font-semibold text-slate-800 mb-4">
-                          {formatSelectedDate()}
-                        </h4>
-                        <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2">
+                        <h4 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '16px' }}>{formatSelectedDate()}</h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '350px', overflowY: 'auto', paddingRight: '4px' }}>
                           {TIME_SLOTS.map(time => {
-                            // Filter out past time slots for today
                             if (isTodaySelected()) {
                               const nowMinutes = convertToMinutes(currentTime)
                               const slotMinutes = convertToMinutes(time)
-                              
-                              // Don't render slots that are in the past or equal to current time
-                              if (slotMinutes <= nowMinutes) {
-                                return null
-                              }
+                              if (slotMinutes <= nowMinutes) return null
                             }
-                            
                             const timeKey = time.toLowerCase().replace(' ', '')
                             const isBooked = bookedSlots.has(timeKey)
-                            
                             return (
                               <div key={time}>
                                 {selectedTime === time ? (
-                                  <div className="flex gap-2 items-center">
-                                    <div className="flex-1 py-3 px-4 rounded-lg bg-slate-600 text-white text-sm font-medium text-center">
-                                      {time}
-                                    </div>
-                                    <button
-                                      onClick={handleNextFromCalendar}
-                                      className="flex-1 py-3 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors whitespace-nowrap"
-                                    >
-                                      Next
-                                    </button>
+                                  <div style={{ display: 'flex', gap: '8px' }}>
+                                    <div style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', background: 'rgba(0,177,79,0.2)', border: '1px solid #00B14F', color: '#00B14F', fontSize: '13px', fontWeight: 700, textAlign: 'center' }}>{time}</div>
+                                    <button onClick={handleNextFromCalendar} style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', background: '#00B14F', border: 'none', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Next →</button>
                                   </div>
                                 ) : isBooked ? (
-                                  <button
-                                    disabled
-                                    className="w-full py-3 px-4 rounded-lg border border-slate-300 bg-slate-100 text-slate-400 text-sm font-medium cursor-not-allowed opacity-60"
-                                    title="Already booked"
-                                  >
-                                    {time} (Booked)
-                                  </button>
+                                  <button disabled style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.25)', fontSize: '13px', cursor: 'not-allowed' }}>{time} (Booked)</button>
                                 ) : (
-                                  <button
-                                    onClick={() => setSelectedTime(time)}
-                                    className="w-full py-3 px-4 rounded-lg border border-emerald-300 text-emerald-600 text-sm font-medium hover:border-emerald-500 hover:bg-emerald-50 transition-all"
-                                  >
-                                    {time}
-                                  </button>
+                                  <button onClick={() => setSelectedTime(time)} style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', background: 'transparent', border: '1px solid rgba(0,177,79,0.35)', color: '#00B14F', fontSize: '13px', fontWeight: 600, cursor: 'pointer', transition: 'all .2s' }}
+                                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,177,79,0.1)'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#00B14F' }}
+                                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(0,177,79,0.35)' }}
+                                  >{time}</button>
                                 )}
                               </div>
                             )
@@ -567,9 +499,9 @@ export default function BookMeetingPage() {
                         </div>
                       </>
                     ) : (
-                      <div className="text-center py-8 text-slate-400">
-                        <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p className="text-sm">Select a date to see available times</p>
+                      <div style={{ textAlign: 'center', padding: '48px 20px', color: 'rgba(255,255,255,0.3)' }}>
+                        <Calendar style={{ width: 48, height: 48, margin: '0 auto 12px', opacity: 0.4 }} />
+                        <p style={{ fontSize: '14px' }}>Select a date to see available times</p>
                       </div>
                     )}
                   </div>
@@ -579,156 +511,70 @@ export default function BookMeetingPage() {
               {/* Step 2: Enter Details Form */}
               {step === 2 && (
                 <>
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-xl font-bold text-slate-800">Enter Your Details</h2>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setStep(1)}
-                      className="border-slate-300"
-                    >
-                      ← Back
-                    </Button>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+                    <h2 style={{ fontSize: '20px', fontWeight: 800 }}>Enter Your Details</h2>
+                    <button onClick={() => setStep(1)} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', color: 'rgba(255,255,255,0.7)', fontSize: '14px', cursor: 'pointer' }}>← Back</button>
                   </div>
 
                   {/* Selected Date/Time Summary */}
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-6">
-                    <div className="flex items-center gap-2 text-emerald-800">
-                      <Calendar className="w-5 h-5" />
-                      <p className="text-sm font-medium">
-                        {formatSelectedDate()} at {selectedTime}
-                      </p>
-                    </div>
+                  <div style={{ background: 'rgba(0,177,79,0.1)', border: '1px solid rgba(0,177,79,0.25)', borderRadius: '12px', padding: '14px 18px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Calendar style={{ width: 18, height: 18, color: '#00B14F', flexShrink: 0 }} />
+                    <p style={{ fontSize: '14px', fontWeight: 600, color: '#6EE7B7' }}>{formatSelectedDate()} at {selectedTime}</p>
                   </div>
-                  
-                  <div className="space-y-5">
-                    <div>
-                      <Label htmlFor="fullName" className="text-slate-700">Full Name *</Label>
-                      <Input
-                        id="fullName"
-                        value={formData.fullName}
-                        onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                        className="mt-1"
-                        placeholder="Enter your full name"
-                        required
-                      />
-                    </div>
 
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                    {[
+                      { id: 'fullName', label: 'Full Name *', placeholder: 'Enter your full name', type: 'text', req: true },
+                      { id: 'workEmail', label: 'Work Email *', placeholder: 'you@company.com', type: 'email', req: true },
+                      { id: 'companyName', label: 'Company Name *', placeholder: 'Your company name', type: 'text', req: true },
+                      { id: 'phoneNumber', label: 'Phone Number (Optional)', placeholder: '+91 98765 43210', type: 'tel', req: false },
+                    ].map(f => (
+                      <div key={f.id}>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '6px' }}>{f.label}</label>
+                        <input type={f.type} value={(formData as any)[f.id]} onChange={e => setFormData({...formData, [f.id]: e.target.value})} placeholder={f.placeholder} required={f.req} style={darkInp}
+                          onFocus={e => (e.currentTarget.style.borderColor = 'rgba(0,177,79,0.5)')}
+                          onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)')} />
+                      </div>
+                    ))}
                     <div>
-                      <Label htmlFor="workEmail" className="text-slate-700">Work Email *</Label>
-                      <Input
-                        id="workEmail"
-                        type="email"
-                        value={formData.workEmail}
-                        onChange={(e) => setFormData({...formData, workEmail: e.target.value})}
-                        className="mt-1"
-                        placeholder="you@company.com"
-                        required
-                      />
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '6px' }}>Please share anything that will help prepare for our meeting.</label>
+                      <textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Any specific topics you'd like to discuss..." style={{ ...darkInp, minHeight: '100px', resize: 'vertical' } as React.CSSProperties}
+                        onFocus={e => (e.currentTarget.style.borderColor = 'rgba(0,177,79,0.5)')}
+                        onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)')} />
                     </div>
-
-                    <div>
-                      <Label htmlFor="companyName" className="text-slate-700">Company Name *</Label>
-                      <Input
-                        id="companyName"
-                        value={formData.companyName}
-                        onChange={(e) => setFormData({...formData, companyName: e.target.value})}
-                        className="mt-1"
-                        placeholder="Your company name"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="phoneNumber" className="text-slate-700">Phone Number (Optional)</Label>
-                      <Input
-                        id="phoneNumber"
-                        type="tel"
-                        value={formData.phoneNumber}
-                        onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})}
-                        className="mt-1"
-                        placeholder="+91 98765 43210"
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="notes" className="text-slate-700">
-                        Please share anything that will help prepare for our meeting.
-                      </Label>
-                      <Textarea
-                        id="notes"
-                        value={formData.notes}
-                        onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                        className="mt-1 min-h-[100px]"
-                        placeholder="Any specific topics you'd like to discuss..."
-                      />
-                    </div>
-
-                    <div className="pt-4">
-                      <Button 
-                        onClick={handleSubmitBooking}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-6 text-lg"
-                        disabled={!formData.fullName || !formData.workEmail || !formData.companyName || isSubmitting}
-                      >
-                        {isSubmitting ? (
-                          <>
-                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            Booking...
-                          </>
-                        ) : (
-                          <>
-                            Schedule Meeting
-                            <ArrowRight className="w-5 h-5 ml-2" />
-                          </>
-                        )}
-                      </Button>
-                    </div>
+                    <button onClick={handleSubmitBooking} disabled={!formData.fullName || !formData.workEmail || !formData.companyName || isSubmitting}
+                      style={{ width: '100%', height: '52px', background: 'linear-gradient(135deg,#00B14F,#00C853)', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '16px', fontWeight: 700, cursor: (!formData.fullName || !formData.workEmail || !formData.companyName || isSubmitting) ? 'not-allowed' : 'pointer', opacity: (!formData.fullName || !formData.workEmail || !formData.companyName || isSubmitting) ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'opacity .2s' }}>
+                      {isSubmitting ? <><Loader2 style={{ width: 18, height: 18, animation: 'spin 0.8s linear infinite' }} /> Booking...</> : <>Schedule Meeting <ArrowRight style={{ width: 18, height: 18 }} /></>}
+                    </button>
                   </div>
                 </>
               )}
 
               {/* Step 3: Confirmation */}
               {step === 3 && (
-                <div className="text-center py-12">
-                  <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+                <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+                  <div style={{ width: 80, height: 80, background: 'rgba(0,177,79,0.15)', border: '2px solid rgba(0,177,79,0.4)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
+                    <CheckCircle2 style={{ width: 40, height: 40, color: '#00B14F' }} />
                   </div>
-                  
-                  <h2 className="text-2xl font-bold text-slate-800 mb-2">Your Meeting is Booked!</h2>
-                  <p className="text-slate-600 mb-6">A confirmation email has been sent to <span className="font-medium">{formData.workEmail}</span></p>
-                  
-                  <div className="bg-slate-50 rounded-lg p-6 max-w-md mx-auto mb-8">
-                    <div className="space-y-3 text-left">
-                      <div className="flex items-center gap-3">
-                        <Calendar className="w-5 h-5 text-emerald-600" />
-                        <span className="text-slate-700">{formatSelectedDate()}</span>
+                  <h2 style={{ fontSize: '28px', fontWeight: 900, marginBottom: '8px' }}>Your Meeting is Booked!</h2>
+                  <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.5)', marginBottom: '32px' }}>A confirmation email has been sent to <span style={{ color: '#fff', fontWeight: 600 }}>{formData.workEmail}</span></p>
+
+                  <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px', padding: '24px', maxWidth: '400px', margin: '0 auto 28px', textAlign: 'left' }}>
+                    {[
+                      { Icon: Calendar, text: formatSelectedDate() },
+                      { Icon: Clock, text: `${selectedTime} - 30 Minutes` },
+                      { Icon: MapPin, text: 'Google Meet' },
+                      { Icon: Globe, text: 'India Standard Time' },
+                    ].map(({ Icon, text }) => (
+                      <div key={text} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        <Icon style={{ width: 18, height: 18, color: '#00B14F', flexShrink: 0 }} />
+                        <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>{text}</span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Clock className="w-5 h-5 text-emerald-600" />
-                        <span className="text-slate-700">{selectedTime} - 30 Minutes</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <MapPin className="w-5 h-5 text-emerald-600" />
-                        <span className="text-slate-700">Google Meet</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Globe className="w-5 h-5 text-emerald-600" />
-                        <span className="text-slate-700">India Standard Time</span>
-                      </div>
-                    </div>
+                    ))}
                   </div>
 
-                  <p className="text-sm text-slate-500 mb-6">
-                    You will receive a calendar invite with the Google Meet link shortly.
-                  </p>
-
-                  <Button
-                    onClick={() => router.push('/')}
-                    variant="outline"
-                    className="px-8 border-emerald-300 text-emerald-600 hover:bg-emerald-50"
-                  >
-                    Back to Home
-                  </Button>
+                  <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)', marginBottom: '24px' }}>You will receive a calendar invite with the Google Meet link shortly.</p>
+                  <button onClick={() => router.push('/')} style={{ padding: '12px 32px', background: 'transparent', border: '1px solid rgba(0,177,79,0.4)', borderRadius: '10px', color: '#00B14F', fontSize: '15px', fontWeight: 600, cursor: 'pointer' }}>← Back to Home</button>
                 </div>
               )}
             </div>
@@ -736,156 +582,66 @@ export default function BookMeetingPage() {
         </div>
       </div>
 
+
       {/* Footer */}
       <footer className="bg-slate-900 text-white py-16">
         <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
-          {/* Main Footer Content */}
           <div className="grid grid-cols-2 md:grid-cols-12 gap-6 md:gap-12 mb-12">
-            {/* Left Section - Brand Block */}
             <div className="col-span-2 md:col-span-3">
-              <h3 className="text-2xl font-bold mb-2">
-                <span className="text-white">Hire</span>
-                <span className="text-emerald-400">GenAI</span>
-              </h3>
+              <h3 className="text-2xl font-bold mb-2"><span className="text-white">Hire</span><span className="text-emerald-400">-GenAI</span></h3>
               <p className="text-sm text-slate-400 mb-4">By SKYGENAI</p>
-              <p className="text-slate-400 mb-6 text-sm leading-relaxed">
-                HireGenAI pre-screens and interviews candidates, helping you shortlist talent 20x faster and more efficiently.
-              </p>
-              <p className="text-slate-400 mb-6 text-sm font-medium">
-                Email: <a href="mailto:support@hire-genai.com" className="text-emerald-400 hover:text-emerald-300 transition-colors">support@hire-genai.com</a>
-              </p>
-              {/* Social Icons */}
+              <p className="text-slate-400 mb-6 text-sm leading-relaxed">HireGenAI pre-screens and interviews candidates, helping you shortlist talent 20x faster and more efficiently.</p>
+              <p className="text-slate-400 mb-6 text-sm font-medium">Email: <a href="mailto:support@hire-genai.com" className="text-emerald-400 hover:text-emerald-300 transition-colors">support@hire-genai.com</a></p>
               <div className="flex space-x-4">
-                <a href="#" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  <Facebook className="w-5 h-5" />
-                </a>
-                <a href="#" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  <Instagram className="w-5 h-5" />
-                </a>
-                <a href="#" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  <Youtube className="w-5 h-5" />
-                </a>
-                <a href="https://www.linkedin.com/company/hire-genai" className="text-slate-400 hover:text-emerald-400 transition-colors">
-                  <Linkedin className="w-5 h-5" />
-                </a>
+                {[['https://www.linkedin.com/company/hire-genai','in'],['#','f'],['#','ig'],['#','yt']].map(([href, icon]) => (
+                  <a key={icon} href={href} className="w-9 h-9 bg-slate-800 rounded-full flex items-center justify-center text-slate-400 hover:text-emerald-400 hover:bg-slate-700 transition-colors text-xs font-bold">{icon}</a>
+                ))}
               </div>
             </div>
-
-            {/* Product Section */}
             <div className="col-span-1 md:col-span-2">
               <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Product</h4>
               <ul className="space-y-3 text-slate-400 text-sm">
-                <li>
-                  <Link href="/demo-en" className="hover:text-emerald-400 transition-colors">
-                    Try the Demo
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/pricing" className="hover:text-emerald-400 transition-colors">
-                    Pricing
-                  </Link>
-                </li>
-                <li>
-                  <a 
-                    className="hover:text-emerald-400 transition-colors cursor-pointer"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      router.push('/?scroll=assessment');
-                    }}
-                  >
-                    Assessment
-                  </a>
-                </li>
-                <li>
-                  <a 
-                    className="hover:text-emerald-400 transition-colors cursor-pointer"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      router.push('/?scroll=faq');
-                    }}
-                  >
-                    FAQs
-                  </a>
-                </li>
+                {[['/demo-en','Try the Demo'],['/pricing','Pricing'],['/','Assessment'],['/','FAQs']].map(([href, label]) => (
+                  <li key={label}><a href={href} className="hover:text-emerald-400 transition-colors">{label}</a></li>
+                ))}
               </ul>
             </div>
-
-            {/* Company Section */}
             <div className="col-span-1 md:col-span-2">
               <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Company</h4>
               <ul className="space-y-3 text-slate-400 text-sm">
-                <li>
-                  <Link href="/about" className="hover:text-emerald-400 transition-colors">
-                    About us
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/contact" className="hover:text-emerald-400 transition-colors">
-                    Contact
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/book-meeting" className="hover:text-emerald-400 transition-colors">
-                    Book a Meeting
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/owner-login" className="hover:text-emerald-400 transition-colors">
-                    Admin
-                  </Link>
-                </li>
+                {[['/about','About us'],['/contact','Contact'],['/book-meeting','Book a Meeting'],['/owner-login','Admin']].map(([href, label]) => (
+                  <li key={label}><a href={href} className="hover:text-emerald-400 transition-colors">{label}</a></li>
+                ))}
               </ul>
             </div>
-
-            {/* Legal Section */}
             <div className="col-span-1 md:col-span-2">
               <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Legal</h4>
               <ul className="space-y-3 text-slate-400 text-sm">
-                <li>
-                  <Link href="/privacy" className="hover:text-emerald-400 transition-colors">
-                    Privacy Policy
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/terms" className="hover:text-emerald-400 transition-colors">
-                    Terms and Conditions
-                  </Link>
-                </li>
+                {[['/privacy','Privacy Policy'],['/terms','Terms and Conditions']].map(([href, label]) => (
+                  <li key={label}><a href={href} className="hover:text-emerald-400 transition-colors">{label}</a></li>
+                ))}
               </ul>
             </div>
-
-            {/* Right Section - Badges Block */}
             <div className="col-span-1 md:col-span-3">
               <div className="space-y-4">
-                {/* Trustpilot Badge */}
                 <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
                   <p className="text-xs text-slate-400 mb-2 font-semibold">Trustpilot</p>
-                  <div className="flex items-center gap-2 mb-2">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                    ))}
-                  </div>
+                  <div className="flex items-center gap-1 mb-2">{[...Array(5)].map((_,i) => <span key={i} className="text-yellow-400 text-sm">★</span>)}</div>
                   <p className="text-sm font-semibold text-white">TrustScore 4.5</p>
                 </div>
-
-                {/* GDPR Compliant Badge */}
                 <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Lock className="w-4 h-4 text-emerald-400" />
-                    <p className="text-sm font-semibold text-white">GDPR COMPLIANT</p>
-                  </div>
+                  <div className="flex items-center gap-2 mb-2"><span className="text-emerald-400">🔒</span><p className="text-sm font-semibold text-white">GDPR COMPLIANT</p></div>
                   <p className="text-xs text-slate-400">Your data is secure and compliant</p>
                 </div>
               </div>
             </div>
           </div>
-
-          {/* Footer Bottom */}
           <div className="border-t border-slate-800 pt-8 text-center text-slate-400 text-sm">
-            <p>&copy; 2024 HireGenAI. All rights reserved.</p>
+            <p>&copy; 2025 Hire-GenAI. All rights reserved.</p>
           </div>
         </div>
       </footer>
+      </div>
     </div>
   )
 }

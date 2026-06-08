@@ -114,6 +114,8 @@ export default function JobsPage() {
 	const [error, setError] = useState<string | null>(null)
 	const [copiedJobId, setCopiedJobId] = useState<string | null>(null)
 	const [togglingJobId, setTogglingJobId] = useState<string | null>(null)
+	const [showTrialExpiredPopup, setShowTrialExpiredPopup] = useState(false)
+	const [isCheckingTrial, setIsCheckingTrial] = useState(false)
 	
 	// Permission check - all users can modify
 	const canModify = true
@@ -212,12 +214,54 @@ export default function JobsPage() {
 		}
 	}, [company?.id, user?.role, user?.id, recruiterFilter])
 
+	// Check trial status and enforce/restore jobs based on trial status (background only)
+	const checkAndEnforceTrialExpiry = useCallback(async () => {
+		if (!company?.id) return
+		try {
+			const response = await fetch(`/api/billing/status?companyId=${company.id}`)
+			const result = await response.json()
+			if (result.ok && result.billing?.isTrialExpired) {
+				fetch('/api/jobs/enforce-trial-expiry', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ companyId: company.id })
+				}).catch(() => {})
+			} else if (result.ok && !result.billing?.isTrialExpired) {
+				fetch('/api/jobs/restore-from-trial-expiry', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ companyId: company.id })
+				}).catch(() => {})
+			}
+		} catch (error) {
+			// silent — trial enforcement is non-critical
+		}
+	}, [company?.id])
 
-	const handlePostNewJob = () => {
-		setJobFormInitialData(null)
-		setJobFormMode('create')
-		setJobFormJobId(null)
-		setShowJobPostingDialog(true)
+	// Check trial status before opening job form
+	const handlePostNewJob = async () => {
+		if (!company?.id) return
+		setIsCheckingTrial(true)
+		try {
+			const response = await fetch(`/api/billing/status?companyId=${company.id}`)
+			const result = await response.json()
+			if (result.ok && result.billing?.isTrialExpired) {
+				// Trial expired - show popup, don't open form
+				setShowTrialExpiredPopup(true)
+				return
+			}
+			// Trial not expired - open form
+			setJobFormInitialData(null)
+			setJobFormMode('create')
+			setJobFormJobId(null)
+			setShowJobPostingDialog(true)
+		} catch (error) {
+			console.error('Failed to check trial status:', error)
+			// On error, allow form to open (fail-open)
+			setJobFormInitialData(null)
+			setJobFormMode('create')
+			setJobFormJobId(null)
+			setShowJobPostingDialog(true)
 		} finally {
 			setIsCheckingTrial(false)
 		}
@@ -295,7 +339,10 @@ export default function JobsPage() {
 	// Fetch jobs on mount and when dependencies change
 	useEffect(() => {
 		if (company?.id) {
+			// Fetch jobs immediately — don't wait for trial check
 			fetchJobs()
+			// Trial enforcement runs in background, does not block UI
+			checkAndEnforceTrialExpiry().catch(() => {})
 		}
 	}, [company?.id, fetchJobs])
 
@@ -373,8 +420,9 @@ export default function JobsPage() {
 					className="gap-2"
 					size="sm"
 					onClick={handlePostNewJob}
+					disabled={isCheckingTrial}
 				>
-					<Plus className="h-3 w-3" />
+					{isCheckingTrial ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
 					Post New Job
 				</Button>
 			</div>
@@ -515,12 +563,13 @@ export default function JobsPage() {
 							<p className="text-base font-medium">{jobs.length === 0 ? 'No jobs yet' : 'No jobs found'}</p>
 							<p className="text-sm mt-1">{jobs.length === 0 ? 'Click "Post New Job" to create your first job posting' : 'Try adjusting your filters or search query'}</p>
 							{jobs.length === 0 && (
-								<Button
-									size="sm"
+								<Button 
+									size="sm" 
 									className="mt-3"
 									onClick={handlePostNewJob}
+									disabled={isCheckingTrial}
 								>
-									<Plus className="h-3 w-3 mr-1" />
+									{isCheckingTrial ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
 									Post New Job
 								</Button>
 							)}
@@ -725,6 +774,42 @@ export default function JobsPage() {
 				/>
 			)}
 
+			{/* Trial Expired Popup */}
+			{showTrialExpiredPopup && (
+				<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+					<div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl">
+						<div className="text-center">
+							<div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+								<XCircle className="h-6 w-6 text-red-600" />
+							</div>
+							<h3 className="text-lg font-medium text-gray-900 mb-2">
+								Trial Period Expired
+							</h3>
+							<p className="text-sm text-gray-500 mb-6">
+								Trial period is over, please recharge wallet to continue creating jobs.
+							</p>
+							<div className="flex gap-3 justify-center">
+								<Button
+									variant="outline"
+									onClick={() => setShowTrialExpiredPopup(false)}
+									className="px-4 py-2"
+								>
+									Close
+								</Button>
+								<Button
+									onClick={() => {
+										setShowTrialExpiredPopup(false)
+										window.location.href = '/settings?tab=payment'
+									}}
+									className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+								>
+									Recharge Wallet
+								</Button>
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	)
 }
