@@ -657,12 +657,12 @@ export default function DemoEnPage() {
       <WwwNavbar />
       
       {/* Announcement Banner */}
-      <div className="bg-emerald-50 border-b border-emerald-100">
+      <div style={{ background:'rgba(0,177,79,0.1)', borderBottom:'1px solid rgba(0,177,79,0.2)' }}>
         <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-3">
           <div className="flex items-center justify-center">
-            <div className="flex items-center space-x-2 text-emerald-800">
+            <div className="flex items-center space-x-2" style={{ color:'#6EE7B7' }}>
               <Zap className="w-4 h-4" />
-              <span className="text-sm font-medium">HireGenAI Launches All-New AI-Powered Recruitment Suite</span>
+              <span className="text-sm font-medium">Hire-GenAI — AI-Powered Recruitment Suite</span>
             </div>
           </div>
         </div>
@@ -1085,22 +1085,22 @@ export default function DemoEnPage() {
                       { q: "How do you handle exceptions and error logging in your automation workflows?", difficulty: "Medium", marks: 15 },
                       { q: "What is your experience with Orchestrator and bot deployment in production?", difficulty: "Low", marks: 15 }
                     ].map((item, i) => (
-                      <div key={i} className="question-item" style={{ 
-                        display: "flex", 
-                        alignItems: "center", 
+                      <div key={i} className="question-item" style={{
+                        display: "flex",
+                        alignItems: "center",
                         gap: 12,
                         padding: 12,
-                        background: "#f8fafc",
+                        background: "rgba(255,255,255,0.04)",
                         borderRadius: 8,
-                        border: "1px solid #e2e8f0"
+                        border: "1px solid rgba(255,255,255,0.08)"
                       }}>
-                        <span style={{ fontSize: 12, color: "#64748b", minWidth: 24 }}>Q{i + 1}</span>
+                        <span style={{ fontSize: 12, color: "rgba(248,250,252,0.5)", minWidth: 24 }}>Q{i + 1}</span>
                         <input
                           className="form-input"
                           value={item.q}
                           readOnly
                           disabled
-                          style={{ background: "#fff", cursor: "not-allowed", flex: 1, fontSize: 13 }}
+                          style={{ background: "rgba(255,255,255,0.04)", cursor: "not-allowed", flex: 1, fontSize: 13 }}
                         />
                         <div className="question-item-meta">
                           <span style={{
@@ -1108,25 +1108,25 @@ export default function DemoEnPage() {
                             borderRadius: 4,
                             fontSize: 11,
                             fontWeight: 600,
-                            background: item.difficulty === "High" ? "#fef2f2" : item.difficulty === "Medium" ? "#fffbeb" : "#f0fdf4",
-                            color: item.difficulty === "High" ? "#dc2626" : item.difficulty === "Medium" ? "#d97706" : "#16a34a"
+                            background: item.difficulty === "High" ? "rgba(239,68,68,0.15)" : item.difficulty === "Medium" ? "rgba(245,158,11,0.15)" : "rgba(0,177,79,0.15)",
+                            color: item.difficulty === "High" ? "#fca5a5" : item.difficulty === "Medium" ? "#fcd34d" : "#6EE7B7"
                           }}>
                             {item.difficulty}
                           </span>
-                          <span style={{ fontSize: 12, color: "#64748b", minWidth: 50 }}>{item.marks} marks</span>
+                          <span style={{ fontSize: 12, color: "rgba(248,250,252,0.5)", minWidth: 50 }}>{item.marks} marks</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="auto-schedule-box" style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, background: "#eff6ff", borderRadius: 8, border: "1px solid #bfdbfe" }}>
+                <div className="auto-schedule-box" style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, background: "rgba(0,177,79,0.08)", borderRadius: 8, border: "1px solid rgba(0,177,79,0.2)" }}>
                   <input type="checkbox" checked readOnly disabled style={{ width: 16, height: 16 }} />
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: "#1e293b" }}>Auto Schedule Interview</div>
-                    <div style={{ fontSize: 11, color: "#64748b" }}>Automatically send interview links to qualified candidates</div>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: "rgba(248,250,252,0.9)" }}>Auto Schedule Interview</div>
+                    <div style={{ fontSize: 11, color: "rgba(248,250,252,0.5)" }}>Automatically send interview links to qualified candidates</div>
                   </div>
-                  <div style={{ marginLeft: "auto", fontSize: 12, color: "#3b82f6", fontWeight: 500 }}>Link expires in 48 hours</div>
+                  <div style={{ marginLeft: "auto", fontSize: 12, color: "#6EE7B7", fontWeight: 500 }}>Link expires in 48 hours</div>
                 </div>
               </div>
 
@@ -1444,11 +1444,11 @@ export default function DemoEnPage() {
                   <div>
                     <label className="input-label">Upload Resume *</label>
                     <div className="upload-box-container" style={{
-                      border: "2px dashed #3b82f6",
+                      border: "2px dashed rgba(96,165,250,0.4)",
                       borderRadius: 8,
                       padding: 16,
                       textAlign: "center",
-                      background: "#eff6ff",
+                      background: "rgba(59,130,246,0.08)",
                       cursor: "default"
                     }}>
                       <div style={{ marginBottom: 8, fontSize: 20, color: "#3b82f6" }}>📄</div>
@@ -1477,11 +1477,11 @@ export default function DemoEnPage() {
                   <div>
                     <label className="input-label">Capture Photo *</label>
                     <div className="upload-box-container" style={{
-                      border: "2px solid #10b981",
+                      border: "2px solid rgba(16,185,129,0.35)",
                       borderRadius: 8,
                       padding: 16,
                       textAlign: "center",
-                      background: "#f0fdf4",
+                      background: "rgba(16,185,129,0.08)",
                       cursor: "default"
                     }}>
                       <div style={{ marginBottom: 8, fontSize: 20, color: "#10b981" }}>📸</div>
@@ -1749,16 +1749,16 @@ export default function DemoEnPage() {
               flexWrap: "wrap",
               gap: 12
             }}>
-              <h1 style={{ 
-                fontSize: "clamp(16px, 5vw, 20px)", 
-                fontWeight: 700, 
-                color: "#1e293b", 
+              <h1 style={{
+                fontSize: "clamp(16px, 5vw, 20px)",
+                fontWeight: 700,
+                color: "rgba(248,250,252,0.9)",
                 lineHeight: 1.3,
                 flex: 1,
                 minWidth: 0,
                 wordBreak: "break-word"
               }}>
-                Interview Report: <span style={{ color: "#059669" }}>{candidateName || "John Anderson"}</span> — <span style={{ color: "#6366f1" }}>{jobTitle || "SEO Specialist"}</span>
+                Interview Report: <span style={{ color: "#6EE7B7" }}>{candidateName || "John Anderson"}</span> — <span style={{ color: "#a78bfa" }}>{jobTitle || "SEO Specialist"}</span>
               </h1>
               <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                 <button style={{ 
@@ -1778,7 +1778,7 @@ export default function DemoEnPage() {
             </div>
 
             {/* Overall Score Hero Card */}
-            <div style={{ 
+            <div style={{
               background: "linear-gradient(135deg, #059669 0%, #047857 50%, #065f46 100%)",
               borderRadius: 12,
               padding: "clamp(16px, 4vw, 24px)",
@@ -1786,7 +1786,8 @@ export default function DemoEnPage() {
               marginBottom: 20,
               boxShadow: "0 4px 20px rgba(5, 150, 105, 0.3)",
               width: "100%",
-              boxSizing: "border-box"
+              boxSizing: "border-box",
+              animation: "scoreFloat 3s ease-in-out infinite"
             }}>
               <div style={{ 
                 display: "flex", 
@@ -2271,8 +2272,8 @@ export default function DemoEnPage() {
 
       <style jsx>{`
         :global(body) {
-          background: #ffffff;
-          color: #0f172a;
+          background: #03110A;
+          color: #F8FAFC;
           font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
         .page-wrap {
@@ -2351,16 +2352,17 @@ export default function DemoEnPage() {
           gap: 8px;
           padding: 6px 16px;
           border-radius: 999px;
-          background: #ecfdf5;
-          color: #047857;
+          background: rgba(0,177,79,0.12);
+          color: #6EE7B7;
           font-weight: 600;
           font-size: 13px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
           margin-bottom: 18px;
+          border: 1px solid rgba(0,177,79,0.25);
         }
         .app-header h1 {
-          color: #0f172a;
+          color: #F8FAFC;
           font-size: 44px;
           margin: 0 0 18px;
           font-weight: 800;
@@ -2369,7 +2371,7 @@ export default function DemoEnPage() {
         .app-header .subtitle {
           max-width: 640px;
           margin: 0 auto;
-          color: #475569;
+          color: rgba(248,250,252,0.6);
           font-size: 18px;
           line-height: 1.7;
         }
@@ -2378,20 +2380,22 @@ export default function DemoEnPage() {
           margin: 0 auto;
         }
         .card {
-          background: #ffffff;
+          background: rgba(255,255,255,0.04);
           border-radius: 20px;
-          box-shadow: 0 24px 40px -18px rgba(15, 23, 42, 0.18);
+          box-shadow: 0 24px 40px -18px rgba(0,0,0,0.4);
           padding: 36px;
           margin-bottom: 28px;
-          border: 1px solid #e2e8f0;
+          border: 1px solid rgba(255,255,255,0.08);
           transition: transform 0.25s ease, box-shadow 0.25s ease;
         }
         .card:hover {
           transform: translateY(-3px);
-          box-shadow: 0 32px 60px rgba(15, 23, 42, 0.15);
+          box-shadow: 0 32px 60px rgba(0,0,0,0.3);
         }
+        .card h4, .card label, .card div, .card span, .card p { color: inherit; }
+        .card { color: rgba(248,250,252,0.85); }
         h2 {
-          color: #0f172a;
+          color: #F8FAFC;
           font-size: 22px;
           margin: 0 0 32px;
           font-weight: 700;
@@ -2423,7 +2427,7 @@ export default function DemoEnPage() {
           display: block;
           font-size: 13px;
           font-weight: 600;
-          color: #475569;
+          color: rgba(248,250,252,0.5);
           margin-bottom: 8px;
           text-transform: uppercase;
           letter-spacing: 0.05em;
@@ -2431,17 +2435,17 @@ export default function DemoEnPage() {
         .form-input {
           width: 100%;
           padding: 14px 16px;
-          border: 1px solid rgba(148, 163, 184, 0.3);
+          border: 1px solid rgba(255,255,255,0.1);
           border-radius: 12px;
           font-size: 16px;
-          color: #1f2937;
-          background: rgba(255, 255, 255, 0.9);
+          color: #F8FAFC;
+          background: rgba(255,255,255,0.06);
           transition: box-shadow 0.2s ease, border 0.2s ease;
         }
         .form-input:focus {
           outline: none;
-          border-color: rgba(99, 102, 241, 0.8);
-          box-shadow: 0 10px 28px rgba(99, 102, 241, 0.16);
+          border-color: rgba(0,177,79,0.6);
+          box-shadow: 0 10px 28px rgba(0,177,79,0.12);
         }
         .button-row {
           display: flex;
@@ -2464,9 +2468,9 @@ export default function DemoEnPage() {
           transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
         .btn-back {
-          background: #f8fafc;
-          border: 1px solid #cbd5f5;
-          color: #475569;
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.15);
+          color: rgba(248,250,252,0.7);
         }
         .btn-next {
           background: linear-gradient(135deg, #059669 0%, #10b981 100%);
@@ -2861,7 +2865,7 @@ export default function DemoEnPage() {
           content: "";
           height: 2px;
           width: 100%;
-          background: #e2e8f0;
+          background: rgba(255,255,255,0.08);
           position: absolute;
           top: 18px;
           left: 50%;
@@ -2870,36 +2874,36 @@ export default function DemoEnPage() {
           transition: background 0.3s ease;
         }
         .progress-step.completed::before {
-          background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+          background: linear-gradient(90deg, #00B14F 0%, #059669 100%);
         }
         .step-number {
           width: 36px;
           height: 36px;
           border-radius: 50%;
-          background: #fff;
-          border: 2px solid #cbd5f5;
-          color: #64748b;
+          background: rgba(255,255,255,0.06);
+          border: 2px solid rgba(255,255,255,0.15);
+          color: rgba(248,250,252,0.4);
           display: flex;
           align-items: center;
           justify-content: center;
           margin: 0 auto 8px;
           position: relative;
           z-index: 2;
-          box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+          box-shadow: 0 4px 10px rgba(0,0,0,0.3);
           transition: all 0.2s ease;
           font-size: 14px;
           font-weight: 600;
         }
         .progress-step.active .step-number,
         .progress-step.completed .step-number {
-          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          background: linear-gradient(135deg, #00B14F 0%, #059669 100%);
           border-color: transparent;
           color: #fff;
-          box-shadow: 0 10px 20px rgba(16, 185, 129, 0.28);
+          box-shadow: 0 10px 20px rgba(0,177,79,0.35);
         }
         .step-label {
           font-size: 14px;
-          color: #64748b;
+          color: rgba(248,250,252,0.4);
           font-weight: 500;
           transition: color 0.2s ease;
           line-height: 1.3;
@@ -2908,8 +2912,14 @@ export default function DemoEnPage() {
         }
         .progress-step.active .step-label,
         .progress-step.completed .step-label {
-          color: #047857;
+          color: #6EE7B7;
           font-weight: 600;
+        }
+        input[disabled], select[disabled], textarea[disabled], input[readonly], select[readonly], textarea[readonly] {
+          background: rgba(255,255,255,0.04) !important;
+          color: rgba(248,250,252,0.7) !important;
+          border-color: rgba(255,255,255,0.08) !important;
+          -webkit-text-fill-color: rgba(248,250,252,0.7) !important;
         }
         @media (max-width: 900px) {
           .screen {
@@ -2985,8 +2995,8 @@ export default function DemoEnPage() {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          background: #fef3c7;
-          border: 1px solid #fcd34d;
+          background: rgba(245,158,11,0.1);
+          border: 1px solid rgba(245,158,11,0.3);
           border-radius: 8px;
           padding: 12px 16px;
           margin-bottom: 24px;
@@ -3016,10 +3026,10 @@ export default function DemoEnPage() {
           align-items: center;
           justify-content: space-between;
           padding: 12px 16px;
-          background: #f8fafc;
+          background: rgba(255,255,255,0.04);
           border-radius: 8px;
           margin-bottom: 24px;
-          border: 1px solid #e2e8f0;
+          border: 1px solid rgba(255,255,255,0.08);
         }
         /* Job Tabs */
         .job-tabs-container {
@@ -3028,7 +3038,7 @@ export default function DemoEnPage() {
           margin-bottom: 24px;
           overflow-x: auto;
           padding: 4px;
-          background: #f1f5f9;
+          background: rgba(255,255,255,0.04);
           border-radius: 8px;
           -webkit-overflow-scrolling: touch;
         }
@@ -3042,17 +3052,17 @@ export default function DemoEnPage() {
           font-weight: 500;
           white-space: nowrap;
           background: transparent;
-          color: #64748b;
+          color: rgba(248,250,252,0.5);
           cursor: pointer;
           transition: all 0.2s ease;
           flex-shrink: 0;
         }
         .job-tab:hover {
-          background: rgba(5, 150, 105, 0.1);
-          color: #059669;
+          background: rgba(0,177,79,0.1);
+          color: #6EE7B7;
         }
         .job-tab.active {
-          background: #059669;
+          background: #00B14F;
           color: #fff;
         }
         /* Section Header */
@@ -3062,7 +3072,7 @@ export default function DemoEnPage() {
           gap: 8px;
           margin-bottom: 16px;
           padding-bottom: 12px;
-          border-bottom: 1px solid #e2e8f0;
+          border-bottom: 1px solid rgba(255,255,255,0.08);
         }
         .section-header-icon {
           font-size: 18px;
@@ -3070,11 +3080,11 @@ export default function DemoEnPage() {
         .section-header-title {
           font-weight: 600;
           font-size: 16px;
-          color: #1e293b;
+          color: #F8FAFC;
         }
         .section-header-subtitle {
           font-size: 12px;
-          color: #64748b;
+          color: rgba(248,250,252,0.45);
         }
         /* Form Section */
         .form-section {

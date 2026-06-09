@@ -360,14 +360,23 @@ export default function BookMeetingPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#03110A', color: '#fff' }}>
+      <style>{`
+        .timeslots-scroll::-webkit-scrollbar { display: none; }
+        @media (max-width: 700px) {
+          .book-meeting-grid { grid-template-columns: 1fr !important; }
+          .book-meeting-left { border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.08) !important; }
+          .book-meeting-step1 { grid-template-columns: 1fr !important; }
+          .book-meeting-timeslots { width: 100% !important; }
+        }
+      `}</style>
       <WwwNavbar />
 
       <div style={{ paddingTop: '68px' }}>
       <div style={{ maxWidth: '960px', margin: '0 auto', padding: '24px 16px 48px' }}>
         <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px', overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', minHeight: '520px' }}>
+          <div className="book-meeting-grid" style={{ display: 'grid', gridTemplateColumns: '240px 1fr', minHeight: '520px' }}>
             {/* Left Column - Meeting Info */}
-            <div style={{ borderRight: '1px solid rgba(255,255,255,0.08)', padding: '24px', flexShrink: 0 }}>
+            <div className="book-meeting-left" style={{ borderRight: '1px solid rgba(255,255,255,0.08)', padding: '24px' }}>
 
               {/* Logo */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
@@ -410,7 +419,7 @@ export default function BookMeetingPage() {
             <div style={{ padding: '24px', minWidth: 0 }}>
               {/* Step 1: Calendar & Time Selection */}
               {step === 1 && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: '24px', alignItems: 'start' }}>
+                <div className="book-meeting-step1" style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: '24px', alignItems: 'start' }}>
                   {/* Calendar Section */}
                   <div style={{ minWidth: 0 }}>
                     {/* Month Navigation */}
@@ -465,11 +474,11 @@ export default function BookMeetingPage() {
                   </div>
 
                   {/* Time Slots Section */}
-                  <div style={{ width: '220px' }}>
+                  <div className="book-meeting-timeslots" style={{ width: '220px' }}>
                     {selectedDate ? (
                       <>
                         <h4 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '16px' }}>{formatSelectedDate()}</h4>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '350px', overflowY: 'auto', paddingRight: '4px' }}>
+                        <div className="timeslots-scroll" style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '350px', overflowY: 'auto', paddingRight: '4px', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
                           {TIME_SLOTS.map(time => {
                             if (isTodaySelected()) {
                               const nowMinutes = convertToMinutes(currentTime)
@@ -601,9 +610,10 @@ export default function BookMeetingPage() {
             <div className="col-span-1 md:col-span-2">
               <h4 className="font-semibold mb-4 text-white text-sm uppercase tracking-wide">Product</h4>
               <ul className="space-y-3 text-slate-400 text-sm">
-                {[['/demo-en','Try the Demo'],['/pricing','Pricing'],['/','Assessment'],['/','FAQs']].map(([href, label]) => (
+                {[['/demo-en','Try the Demo'],['/','Assessment'],['/','FAQs']].map(([href, label]) => (
                   <li key={label}><a href={href} className="hover:text-emerald-400 transition-colors">{label}</a></li>
                 ))}
+                <li><a href="/?scroll=pricing" className="hover:text-emerald-400 transition-colors">Pricing</a></li>
               </ul>
             </div>
             <div className="col-span-1 md:col-span-2">

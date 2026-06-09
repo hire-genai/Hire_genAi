@@ -133,7 +133,7 @@ export default function LoginPage() {
           <Link href="/" style={{ textDecoration: 'none' }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '26px', fontWeight: 800 }}>
               <div style={{ width: 32, height: 32, background: 'linear-gradient(135deg,#00B14F,#00C853)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>⚡</div>
-              <span style={{ color: '#fff' }}>Hire-</span><span style={{ color: '#00B14F' }}>GenAI</span>
+              <span><span style={{ color: '#fff' }}>Hire-</span><span style={{ color: '#00B14F' }}>GenAI</span></span>
             </div>
           </Link>
           <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '13px', marginTop: '8px' }}>Enter your email to receive a one-time password</p>

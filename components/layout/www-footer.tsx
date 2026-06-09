@@ -55,7 +55,11 @@ export default function WwwFooter() {
                   Try the Demo
                 </button>
               </li>
-              <li><a href="/pricing" className="hover:text-emerald-400 transition-colors">Pricing</a></li>
+              <li>
+                <button onClick={() => scrollOrNavigate('pricing')} className="hover:text-emerald-400 transition-colors bg-transparent border-none cursor-pointer text-slate-400 text-sm p-0">
+                  Pricing
+                </button>
+              </li>
               <li>
                 <button onClick={() => scrollOrNavigate('assessment')} className="hover:text-emerald-400 transition-colors bg-transparent border-none cursor-pointer text-slate-400 text-sm p-0">
                   Assessment

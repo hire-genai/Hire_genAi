@@ -430,7 +430,7 @@ function SignupContent() {
       {/* Top Bar */}
       <header style={{ background: 'rgba(3,17,10,0.97)', borderBottom: '1px solid rgba(0,177,79,0.15)', backdropFilter: 'blur(20px)' }}>
         <div className="max-w-2xl md:max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-          <nav className="flex items-center text-sm gap-2" style={{ color: 'rgba(255,255,255,0.6)' }}>
+          <div className="flex items-center text-sm gap-2" style={{ color: 'rgba(255,255,255,0.6)' }}>
             <Home className="w-4 h-4" />
             <Link href="/" style={{ color: 'rgba(255,255,255,0.6)' }} className="hover:text-white">Home</Link>
             <span style={{ color: 'rgba(255,255,255,0.3)' }}>/</span>
@@ -440,7 +440,7 @@ function SignupContent() {
                 <span style={{ color: '#00B14F' }}>GenAI</span>
               </Link>
             </span>
-          </nav>
+          </div>
           <span style={{ fontSize: '12px', fontWeight: 600, color: '#00B14F', background: 'rgba(0,177,79,0.12)', border: '1px solid rgba(0,177,79,0.3)', borderRadius: '100px', padding: '4px 12px' }}>Step {step} of {totalSteps}</span>
         </div>
       </header>

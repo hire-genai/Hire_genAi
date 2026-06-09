@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(npx create-next-app@latest hire-genai --typescript --tailwind=false --eslint=false --app --src-dir=false --import-alias=\"@/*\" --yes)"
+    ]
+  }
+}
