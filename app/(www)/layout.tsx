@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import ChatbotWizard from '@/components/ChatbotWizard'
 
 export const dynamic = 'force-dynamic';
 
@@ -12,5 +13,10 @@ export default function MarketingLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  return <div className="dark w-full overflow-x-hidden bg-[#03110A] text-[#F8FAFC]">{children}</div>
+  return (
+    <div className="dark w-full overflow-x-hidden bg-[#03110A] text-[#F8FAFC]">
+      {children}
+      <ChatbotWizard />
+    </div>
+  )
 }
