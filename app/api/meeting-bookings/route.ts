@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
 import { GoogleCalendarService } from '@/lib/google-calendar'
+import { sendContactMail, FROM_CONTACT } from '@/lib/smtp'
 
 // POST - Create a new meeting booking
 export async function POST(request: NextRequest) {
@@ -107,6 +108,33 @@ export async function POST(request: NextRequest) {
         calendarWarning = 'Failed to create Google Calendar event. Meeting saved without Meet link.'
         console.error('⚠️ [API] Google Calendar event creation failed:', calError.message)
       }
+    }
+
+    // Send confirmation email to the user
+    try {
+      const dateStr = meetingDate ? new Date(meetingDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : ''
+      const meetLinkHtml = meetLink ? `<p><strong>Meeting Link:</strong> <a href="${meetLink}">${meetLink}</a></p>` : ''
+      await sendContactMail({
+        from: `HireGenAI Support <${FROM_CONTACT}>`,
+        to: workEmail,
+        subject: 'Your meeting with HireGenAI is confirmed!',
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+            <h2 style="color:#4F46E5">Meeting Confirmed, ${fullName}!</h2>
+            <p>Your demo meeting with HireGenAI has been booked successfully.</p>
+            ${dateStr ? `<p><strong>Date:</strong> ${dateStr}</p>` : ''}
+            ${meetingTime ? `<p><strong>Time:</strong> ${meetingTime}${meetingEndTime ? ' – ' + meetingEndTime : ''} (IST)</p>` : ''}
+            ${meetLinkHtml}
+            ${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ''}
+            <p>If you need to reschedule or have any questions, just reply to this email.</p>
+            <hr style="border:none;border-top:1px solid #eee;margin:24px 0"/>
+            <p style="font-size:13px;color:#888">HireGenAI · support@hire-genai.com</p>
+          </div>
+        `,
+      })
+      console.log('✅ [API] Meeting confirmation email sent to:', workEmail)
+    } catch (emailErr) {
+      console.error('⚠️ [API] Failed to send meeting confirmation email:', emailErr)
     }
 
     return NextResponse.json({

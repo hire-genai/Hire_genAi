@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
+import { sendContactMail, FROM_CONTACT } from '@/lib/smtp'
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,6 +33,28 @@ export async function POST(request: NextRequest) {
     )
 
     console.log('Contact message saved:', result)
+
+    // Send confirmation email to the user
+    try {
+      await sendContactMail({
+        from: `HireGenAI Support <${FROM_CONTACT}>`,
+        to: workEmail,
+        subject: "We've received your message – HireGenAI",
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+            <h2 style="color:#4F46E5">Thanks for reaching out, ${fullName}!</h2>
+            <p>We've received your message and our team will get back to you within 1 business day.</p>
+            <p><strong>Subject:</strong> ${subject}</p>
+            <p><strong>Your message:</strong><br/>${message.replace(/\n/g, '<br/>')}</p>
+            <hr style="border:none;border-top:1px solid #eee;margin:24px 0"/>
+            <p style="font-size:13px;color:#888">HireGenAI · support@hire-genai.com</p>
+          </div>
+        `,
+      })
+      console.log('✅ Contact confirmation email sent to:', workEmail)
+    } catch (emailErr) {
+      console.error('⚠️ Failed to send contact confirmation email:', emailErr)
+    }
 
     return NextResponse.json(
       {
