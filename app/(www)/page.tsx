@@ -18,7 +18,6 @@ export default function HomePage() {
         <ROISimulator />
         <ROIAssessment />
         <Pricing />
-        <TrustBanner />
         <Testimonials />
         <Company />
         <FinalCTA />

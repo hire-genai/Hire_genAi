@@ -66,8 +66,8 @@ export function WwwNavbar() {
           <a href="/about" className="nav-item">Company</a>
         </div>
         <div className="nav-actions">
-          <a href={getAppUrl('/login')} className="btn-secondary" style={{ padding: '9px 20px', fontSize: '14px' }}>Login</a>
-          <a href={getAppUrl('/signup')} className="btn-primary" style={{ padding: '9px 20px', fontSize: '14px' }}>Get Started</a>
+          <a href={getAppUrl('/login')} className="btn-secondary" style={{ padding: '9px 20px', fontSize: '14px' }} target="_blank" rel="noopener noreferrer">Login</a>
+          <a href={getAppUrl('/signup')} className="btn-primary" style={{ padding: '9px 20px', fontSize: '14px' }} target="_blank" rel="noopener noreferrer">Get Started</a>
         </div>
         <button
           className="nav-hamburger"
@@ -84,8 +84,8 @@ export function WwwNavbar() {
           ))}
           <a href="/about" className="nav-item" onClick={() => setMenuOpen(false)}>Company</a>
           <div style={{ display: 'flex', gap: '10px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
-            <a href={getAppUrl('/login')} className="btn-secondary" style={{ flex: 1, justifyContent: 'center', padding: '10px', fontSize: '14px' }}>Login</a>
-            <a href={getAppUrl('/signup')} className="btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '10px', fontSize: '14px' }}>Get Started</a>
+            <a href={getAppUrl('/login')} className="btn-secondary" style={{ flex: 1, justifyContent: 'center', padding: '10px', fontSize: '14px' }} target="_blank" rel="noopener noreferrer">Login</a>
+            <a href={getAppUrl('/signup')} className="btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '10px', fontSize: '14px' }} target="_blank" rel="noopener noreferrer">Get Started</a>
           </div>
         </div>
       )}

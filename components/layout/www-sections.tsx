@@ -10,7 +10,6 @@ export function Hero() {
       <div className="hero-blob hero-blob-1" />
       <div className="hero-blob hero-blob-2" />
       <div className="container">
-        <div className="hero-eyebrow"><strong>Powered by GPT-4o &amp; Claude</strong> &nbsp;·&nbsp; Next-Generation Recruitment AI</div>
         <h1 className="hero-title fade-in">Hire Smarter.<br /><span className="highlight">10× Faster</span> with AI.</h1>
         <p className="hero-subtitle fade-in">Hire-GenAI transforms your entire recruitment pipeline — from sourcing to offer — with generative AI that screens, scores, and schedules so your team focuses on what matters most.</p>
         <div className="hero-actions fade-in">
@@ -43,8 +42,13 @@ export function ProductPreview() {
           <div className="preview-content">
             <div className="preview-sidebar">
               <div className="preview-sidebar-logo">⚡ Hire-GenAI</div>
-              {['Dashboard','Pipeline','AI Scoring','Interviews','Assessments','Analytics','Offers'].map((item,i) => (
+              <div style={{ fontSize:'8px', fontWeight:700, color:'rgba(255,255,255,0.3)', letterSpacing:'0.1em', padding:'8px 12px 4px', textTransform:'uppercase' }}>MAIN</div>
+              {['Dashboard','Applications','Job Postings','Talent Pool'].map((item,i) => (
                 <div key={item} className={`preview-nav-item${i===0?' active':''}`}><div className="preview-nav-icon"/>{item}</div>
+              ))}
+              <div style={{ fontSize:'8px', fontWeight:700, color:'rgba(255,255,255,0.3)', letterSpacing:'0.1em', padding:'8px 12px 4px', textTransform:'uppercase' }}>MANAGEMENT</div>
+              {['Delegation','Support','Settings'].map((item) => (
+                <div key={item} className="preview-nav-item"><div className="preview-nav-icon"/>{item}</div>
               ))}
             </div>
             <div className="preview-main">
@@ -243,7 +247,7 @@ export function DemoSection() {
               <div className="demo-form-section">
                 <div className="demo-form-title">Basic Information</div>
                 <div className="demo-field-row">
-                  {[['Department','Engineering'],['Job Type','Full-time'],['Work Mode','Hybrid'],['Currency','USD ($)'],['Salary Min','$80,000'],['Salary Max','$120,000']].map(([l,v]) => (
+                  {[['Department','Engineering'],['Job Type','Full-time'],['Work Mode','Hybrid'],['Currency','USD ($)'],['Salary Min','$80,000'],['Salary Max','$120,000'],['Hiring Priority','Medium']].map(([l,v]) => (
                     <div key={l} className="demo-field"><span className="demo-field-label">{l}</span><span className="demo-field-val">{v}</span></div>
                   ))}
                 </div>
@@ -252,8 +256,27 @@ export function DemoSection() {
                 <div className="demo-form-title">🤖 Interview Questions</div>
                 <div className="demo-ai-box">
                   <div style={{ fontWeight:700, fontSize:'13px', marginBottom:'8px' }}>Generated Questions (5)</div>
-                  {['How do your UiPath/AA skills align with this role?','Describe a cross-team collaboration for automation.','Salary expectations & relocation to Bangalore?'].map(q => (
-                    <div key={q} className="demo-ai-item">{q}</div>
+                  {[
+                    'How do your UiPath/AA skills align with this role?',
+                    'Describe a cross-team collaboration for automation.',
+                    'Salary expectations & relocation to Bangalore?',
+                    'Describe a time when you significantly improved a process.',
+                    'How do you stay current with RPA technology trends?',
+                  ].map((q, i) => (
+                    <div key={i} className="demo-ai-item">{q}</div>
+                  ))}
+                  <div style={{ marginTop:'12px', display:'flex', alignItems:'center', gap:'8px', fontSize:'12px' }}>
+                    <span style={{ fontSize:'11px', fontWeight:700, color:'var(--green)' }}>🔄 Auto-schedule:</span>
+                    <span style={{ background:'rgba(0,177,79,0.15)', color:'var(--green)', border:'1px solid rgba(0,177,79,0.3)', borderRadius:'6px', padding:'2px 10px', fontWeight:700 }}>ON</span>
+                    <span style={{ color:'var(--text-dim)' }}>· Links expire in 48h</span>
+                  </div>
+                </div>
+              </div>
+              <div className="demo-form-section">
+                <div className="demo-form-title">👥 Hiring Team &amp; Planning</div>
+                <div className="demo-field-row">
+                  {[['Hiring Manager','Sarah Chen'],['Recruiter','Alex Kumar'],['Interviewers','3 assigned'],['Target Date','Aug 15, 2025'],['Open Positions','2'],['Budget','$120,000/yr']].map(([l,v]) => (
+                    <div key={l} className="demo-field"><span className="demo-field-label">{l}</span><span className="demo-field-val">{v}</span></div>
                   ))}
                 </div>
               </div>
@@ -271,16 +294,30 @@ export function DemoSection() {
               <div className="demo-form-section">
                 <div className="demo-form-title">👤 General Information</div>
                 <div className="demo-field-row">
-                  {[['First name','John'],['Last name','Anderson'],['Email','john.anderson@email.com'],['Phone','+1 234 567 8900'],['Salary','$95,000/mo'],['Location','Hyderabad, India']].map(([l,v]) => (
+                  {[['First name','John'],['Last name','Anderson'],['Email','john.anderson@email.com'],['Phone','+1 234 567 8900'],['Salary','$95,000/yr'],['Location','Hyderabad, India']].map(([l,v]) => (
                     <div key={l} className="demo-field"><span className="demo-field-label">{l}</span><span className="demo-field-val">{v}</span></div>
                   ))}
                 </div>
               </div>
               <div className="demo-form-section">
-                <div className="demo-form-title">📄 Resume & Photo</div>
+                <div className="demo-form-title">📄 Resume &amp; Photo</div>
                 <div style={{ display:'flex', gap:'14px', marginTop:'10px' }}>
                   <div className="demo-upload-box"><div style={{ fontSize:'20px' }}>📄</div><div style={{ fontSize:'12px', fontWeight:700, color:'var(--green)' }}>✓ Uploaded</div><div style={{ fontSize:'11px', color:'var(--text-dim)' }}>resume.pdf · 245 KB</div></div>
-                  <div className="demo-upload-box"><div style={{ fontSize:'20px' }}>📷</div><div style={{ fontSize:'12px', fontWeight:700, color:'var(--green)' }}>👤 Verified</div></div>
+                  <div className="demo-upload-box"><div style={{ fontSize:'20px' }}>📷</div><div style={{ fontSize:'12px', fontWeight:700, color:'var(--green)' }}>👤 Verified</div><div style={{ fontSize:'11px', color:'var(--text-dim)' }}>photo.jpg · 128 KB</div></div>
+                </div>
+              </div>
+              <div className="demo-form-section">
+                <div className="demo-form-title">✉️ Cover Letter</div>
+                <div style={{ background:'rgba(255,255,255,0.04)', border:'1px solid var(--border)', borderRadius:'10px', padding:'14px', fontSize:'12px', color:'var(--text-muted)', lineHeight:1.6 }}>
+                  I am excited to apply for the RPA Developer position. With 4 years of hands-on experience using UiPath and Automation Anywhere, I have successfully delivered automation solutions that reduced processing time by 60%...
+                </div>
+              </div>
+              <div className="demo-form-section">
+                <div className="demo-form-title">🌐 Languages &amp; Availability</div>
+                <div className="demo-field-row">
+                  {[['Languages','English, Hindi'],['Proficiency','Fluent / Native'],['Notice Period','30 days'],['Available From','July 2025'],['Work Auth','Authorized (India)'],['Interview Mode','Video / On-site']].map(([l,v]) => (
+                    <div key={l} className="demo-field"><span className="demo-field-label">{l}</span><span className="demo-field-val">{v}</span></div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -290,16 +327,25 @@ export function DemoSection() {
         {tab === 'eval' && (
           <div className="demo-tab-content active">
             <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:'24px' }} className="demo-eval-grid">
-              <div style={{ background:'var(--card-bg)', border:'1px solid var(--border)', borderRadius:'16px', padding:'24px', textAlign:'center' }}>
-                <div style={{ fontSize:'48px', fontWeight:900, color:'var(--green)' }}>70</div>
-                <div style={{ fontSize:'13px', color:'var(--text-dim)', marginBottom:'8px' }}>out of 100</div>
-                <div style={{ padding:'8px 12px', background:'rgba(0,177,79,0.1)', border:'1px solid rgba(0,177,79,0.3)', borderRadius:'8px', fontSize:'12px', fontWeight:700, color:'var(--green)', marginTop:'12px' }}>✓ Qualified — Recommendation: Hire</div>
+              <div style={{ background:'rgba(0,177,79,0.1)', border:'1px solid rgba(0,177,79,0.3)', borderRadius:'16px', padding:'24px 20px', textAlign:'center', alignSelf:'flex-start', animation:'scoreFloat 3s ease-in-out infinite' }}>
+                <div style={{ fontSize:'44px', fontWeight:900, color:'var(--green)', lineHeight:1 }}>70</div>
+                <div style={{ fontSize:'12px', color:'var(--text-dim)', margin:'4px 0 10px' }}>out of 100</div>
+                <div style={{ padding:'6px 10px', background:'rgba(0,177,79,0.1)', border:'1px solid rgba(0,177,79,0.3)', borderRadius:'8px', fontSize:'11px', fontWeight:700, color:'var(--green)' }}>✓ Qualified — Recommendation: Hire</div>
+                <div style={{ marginTop:'12px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px' }}>
+                  {[['Questions','10'],['Answered','10'],['Avg Score','69/100'],['Duration','18 min']].map(([l,v]) => (
+                    <div key={l} style={{ background:'rgba(255,255,255,0.04)', borderRadius:'8px', padding:'6px', textAlign:'center' }}>
+                      <div style={{ fontSize:'13px', fontWeight:800, color:'var(--text)' }}>{v}</div>
+                      <div style={{ fontSize:'9px', color:'var(--text-dim)' }}>{l}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div>
-                <div style={{ fontSize:'14px', fontWeight:700, marginBottom:'16px' }}>❓ Interview Responses & Scores</div>
+                <div style={{ fontSize:'14px', fontWeight:700, marginBottom:'16px' }}>❓ Interview Responses &amp; Scores</div>
                 {[
-                  { num:1, q:'How do your skills with UiPath and AA align with this role?', tag:'Technical', score:'70/100', response:'6 years IT, 4 years hands-on RPA using AA and UiPath...', strength:'Comprehensive overview of relevant experience', improve:'Lack of specific UiPath examples' },
-                  { num:2, q:'Describe collaboration with business analysts for automation.', tag:'Team Player', score:'68/100', response:'Worked closely with BAs to gather automation requirements...', strength:'Good collaboration approach', improve:'Could provide more specific challenges' },
+                  { num:1, q:'How do your skills with UiPath and AA align with this role?', tag:'Technical', score:'70/100', response:'6 years IT experience, 4 years hands-on RPA using Automation Anywhere and UiPath. Have built 20+ bots across finance and HR automation workflows.', strength:'Comprehensive overview of relevant hands-on experience with both platforms', improve:'Lacks specific UiPath project examples — could quantify impact more clearly' },
+                  { num:2, q:'Describe your collaboration with business analysts for automation.', tag:'Team Player', score:'68/100', response:'Worked closely with BAs to gather process requirements, documented AS-IS flows, and identified automation opportunities. Regular syncs ensured alignment.', strength:'Good cross-functional collaboration approach with clear communication', improve:'Could provide more specific examples of challenges faced and how they were resolved' },
+                  { num:3, q:'How do you stay current with RPA technology trends?', tag:'Culture Fit', score:'65/100', response:'I follow UiPath and AA community blogs, attend webinars monthly, and have completed 3 certifications in the past year including UiPath Advanced RPA.', strength:'Proactive learning mindset with certifications to back it up', improve:'Could mention specific emerging trends or how they applied new learnings to real projects' },
                 ].map(q => (
                   <div key={q.num} className="demo-eval-q">
                     <div className="demo-eval-q-header">
@@ -321,7 +367,7 @@ export function DemoSection() {
             </div>
             <div style={{ textAlign:'center', marginTop:'28px', display:'flex', gap:'14px', justifyContent:'center', flexWrap:'wrap' }}>
               <a href="/demo-en" className="btn-primary">Try Full Demo →</a>
-              <a href={getAppUrl('/signup')} className="btn-secondary">Start Free Trial</a>
+              <a href={getAppUrl('/signup')} className="btn-secondary" target="_blank" rel="noopener noreferrer">Start Free Trial</a>
             </div>
           </div>
         )}
@@ -436,28 +482,6 @@ export function ROISimulator() {
               <div style={{ fontSize:'10px', color:'var(--text-dim)' }}>Full amount into your AI wallet</div>
             </div>
           </div>
-          {/* Usage capacity */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'16px' }}>
-            <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:'10px', padding:'10px', textAlign:'center' }}>
-              <div style={{ fontSize:'16px', fontWeight:800, color:'var(--text)' }}>{r.plan.maxCvs.toLocaleString()}</div>
-              <div style={{ fontSize:'10px', color:'var(--text-dim)' }}>candidates screened</div>
-            </div>
-            <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:'10px', padding:'10px', textAlign:'center' }}>
-              <div style={{ fontSize:'16px', fontWeight:800, color:'var(--text)' }}>{r.plan.maxInterviews||'Unlimited'}</div>
-              <div style={{ fontSize:'10px', color:'var(--text-dim)' }}>AI video rounds</div>
-            </div>
-          </div>
-          {/* ROI Stats */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'16px' }}>
-            <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:'10px', padding:'10px', textAlign:'center' }}>
-              <div style={{ fontSize:'14px', fontWeight:700, color:'var(--green)' }}>{r.roiPct}%</div>
-              <div style={{ fontSize:'9px', color:'var(--text-dim)' }}>ROI Insight</div>
-            </div>
-            <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:'10px', padding:'10px', textAlign:'center' }}>
-              <div style={{ fontSize:'14px', fontWeight:700, color:'var(--green)' }}>{fmtMoney(r.savings)}</div>
-              <div style={{ fontSize:'9px', color:'var(--text-dim)' }}>Monthly Savings</div>
-            </div>
-          </div>
           <a href={getAppUrl(`/signup?plan=${r.plan.name}&billing=monthly`)} className="btn-primary" style={{ width:'100%', justifyContent:'center', fontSize:'14px' }}>
             Get Started with {r.plan.name} Plan (${r.plan.price}/mo) →
           </a>
@@ -555,13 +579,13 @@ const questions = [
 ];
 
 export function ROIAssessment() {
-  const [step, setStep] = useState<'q'|'contact'|'done'>('q');
+  const [step, setStep] = useState<'q'|'contact'|'done'>('contact');
   const [qIdx, setQIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<number,string>>({});
   const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [company, setCompany] = useState('');
   const [score, setScore] = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  const pct = step==='done'?100:step==='contact'?95:((qIdx+1)/11*100);
+  const pct = step==='done'?100:step==='contact'?5:((qIdx+1)/11*90+5);
 
   const getRec = (a: Record<number,string>) => {
     const cvOpts = questions[0].opts; const cvIdx = cvOpts.indexOf(a[0] || '');
@@ -578,7 +602,13 @@ export function ROIAssessment() {
   const pick = (opt: string) => {
     const a = { ...answers, [qIdx]: opt }; setAnswers(a);
     setTimeout(() => {
-      if (qIdx+1 >= questions.length) { setScore(Math.round((Object.keys(a).length/questions.length)*72+18)); setStep('contact'); }
+      if (qIdx+1 >= questions.length) {
+        const finalScore = Math.round((Object.keys(a).length/questions.length)*72+18);
+        setScore(finalScore);
+        setSubmitting(true);
+        fetch('/api/assessments/submit', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, email, company, answers: a, efficiencyScore: finalScore }) }).catch(()=>{}).finally(()=>setSubmitting(false));
+        setStep('done');
+      }
       else setQIdx(qIdx+1);
     }, 400);
   };
@@ -621,22 +651,18 @@ export function ROIAssessment() {
             )}
             {step==='contact' && (
               <div>
-                <div style={{ fontSize:'16px', fontWeight:700, marginBottom:'16px' }}>Almost done! Get your personalised report</div>
+                <div style={{ fontSize:'16px', fontWeight:700, marginBottom:'4px' }}>Get your personalised ROI report</div>
+                <div style={{ fontSize:'13px', color:'var(--text-dim)', marginBottom:'16px' }}>Answer 10 quick questions and see exactly how much your team can save.</div>
                 {[['text','Full Name','Jane Smith',name,setName],['email','Work Email','jane@company.com',email,setEmail],['text','Company','Acme Corp',company,setCompany]].map(([type,label,placeholder,val,setter]) => (
                   <div key={label as string} className="roi-input-group">
                     <label>{label as string}</label>
                     <input type={type as string} placeholder={placeholder as string} className="roi-input" value={val as string} onChange={e => (setter as (v:string)=>void)(e.target.value)} />
                   </div>
                 ))}
-                <button className="btn-primary" style={{ width:'100%', justifyContent:'center', marginTop:'8px', opacity: submitting ? 0.6 : 1 }} onClick={async () => {
-                    if (!name || !email || !company || submitting) return;
-                    setSubmitting(true);
-                    try {
-                      await fetch('/api/assessments/submit', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, email, company, answers, efficiencyScore: score }) });
-                    } catch(_) {}
-                    setSubmitting(false);
-                    setStep('done');
-                  }}>{submitting ? 'Submitting…' : 'See My Results →'}</button>
+                <button className="btn-primary" style={{ width:'100%', justifyContent:'center', marginTop:'8px' }} onClick={() => {
+                    if (!name || !email || !company) return;
+                    setStep('q');
+                  }}>Start Assessment →</button>
               </div>
             )}
             {step==='done' && (() => { const rec = getRec(answers); return (
@@ -663,12 +689,12 @@ export function ROIAssessment() {
 
 // ── Pricing ───────────────────────────────────────────────────────────────────
 const PRICING_PLANS = [
-  { name:'Starter', monthlyPrice:99, annualPrice:990, monthlyWallet:99, annualWallet:119, monthlyCVs:'~200', annualCVs:'~240', monthlyInts:'~4', annualInts:'~5', tagline:'For startups and small teams running their first AI-powered hiring workflows.', topLabel:null as string|null, features:['Unlimited job postings','Full ATS — applications, talent pool, delegation & feedback','AI CV evaluation & scoring','AI video interviews','Auto interview question generation','Manager & recruiter dashboards','Wallet billing + invoice generation','Email notifications','Unlimited team members (4 role types)'], support:'Standard Support · 72h', cta:'Choose Starter', popular:false },
-  { name:'Professional', monthlyPrice:499, annualPrice:4990, monthlyWallet:499, annualWallet:599, monthlyCVs:'~1,000', annualCVs:'~1,200', monthlyInts:'~20', annualInts:'~24', tagline:'For agencies scaling their recruiting operations.', topLabel:null as string|null, features:['Everything in Starter','Advanced analytics','Pipeline tracking','AI recruiter workflows','Priority support','Role-based access control','Team performance tracking'], support:'Priority Support · 48h', cta:'Choose Professional', popular:false },
-  { name:'Business', monthlyPrice:999, annualPrice:9990, monthlyWallet:999, annualWallet:1199, monthlyCVs:'~2,000', annualCVs:'~2,400', monthlyInts:'~40', annualInts:'~48', tagline:'For mid-size agencies and growing recruitment teams.', topLabel:null as string|null, features:['Everything in Professional','Custom dashboard views','SLA compliance tracking','Retention forecasting','Advanced AI scoring','Dedicated business support'], support:'Business Support · 24h', cta:'Choose Business', popular:false },
-  { name:'Large', monthlyPrice:2999, annualPrice:29990, monthlyWallet:2999, annualWallet:3599, monthlyCVs:'~6,000', annualCVs:'~7,200', monthlyInts:'~120', annualInts:'~144', tagline:'For scaling recruitment agencies that need serious AI infrastructure.', topLabel:'⭐ Most Popular · Best for Agencies', features:['Everything in Business','Executive dashboards','Revenue analytics','Multi-team workflows','Slack support','Advanced AI hiring infrastructure'], support:'Large Support · 12h', cta:'Choose Large', popular:true },
-  { name:'Ultra', monthlyPrice:3999, annualPrice:39990, monthlyWallet:3999, annualWallet:4799, monthlyCVs:'~8,000', annualCVs:'~9,600', monthlyInts:'~160', annualInts:'~192', tagline:'For high-volume AI-powered hiring operations.', topLabel:null as string|null, features:['Everything in Large','Department-level analytics','Capacity planning','Churn risk prediction','Dedicated AI optimization support'], support:'Ultra Support · 6h', cta:'Choose Ultra', popular:false },
-  { name:'Enterprise', monthlyPrice:4999, annualPrice:49990, monthlyWallet:4999, annualWallet:5999, monthlyCVs:'~10,000', annualCVs:'~12,000', monthlyInts:'~200', annualInts:'~240', tagline:'Ultimate scale for enterprise hiring infrastructure.', topLabel:'🔥 Ultimate Scale', features:['Enterprise-grade ATS','Multi-tenant architecture','Custom AI workflows','Dedicated success manager','Private deployment options','Advanced compliance & security','Custom integrations & APIs'], support:'Enterprise SLA · 2h critical', cta:'Choose Enterprise', popular:false },
+  { name:'Starter', monthlyPrice:99, annualPrice:990, monthlyWallet:99, annualWallet:119, monthlyCVs:'~200', annualCVs:'~240', monthlyInts:'~4', annualInts:'~5', tagline:'For startups and small teams running their first AI-powered hiring workflows.', topLabel:null as string|null, features:['Unlimited job postings','Full ATS — applications, talent pool, delegation & feedback','AI CV evaluation & scoring','AI video interviews','Auto interview question generation','Manager & recruiter dashboards','Wallet billing + invoice generation','Email notifications','Unlimited team members (4 role types)'], dashboardFeatures:['Manager KPIs','Recruiter KPIs','Team overview','Client activation tracking','Onboarding completion analytics'], support:'Standard Support · 72h response · Email + Chat', cta:'Choose Starter', popular:false },
+  { name:'Professional', monthlyPrice:499, annualPrice:4990, monthlyWallet:499, annualWallet:599, monthlyCVs:'~1,000', annualCVs:'~1,200', monthlyInts:'~20', annualInts:'~24', tagline:'For agencies scaling their recruiting operations.', topLabel:null as string|null, features:['Everything in Starter','Advanced analytics','Pipeline tracking','AI recruiter workflows','Priority support','Role-based access control','Team performance tracking'], dashboardFeatures:['All Starter dashboards','Pipeline analytics','CSAT & satisfaction tracking','Onboarding TAT + utilization metrics'], support:'Priority Support · 48h response · Chat + Email + Phone', cta:'Choose Professional', popular:false },
+  { name:'Business', monthlyPrice:999, annualPrice:9990, monthlyWallet:999, annualWallet:1199, monthlyCVs:'~2,000', annualCVs:'~2,400', monthlyInts:'~40', annualInts:'~48', tagline:'For mid-size agencies and growing recruitment teams.', topLabel:null as string|null, features:['Everything in Professional','Custom dashboard views','SLA compliance tracking','Retention forecasting','Advanced AI scoring','Dedicated business support'], dashboardFeatures:['All Professional dashboards','Executive analytics','Retention forecasting','SLA & utilization insights'], support:'Business Support · 24h response · Dedicated Chat', cta:'Choose Business', popular:false },
+  { name:'Large', monthlyPrice:2999, annualPrice:29990, monthlyWallet:2999, annualWallet:3599, monthlyCVs:'~6,000', annualCVs:'~7,200', monthlyInts:'~120', annualInts:'~144', tagline:'For scaling recruitment agencies that need serious AI infrastructure.', topLabel:'⭐ Most Popular · Best for Agencies', features:['Everything in Business','Executive dashboards','Revenue analytics','Multi-team workflows','Slack support','Advanced AI hiring infrastructure'], dashboardFeatures:['Executive-level analytics','CLTV + revenue per client','Pipeline health scorecards','SLA monitoring'], support:'Large Support · 12h response · Slack + Phone + Onboarding', cta:'Choose Large', popular:true },
+  { name:'Ultra', monthlyPrice:3999, annualPrice:39990, monthlyWallet:3999, annualWallet:4799, monthlyCVs:'~8,000', annualCVs:'~9,600', monthlyInts:'~160', annualInts:'~192', tagline:'For high-volume AI-powered hiring operations.', topLabel:null as string|null, features:['Everything in Large','Department-level analytics','Capacity planning','Churn risk prediction','Dedicated AI optimization support'], dashboardFeatures:['Advanced operational analytics','Hiring capacity forecasting','Churn risk indicators','Department insights'], support:'Ultra Support · 6h response · 24/7 priority + Dedicated Rep', cta:'Choose Ultra', popular:false },
+  { name:'Enterprise', monthlyPrice:4999, annualPrice:49990, monthlyWallet:4999, annualWallet:5999, monthlyCVs:'~10,000', annualCVs:'~12,000', monthlyInts:'~200', annualInts:'~240', tagline:'Ultimate scale for enterprise hiring infrastructure.', topLabel:'🔥 Ultimate Scale', features:['Enterprise-grade ATS','Multi-tenant architecture','Custom AI workflows','Dedicated success manager','Private deployment options','Advanced compliance & security','Custom integrations & APIs'], dashboardFeatures:['Enterprise KPI builder','Multi-tenant benchmarking','Automated health alerts','Cross-org reporting'], support:'Enterprise SLA · 2h critical response · 24/7 dedicated success manager', cta:'Choose Enterprise', popular:false },
 ];
 const pricingFaqs = [
   { q:'Can I switch plans at any time?', a:'Yes — upgrade or downgrade whenever you need. Changes apply immediately with prorated billing.' },
@@ -680,6 +706,7 @@ const pricingFaqs = [
 
 export function Pricing() {
   const [annual, setAnnual] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
   return (
     <section className="pricing reveal" id="pricing">
       <div className="container">
@@ -692,7 +719,7 @@ export function Pricing() {
           <div className="pricing-toggle">
             <span className="pricing-toggle-label" style={{ fontWeight:annual?400:700, color:annual?'':'var(--text)' }}>Monthly</span>
             <div className="toggle-switch" onClick={() => setAnnual(!annual)}>
-              <div className="toggle-knob" style={{ right:annual?'25px':'3px' }} />
+              <div className="toggle-knob" style={{ right:annual?'3px':'25px' }} />
             </div>
             <span className="pricing-toggle-label" style={{ fontWeight:annual?700:400, color:annual?'var(--text)':'' }}>Annual</span>
             <span className="pricing-save">Save 17%</span>
@@ -735,10 +762,23 @@ export function Pricing() {
                     <div style={{ fontSize:'10px', color:'var(--text-dim)' }}>AI video rounds</div>
                   </div>
                 </div>
-                <div className="pricing-divider" />
-                <div className="pricing-features">
-                  {plan.features.map(f => (
-                    <div key={f} className="pricing-feature"><span className="pricing-feature-check">✓</span>{f}</div>
+                <div style={{ border:'1px solid rgba(255,255,255,0.08)', borderRadius:'10px', overflow:'hidden', marginBottom:'4px' }}>
+                  {[
+                    { icon:'⚡', label:'AI CV Reports', desc:'Every resume scored, ranked & explained instantly' },
+                    { icon:'🎥', label:'AI Video Interviews + Reports', desc:'Automated rounds — questions, recording & post-interview AI summary' },
+                    { icon:'❓', label:'Auto Interview Questions', desc:'Role-specific questions generated before every round' },
+                    { icon:'📋', label:'Unlimited Job Postings', desc:'No cap on active roles — post as many as you need' },
+                    { icon:'🤝', label:'Client & Agent Connect', desc:'Share pipelines, roles & updates with external clients or partners' },
+                    { icon:'🔄', label:'Delegation, Feedback & Audit', desc:'Assign to team, collect feedback, full audit trail' },
+                    { icon:'📊', label:'Recruiter · Manager · Director', desc:'Dedicated KPI dashboards for every role in your team' },
+                  ].map(({ icon, label, desc }, i, arr) => (
+                    <div key={label} style={{ display:'flex', alignItems:'flex-start', gap:'10px', padding:'10px 12px', borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none', background:'rgba(255,255,255,0.02)' }}>
+                      <span style={{ fontSize:'14px', flexShrink:0, marginTop:'1px' }}>{icon}</span>
+                      <div>
+                        <div style={{ fontSize:'12px', fontWeight:600, color:'var(--text)', lineHeight:1.3 }}>{label}</div>
+                        <div style={{ fontSize:'11px', color:'var(--text-dim)', marginTop:'2px', lineHeight:1.4 }}>{desc}</div>
+                      </div>
+                    </div>
                   ))}
                 </div>
                 <div style={{ margin:'12px 0 14px', display:'flex', alignItems:'center' }}>
@@ -753,7 +793,7 @@ export function Pricing() {
         </div>
         <div style={{ marginTop:'36px', background:'var(--card-bg)', border:'1px solid var(--border)', borderRadius:'14px', padding:'20px 28px', fontSize:'13px', color:'var(--text-dim)', textAlign:'center' }}>
           Not sure which package is right for you?{' '}
-          <a href="#assessment" style={{ color:'var(--green)', fontWeight:700, textDecoration:'underline' }}>Take our ROI Assessment</a>{' '}
+          <button onClick={() => document.getElementById('assessment')?.scrollIntoView({ behavior:'smooth' })} style={{ background:'none', border:'none', padding:0, cursor:'pointer', color:'var(--green)', fontWeight:700, textDecoration:'underline', fontSize:'inherit' }}>Take our ROI Assessment</button>{' '}
           to receive a personalized recommendation based on your hiring volume and expected savings.
         </div>
         <div style={{ marginTop:'24px', textAlign:'center' }}>
@@ -766,8 +806,14 @@ export function Pricing() {
             <p style={{ fontSize:'13px', color:'var(--text-dim)', marginTop:'4px' }}>Straight answers on how pricing and plans work</p>
           </div>
           <div className="pricing-faq">
-            {pricingFaqs.map(f => (
-              <div key={f.q} className="pricing-faq-item"><h4>{f.q}</h4><p>{f.a}</p></div>
+            {pricingFaqs.map((f, i) => (
+              <div key={f.q} className="pricing-faq-item" style={{ cursor:'pointer' }} onClick={() => setOpenFaq(openFaq === i ? null : i)}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'12px' }}>
+                  <h4 style={{ margin:0 }}>{f.q}</h4>
+                  <span style={{ fontSize:'18px', color:'var(--green)', flexShrink:0, transition:'transform 0.2s', display:'inline-block', transform: openFaq === i ? 'rotate(180deg)' : 'rotate(0deg)' }}>▾</span>
+                </div>
+                {openFaq === i && <p style={{ marginTop:'10px', marginBottom:0 }}>{f.a}</p>}
+              </div>
             ))}
           </div>
         </div>
@@ -887,7 +933,7 @@ export function FinalCTA() {
             <a href="/book-meeting" className="btn-secondary" style={{ border:'2px solid rgba(255,255,255,0.4)', color:'#fff', background:'transparent' }}>📅 Book a Demo</a>
           </div>
           <div style={{ marginTop:'24px', display:'flex', gap:'20px', justifyContent:'center', flexWrap:'wrap', fontSize:'13px', color:'rgba(255,255,255,0.65)' }}>
-            {['14-day free trial','No credit card needed','Cancel anytime','Full feature access'].map(t => <span key={t}>✓ {t}</span>)}
+            {['7-day free trial','No credit card needed','Cancel anytime','Full feature access'].map(t => <span key={t}>✓ {t}</span>)}
           </div>
         </div>
       </div>
