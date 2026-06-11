@@ -20,7 +20,7 @@ export default function WwwFooter() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-3">
             <h3 className="text-2xl font-bold mb-2">
-              <span className="text-white">Hire</span><span className="text-emerald-400">-GenAI</span>
+              <span className="text-white">Hire</span><span className="text-emerald-400">GenAI</span>
             </h3>
             <p className="text-sm text-slate-400 mb-4">By SKYGENAI</p>
             <p className="text-slate-400 mb-6 text-sm leading-relaxed">
@@ -28,8 +28,8 @@ export default function WwwFooter() {
             </p>
             <p className="text-slate-400 mb-6 text-sm font-medium">
               Email:{' '}
-              <a href="mailto:support@hire-genai.com" className="text-emerald-400 hover:text-emerald-300 transition-colors">
-                support@hire-genai.com
+              <a href="mailto:hello@hire-genai.com" className="text-emerald-400 hover:text-emerald-300 transition-colors">
+                hello@hire-genai.com
               </a>
             </p>
             <div className="flex space-x-3">
@@ -126,7 +126,7 @@ export default function WwwFooter() {
         </div>
 
         <div className="border-t border-slate-800 pt-8 text-center text-slate-400 text-sm">
-          <p>&copy; 2025 Hire-GenAI. All rights reserved.</p>
+          <p>&copy; 2025 HireGenAI. All rights reserved.</p>
         </div>
       </div>
     </footer>

@@ -371,6 +371,11 @@ export default function BookMeetingPage() {
       `}</style>
       <WwwNavbar />
 
+      {/* Announcement banner */}
+      <div style={{ background: 'linear-gradient(90deg,rgba(0,177,79,0.15),rgba(6,182,212,0.1))', borderBottom: '1px solid rgba(0,177,79,0.2)', padding: '10px 24px', textAlign: 'center', fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>
+        <span style={{ color: '#00B14F', fontWeight: 700 }}>✦ AI-Powered Recruitment Suite</span> — Pre-screen and interview candidates 20× faster
+      </div>
+
       <div style={{ paddingTop: '68px' }}>
       <div style={{ maxWidth: '960px', margin: '0 auto', padding: '24px 16px 48px' }}>
         <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px', overflow: 'hidden' }}>
@@ -381,7 +386,7 @@ export default function BookMeetingPage() {
               {/* Logo */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
                 <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg,#00B14F,#00C853)', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 800, color: '#fff' }}>⚡</div>
-                <span style={{ fontSize: '16px', fontWeight: 800 }}>Hire-<span style={{ color: '#00B14F' }}>GenAI</span></span>
+                <span style={{ fontSize: '16px', fontWeight: 800 }}>Hire<span style={{ color: '#00B14F' }}>GenAI</span></span>
               </div>
 
               {/* Profile */}
@@ -492,7 +497,7 @@ export default function BookMeetingPage() {
                                 {selectedTime === time ? (
                                   <div style={{ display: 'flex', gap: '8px' }}>
                                     <div style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', background: 'rgba(0,177,79,0.2)', border: '1px solid #00B14F', color: '#00B14F', fontSize: '13px', fontWeight: 700, textAlign: 'center' }}>{time}</div>
-                                    <button onClick={handleNextFromCalendar} style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', background: '#00B14F', border: 'none', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Next →</button>
+                                    <button onClick={handleNextFromCalendar} style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', background: '#00B14F', border: 'none', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Next</button>
                                   </div>
                                 ) : isBooked ? (
                                   <button disabled style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.25)', fontSize: '13px', cursor: 'not-allowed' }}>{time} (Booked)</button>
@@ -540,14 +545,14 @@ export default function BookMeetingPage() {
                     ].map(f => (
                       <div key={f.id}>
                         <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '6px' }}>{f.label}</label>
-                        <input type={f.type} value={(formData as any)[f.id]} onChange={e => setFormData({...formData, [f.id]: e.target.value})} placeholder={f.placeholder} required={f.req} style={darkInp}
+                        <input id={f.id} type={f.type} value={(formData as any)[f.id]} onChange={e => setFormData({...formData, [f.id]: e.target.value})} placeholder={f.placeholder} required={f.req} style={darkInp}
                           onFocus={e => (e.currentTarget.style.borderColor = 'rgba(0,177,79,0.5)')}
                           onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)')} />
                       </div>
                     ))}
                     <div>
                       <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '6px' }}>Please share anything that will help prepare for our meeting.</label>
-                      <textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Any specific topics you'd like to discuss..." style={{ ...darkInp, minHeight: '100px', resize: 'vertical' } as React.CSSProperties}
+                      <textarea id="notes" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Any specific topics you'd like to discuss..." style={{ ...darkInp, minHeight: '100px', resize: 'vertical' } as React.CSSProperties}
                         onFocus={e => (e.currentTarget.style.borderColor = 'rgba(0,177,79,0.5)')}
                         onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)')} />
                     </div>

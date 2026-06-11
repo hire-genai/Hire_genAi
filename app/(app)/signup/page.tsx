@@ -7,13 +7,6 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
-import { Badge } from "@/components/ui/badge"
 import {
   Building2,
   MapPin,
@@ -425,6 +418,9 @@ function SignupContent() {
     }
   }
 
+  const inputCls = "w-full h-10 px-3 py-2 text-sm rounded-lg border border-white/10 bg-white/6 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent disabled:opacity-50"
+  const labelCls = "block text-sm font-medium mb-1.5 text-white/70"
+
   return (
     <div style={{ minHeight: '100vh', background: '#03110A', color: '#fff' }}>
       {/* Top Bar */}
@@ -459,7 +455,7 @@ function SignupContent() {
 
         {/* Error Message Display */}
         {errorMessage && (
-          <div style={{ marginTop: '16px', padding: '14px 16px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div data-testid="signup-error" style={{ marginTop: '16px', padding: '14px 16px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <svg className="w-5 h-5 flex-shrink-0" style={{ color: '#EF4444' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -476,225 +472,181 @@ function SignupContent() {
 
         <form onSubmit={onSubmit} className="mt-6">
           {step === 1 && (
-            <Card className="sr-card" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px' }}>
-              <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(0,177,79,0.15)' }}>
-                  <Building2 className="w-5 h-5" style={{ color: '#00B14F' }} />
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px', padding: '32px 28px' }}>
+              <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+                <div style={{ margin: '0 auto 12px', width: 44, height: 44, borderRadius: 12, background: 'rgba(0,177,79,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Building2 style={{ width: 22, height: 22, color: '#00B14F' }} />
                 </div>
-                <CardTitle className="text-2xl" style={{ color: '#fff' }}>Company Information</CardTitle>
-                <CardDescription style={{ color: 'rgba(255,255,255,0.5)' }}>Tell us about your company and what you do</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="companyName">Company Name *</Label>
-                    <Input id="companyName" value={form.companyName} onChange={onField("companyName")} required className="sr-input" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="industry">Industry *</Label>
-                    <Select value={form.industry} onValueChange={(v) => setForm((f) => ({ ...f, industry: v }))}>
-                      <SelectTrigger id="industry" className="sr-select w-full"><SelectValue placeholder="Select industry" /></SelectTrigger>
-                      <SelectContent>
-                        {industries.map((i) => (
-                          <SelectItem key={i} value={i}>{i}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <h2 style={{ fontSize: 22, fontWeight: 700, color: '#fff', margin: 0 }}>Company Information</h2>
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, marginTop: 6 }}>Tell us about your company and what you do</p>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div>
+                  <label className={labelCls} htmlFor="companyName">Company Name *</label>
+                  <input id="companyName" className={inputCls} value={form.companyName} onChange={onField("companyName")} required placeholder="Acme Corp" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="companySize">Company Size *</Label>
-                    <Select value={form.companySize} onValueChange={(v) => setForm((f) => ({ ...f, companySize: v }))}>
-                      <SelectTrigger id="companySize" className="sr-select w-full"><SelectValue placeholder="Select company size" /></SelectTrigger>
-                      <SelectContent>
-                        {companySizes.map((s) => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="website">Website</Label>
-                    <Input id="website" placeholder="https://www.example.com" value={form.website} onChange={onField("website")} className="sr-input" />
-                  </div>
+                <div>
+                  <label className={labelCls} htmlFor="industry">Industry *</label>
+                  <select id="industry" value={form.industry} onChange={(e) => setForm(f => ({ ...f, industry: e.target.value }))} style={{ width:'100%', height:40, padding:'0 12px', fontSize:14, borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.06)', color: form.industry ? '#fff' : 'rgba(255,255,255,0.3)', outline:'none' }}>
+                    <option value="" disabled>Select industry</option>
+                    {industries.map(i => <option key={i} value={i} style={{ background:'#0d2a1a', color:'#fff' }}>{i}</option>)}
+                  </select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="companyDescription">Company Description</Label>
-                  <Textarea id="companyDescription" placeholder="Brief description of your company and what you do..." value={form.companyDescription} onChange={onField("companyDescription")} className="sr-input" />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div>
+                  <label className={labelCls} htmlFor="companySize">Company Size *</label>
+                  <select id="companySize" value={form.companySize} onChange={(e) => setForm(f => ({ ...f, companySize: e.target.value }))} style={{ width:'100%', height:40, padding:'0 12px', fontSize:14, borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.06)', color: form.companySize ? '#fff' : 'rgba(255,255,255,0.3)', outline:'none' }}>
+                    <option value="" disabled>Select company size</option>
+                    {companySizes.map(s => <option key={s} value={s} style={{ background:'#0d2a1a', color:'#fff' }}>{s}</option>)}
+                  </select>
                 </div>
-              </CardContent>
-            </Card>
+                <div>
+                  <label className={labelCls} htmlFor="website">Website</label>
+                  <input id="website" className={inputCls} placeholder="https://www.example.com" value={form.website} onChange={onField("website")} />
+                </div>
+              </div>
+              <div>
+                <label className={labelCls} htmlFor="companyDescription">Company Description</label>
+                <textarea id="companyDescription" rows={4} placeholder="Brief description of your company and what you do..." value={form.companyDescription} onChange={onField("companyDescription")} style={{ width:'100%', padding:'10px 12px', fontSize:14, borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.06)', color:'#fff', outline:'none', resize:'vertical', boxSizing:'border-box' }} />
+              </div>
+            </div>
           )}
 
           {step === 2 && (
-            <Card className="sr-card" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px' }}>
-              <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(59,130,246,0.15)' }}>
-                  <MapPin className="w-5 h-5" style={{ color: '#60A5FA' }} />
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px', padding: '32px 28px' }}>
+              <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+                <div style={{ margin: '0 auto 12px', width: 44, height: 44, borderRadius: 12, background: 'rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <MapPin style={{ width: 22, height: 22, color: '#60A5FA' }} />
                 </div>
-                <CardTitle className="text-2xl" style={{ color: '#fff' }}>Contact Information</CardTitle>
-                <CardDescription style={{ color: 'rgba(255,255,255,0.5)' }}>Where is your company located?</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="street">Street Address *</Label>
-                  <Input id="street" value={form.street} onChange={onField("street")} required className="sr-input" />
+                <h2 style={{ fontSize: 22, fontWeight: 700, color: '#fff', margin: 0 }}>Contact Information</h2>
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, marginTop: 6 }}>Where is your company located?</p>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label className={labelCls} htmlFor="street">Street Address *</label>
+                <input id="street" className={inputCls} value={form.street} onChange={onField("street")} required placeholder="123 Main St" />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div>
+                  <label className={labelCls} htmlFor="city">City *</label>
+                  <input id="city" className={inputCls} value={form.city} onChange={onField("city")} required placeholder="San Francisco" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="city">City *</Label>
-                    <Input id="city" value={form.city} onChange={onField("city")} required className="sr-input" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="state">State/Province *</Label>
-                    <Input id="state" value={form.state} onChange={onField("state")} required className="sr-input" />
-                  </div>
+                <div>
+                  <label className={labelCls} htmlFor="state">State/Province *</label>
+                  <input id="state" className={inputCls} value={form.state} onChange={onField("state")} required placeholder="CA" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="postalCode">ZIP/Postal Code *</Label>
-                    <Input id="postalCode" value={form.postalCode} onChange={onField("postalCode")} required className="sr-input" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="country">Country *</Label>
-                    <Select value={form.country} onValueChange={(v) => setForm((f) => ({ ...f, country: v }))}>
-                      <SelectTrigger id="country" className="sr-select w-full"><SelectValue placeholder="Select country" /></SelectTrigger>
-                      <SelectContent>
-                        {countryOptions.map((c) => (
-                          <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div>
+                  <label className={labelCls} htmlFor="postalCode">ZIP/Postal Code *</label>
+                  <input id="postalCode" className={inputCls} value={form.postalCode} onChange={onField("postalCode")} required placeholder="94105" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" placeholder="+1 (555) 123-4567" value={form.phone} onChange={onField("phone")} className="sr-input" />
+                <div>
+                  <label className={labelCls} htmlFor="country">Country *</label>
+                  <select id="country" value={form.country} onChange={(e) => setForm(f => ({ ...f, country: e.target.value }))} style={{ width:'100%', height:40, padding:'0 12px', fontSize:14, borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.06)', color: form.country ? '#fff' : 'rgba(255,255,255,0.3)', outline:'none' }}>
+                    <option value="" disabled>Select country</option>
+                    {countryOptions.map(c => <option key={c.code} value={c.code} style={{ background:'#0d2a1a', color:'#fff' }}>{c.name}</option>)}
+                  </select>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+              <div>
+                <label className={labelCls} htmlFor="phone">Phone Number</label>
+                <input id="phone" className={inputCls} placeholder="+1 (555) 123-4567" value={form.phone} onChange={onField("phone")} />
+              </div>
+            </div>
           )}
 
           {step === 3 && (
-            <Card className="sr-card" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px' }}>
-              <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(99,102,241,0.15)' }}>
-                  <FileText className="w-5 h-5" style={{ color: '#A5B4FC' }} />
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px', padding: '32px 28px' }}>
+              <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+                <div style={{ margin: '0 auto 12px', width: 44, height: 44, borderRadius: 12, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FileText style={{ width: 22, height: 22, color: '#A5B4FC' }} />
                 </div>
-                <CardTitle className="text-2xl" style={{ color: '#fff' }}>Legal Information</CardTitle>
-                <CardDescription style={{ color: 'rgba(255,255,255,0.5)' }}>Legal details for compliance and verification</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="legalCompanyName">Legal Company Name *</Label>
-                  <Input id="legalCompanyName" value={form.legalCompanyName} onChange={onField("legalCompanyName")} required className="sr-input" />
-                  <p className="text-xs text-slate-500">This should match your official business registration</p>
+                <h2 style={{ fontSize: 22, fontWeight: 700, color: '#fff', margin: 0 }}>Legal Information</h2>
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, marginTop: 6 }}>Legal details for compliance and verification</p>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label className={labelCls} htmlFor="legalCompanyName">Legal Company Name *</label>
+                <input id="legalCompanyName" className={inputCls} value={form.legalCompanyName} onChange={onField("legalCompanyName")} required placeholder="Acme Corporation Inc." />
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 5 }}>This should match your official business registration</p>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div>
+                  <label className={labelCls} htmlFor="taxId">Tax ID / EIN</label>
+                  <input id="taxId" className={inputCls} value={form.taxId} onChange={onField("taxId")} placeholder="12-3456789" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="taxId">Tax ID / EIN</Label>
-                    <Input id="taxId" value={form.taxId} onChange={onField("taxId")} className="sr-input" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="registrationNumber">Business Registration Number</Label>
-                    <Input id="registrationNumber" value={form.registrationNumber} onChange={onField("registrationNumber")} className="sr-input" />
-                  </div>
+                <div>
+                  <label className={labelCls} htmlFor="registrationNumber">Business Registration Number</label>
+                  <input id="registrationNumber" className={inputCls} value={form.registrationNumber} onChange={onField("registrationNumber")} placeholder="Optional" />
                 </div>
-                <div className="rounded-md p-3 text-sm flex items-start gap-2" style={{ background: 'rgba(0,177,79,0.08)', border: '1px solid rgba(0,177,79,0.2)', color: 'rgba(255,255,255,0.6)' }}>
-                  <CheckCircle2 className="w-4 h-4 mt-0.5" style={{ color: '#00B14F' }} />
-                  This information is used for verification purposes and is kept secure and confidential.
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+              <div style={{ borderRadius: 8, padding: '12px 14px', fontSize: 13, display: 'flex', alignItems: 'flex-start', gap: 10, background: 'rgba(0,177,79,0.08)', border: '1px solid rgba(0,177,79,0.2)', color: 'rgba(255,255,255,0.6)' }}>
+                <CheckCircle2 style={{ width: 16, height: 16, marginTop: 1, color: '#00B14F', flexShrink: 0 }} />
+                This information is used for verification purposes and is kept secure and confidential.
+              </div>
+            </div>
           )}
 
           {step === 4 && (
-            <Card className="sr-card" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px' }}>
-              <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(168,85,247,0.15)' }}>
-                  <User2 className="w-5 h-5" style={{ color: '#C084FC' }} />
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px', padding: '32px 28px' }}>
+              <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+                <div style={{ margin: '0 auto 12px', width: 44, height: 44, borderRadius: 12, background: 'rgba(168,85,247,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <User2 style={{ width: 22, height: 22, color: '#C084FC' }} />
                 </div>
-                <CardTitle className="text-2xl" style={{ color: '#fff' }}>Manager Account</CardTitle>
-                <CardDescription style={{ color: 'rgba(255,255,255,0.5)' }}>Set up the primary manager account</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name *</Label>
-                    <Input id="firstName" value={form.firstName} onChange={onField("firstName")} required className="sr-input" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name *</Label>
-                    <Input id="lastName" value={form.lastName} onChange={onField("lastName")} required className="sr-input" />
-                  </div>
+                <h2 style={{ fontSize: 22, fontWeight: 700, color: '#fff', margin: 0 }}>Manager Account</h2>
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, marginTop: 6 }}>Set up the primary manager account</p>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div>
+                  <label className={labelCls} htmlFor="firstName">First Name *</label>
+                  <input id="firstName" className={inputCls} value={form.firstName} onChange={onField("firstName")} required placeholder="Jane" />
                 </div>
-                {/* Email + OTP Combined */}
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address *</Label>
-                  <Input id="email" type="email" value={form.email} onChange={onField("email")} required disabled={otpVerified} className="sr-input" />
-                  {!otpVerified && (
-                    <div className="mt-2 grid grid-cols-1 md:grid-cols-6 gap-3 items-start">
-                      <div className="md:col-span-3">
-                        <p className="text-xs text-slate-500">We'll send a verification code to this email.</p>
-                      </div>
-                      <div className="md:col-span-1">
-                        <Button type="button" variant="outline" disabled={otpLoading || countdown > 0 || !form.email} onClick={handleSendOtp} className="w-full">
-                          {otpLoading && countdown === 0 ? (
-                            <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Send</>
-                          ) : countdown > 0 ? (
-                            <>Resend {countdown}s</>
-                          ) : (
-                            <>Send Code</>
-                          )}
-                        </Button>
-                      </div>
-                      <div className="md:col-span-1">
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
-                          <Input
-                            value={otp}
-                            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            placeholder="000000"
-                            maxLength={6}
-                            inputMode="numeric"
-                            autoComplete="one-time-code"
-                            disabled={otpLoading}
-                            className="pl-9 text-center tracking-widest font-mono sr-input disabled:opacity-60 disabled:cursor-not-allowed"
-                          />
-                        </div>
-                      </div>
-                      <div className="md:col-span-1">
-                        <Button type="button" disabled={otpLoading || otp.length < 4} onClick={handleVerifyOtp} className="w-full">
-                          {otpLoading ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Verifying...</> : 'Verify'}
-                        </Button>
-                      </div>
+                <div>
+                  <label className={labelCls} htmlFor="lastName">Last Name *</label>
+                  <input id="lastName" className={inputCls} value={form.lastName} onChange={onField("lastName")} required placeholder="Doe" />
+                </div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label className={labelCls} htmlFor="email">Email Address *</label>
+                <input id="email" type="email" className={inputCls} value={form.email} onChange={onField("email")} required disabled={otpVerified} placeholder="jane@company.com" />
+                {!otpVerified && (
+                  <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 10, alignItems: 'flex-start' }}>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', alignSelf: 'center', margin: 0 }}>We'll send a verification code to this email.</p>
+                    <button type="button" disabled={otpLoading || countdown > 0 || !form.email} onClick={handleSendOtp} style={{ height: 36, padding: '0 14px', fontSize: 13, fontWeight: 600, borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.07)', color: '#fff', cursor: otpLoading || countdown > 0 || !form.email ? 'not-allowed' : 'pointer', opacity: otpLoading || countdown > 0 || !form.email ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+                      {otpLoading && countdown === 0 ? 'Sending…' : countdown > 0 ? `Resend ${countdown}s` : 'Send Code'}
+                    </button>
+                    <div style={{ position: 'relative' }}>
+                      <Lock style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: 'rgba(255,255,255,0.35)' }} />
+                      <input value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="000000" maxLength={6} inputMode="numeric" autoComplete="one-time-code" disabled={otpLoading} style={{ width: 100, height: 36, paddingLeft: 30, paddingRight: 8, fontSize: 16, fontFamily: 'monospace', letterSpacing: '0.2em', textAlign: 'center', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.06)', color: '#fff', outline: 'none' }} />
                     </div>
-                  )}
-                  {otpVerified ? (
-                    <div className="text-sm rounded-md p-3" style={{ color: '#6EE7B7', background: 'rgba(0,177,79,0.1)', border: '1px solid rgba(0,177,79,0.3)' }}>Email verified successfully.</div>
-                  ) : (otpSent ? (
-                    <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Enter the 6-digit code we sent to {form.email}. In development, check terminal logs for the code.</p>
-                  ) : null)}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="jobTitle">Job Title</Label>
-                  <Input id="jobTitle" placeholder="CEO, HR Director, etc." value={form.jobTitle} onChange={onField("jobTitle")} className="sr-input" />
-                </div>
-              </CardContent>
-            </Card>
+                    <button type="button" disabled={otpLoading || otp.length < 4} onClick={handleVerifyOtp} style={{ height: 36, padding: '0 14px', fontSize: 13, fontWeight: 600, borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00B14F,#00C853)', color: '#fff', cursor: otpLoading || otp.length < 4 ? 'not-allowed' : 'pointer', opacity: otpLoading || otp.length < 4 ? 0.5 : 1 }}>
+                      {otpLoading ? 'Verifying…' : 'Verify'}
+                    </button>
+                  </div>
+                )}
+                {otpVerified ? (
+                  <div style={{ marginTop: 10, fontSize: 13, borderRadius: 8, padding: '10px 14px', color: '#6EE7B7', background: 'rgba(0,177,79,0.1)', border: '1px solid rgba(0,177,79,0.3)' }}>✓ Email verified successfully.</div>
+                ) : otpSent ? (
+                  <p style={{ marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Enter the 6-digit code sent to {form.email}.</p>
+                ) : null}
+              </div>
+              <div>
+                <label className={labelCls} htmlFor="jobTitle">Job Title</label>
+                <input id="jobTitle" className={inputCls} placeholder="CEO, HR Director, etc." value={form.jobTitle} onChange={onField("jobTitle")} />
+              </div>
+            </div>
           )}
 
           {step === 5 && (
-            <Card className="sr-card" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px' }}>
-              <CardHeader className="text-center">
-                <div className="mx-auto mb-2 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(0,177,79,0.15)' }}>
-                  <CheckCircle2 className="w-5 h-5" style={{ color: '#00B14F' }} />
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,177,79,0.2)', borderRadius: '16px', padding: '32px 28px' }}>
+              <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+                <div style={{ margin: '0 auto 12px', width: 44, height: 44, borderRadius: 12, background: 'rgba(0,177,79,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <CheckCircle2 style={{ width: 22, height: 22, color: '#00B14F' }} />
                 </div>
-                <CardTitle className="text-2xl" style={{ color: '#fff' }}>Review & Complete</CardTitle>
-                <CardDescription style={{ color: 'rgba(255,255,255,0.5)' }}>Review your information and complete registration</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
+                <h2 style={{ fontSize: 22, fontWeight: 700, color: '#fff', margin: 0 }}>Review & Complete</h2>
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, marginTop: 6 }}>Review your information and complete registration</p>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="rounded-lg p-4" style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)' }}>
                     <h3 className="font-semibold mb-3" style={{ color: '#fff' }}>Company Summary</h3>
@@ -715,7 +667,7 @@ function SignupContent() {
                   </div>
                 </div>
 
-                <Separator style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
+                <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)', margin: '4px 0' }} />
 
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>
@@ -731,8 +683,8 @@ function SignupContent() {
                     <label htmlFor="marketing">I would like to receive product updates and marketing communications (optional)</label>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
           {/* Actions */}
@@ -780,7 +732,7 @@ function SignupContent() {
                 HireGenAI pre-screens and interviews candidates, helping you shortlist talent 20x faster and more efficiently.
               </p>
               <p className="text-slate-400 mb-6 text-sm font-medium">
-                Email: <a href="mailto:support@hire-genai.com" className="text-emerald-400 hover:text-emerald-300 transition-colors">support@hire-genai.com</a>
+                Email: <a href="mailto:hello@hire-genai.com" className="text-emerald-400 hover:text-emerald-300 transition-colors">hello@hire-genai.com</a>
               </p>
               {/* Social Icons */}
               <div className="flex space-x-4">

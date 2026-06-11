@@ -407,9 +407,24 @@ function calcROI(s: ROIState) {
 }
 
 export function ROISimulator() {
-  const [s, setS] = useState<ROIState>({ recruiters:1, cvs:100, shortlist:15, qualifiedPct:15, rate:30, days:5, hours:6 });
+  const DEFAULTS: ROIState = { recruiters:1, cvs:100, shortlist:15, qualifiedPct:15, rate:30, days:5, hours:6 };
+  const [s, setS] = useState<ROIState>(DEFAULTS);
+  const [raw, setRaw] = useState<Partial<Record<keyof ROIState, string>>>({});
+  const [billing, setBilling] = useState<'monthly'|'annual'>('monthly');
   const r = calcROI(s);
   const update = (key: keyof ROIState, val: number) => setS(p=>({...p,[key]:val}));
+  const handleChange = (key: keyof ROIState, strVal: string) => {
+    setRaw(p => ({ ...p, [key]: strVal }));
+    const n = parseFloat(strVal);
+    if (!isNaN(n)) setS(p => ({ ...p, [key]: n }));
+  };
+  const handleBlur = (key: keyof ROIState, min: number) => {
+    setRaw(p => { const next = { ...p }; delete next[key]; return next; });
+    setS(p => {
+      const val = p[key];
+      return isNaN(val as number) || (val as number) < min ? { ...p, [key]: DEFAULTS[key] } : p;
+    });
+  };
 
   return (
     <section className="roi reveal" id="roi">
@@ -446,7 +461,7 @@ export function ROISimulator() {
                 <label>{f.label}</label>
                 {f.readonly
                   ? <input className="roi-sim-input" readOnly value={f.value} />
-                  : <input type="number" className="roi-sim-input" value={s[f.key!]} min={f.min} max={f.max} step={f.step} onChange={e=>update(f.key!,parseFloat(e.target.value)||0)} />
+                  : <input type="number" className="roi-sim-input" value={raw[f.key!] !== undefined ? raw[f.key!] : s[f.key!]} min={f.min} max={f.max} step={f.step} onChange={e=>handleChange(f.key!,e.target.value)} onBlur={()=>handleBlur(f.key!,f.min??0)} />
                 }
                 {f.sub && <p style={{ fontSize:'9px', color:'var(--text-dim)', marginTop:'3px' }}>{f.sub}</p>}
               </div>
@@ -457,21 +472,29 @@ export function ROISimulator() {
           </div>
         </div>
         <div className="roi-kpi-grid">
-          <div className="roi-kpi"><div className="roi-kpi-val">{r.screenReduce}%</div><div className="roi-kpi-label">Screening Time ↓</div></div>
-          <div className="roi-kpi"><div className="roi-kpi-val">{r.rankReduce}%</div><div className="roi-kpi-label">Ranking Time ↓</div></div>
-          <div className="roi-kpi"><div className="roi-kpi-val">{r.qualReduce}%</div><div className="roi-kpi-label">Qualification Effort ↓</div></div>
-          <div className="roi-kpi"><div className="roi-kpi-val">{r.prodIdx}x</div><div className="roi-kpi-label">Productivity Index</div></div>
-          <div className="roi-kpi roi-kpi-featured"><div className="roi-kpi-val" style={{ color:'#4ADE80' }}>{fmtMoney(r.savings)}</div><div className="roi-kpi-label" style={{ color:'rgba(255,255,255,0.85)' }}>Monthly Savings</div><div className="roi-kpi-sub">{fmtMoney(r.savingsPerJD)}/JD</div></div>
-          <div className="roi-kpi"><div className="roi-kpi-val">{r.costRatio}%</div><div className="roi-kpi-label">Cost/Req vs Human</div></div>
+          <div className="roi-kpi rounded-2xl text-center"><div className="roi-kpi-val text-xl">{r.screenReduce}%</div><div className="roi-kpi-label">Screening Time ↓</div></div>
+          <div className="roi-kpi rounded-2xl text-center"><div className="roi-kpi-val text-xl">{r.rankReduce}%</div><div className="roi-kpi-label">Ranking Time ↓</div></div>
+          <div className="roi-kpi rounded-2xl text-center"><div className="roi-kpi-val text-xl">{r.qualReduce}%</div><div className="roi-kpi-label">Qualification Effort ↓</div></div>
+          <div className="roi-kpi rounded-2xl text-center"><div className="roi-kpi-val text-xl">{r.prodIdx}x</div><div className="roi-kpi-label">Productivity Index</div></div>
+          <div className="roi-kpi roi-kpi-featured rounded-2xl text-center"><div className="roi-kpi-val text-xl" style={{ color:'#4ADE80' }}>{fmtMoney(r.savings)}</div><div className="roi-kpi-label" style={{ color:'rgba(255,255,255,0.85)' }}>Monthly Savings</div><div className="roi-kpi-sub">{fmtMoney(r.savingsPerJD)}/JD</div></div>
+          <div className="roi-kpi rounded-2xl text-center"><div className="roi-kpi-val text-xl">{r.costRatio}%</div><div className="roi-kpi-label">Cost/Req vs Human</div></div>
         </div>
         <div className="roi-rec-card">
+          {/* Billing toggle */}
+          <div style={{ display:'flex', gap:'6px', marginBottom:'16px', background:'rgba(255,255,255,0.05)', borderRadius:'10px', padding:'4px' }}>
+            <button onClick={()=>setBilling('monthly')} style={{ flex:1, padding:'7px', borderRadius:'7px', border:'none', cursor:'pointer', fontSize:'12px', fontWeight:700, background: billing==='monthly' ? 'var(--primary)' : 'transparent', color: billing==='monthly' ? '#fff' : 'var(--text-muted)', transition:'all .2s' }}>Monthly</button>
+            <button onClick={()=>setBilling('annual')} style={{ flex:1, padding:'7px', borderRadius:'7px', border:'none', cursor:'pointer', fontSize:'12px', fontWeight:700, background: billing==='annual' ? 'var(--primary)' : 'transparent', color: billing==='annual' ? '#fff' : 'var(--text-muted)', transition:'all .2s' }}>Annual (Save 17%)</button>
+          </div>
           <div style={{ marginBottom:'16px' }}>
             <div style={{ fontSize:'10px', fontWeight:700, color:'var(--green)', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:'6px' }}>Recommended Based on Your Volume</div>
-            <div className="pricing-plan">{r.plan.name} Plan</div>
-            <p style={{ fontSize:'12px', color:'var(--text-muted)', marginBottom:'14px', lineHeight:1.5 }}>Handles {r.plan.maxCvs.toLocaleString()} CVs/mo with {r.roiPct}% ROI</p>
+            <div className="pricing-plan"><span className="text-emerald-400" style={{ color:'#34d399' }}>{r.plan.name}</span> Plan</div>
+            <div style={{ display:'flex', alignItems:'center', gap:'8px', margin:'8px 0 14px' }}>
+              <span style={{ fontSize:'11px', color:'var(--text-dim)' }}>ROI Insight</span>
+              <div className="text-emerald-400" style={{ fontSize:'12px', fontWeight:700, color:'#34d399' }}>{r.roiPct}%</div>
+            </div>
             <div className="pricing-price">
-              <span className="pricing-price-num">${r.plan.price}</span>
-              <span className="pricing-price-period">/mo</span>
+              <span className="pricing-price-num">${billing==='annual' ? Math.round(r.plan.price*10) : r.plan.price}</span>
+              <span className="pricing-price-period">/{billing==='annual' ? 'yr' : 'mo'}</span>
             </div>
           </div>
           {/* Wallet credits */}
@@ -482,11 +505,11 @@ export function ROISimulator() {
               <div style={{ fontSize:'10px', color:'var(--text-dim)' }}>Full amount into your AI wallet</div>
             </div>
           </div>
-          <a href={getAppUrl(`/signup?plan=${r.plan.name}&billing=monthly`)} className="btn-primary" style={{ width:'100%', justifyContent:'center', fontSize:'14px' }}>
-            Get Started with {r.plan.name} Plan (${r.plan.price}/mo) →
-          </a>
+          <button type="button" onClick={()=>{ if(typeof window!=='undefined') window.location.href=getAppUrl(`/signup?plan=${r.plan.name}&billing=${billing}`); }} className="btn-primary" style={{ width:'100%', justifyContent:'center', fontSize:'14px', border:'none', cursor:'pointer' }}>
+            Get Started with {r.plan.name} Plan ({billing==='annual' ? `$${Math.round(r.plan.price*10)}/yr, billed annually` : `$${r.plan.price}/mo`}) →
+          </button>
           <p style={{ textAlign:'center', fontSize:'11px', color:'var(--text-dim)', marginTop:'10px' }}>
-            Signup → select plan → Stripe checkout · Cancel anytime · <a href={getAppUrl(`/signup`)} style={{ color:'var(--green)', textDecoration:'underline' }}>View all plans</a>
+            Signup → select plan → Stripe checkout · Cancel anytime · <a href="/pricing" style={{ color:'var(--green)', textDecoration:'underline' }}>View all plans</a>
           </p>
         </div>
         <div className="roi-compare-grid">

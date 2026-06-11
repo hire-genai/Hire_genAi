@@ -133,7 +133,7 @@ export default function LoginPage() {
           <Link href="/" style={{ textDecoration: 'none' }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '26px', fontWeight: 800 }}>
               <div style={{ width: 32, height: 32, background: 'linear-gradient(135deg,#00B14F,#00C853)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>⚡</div>
-              <span><span style={{ color: '#fff' }}>Hire-</span><span style={{ color: '#00B14F' }}>GenAI</span></span>
+              <span><span style={{ color: '#fff' }}>Hire</span><span style={{ color: '#00B14F' }}>GenAI</span></span>
             </div>
           </Link>
           <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '13px', marginTop: '8px' }}>Enter your email to receive a one-time password</p>
@@ -142,8 +142,9 @@ export default function LoginPage() {
         {step === "email" ? (
           <form onSubmit={handleSendOtp} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
-              <label style={labelStyle}>Email</label>
+              <label htmlFor="email" style={labelStyle}>Email</label>
               <input
+                id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -159,8 +160,9 @@ export default function LoginPage() {
         ) : (
           <form onSubmit={handleVerify} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div>
-              <label style={labelStyle}>Enter OTP</label>
+              <label htmlFor="otp" style={labelStyle}>Enter OTP</label>
               <input
+                id="otp"
                 type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"

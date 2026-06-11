@@ -53,7 +53,7 @@ const RESPONSES: Record<ResponseKey, { text: string; navActions?: { label: strin
   contact: {
     text: 'We\'d love to hear from you! Reach out to our team for any questions, support, or partnership enquiries.\n\n📧 Our team typically responds within a few hours during business days.',
     navActions: [
-      { label: '📩 Send Us a Message', href: '#contact' },
+      { label: '📩 Send Us a Message', href: '/contact' },
       { label: '→ About Us', href: '#company' },
     ],
   },
@@ -67,7 +67,7 @@ const RESPONSES: Record<ResponseKey, { text: string; navActions?: { label: strin
   meeting: {
     text: 'Book a personalised 30-minute demo with one of our hiring experts.\n\nWe\'ll walk you through:\n• The full AI hiring workflow\n• ROI projections for your team\n• Custom pricing & enterprise options\n\nPick a time that works for you!',
     navActions: [
-      { label: '📅 Book Your Free Demo', href: '#book-meeting' },
+      { label: '📅 Book Your Free Demo', href: '/book-meeting' },
       { label: '🎬 View Live Demo First', href: '#demo' },
     ],
   },
@@ -108,8 +108,8 @@ const WELCOME: Message = {
     { label: '💰 View Pricing', href: '#pricing' },
     { label: '🎬 Live Demo', href: '#demo' },
     { label: '🔍 Features', href: '#features' },
-    { label: '📅 Book a Meeting', href: '#book-meeting' },
-    { label: '📩 Contact Us', href: '#contact' },
+    { label: '📅 Book a Meeting', href: '/book-meeting' },
+    { label: '📩 Contact Us', href: '/contact' },
   ],
 };
 
@@ -143,7 +143,23 @@ export default function ChatbotWizard() {
     setInput('');
   };
 
-  const handleNavClick = () => setOpen(false);
+  const handleNavClick = (href: string) => {
+    setOpen(false);
+    if (typeof window === 'undefined') return;
+    if (href.startsWith('http')) return;
+    if (href.startsWith('/')) {
+      window.location.href = href;
+      return;
+    }
+    if (href.startsWith('#')) {
+      const sectionId = href.slice(1);
+      if (window.location.pathname.match(/^\/?$/)) {
+        const el = document.getElementById(sectionId);
+        if (el) { el.scrollIntoView({ behavior: 'smooth' }); return; }
+      }
+      window.location.href = '/?scroll=' + sectionId;
+    }
+  };
 
   return (
     <>
@@ -173,9 +189,9 @@ export default function ChatbotWizard() {
                     {msg.navActions.map((action, j) => (
                       <a
                         key={j}
-                        href={action.href}
+                        href={action.href.startsWith('http') ? action.href : undefined}
                         className="chatbot-nav-btn"
-                        onClick={handleNavClick}
+                        onClick={e => { if (!action.href.startsWith('http')) e.preventDefault(); handleNavClick(action.href); }}
                         target={action.href.startsWith('http') ? '_blank' : undefined}
                         rel={action.href.startsWith('http') ? 'noopener' : undefined}
                       >

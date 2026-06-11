@@ -1198,7 +1198,8 @@ html { scroll-behavior: smooth; }
 .chatbot-send-btn:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(0,177,79,0.45); }
 
 @media(max-width:480px){
-  .chatbot-window { right:0; bottom:0; width:100vw; max-height:80vh; border-radius:20px 20px 0 0; }
+  .chatbot-window { right:0; bottom:0; width:100vw; max-height:85vh; border-radius:20px 20px 0 0; }
   .chatbot-toggle { bottom:16px; right:16px; }
+  .chatbot-toggle.open { display:none; }
 }
 
