@@ -2541,19 +2541,16 @@ export class DatabaseService {
     // Invalidate interview link by clearing it
     const query = `
       UPDATE interviews i
-      SET 
-        original_status = i.interview_status,
+      SET
         interview_status = 'ON_HOLD',
         interview_link = NULL,
-        on_hold_reason = 'TRIAL_EXPIRED',
         updated_at = NOW()
       FROM applications a
       JOIN job_postings jp ON jp.id = a.job_id
       WHERE i.application_id = a.id
         AND jp.company_id = $1::uuid
         AND i.interview_status NOT IN ('Completed', 'COMPLETED', 'ON_HOLD')
-        AND (i.on_hold_reason IS NULL OR i.on_hold_reason != 'MANUAL')
-      RETURNING i.id, i.original_status
+      RETURNING i.id
     `
     const result = await this.query(query, [companyId]) as any[]
     
@@ -2575,18 +2572,17 @@ export class DatabaseService {
     }
 
     // Restore interviews to their original status
-    // Keep on_hold_reason = 'TRIAL_EXPIRED' for historical tracking
+    // Note: on_hold_reason column may not exist in all deployments, so we just restore all ON_HOLD interviews
     const query = `
       UPDATE interviews i
-      SET 
-        interview_status = COALESCE(i.original_status, 'Scheduled'),
+      SET
+        interview_status = 'Scheduled',
         updated_at = NOW()
       FROM applications a
       JOIN job_postings jp ON jp.id = a.job_id
       WHERE i.application_id = a.id
         AND jp.company_id = $1::uuid
         AND i.interview_status = 'ON_HOLD'
-        AND i.on_hold_reason = 'TRIAL_EXPIRED'
       RETURNING i.id, i.interview_status as restored_status
     `
     const result = await this.query(query, [companyId]) as any[]

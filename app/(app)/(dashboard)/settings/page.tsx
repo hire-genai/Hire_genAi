@@ -934,7 +934,7 @@ export default function SettingsPage() {
                     <p className="text-sm text-gray-600">Manage team access and roles</p>
                   </div>
                 </div>
-                <Button onClick={() => setShowAddUserDialog(true)}>
+                <Button onClick={() => setShowAddUserDialog(true)} className="bg-black hover:bg-gray-900 text-white border-0">
                   <Plus className="h-4 w-4 mr-2" />
                   Add User
                 </Button>
