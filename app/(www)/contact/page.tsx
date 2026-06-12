@@ -54,6 +54,11 @@ export default function ContactPage() {
     <div style={{ minHeight: '100vh', background: '#03110A', color: '#fff' }}>
       <WwwNavbar />
 
+      {/* Announcement banner */}
+      <div style={{ background: 'linear-gradient(90deg,rgba(0,177,79,0.15),rgba(6,182,212,0.1))', borderBottom: '1px solid rgba(0,177,79,0.2)', padding: '10px 24px', textAlign: 'center', fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>
+        <span style={{ color: '#00B14F', fontWeight: 700 }}>✦ AI-Powered Recruitment Suite</span> — Pre-screen and interview candidates 20× faster
+      </div>
+
       <div style={{ paddingTop: '68px' }}>
         {/* Hero */}
         <div style={{ textAlign: 'center', padding: '60px 24px 48px', animation: 'fadeIn 0.7s ease-out both' }}>
@@ -62,7 +67,7 @@ export default function ContactPage() {
             Get in <span style={{ background: 'linear-gradient(135deg,#00B14F,#06B6D4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Touch</span>
           </h1>
           <p style={{ fontSize: '18px', color: 'rgba(255,255,255,0.5)', maxWidth: '480px', margin: '0 auto', lineHeight: 1.7 }}>
-            Have questions about Hire-GenAI? We&rsquo;d love to hear from you. Send us a message and we&rsquo;ll respond as soon as possible.
+            Have questions about HireGenAI? We&rsquo;d love to hear from you. Send us a message and we&rsquo;ll respond as soon as possible.
           </p>
         </div>
 
@@ -112,14 +117,14 @@ export default function ContactPage() {
                   ].map(f => (
                     <div key={f.id}>
                       <label style={lab}>{f.label}</label>
-                      <input type={f.type} value={(formData as any)[f.id]} onChange={e => setFormData({...formData, [f.id]: e.target.value})} placeholder={f.placeholder} required={f.required} style={inp}
+                      <input id={f.id} type={f.type} value={(formData as any)[f.id]} onChange={e => setFormData({...formData, [f.id]: e.target.value})} placeholder={f.placeholder} required={f.required} style={inp}
                         onFocus={e => (e.currentTarget.style.borderColor = 'rgba(0,177,79,0.5)')}
                         onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)')} />
                     </div>
                   ))}
                   <div>
                     <label style={lab}>Your Message</label>
-                    <textarea value={formData.message} onChange={e => setFormData({...formData, message: e.target.value})} placeholder="Tell us more about your needs..." required style={{ ...inp, minHeight: '120px', resize: 'vertical' } as React.CSSProperties}
+                    <textarea id="message" value={formData.message} onChange={e => setFormData({...formData, message: e.target.value})} placeholder="Tell us more about your needs..." required style={{ ...inp, minHeight: '120px', resize: 'vertical' } as React.CSSProperties}
                       onFocus={e => (e.currentTarget.style.borderColor = 'rgba(0,177,79,0.5)')}
                       onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)')} />
                   </div>
@@ -143,7 +148,10 @@ export default function ContactPage() {
                 </div>
                 <h2 style={{ fontSize: '24px', fontWeight: 800, marginBottom: '8px' }}>Message Sent!</h2>
                 <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '28px', lineHeight: 1.7 }}>Thank you for reaching out. We&rsquo;ll get back to you within 24 hours.</p>
-                <a href="/" className="btn-primary" style={{ display: 'inline-flex', padding: '12px 28px' }}>Return to Home</a>
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 28px', background: 'linear-gradient(135deg,#00B14F,#00C853)', borderRadius: '8px', color: '#fff', fontWeight: 700, fontSize: '15px', textDecoration: 'none' }}>Return to Home</Link>
+                  <button onClick={() => { window.location.href = '/' }} style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 28px', background: 'rgba(0,177,79,0.15)', border: '1px solid rgba(0,177,79,0.4)', borderRadius: '8px', color: '#00B14F', fontWeight: 700, fontSize: '15px', cursor: 'pointer' }}>Return to Home</button>
+                </div>
               </div>
             )}
           </div>

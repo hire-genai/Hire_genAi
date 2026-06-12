@@ -289,8 +289,8 @@ export default function TalentPoolPage() {
               </Select>
             </div>
           </div>
-          <Button 
-            className="gap-2 w-full sm:w-auto" 
+          <Button
+            className="gap-2 w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white border-0"
             size="sm"
             onClick={() => setShowAddCandidateDialog(true)}
           >
@@ -472,7 +472,7 @@ export default function TalentPoolPage() {
 
       {/* Talent Pool Table */}
       <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto talent-pool-table-wrap">
           <div className="min-w-[1400px]">
           <table className="w-full">
             <thead className="border-b">
@@ -493,7 +493,7 @@ export default function TalentPoolPage() {
                 <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Exp</th>
                 <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">LinkedIn / Resume</th>
                 <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Position</th>
-                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Skills</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap" style={{minWidth: 220}}>Skills</th>
                 <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Previous Company Set</th>
                 <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">CV / Interview Score</th>
                 <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Status / Source</th>
@@ -575,7 +575,7 @@ export default function TalentPoolPage() {
                     <div style={{maxWidth:120,overflowX:'auto',whiteSpace:'nowrap',scrollbarWidth:'thin'}} className="cell-scroll text-[11px] text-gray-700">{candidate.position || '—'}</div>
                   </td>
                   {/* Skills */}
-                  <td className="px-2 py-2 border-r border-gray-100">
+                  <td className="px-2 py-2 border-r border-gray-100" style={{minWidth: 220}}>
                     {candidate.skills.length > 0 ? (
                       <div className="max-h-[80px] overflow-y-auto flex flex-wrap gap-1" style={{scrollbarWidth:'thin', scrollbarColor:'#e5e7eb transparent'}}>
                         {candidate.skills.map((skill, i) => (

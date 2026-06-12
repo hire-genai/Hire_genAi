@@ -57,7 +57,7 @@ export function WwwNavbar() {
       <div className="nav-inner">
         <a href="/" className="logo">
           <div className="logo-icon">⚡</div>
-          <span style={{ color: 'var(--text)' }}>Hire-<span>GenAI</span></span>
+          <span style={{ color: 'var(--text)' }}>Hire<span style={{ color: 'var(--primary-light)' }}>GenAI</span></span>
         </a>
         <div className="nav-links">
           {sectionLinks.map(([id, label]) => (

@@ -221,7 +221,7 @@ interface InterviewQuestion {
 
 export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, companySlug }: JobPostingFormProps) {
   const { company, user } = useAuth()
-  const [currentStep, setCurrentStep] = useState(1)
+  const [currentStep, setCurrentStep] = useState(mode === 'view' ? 2 : 1)
   const [selectedCriteria, setSelectedCriteria] = useState<string[]>([])
   const [interviewQuestions, setInterviewQuestions] = useState<InterviewQuestion[]>([])
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false)
@@ -234,7 +234,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
   const defaultFormData: JobFormData = {
     // Basic Job Information
     jobTitle: '',
-    department: '',
+    department: 'Engineering',
     location: '',
     jobType: 'Full-time',
     workMode: 'Hybrid',
@@ -313,6 +313,12 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
 
   // Auto-fill recruiter name from logged-in user
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  useEffect(() => {
     if (user?.full_name && !formData.recruiterAssigned && mode === 'create') {
       setFormData(prev => ({ ...prev, recruiterAssigned: user.full_name }))
     }
@@ -337,7 +343,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
       if (initialData.selectedCriteriaIds || (initialData as any).selectedCriteria) {
         setSelectedCriteria(initialData.selectedCriteriaIds || (initialData as any).selectedCriteria || [])
       }
-      setCurrentStep(1)
+      setCurrentStep(mode === 'view' ? 2 : 1)
     }
   }, [initialData])
 
@@ -1695,18 +1701,26 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   Save as Draft
                 </Button>
                 {currentStep < steps.length ? (
-                  <Button
-                    onClick={() => {
-                      if (currentStep === 1 && !isBasicInfoValid) return
-                      if (currentStep === 2 && !isJobDescriptionValid) return
-                      if (currentStep === 3 && interviewQuestions.length < 5) return
-                      setCurrentStep(currentStep + 1)
-                    }}
-                    disabled={(currentStep === 1 && !isBasicInfoValid) || (currentStep === 2 && !isJobDescriptionValid) || (currentStep === 3 && interviewQuestions.length < 5)}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {currentStep === 3 && interviewQuestions.length < 5 ? `Next (${interviewQuestions.length}/5 questions)` : 'Next'}
-                  </Button>
+                  <>
+                    {currentStep >= 2 && (
+                      <Button onClick={() => handleSubmit(false)} disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                        {isSubmitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
+                        Publish Job
+                      </Button>
+                    )}
+                    <Button
+                      onClick={() => {
+                        if (currentStep === 1 && !isBasicInfoValid) return
+                        if (currentStep === 2 && !isJobDescriptionValid) return
+                        if (currentStep === 3 && interviewQuestions.length < 5) return
+                        setCurrentStep(currentStep + 1)
+                      }}
+                      disabled={(currentStep === 1 && !isBasicInfoValid) || (currentStep === 2 && !isJobDescriptionValid) || (currentStep === 3 && interviewQuestions.length < 5)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {currentStep === 3 && interviewQuestions.length < 5 ? `Next (${interviewQuestions.length}/5 questions)` : 'Next'}
+                    </Button>
+                  </>
                 ) : (
                   <Button onClick={() => handleSubmit(false)} disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white">
                     {isSubmitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}

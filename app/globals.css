@@ -831,6 +831,13 @@
 
 /* ===== NEW HOMEPAGE DESIGN CSS ===== */
 html { scroll-behavior: smooth; }
+
+/* Slim scrollbar for candidate & talent-pool tables */
+.candidate-table-wrap, .talent-pool-table-wrap { scrollbar-width: thin; scrollbar-color: #d1d5db transparent; }
+.candidate-table-wrap::-webkit-scrollbar, .talent-pool-table-wrap::-webkit-scrollbar { width: 4px; height: 3px; }
+.candidate-table-wrap::-webkit-scrollbar-track, .talent-pool-table-wrap::-webkit-scrollbar-track { background: transparent; }
+.candidate-table-wrap::-webkit-scrollbar-thumb, .talent-pool-table-wrap::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+.candidate-table-wrap::-webkit-scrollbar-thumb:hover, .talent-pool-table-wrap::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 .container-wide { max-width: 1400px; margin: 0 auto; padding: 0 24px; }
 .btn-primary { display: inline-flex; align-items: center; gap: 8px; background: var(--gradient); color: #fff; padding: 14px 28px; border-radius: 10px; font-size: 15px; font-weight: 600; border: none; cursor: pointer; text-decoration: none; transition: all .3s; box-shadow: 0 4px 20px rgba(0,177,79,0.4); }
@@ -1198,7 +1205,8 @@ html { scroll-behavior: smooth; }
 .chatbot-send-btn:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(0,177,79,0.45); }
 
 @media(max-width:480px){
-  .chatbot-window { right:0; bottom:0; width:100vw; max-height:80vh; border-radius:20px 20px 0 0; }
+  .chatbot-window { right:0; bottom:0; width:100vw; max-height:85vh; border-radius:20px 20px 0 0; }
   .chatbot-toggle { bottom:16px; right:16px; }
+  .chatbot-toggle.open { display:none; }
 }
 

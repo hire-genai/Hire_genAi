@@ -114,6 +114,13 @@ export default function SettingsPage() {
     } else if (tabParam === 'agency') {
       setActiveTab('agency')
     }
+    // Clean up stripe redirect params from URL
+    const stripeParams = ['stripe_sub_success', 'stripe_sub_cancel', 'stripe_success', 'stripe_cancel', 'session_id']
+    const hasStripeParam = stripeParams.some(p => searchParams.get(p))
+    if (hasStripeParam) {
+      const tab = searchParams.get('tab')
+      router.replace(tab ? `/settings?tab=${tab}` : '/settings', { scroll: false })
+    }
   }, [searchParams])
 
   const [loadingCompany, setLoadingCompany] = useState(false)

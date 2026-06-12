@@ -849,14 +849,13 @@ export default function CandidatesPage() {
             {/* Action - sticky right */}
             <td className="px-2 py-2 sticky right-0 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] border-l border-gray-100">
               <div className="flex gap-1">
-                <Button size="sm" onClick={() => handleViewCandidate(application)} title="Actions" className="h-6 w-6 p-0">
+                <Button size="sm" onClick={() => handleViewCandidate(application)} title="Actions" className="h-6 w-6 p-0 bg-gray-900 hover:bg-black text-white border-0">
                   <Settings2 className="h-3 w-3" />
                 </Button>
                 <Button
                   size="sm"
-                  variant="outline"
                   title="Interview Report"
-                  className="h-6 w-6 p-0"
+                  className="h-6 w-6 p-0 bg-gray-900 hover:bg-black text-white border-0"
                   onClick={() => {
                     setReportUrl(`/report/${application?.jobId}/${application?.candidateId}`); setReportModalOpen(true)
                   }}
@@ -977,8 +976,8 @@ export default function CandidatesPage() {
             {/* Action - sticky */}
             <td className="px-2 py-2 sticky right-0 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] border-l border-gray-100">
               <div className="flex gap-1">
-                <Button size="sm" onClick={() => handleViewCandidate(application)} title="Actions" className="h-6 w-6 p-0"><Settings2 className="h-3 w-3" /></Button>
-                <Button size="sm" variant="outline" title="CV Report" className="h-6 w-6 p-0" onClick={() => { setReportUrl(`/report/${application?.jobId}/${application?.candidateId}`); setReportModalOpen(true) }}><FileTextIcon className="h-3 w-3" /></Button>
+                <Button size="sm" onClick={() => handleViewCandidate(application)} title="Actions" className="h-6 w-6 p-0 bg-gray-900 hover:bg-black text-white border-0"><Settings2 className="h-3 w-3" /></Button>
+                <Button size="sm" title="CV Report" className="h-6 w-6 p-0 bg-gray-900 hover:bg-black text-white border-0" onClick={() => { setReportUrl(`/report/${application?.jobId}/${application?.candidateId}`); setReportModalOpen(true) }}><FileTextIcon className="h-3 w-3" /></Button>
               </div>
             </td>
           </>
@@ -1180,10 +1179,10 @@ export default function CandidatesPage() {
             {/* Action - sticky right */}
             <td className="px-2 py-2 sticky right-0 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] border-l border-gray-100">
               <div className="flex gap-1">
-                <Button size="sm" onClick={() => handleViewCandidate(application)} title="Actions" className="h-6 w-6 p-0">
+                <Button size="sm" onClick={() => handleViewCandidate(application)} title="Actions" className="h-6 w-6 p-0 bg-gray-900 hover:bg-black text-white border-0">
                   <Settings2 className="h-3 w-3" />
                 </Button>
-                <Button size="sm" variant="outline" title="Report" className="h-6 w-6 p-0"
+                <Button size="sm" title="Report" className="h-6 w-6 p-0 bg-gray-900 hover:bg-black text-white border-0"
                   onClick={() => { setReportUrl(`/report/${application?.jobId}/${application?.candidateId}`); setReportModalOpen(true) }}>
                   <FileTextIcon className="h-3 w-3" />
                 </Button>
@@ -1538,7 +1537,7 @@ export default function CandidatesPage() {
 
       {/* Applications Table - Mobile Responsive */}
       <Card className="overflow-hidden">
-        <div className="overflow-x-auto -mx-3 md:mx-0">
+        <div className="overflow-x-auto -mx-3 md:mx-0 candidate-table-wrap">
           <div className={activeBucket === 'interview' || activeBucket === 'screening' ? 'min-w-[1400px]' : activeBucket === 'all' ? 'min-w-[800px]' : 'min-w-[1200px]'}>
             <table className="w-full">
               <thead>
