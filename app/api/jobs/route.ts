@@ -317,22 +317,37 @@ export async function POST(request: NextRequest) {
         try {
           cookieValue = decodeURIComponent(sessionCookie.value)
         } catch { /* use raw value if decode fails */ }
-        
+
         const session = JSON.parse(cookieValue)
         userId = session.userId || session.user?.id || null
         companyId = session.companyId || session.company?.id || null
         sessionEmail = session.email || null
         sessionFullName = session.fullName || session.user?.name || null
-        
+
         console.log('🍪 Session cookie parsed:', { userId, companyId, sessionEmail })
       } catch (parseError) {
         console.error('Failed to parse session cookie:', parseError)
       }
     }
 
-    // SECURITY: Only use authenticated session data - never accept userId/companyId from request body
+    // Fallback: Extract session data from request body if cookie not available
+    // This supports client-side auth where session is stored in localStorage
     if (!userId || !companyId) {
-      console.error('❌ No valid session found in cookie')
+      const { user, company } = body
+      if (user?.id) {
+        userId = user.id
+        sessionEmail = user.email || null
+        sessionFullName = user.name || null
+      }
+      if (company?.id) {
+        companyId = company.id
+      }
+      console.log('📦 Using session data from request body:', { userId, companyId, sessionEmail })
+    }
+
+    // SECURITY: Verify we have valid session data
+    if (!userId || !companyId) {
+      console.error('❌ No valid session found in cookie or request body')
       return NextResponse.json(
         { error: 'Unauthorized. Please sign in to create a job posting.' },
         { status: 401 }

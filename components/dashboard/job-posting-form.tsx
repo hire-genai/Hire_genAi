@@ -675,6 +675,16 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
       workMode: formData.workMode || 'Hybrid',
       submissionId, // Add unique submission ID to help backend identify duplicates
       status,
+      // Include user and company objects for fallback session auth
+      user: {
+        id: user?.id,
+        email: user?.email,
+        name: user?.full_name,
+      },
+      company: {
+        id: company?.id,
+        name: company?.name,
+      },
       // Merge fetched values into screeningQuestions before saving
       screeningQuestions: formData.enableScreeningQuestions
         ? (() => {
@@ -761,7 +771,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
               <select
                 value={formData.jobStatus}
                 onChange={(e) => updateField('jobStatus', e.target.value)}
-                className="px-2 py-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="open">Open</option>
                 <option value="closed">Closed</option>
@@ -823,7 +833,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="text"
                     value={formData.jobTitle}
                     onChange={(e) => updateField('jobTitle', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. Senior Full Stack Developer"
                     required
                   />
@@ -836,7 +846,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   <select
                     value={formData.department}
                     onChange={(e) => updateField('department', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     required
                   >
                     <option value="">Select Department</option>
@@ -859,7 +869,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="text"
                     value={formData.location}
                     onChange={(e) => updateField('location', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. San Francisco, CA or Remote"
                     required
                   />
@@ -872,7 +882,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   <select
                     value={formData.jobType}
                     onChange={(e) => updateField('jobType', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="Full-time">Full-time</option>
                     <option value="Part-time">Part-time</option>
@@ -888,7 +898,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   <select
                     value={formData.workMode}
                     onChange={(e) => updateField('workMode', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="Remote">Remote</option>
                     <option value="Hybrid">Hybrid</option>
@@ -903,7 +913,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   <select
                     value={formData.currency}
                     onChange={(e) => updateField('currency', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="USD">USD ($)</option>
                     <option value="EUR">EUR (€)</option>
@@ -920,7 +930,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.salaryMin}
                     onChange={(e) => updateField('salaryMin', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. 120000"
                   />
                 </div>
@@ -933,7 +943,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.salaryMax}
                     onChange={(e) => updateField('salaryMax', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. 180000"
                   />
                 </div>
@@ -946,7 +956,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="date"
                     value={formData.applicationDeadline}
                     onChange={(e) => updateField('applicationDeadline', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
 
@@ -958,7 +968,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="date"
                     value={formData.expectedStartDate}
                     onChange={(e) => updateField('expectedStartDate', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
               </div>
@@ -978,7 +988,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   value={formData.jobDescription}
                   onChange={(e) => updateField('jobDescription', e.target.value)}
                   rows={6}
-                  className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   placeholder="Provide a detailed description of the role, company culture, and what makes this opportunity unique..."
                   required
                 />
@@ -992,7 +1002,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   value={formData.responsibilities.join('\n')}
                   onChange={(e) => setFormData(prev => ({ ...prev, responsibilities: e.target.value.split('\n') }))}
                   rows={6}
-                  className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   placeholder="Enter each responsibility on a new line, e.g.:&#10;Lead technical architecture and implementation&#10;Design and implement scalable solutions&#10;Collaborate with cross-functional teams&#10;Mentor junior developers"
                 />
               </div>
@@ -1006,7 +1016,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     value={formData.requiredSkills.join('\n')}
                     onChange={(e) => setFormData(prev => ({ ...prev, requiredSkills: e.target.value.split('\n') }))}
                     rows={5}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="Enter each skill on a new line, e.g.:&#10;React&#10;Node.js&#10;TypeScript&#10;PostgreSQL"
                   />
                 </div>
@@ -1019,7 +1029,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     value={formData.preferredSkills.join('\n')}
                     onChange={(e) => setFormData(prev => ({ ...prev, preferredSkills: e.target.value.split('\n') }))}
                     rows={5}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="Enter each skill on a new line, e.g.:&#10;AWS&#10;Docker&#10;Kubernetes&#10;GraphQL"
                   />
                 </div>
@@ -1047,7 +1057,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="text"
                     value={formData.requiredEducation}
                     onChange={(e) => updateField('requiredEducation', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. Bachelor's in Computer Science"
                   />
                 </div>
@@ -1060,7 +1070,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="text"
                     value={formData.certificationsRequired}
                     onChange={(e) => updateField('certificationsRequired', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. AWS Certified Solutions Architect"
                   />
                 </div>
@@ -1073,7 +1083,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="text"
                     value={formData.languagesRequired}
                     onChange={(e) => updateField('languagesRequired', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. English (Fluent), Spanish (Preferred)"
                   />
                 </div>
@@ -1201,7 +1211,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                           value={customQuestionText}
                           onChange={(e) => setCustomQuestionText(e.target.value)}
                           rows={2}
-                          className="flex-1 px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           placeholder="Type your custom interview question..."
                           autoFocus
                         />
@@ -1209,7 +1219,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                           <select
                             value={customQuestionCriterion}
                             onChange={(e) => setCustomQuestionCriterion(e.target.value)}
-                            className="w-32 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            className="w-32 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           >
                             <option value="">Criteria...</option>
                             {EVALUATION_CRITERIA.map(criterion => (
@@ -1219,7 +1229,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                           <select
                             value={customQuestionDifficulty}
                             onChange={(e) => setCustomQuestionDifficulty(e.target.value as QuestionDifficulty)}
-                            className="w-32 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            className="w-32 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           >
                             <option value="High">High (15 marks)</option>
                             <option value="Medium">Medium (10 marks)</option>
@@ -1533,7 +1543,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="text"
                     value={formData.clientCompanyName}
                     onChange={(e) => updateField('clientCompanyName', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. TCS, Infosys"
                     required
                   />
@@ -1547,7 +1557,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="text"
                     value={formData.recruiterAssigned}
                     onChange={(e) => updateField('recruiterAssigned', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. Sarah Johnson"
                     required
                   />
@@ -1561,7 +1571,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="text"
                     value={formData.hiringManager}
                     onChange={(e) => updateField('hiringManager', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. David Lee"
                   />
                 </div>
@@ -1574,7 +1584,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="email"
                     value={formData.hiringManagerEmail}
                     onChange={(e) => updateField('hiringManagerEmail', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. david.lee@company.com"
                   />
                 </div>
@@ -1587,7 +1597,8 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.numberOfOpenings}
                     onChange={(e) => updateField('numberOfOpenings', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="e.g. 2"
                     min="1"
                   />
                 </div>
@@ -1599,7 +1610,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   <select
                     value={formData.hiringPriority}
                     onChange={(e) => updateField('hiringPriority', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="High">High</option>
                     <option value="Medium">Medium</option>
@@ -1615,7 +1626,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.targetTimeToFill}
                     onChange={(e) => updateField('targetTimeToFill', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. 30"
                   />
                 </div>
@@ -1628,7 +1639,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                     type="number"
                     value={formData.budgetAllocated}
                     onChange={(e) => updateField('budgetAllocated', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="e.g. 5000"
                   />
                 </div>
@@ -1646,7 +1657,7 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                       className={`p-2 border rounded text-xs text-center cursor-pointer transition-all ${
                         formData.targetSources.includes(source)
                           ? 'bg-blue-100 border-blue-500 text-blue-700'
-                          : 'bg-white hover:bg-gray-50'
+                          : 'bg-white border-gray-300 hover:bg-gray-50'
                       }`}
                     >
                       {source}
@@ -1701,26 +1712,18 @@ export function JobPostingForm({ onClose, initialData, mode = 'create', jobId, c
                   Save as Draft
                 </Button>
                 {currentStep < steps.length ? (
-                  <>
-                    {currentStep >= 2 && (
-                      <Button onClick={() => handleSubmit(false)} disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                        {isSubmitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
-                        Publish Job
-                      </Button>
-                    )}
-                    <Button
-                      onClick={() => {
-                        if (currentStep === 1 && !isBasicInfoValid) return
-                        if (currentStep === 2 && !isJobDescriptionValid) return
-                        if (currentStep === 3 && interviewQuestions.length < 5) return
-                        setCurrentStep(currentStep + 1)
-                      }}
-                      disabled={(currentStep === 1 && !isBasicInfoValid) || (currentStep === 2 && !isJobDescriptionValid) || (currentStep === 3 && interviewQuestions.length < 5)}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {currentStep === 3 && interviewQuestions.length < 5 ? `Next (${interviewQuestions.length}/5 questions)` : 'Next'}
-                    </Button>
-                  </>
+                  <Button
+                    onClick={() => {
+                      if (currentStep === 1 && !isBasicInfoValid) return
+                      if (currentStep === 2 && !isJobDescriptionValid) return
+                      if (currentStep === 3 && interviewQuestions.length < 5) return
+                      setCurrentStep(currentStep + 1)
+                    }}
+                    disabled={(currentStep === 1 && !isBasicInfoValid) || (currentStep === 2 && !isJobDescriptionValid) || (currentStep === 3 && interviewQuestions.length < 5)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {currentStep === 3 && interviewQuestions.length < 5 ? `Next (${interviewQuestions.length}/5 questions)` : 'Next'}
+                  </Button>
                 ) : (
                   <Button onClick={() => handleSubmit(false)} disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white">
                     {isSubmitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}

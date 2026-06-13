@@ -592,11 +592,11 @@ export default function JobsPage() {
 														{job.title}
 													</h3>
 													<Badge variant={
-														job.status === 'open' ? 'default' : 
-														job.status === 'closed' ? 'secondary' : 
-														job.status === 'cancelled' ? 'destructive' : 
+														job.status === 'open' ? 'default' :
+														job.status === 'closed' ? 'secondary' :
+														job.status === 'cancelled' ? 'destructive' :
 														'outline'
-													}>
+													} className={job.status === 'open' ? 'bg-emerald-600 text-white border-emerald-600' : ''}>
 														{job.status.charAt(0).toUpperCase() + job.status.slice(1)}
 													</Badge>
 												</div>
