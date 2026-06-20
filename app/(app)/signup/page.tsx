@@ -66,6 +66,7 @@ function SignupContent() {
   const { setAuthSession, user, loading: authLoading } = useAuth()
   const [step, setStep] = useState(1)
   const [mounted, setMounted] = useState(false)
+  const stepInitialized = React.useRef(false)
   
   useEffect(() => {
     if (authLoading) return
@@ -162,19 +163,17 @@ function SignupContent() {
     else if (billing === 'annual') setSelectedBilling('annual')
   }, [mounted])
 
-  // Update URL whenever step changes (but avoid infinite loop)
+  // Update URL whenever step changes (skip initial mount to preserve plan/billing params)
   useEffect(() => {
     if (!mounted) return
-    
-    const urlParams = new URLSearchParams(window.location.search)
-    const currentSection = urlParams.get('section')
-    const expectedSection = stepToSection(step)
-    
-    // Only update URL if it doesn't match current step
-    if (currentSection !== expectedSection) {
-      router.replace(`/signup?section=${expectedSection}`, { scroll: false })
+    if (!stepInitialized.current) {
+      stepInitialized.current = true
+      return
     }
-  }, [step, mounted, router])
+    const planParam = selectedPlan ? `&plan=${encodeURIComponent(selectedPlan)}` : ''
+    const billingParam = selectedBilling ? `&billing=${selectedBilling}` : ''
+    router.replace(`/signup?section=${stepToSection(step)}${planParam}${billingParam}`, { scroll: false })
+  }, [step, mounted, router, selectedPlan, selectedBilling])
 
   // Handle browser back/forward navigation
   useEffect(() => {

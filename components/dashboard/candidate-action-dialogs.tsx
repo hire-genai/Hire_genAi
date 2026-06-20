@@ -647,14 +647,14 @@ export function CandidateActionDialog({
 
               {/* Email buttons based on interview status */}
               {candidate?.interviewStatus === 'Not Scheduled' && (
-                <Button onClick={handleSendInterviewEmail} className="w-full gap-2" disabled={emailLoading}>
+                <Button onClick={handleSendInterviewEmail} className="w-full gap-2 bg-black hover:bg-gray-900 text-white" disabled={emailLoading}>
                   <Send className="h-4 w-4" />
                   {emailLoading ? 'Preparing...' : 'Preview Interview Email'}
                 </Button>
               )}
 
               {candidate?.interviewStatus === 'Scheduled' && (
-                <Button onClick={handleResendInterviewEmail} className="w-full gap-2" disabled={emailLoading}>
+                <Button onClick={handleResendInterviewEmail} className="w-full gap-2 bg-black hover:bg-gray-900 text-white" disabled={emailLoading}>
                   <Mail className="h-4 w-4" />
                   {emailLoading ? 'Preparing...' : 'Preview & Resend Email'}
                 </Button>
@@ -827,7 +827,7 @@ export function CandidateActionDialog({
                       <button
                         onClick={handleSaveCompensation}
                         disabled={compSaveLoading}
-                        className="text-[11px] font-semibold px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 transition-colors"
+                        className="text-[11px] font-semibold px-2.5 py-1 rounded bg-black hover:bg-gray-900 text-white disabled:opacity-60 transition-colors"
                       >
                         {compSaveLoading ? 'Saving…' : compSaved ? '✓ Saved' : 'Save'}
                       </button>
@@ -1158,8 +1158,8 @@ export function CandidateActionDialog({
               </div>
 
               <div className="flex gap-2 mt-3">
-                <Button 
-                  className="flex-1" 
+                <Button
+                  className="flex-1 bg-black hover:bg-gray-900 text-white"
                   disabled={emailSending}
                   onClick={async () => {
                     if (!candidate?.email) return
