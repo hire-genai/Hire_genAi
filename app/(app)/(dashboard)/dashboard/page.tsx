@@ -249,6 +249,7 @@ const getStatusBadge = (status: string) => {
   const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0, width: 0 })
   const dateButtonRef = useRef<HTMLButtonElement>(null)
   const [selectedKPI, setSelectedKPI] = useState<string | null>(null)
+  const [showDarkPopup, setShowDarkPopup] = useState(true)
   const [userRole, setUserRole] = useState<UserRole | null>((user?.role as UserRole) || null)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -1005,6 +1006,64 @@ const roleDescriptions = {
   return (
     <>
       <OnboardingTour />
+
+      {/* Dark Theme Feature Popup */}
+      {showDarkPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{backdropFilter:'blur(4px)',backgroundColor:'rgba(0,0,0,0.55)'}}>
+          <div className="relative w-full max-w-md rounded-2xl overflow-hidden shadow-2xl" style={{background:'linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f2a1e 100%)'}}>
+            {/* Top accent bar */}
+            <div className="h-1 w-full" style={{background:'linear-gradient(90deg,#10b981,#6366f1,#10b981)'}} />
+            <div className="p-6">
+              {/* Close */}
+              <button
+                onClick={() => setShowDarkPopup(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+
+              {/* Icon + Title */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{background:'linear-gradient(135deg,#10b981,#059669)'}}>
+                  <Gauge className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-[10px] font-semibold tracking-widest text-emerald-400 uppercase mb-0.5">What&apos;s New</div>
+                  <h2 className="text-lg font-bold text-white leading-tight">AI Hiring Dashboard</h2>
+                </div>
+              </div>
+
+              {/* Feature list */}
+              <div className="space-y-3 mb-6">
+                {[
+                  { icon: '🎯', title: 'Pipeline Intelligence', desc: 'Real-time candidate flow across all hiring stages' },
+                  { icon: '🤖', title: 'AI Interview Scoring', desc: 'Automatic qualification based on interview performance' },
+                  { icon: '📊', title: 'Team Analytics', desc: 'Recruiter workload, offer acceptance & velocity metrics' },
+                ].map((f, i) => (
+                  <div key={i} className="flex items-start gap-3 p-3 rounded-xl" style={{background:'rgba(255,255,255,0.05)'}}>
+                    <span className="text-lg leading-none mt-0.5">{f.icon}</span>
+                    <div>
+                      <div className="text-sm font-semibold text-white">{f.title}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">{f.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* CTA */}
+              <button
+                onClick={() => setShowDarkPopup(false)}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
+                style={{background:'linear-gradient(90deg,#10b981,#059669)'}}
+              >
+                Explore Dashboard →
+              </button>
+              <p className="text-center text-[10px] text-slate-500 mt-3">Dismiss to continue • Updates available in real-time</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-4 p-3 md:p-4 w-full overflow-x-hidden">
       {/* Header with Role Selector */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">

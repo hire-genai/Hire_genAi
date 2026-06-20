@@ -505,7 +505,7 @@ export function ROISimulator() {
               <div style={{ fontSize:'10px', color:'var(--text-dim)' }}>Full amount into your AI wallet</div>
             </div>
           </div>
-          <button type="button" onClick={()=>{ if(typeof window!=='undefined') window.location.href=getAppUrl(`/signup?plan=${r.plan.name}&billing=${billing}`); }} className="btn-primary" style={{ width:'100%', justifyContent:'center', fontSize:'14px', border:'none', cursor:'pointer' }}>
+          <button type="button" onClick={()=>{ if(typeof window!=='undefined') window.open(getAppUrl(`/signup?plan=${r.plan.name}&billing=${billing}`), '_blank', 'noopener,noreferrer'); }} className="btn-primary" style={{ width:'100%', justifyContent:'center', fontSize:'14px', border:'none', cursor:'pointer' }}>
             Get Started with {r.plan.name} Plan ({billing==='annual' ? `$${Math.round(r.plan.price*10)}/yr, billed annually` : `$${r.plan.price}/mo`}) →
           </button>
           <p style={{ textAlign:'center', fontSize:'11px', color:'var(--text-dim)', marginTop:'10px' }}>
@@ -699,7 +699,7 @@ export function ROIAssessment() {
                   <div style={{ fontSize:'18px', fontWeight:800, color:'var(--text)', marginBottom:'4px' }}><span style={{ color:'var(--green)' }}>{rec.name}</span> — ${rec.price}/mo</div>
                   <div style={{ fontSize:'12px', color:'var(--text-dim)' }}>Based on your application volume and team size</div>
                 </div>
-                <a href={getAppUrl(`/signup?plan=${rec.name}&billing=monthly`)} className="btn-primary" style={{ display:'inline-flex', justifyContent:'center', width:'100%' }}>Start with {rec.name} Plan →</a>
+                <a href={getAppUrl(`/signup?plan=${rec.name}&billing=monthly`)} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ display:'inline-flex', justifyContent:'center', width:'100%' }}>Start with {rec.name} Plan →</a>
                 <a href="#pricing" style={{ display:'block', fontSize:'12px', color:'var(--text-dim)', marginTop:'10px', textDecoration:'underline' }}>Compare all plans</a>
               </div>
             ); })()}
@@ -807,7 +807,7 @@ export function Pricing() {
                 <div style={{ margin:'12px 0 14px', display:'flex', alignItems:'center' }}>
                   <span style={{ fontSize:'11px', fontWeight:700, color:'#fff', background:'var(--green)', padding:'4px 10px', borderRadius:'100px' }}>🎧 {plan.support}</span>
                 </div>
-                <a href={getAppUrl(`/signup?plan=${plan.name}&billing=${annual?'annual':'monthly'}`)} className={plan.popular?'btn-primary':'btn-secondary'} style={{ textAlign:'center', justifyContent:'center' }}>
+                <a href={getAppUrl(`/signup?plan=${plan.name}&billing=${annual?'annual':'monthly'}`)} target="_blank" rel="noopener noreferrer" className={plan.popular?'btn-primary':'btn-secondary'} style={{ textAlign:'center', justifyContent:'center' }}>
                   {plan.cta} →
                 </a>
               </div>

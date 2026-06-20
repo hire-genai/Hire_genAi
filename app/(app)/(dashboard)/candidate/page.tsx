@@ -2,6 +2,38 @@
 
 export const dynamic = 'force-dynamic';
 
+const TABLE_STYLES = `
+  .cell-scroll::-webkit-scrollbar{height:2px;width:2px}
+  .cell-scroll::-webkit-scrollbar-thumb{background:transparent;border-radius:4px;transition:background 0.2s}
+  .cell-scroll::-webkit-scrollbar-track{background:transparent}
+  .cell-scroll:hover::-webkit-scrollbar-thumb{background:#a7f3d0}
+  .skill-scroll{overflow-x:auto;white-space:nowrap;scrollbar-width:thin;scrollbar-color:#a7f3d0 transparent}
+  .skill-scroll::-webkit-scrollbar{height:2px;width:2px}
+  .skill-scroll::-webkit-scrollbar-track{background:transparent;border-radius:4px}
+  .skill-scroll::-webkit-scrollbar-thumb{background:transparent;border-radius:4px;transition:background 0.2s}
+  td:hover .skill-scroll::-webkit-scrollbar-thumb{background:#a7f3d0}
+  .company-scroll{overflow-x:auto;white-space:nowrap;scrollbar-width:thin;scrollbar-color:#a7f3d0 transparent}
+  .company-scroll::-webkit-scrollbar{height:2px;width:2px}
+  .company-scroll::-webkit-scrollbar-track{background:transparent;border-radius:4px}
+  .company-scroll::-webkit-scrollbar-thumb{background:transparent;border-radius:4px;transition:background 0.2s}
+  td:hover .company-scroll::-webkit-scrollbar-thumb{background:#a7f3d0}
+  .jd-scroll{overflow-x:auto;white-space:nowrap;scrollbar-width:thin;scrollbar-color:#a7f3d0 transparent}
+  .jd-scroll::-webkit-scrollbar{height:2px;width:2px}
+  .jd-scroll::-webkit-scrollbar-track{background:transparent;border-radius:4px}
+  .jd-scroll::-webkit-scrollbar-thumb{background:transparent;border-radius:4px;transition:background 0.2s}
+  td:hover .jd-scroll::-webkit-scrollbar-thumb{background:#a7f3d0}
+  .filter-input{border:1.5px solid #d1d5db!important;border-radius:6px;transition:border-color 0.15s,box-shadow 0.15s}
+  .filter-input:focus{border-color:#10b981!important;outline:none!important;box-shadow:0 0 0 2px rgba(16,185,129,0.12)!important}
+  .skills-cell{width:140px;max-height:72px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:3px;scrollbar-width:thin;scrollbar-color:#a7f3d0 transparent}
+  .skills-cell::-webkit-scrollbar{width:3px;height:3px}
+  .skills-cell::-webkit-scrollbar-track{background:transparent}
+  .skills-cell::-webkit-scrollbar-thumb{background:#a7f3d0;border-radius:4px}
+  .jd-cell{max-width:130px;overflow-x:auto;white-space:nowrap;scrollbar-width:thin;scrollbar-color:#a7f3d0 transparent}
+  .jd-cell::-webkit-scrollbar{height:3px}
+  .jd-cell::-webkit-scrollbar-track{background:transparent}
+  .jd-cell::-webkit-scrollbar-thumb{background:#a7f3d0;border-radius:4px}
+`;
+
 import { Textarea } from "@/components/ui/textarea"
 
 import { Input } from "@/components/ui/input"
@@ -214,8 +246,24 @@ export default function CandidatesPage() {
           rejected: { ...prev.rejected, count: data.bucketData?.rejected?.count || 0 },
           all: { ...prev.all, count: data.bucketData?.all?.count || 0 }
         }))
-        setApplicationsData(data.applicationsData || defaultApplicationsData)
-        setBucketStats(data.bucketStats || defaultBucketStats)
+        const appData = data.applicationsData || defaultApplicationsData
+        setApplicationsData(appData)
+        // Patch interview bucket stats: use CV is_qualified since interview scores need completion
+        const interviewApps = appData.interview || []
+        const ivQualified = interviewApps.filter((a: any) => a.isQualified === true || a.screeningStatus === 'Qualified').length
+        const ivUnqualified = interviewApps.filter((a: any) => a.isQualified === false || a.screeningStatus === 'Unqualified').length
+        const rawStats = data.bucketStats || defaultBucketStats
+        setBucketStats({
+          ...rawStats,
+          interview: {
+            ...rawStats.interview,
+            qualified: rawStats.interview?.qualified > 0 ? rawStats.interview.qualified : ivQualified,
+            unqualified: rawStats.interview?.unqualified > 0 ? rawStats.interview.unqualified : ivUnqualified,
+            totalInterviewed: rawStats.interview?.totalInterviewed || interviewApps.length,
+            successRate: rawStats.interview?.successRate > 0 ? rawStats.interview.successRate
+              : (interviewApps.length ? Math.round(ivQualified / interviewApps.length * 100) : 0)
+          }
+        })
       } else {
         setError(data.error || 'Failed to load candidates')
       }
@@ -801,11 +849,8 @@ export default function CandidatesPage() {
             {/* Skills */}
             <td className="px-2 py-2 border-r border-gray-100">
               {application?.skills ? (
-                <div
-                  className="max-h-[80px] overflow-y-auto flex flex-wrap gap-1"
-                  style={{scrollbarWidth:'thin', scrollbarColor:'#e5e7eb transparent'}}
-                >
-                  {String(application.skills).split(',').filter(s => s.trim()).map((s: string, i: number) => (
+                <div className="skills-cell">
+                  {String(application.skills).split(',').filter((s: string) => s.trim()).map((s: string, i: number) => (
                     <span key={i} className="bg-emerald-50 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-full border border-emerald-200 whitespace-nowrap">
                       {s.trim()}
                     </span>
@@ -819,7 +864,7 @@ export default function CandidatesPage() {
               {application?.companySet ? (
                 <div
                   className="max-h-[80px] overflow-y-auto flex flex-col gap-0.5"
-                  style={{scrollbarWidth:'thin', scrollbarColor:'#e5e7eb transparent'}}
+                  style={{scrollbarWidth:'thin', scrollbarColor:'#a7f3d0 transparent'}}
                 >
                   {String(application.companySet).split(',').filter(c => c.trim()).map((c: string, i: number) => (
                     <span key={i} className="text-[10px] text-gray-700 whitespace-nowrap leading-5">
@@ -832,7 +877,7 @@ export default function CandidatesPage() {
 
             {/* JD */}
             <td className="px-2 py-2 border-r border-gray-100">
-              <div style={{maxWidth:90,overflowX:'auto',whiteSpace:'nowrap',scrollbarWidth:'thin'}} className="cell-scroll">
+              <div className="jd-cell">
                 <button
                   onClick={() => {
                     setSelectedCandidate(application)
@@ -945,7 +990,7 @@ export default function CandidatesPage() {
             {/* Skills */}
             <td className="px-2 py-2 border-r border-gray-100">
               {application?.skills ? (
-                <div className="max-h-[80px] overflow-y-auto flex flex-wrap gap-1" style={{scrollbarWidth:'thin', scrollbarColor:'#e5e7eb transparent'}}>
+                <div className="skills-cell">
                   {String(application.skills).split(',').filter((s: string) => s.trim()).map((s: string, i: number) => (
                     <span key={i} className="bg-emerald-50 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-full border border-emerald-200 whitespace-nowrap">{s.trim()}</span>
                   ))}
@@ -955,7 +1000,7 @@ export default function CandidatesPage() {
             {/* Previous Company */}
             <td className="px-2 py-2 border-r border-gray-100">
               {application?.companySet ? (
-                <div className="max-h-[72px] overflow-y-auto flex flex-col gap-0.5" style={{scrollbarWidth:'thin', scrollbarColor:'#e5e7eb transparent'}}>
+                <div className="max-h-[72px] overflow-y-auto flex flex-col gap-0.5" style={{scrollbarWidth:'thin', scrollbarColor:'#a7f3d0 transparent'}}>
                   {String(application.companySet).split(',').filter((c: string) => c.trim()).map((c: string, i: number) => (
                     <span key={i} className="text-[10px] text-gray-700 whitespace-nowrap leading-5">{i + 1}. {c.trim()}</span>
                   ))}
@@ -964,7 +1009,7 @@ export default function CandidatesPage() {
             </td>
             {/* Application History */}
             <td className="px-2 py-2 border-r border-gray-100">
-              <div style={{maxWidth:90,overflowX:'auto',whiteSpace:'nowrap',scrollbarWidth:'thin'}} className="cell-scroll">
+              <div className="jd-cell">
                 <div className="text-[10px] text-gray-500">{application?.appliedDate || '—'}</div>
                 <button onClick={() => { setSelectedCandidate(application); setJdDetailsOpen(true) }}
                   className="text-[10px] text-emerald-600 hover:text-emerald-800 underline decoration-dotted cursor-pointer transition-colors text-left leading-tight whitespace-nowrap block mt-0.5"
@@ -1154,7 +1199,7 @@ export default function CandidatesPage() {
             {(activeBucket === 'hiringManager' || activeBucket === 'offer' || activeBucket === 'hired' || activeBucket === 'rejected') && (
               <td className="px-2 py-2 border-r border-gray-100">
                 {application?.skills ? (
-                  <div className="max-h-[80px] overflow-y-auto flex flex-wrap gap-1" style={{scrollbarWidth:'thin', scrollbarColor:'#e5e7eb transparent'}}>
+                  <div className="skills-cell">
                     {String(application.skills).split(',').filter((s: string) => s.trim()).map((s: string, i: number) => (
                       <span key={i} className="bg-emerald-50 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-full border border-emerald-200 whitespace-nowrap">{s.trim()}</span>
                     ))}
@@ -1167,7 +1212,7 @@ export default function CandidatesPage() {
             {(activeBucket === 'hiringManager' || activeBucket === 'offer' || activeBucket === 'hired' || activeBucket === 'rejected') && (
               <td className="px-2 py-2 border-r border-gray-100">
                 {application?.companySet ? (
-                  <div className="max-h-[80px] overflow-y-auto flex flex-col gap-0.5" style={{scrollbarWidth:'thin', scrollbarColor:'#e5e7eb transparent'}}>
+                  <div className="max-h-[80px] overflow-y-auto flex flex-col gap-0.5" style={{scrollbarWidth:'thin', scrollbarColor:'#a7f3d0 transparent'}}>
                     {String(application.companySet).split(',').filter((c: string) => c.trim()).map((c: string, i: number) => (
                       <span key={i} className="text-[10px] text-gray-700 whitespace-nowrap leading-5">{i + 1}. {c.trim()}</span>
                     ))}
@@ -1196,7 +1241,7 @@ export default function CandidatesPage() {
 
   return (
     <div className="space-y-3 p-3 md:p-4 w-full">
-      <style>{`.cell-scroll::-webkit-scrollbar{height:3px;width:3px}.cell-scroll::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:9px}.cell-scroll::-webkit-scrollbar-track{background:transparent}`}</style>
+      <style>{TABLE_STYLES}</style>
       {/* Header with Filters */}
       <div className="space-y-2">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -1236,13 +1281,13 @@ export default function CandidatesPage() {
       </div>
       
       {/* Filters - Slim Design */}
-      <div className="bg-white rounded-lg border p-2">
+      <div className="bg-white rounded-xl border-2 border-gray-200 shadow-sm p-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[200px]">
             <input
               type="text"
               placeholder="Search applications..."
-              className="w-full pl-3 pr-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full pl-3 pr-3 py-1.5 text-sm filter-input"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -1278,7 +1323,7 @@ export default function CandidatesPage() {
             placeholder="Skills"
             value={skillFilter}
             onChange={(e) => setSkillFilter(e.target.value)}
-            className="px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500 min-w-[100px]"
+            className="px-2 py-1.5 text-sm filter-input min-w-[100px]"
           />
           <div className="relative">
             <Button 
