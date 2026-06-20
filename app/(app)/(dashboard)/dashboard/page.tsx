@@ -249,7 +249,7 @@ const getStatusBadge = (status: string) => {
   const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0, width: 0 })
   const dateButtonRef = useRef<HTMLButtonElement>(null)
   const [selectedKPI, setSelectedKPI] = useState<string | null>(null)
-  const [showDarkPopup, setShowDarkPopup] = useState(true)
+  const [showDarkPopup, setShowDarkPopup] = useState(false)
   const [userRole, setUserRole] = useState<UserRole | null>((user?.role as UserRole) || null)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)

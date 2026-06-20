@@ -417,7 +417,7 @@ export default function JobsPage() {
 					</p>
 				</div>
 				<Button
-					className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white border-0"
+					className="gap-2 bg-black hover:bg-gray-800 text-white border-0"
 					size="sm"
 					onClick={handlePostNewJob}
 					disabled={isCheckingTrial}
@@ -565,7 +565,7 @@ export default function JobsPage() {
 							{jobs.length === 0 && (
 								<Button
 									size="sm"
-									className="mt-3 bg-emerald-600 hover:bg-emerald-700 text-white border-0"
+									className="mt-3 bg-black hover:bg-gray-800 text-white border-0"
 									onClick={handlePostNewJob}
 									disabled={isCheckingTrial}
 								>

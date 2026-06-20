@@ -504,7 +504,7 @@ export function CandidateActionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="sr-only">Candidate Details</DialogTitle>
         </DialogHeader>
@@ -1427,10 +1427,10 @@ export function CandidateActionDialog({
                 </Card>
               )}
 
-              <Button 
-                onClick={handleMove} 
+              <Button
+                onClick={handleMove}
                 disabled={!moveToStage || !remarks || moveLoading}
-                className="w-full"
+                className="w-full bg-black hover:bg-gray-800 text-white border-0"
               >
                 {moveLoading ? 'Moving...' : 'Confirm Move'}
               </Button>
