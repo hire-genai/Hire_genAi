@@ -232,9 +232,16 @@ export default function TalentPoolPage() {
 
   const filteredCandidates = talentPoolEntries.filter(candidate => {
     const matchesStatus = selectedStatus === 'all' || candidate.status === selectedStatus
-    const matchesSearch = searchQuery === '' || 
-      candidate.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      candidate.email.toLowerCase().includes(searchQuery.toLowerCase())
+    const q = searchQuery.toLowerCase()
+    const matchesSearch = searchQuery === '' || [
+      candidate.name, candidate.email, candidate.phone,
+      candidate.position, candidate.location, candidate.currentCompany,
+      candidate.source, candidate.status, candidate.notes,
+      candidate.cvScore, candidate.interviewScore,
+      candidate.rejectionStage, candidate.rejectionReason,
+      ...(candidate.skills || []),
+      ...(candidate.companies || []),
+    ].some(f => f && String(f).toLowerCase().includes(q))
     const matchesSkill = skillFilter === '' || 
       candidate.skills.some(skill => skill.toLowerCase().includes(skillFilter.toLowerCase()))
     const matchesPosition = positionFilter === 'all' || candidate.position === positionFilter
@@ -290,7 +297,7 @@ export default function TalentPoolPage() {
             </div>
           </div>
           <Button
-            className="gap-2 w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white border-0"
+            className="gap-2 w-full sm:w-auto bg-black hover:bg-gray-800 text-white border-0"
             size="sm"
             onClick={() => setShowAddCandidateDialog(true)}
           >
@@ -383,7 +390,7 @@ export default function TalentPoolPage() {
           <div className="grid grid-cols-3 gap-2 md:flex md:flex-wrap md:items-center">
             <input
               type="text"
-              placeholder="Search by name or email..."
+              placeholder="Search candidates..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="col-span-1 px-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 md:flex-1 md:min-w-[200px]"

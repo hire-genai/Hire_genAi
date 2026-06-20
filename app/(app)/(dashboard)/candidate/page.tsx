@@ -22,9 +22,9 @@ const TABLE_STYLES = `
   .jd-scroll::-webkit-scrollbar-track{background:transparent;border-radius:4px}
   .jd-scroll::-webkit-scrollbar-thumb{background:transparent;border-radius:4px;transition:background 0.2s}
   td:hover .jd-scroll::-webkit-scrollbar-thumb{background:#a7f3d0}
-  .filter-input{border:1.5px solid #d1d5db!important;border-radius:6px;transition:border-color 0.15s,box-shadow 0.15s}
+  .filter-input{border:1px solid #e5e7eb!important;border-radius:6px;transition:border-color 0.15s,box-shadow 0.15s}
   .filter-input:focus{border-color:#10b981!important;outline:none!important;box-shadow:0 0 0 2px rgba(16,185,129,0.12)!important}
-  .skills-cell{width:140px;max-height:72px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:3px;scrollbar-width:thin;scrollbar-color:#a7f3d0 transparent}
+  .skills-cell{width:170px;max-height:90px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:3px;scrollbar-width:thin;scrollbar-color:#a7f3d0 transparent}
   .skills-cell::-webkit-scrollbar{width:3px;height:3px}
   .skills-cell::-webkit-scrollbar-track{background:transparent}
   .skills-cell::-webkit-scrollbar-thumb{background:#a7f3d0;border-radius:4px}
@@ -485,63 +485,54 @@ export default function CandidatesPage() {
     }
   }
 
-  // Function to apply filters to data
-  const applyFilters = (data: any[]) => {
+  // Base filters (position/source/skill) — used for both card counts and table rows
+  const applyBaseFilters = (data: any[]) => {
     return data.filter((application: any) => {
-      // Position filter
-      if (positionFilter !== 'all' && application.position !== positionFilter) {
-        return false
-      }
-      
-      // Source filter - handle source_type based filtering
+      if (positionFilter !== 'all' && application.position !== positionFilter) return false
+
       if (sourceFilter !== 'all') {
-        // Debug logging to see actual source values
         if (sourceFilter === 'Agency' || sourceFilter === 'Referrals') {
-          console.log('DEBUG - Source Filter:', {
-            sourceFilter,
-            applicationSource: application.source,
-            applicationName: application.name
-          })
+          console.log('DEBUG - Source Filter:', { sourceFilter, applicationSource: application.source, applicationName: application.name })
         }
-        
         if (sourceFilter === 'Direct') {
-          // Include all Direct sources: Direct, LinkedIn, Indeed, Naukri, and other sub_sources
-          const isDirectSource = application.source === 'Direct' || 
-                                application.source === 'LinkedIn' || 
-                                application.source === 'Indeed' || 
+          const isDirectSource = application.source === 'Direct' ||
+                                application.source === 'LinkedIn' ||
+                                application.source === 'Indeed' ||
                                 application.source === 'Naukri' ||
                                 application.source === 'direct_application' ||
                                 (application.source && application.source !== 'Referrals' && application.source !== 'Agency')
-          if (!isDirectSource) {
-            return false
-          }
+          if (!isDirectSource) return false
         }
-        if (sourceFilter === 'Referrals' && application.source !== 'Referrals') {
-          return false
-        }
-        if (sourceFilter === 'Agency' && application.source !== 'Agency') {
-          return false
-        }
+        if (sourceFilter === 'Referrals' && application.source !== 'Referrals') return false
+        if (sourceFilter === 'Agency' && application.source !== 'Agency') return false
       }
-      
-      // Skill filter
-      if (skillFilter && application.skills && !application.skills.toLowerCase().includes(skillFilter.toLowerCase())) {
-        return false
-      }
-      
-      // Search query filter (name)
-      if (searchQuery && !application.name.toLowerCase().includes(searchQuery.toLowerCase())) {
-        return false
-      }
-      
+
+      if (skillFilter && application.skills && !application.skills.toLowerCase().includes(skillFilter.toLowerCase())) return false
+
       return true
     })
   }
 
-  // Calculate filtered counts for each bucket
+  // Full filter including search query — used only for table rows
+  const applyFilters = (data: any[]) => {
+    const base = applyBaseFilters(data)
+    if (!searchQuery) return base
+    const q = searchQuery.toLowerCase()
+    return base.filter((application: any) => {
+      const fields = [
+        application.id, application.candidateId, application.jobId,
+        application.name, application.email, application.phone,
+        application.experience, application.position, application.appliedDate,
+        application.status, application.source, application.skills, application.companySet,
+      ]
+      return fields.some(f => f && String(f).toLowerCase().includes(q))
+    })
+  }
+
+  // Card counts use base filters only (search does not affect card numbers)
   const getFilteredCount = (bucketKey: BucketType) => {
     const data = applicationsData[bucketKey] || []
-    return applyFilters(data).length
+    return applyBaseFilters(data).length
   }
 
   // Get dynamic bucket counts based on filters
@@ -682,6 +673,8 @@ export default function CandidatesPage() {
             <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Applied Date</th>
             <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Stage / Status</th>
             <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Source</th>
+            <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Skills</th>
+            <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 border-r border-gray-200 uppercase tracking-wide whitespace-nowrap">Previous Company</th>
             <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 bg-gray-50 uppercase tracking-wide whitespace-nowrap sticky right-0 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)] border-l border-gray-200">Action</th>
           </>
         )
@@ -1192,6 +1185,24 @@ export default function CandidatesPage() {
                 <td className="px-2 py-2 border-r border-gray-100">
                   <div style={{maxWidth:80,overflowX:'auto',whiteSpace:'nowrap',scrollbarWidth:'thin'}} className="cell-scroll text-[10px] text-gray-600">{application?.source || '—'}</div>
                 </td>
+                <td className="px-2 py-2 border-r border-gray-100">
+                  {application?.skills ? (
+                    <div className="skills-cell">
+                      {String(application.skills).split(',').filter((s: string) => s.trim()).map((s: string, i: number) => (
+                        <span key={i} className="bg-emerald-50 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-full border border-emerald-200 whitespace-nowrap">{s.trim()}</span>
+                      ))}
+                    </div>
+                  ) : <span className="text-[10px] text-gray-400">—</span>}
+                </td>
+                <td className="px-2 py-2 border-r border-gray-100">
+                  {application?.companySet ? (
+                    <div className="max-h-[80px] overflow-y-auto flex flex-col gap-0.5" style={{scrollbarWidth:'thin', scrollbarColor:'#a7f3d0 transparent'}}>
+                      {String(application.companySet).split(',').filter((c: string) => c.trim()).map((c: string, i: number) => (
+                        <span key={i} className="text-[10px] text-gray-700 whitespace-nowrap leading-5">{i + 1}. {c.trim()}</span>
+                      ))}
+                    </div>
+                  ) : <span className="text-[10px] text-gray-400">—</span>}
+                </td>
               </>
             )}
 
@@ -1281,7 +1292,7 @@ export default function CandidatesPage() {
       </div>
       
       {/* Filters - Slim Design */}
-      <div className="bg-white rounded-xl border-2 border-gray-200 shadow-sm p-2">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[200px]">
             <input
@@ -1294,7 +1305,7 @@ export default function CandidatesPage() {
           </div>
           <div className="w-[140px]">
             <Select value={positionFilter} onValueChange={setPositionFilter}>
-              <SelectTrigger className="h-10 w-[140px]">
+              <SelectTrigger className="h-8 w-[140px] border-gray-200 text-sm">
                 <SelectValue placeholder="All Positions" />
               </SelectTrigger>
               <SelectContent>
@@ -1307,7 +1318,7 @@ export default function CandidatesPage() {
           </div>
           <div className="w-[140px]">
             <Select value={sourceFilter} onValueChange={setSourceFilter}>
-              <SelectTrigger className="h-10 w-[140px]">
+              <SelectTrigger className="h-8 w-[140px] border-gray-200 text-sm">
                 <SelectValue placeholder="All Sources" />
               </SelectTrigger>
               <SelectContent>
@@ -1474,25 +1485,6 @@ export default function CandidatesPage() {
               </div>
             )}
           </div>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => {
-              setSearchQuery('')
-              setPositionFilter('all')
-              setSourceFilter('all')
-              setSkillFilter('')
-              setDateFilter('')
-              setCustomStartDate('')
-              setCustomEndDate('')
-              setSelectedDateFilter('last90Days')
-              console.log('[v0] Filters reset')
-            }}
-            className="bg-transparent"
-            title="Reset all filters"
-          >
-            Reset
-          </Button>
         </div>
       </div>
 
@@ -1528,17 +1520,17 @@ export default function CandidatesPage() {
             >
               <div className="space-y-2 md:space-y-3">
                 {/* Header with Count */}
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-xs md:text-sm font-bold text-gray-900 leading-tight">
+                <div className="flex items-start justify-between gap-1">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-[11px] md:text-xs font-bold text-gray-900 leading-snug break-words">
                       {data.label}
                     </h3>
-                    <p className="text-[9px] md:text-[10px] text-gray-500 mt-0.5 md:mt-1 flex items-center gap-1">
-                      <Icon className="h-2.5 md:h-3 w-2.5 md:w-3" />
-                      <span className="hidden sm:inline">{data.description}</span>
+                    <p className="text-[9px] text-gray-500 mt-0.5 flex items-center gap-1">
+                      <Icon className="h-2.5 w-2.5 shrink-0" />
+                      <span className="hidden sm:inline truncate">{data.description}</span>
                     </p>
                   </div>
-                  <div className="text-xl md:text-3xl font-bold text-emerald-600">
+                  <div className="text-xl md:text-2xl font-bold text-emerald-600 shrink-0 tabular-nums">
                     {dynamicBucketCounts[bucket as BucketType]}
                   </div>
                 </div>
@@ -1583,7 +1575,7 @@ export default function CandidatesPage() {
       {/* Applications Table - Mobile Responsive */}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto -mx-3 md:mx-0 candidate-table-wrap">
-          <div className={activeBucket === 'interview' || activeBucket === 'screening' ? 'min-w-[1400px]' : activeBucket === 'all' ? 'min-w-[800px]' : 'min-w-[1200px]'}>
+          <div className={activeBucket === 'interview' || activeBucket === 'screening' ? 'min-w-[1400px]' : activeBucket === 'all' ? 'min-w-[1400px]' : 'min-w-[1200px]'}>
             <table className="w-full">
               <thead>
                 <tr>{renderTableHeaders()}</tr>
