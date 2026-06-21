@@ -271,7 +271,7 @@ export default function PricingPage() {
     if (!companyId) return
     ;(async () => {
       try {
-        const res = await fetch('/api/subscriptions/stripe/status', { credentials: 'include' })
+        const res = await fetch(`/api/subscriptions/stripe/status?company_id=${companyId}`, { credentials: 'include' })
         const data = await res.json()
         if (data?.ok && data.hasSubscription && data.isActive) {
           const name: string = data.subscription?.planName || ''

@@ -33,6 +33,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Fallback: allow company_id query param (pricing page on www subdomain can't send app-subdomain cookie)
+    if (!companyId) {
+      const qp = request.nextUrl.searchParams.get('company_id')
+      if (qp && /^[0-9a-f-]{36}$/.test(qp)) companyId = qp
+    }
+
     if (!companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
