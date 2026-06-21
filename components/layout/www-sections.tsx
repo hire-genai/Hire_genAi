@@ -64,25 +64,36 @@ export function ProductPreview() {
           style={{
             transition: 'opacity 0.8s ease, transform 0.8s ease',
             opacity: visible ? 1 : 0,
-            transform: visible ? 'translateY(0)' : 'translateY(60px)',
+            // After animation, remove transform entirely so it doesn't block iframe touch events on mobile
+            transform: visible ? 'none' : 'translateY(60px)',
           }}
         >
           {isMobile ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-              <p style={{ color: 'var(--muted)', fontSize: '1rem', margin: 0 }}>
-                Click below for an interactive product tour
-              </p>
-              <button
-                onClick={() => (window as any).Storylane?.Play({ type: 'popup', demo_type: 'image', width: 1550, height: 895, scale: '0.95', demo_url: 'https://app.storylane.io/demo/kx2z3fuhmzqd?embed=popup', padding_bottom: 'calc(57.74% + 25px)' })}
+            /* Mobile: direct iframe, no height:0 trick — touch events work correctly */
+            <div style={{
+              maxWidth: '390px',
+              margin: '0 auto',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              border: '1px solid rgba(63,95,172,0.35)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(0,177,79,0.25)',
+              touchAction: 'manipulation',
+            }}>
+              <iframe
+                loading="lazy"
+                src="https://app.storylane.io/demo/gf7pvswwwra6?embed=inline"
+                name="sl-embed"
+                allow="fullscreen"
+                allowFullScreen
                 style={{
-                  backgroundColor: '#22c55e', border: 'none', borderRadius: '8px',
-                  boxShadow: '0px 0px 20px rgba(34,197,94,0.35)', color: '#000',
-                  fontFamily: 'inherit', fontSize: '18px', fontWeight: 700,
-                  height: '52px', padding: '0 32px', cursor: 'pointer',
+                  display: 'block',
+                  width: '100%',
+                  height: '560px',
+                  border: 'none',
+                  touchAction: 'manipulation',
                 }}
-              >
-                TAKE A TOUR →
-              </button>
+                title="HireGenAI Mobile Demo"
+              />
             </div>
           ) : (
             /* wrapper matches old preview-wrapper: green glow + float animation */
