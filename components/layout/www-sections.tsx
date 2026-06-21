@@ -64,25 +64,36 @@ export function ProductPreview() {
           style={{
             transition: 'opacity 0.8s ease, transform 0.8s ease',
             opacity: visible ? 1 : 0,
-            transform: visible ? 'translateY(0)' : 'translateY(60px)',
+            // After animation, remove transform entirely so it doesn't block iframe touch events on mobile
+            transform: visible ? 'none' : 'translateY(60px)',
           }}
         >
           {isMobile ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-              <p style={{ color: 'var(--muted)', fontSize: '1rem', margin: 0 }}>
-                Click below for an interactive product tour
-              </p>
-              <button
-                onClick={() => (window as any).Storylane?.Play({ type: 'popup', demo_type: 'image', width: 1550, height: 895, scale: '0.95', demo_url: 'https://app.storylane.io/demo/kx2z3fuhmzqd?embed=popup', padding_bottom: 'calc(57.74% + 25px)' })}
+            /* Mobile: direct iframe, no height:0 trick — touch events work correctly */
+            <div style={{
+              maxWidth: '390px',
+              margin: '0 auto',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              border: '1px solid rgba(63,95,172,0.35)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(0,177,79,0.25)',
+              touchAction: 'manipulation',
+            }}>
+              <iframe
+                loading="lazy"
+                src="https://app.storylane.io/demo/gf7pvswwwra6?embed=inline"
+                name="sl-embed"
+                allow="fullscreen"
+                allowFullScreen
                 style={{
-                  backgroundColor: '#22c55e', border: 'none', borderRadius: '8px',
-                  boxShadow: '0px 0px 20px rgba(34,197,94,0.35)', color: '#000',
-                  fontFamily: 'inherit', fontSize: '18px', fontWeight: 700,
-                  height: '52px', padding: '0 32px', cursor: 'pointer',
+                  display: 'block',
+                  width: '100%',
+                  height: '560px',
+                  border: 'none',
+                  touchAction: 'manipulation',
                 }}
-              >
-                TAKE A TOUR →
-              </button>
+                title="HireGenAI Mobile Demo"
+              />
             </div>
           ) : (
             /* wrapper matches old preview-wrapper: green glow + float animation */
@@ -934,6 +945,53 @@ export function Testimonials() {
         <div style={{ textAlign:'center', marginTop:'40px' }}>
           <a href="/book-meeting" className="btn-secondary">Read More Case Studies →</a>
         </div>
+      </div>
+    </section>
+  );
+}
+
+// ── LinkedIn Post ─────────────────────────────────────────────────────────────
+export function LinkedInPost() {
+  return (
+    <section className="reveal" style={{ padding: '48px 0', background: 'var(--bg)' }}>
+      <div className="container-wide" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+        <div className="section-label">Featured On</div>
+        <h2 className="section-title" style={{ marginBottom: '4px' }}>See Us in Action</h2>
+        <style>{`
+          @keyframes li-float {
+            0%,100% { transform: translateY(0px);    box-shadow: 0 0 24px 4px rgba(0,177,79,0.25), 0 4px 32px rgba(0,0,0,0.3); }
+            50%      { transform: translateY(-12px);  box-shadow: 0 0 48px 12px rgba(0,177,79,0.45), 0 24px 48px rgba(0,0,0,0.25); }
+          }
+        `}</style>
+        <div
+          className="li-scroll-wrap"
+          style={{
+            borderRadius: '16px',
+            overflow: 'hidden',
+            border: '1px solid rgba(0,177,79,0.4)',
+            animation: 'li-float 4s ease-in-out infinite',
+            maxWidth: '750px',
+            width: '100%',
+          }}
+        >
+          <iframe
+            src="https://www.linkedin.com/embed/feed/update/urn:li:ugcPost:7474370924306120704?compact=1"
+            height="520"
+            width="750"
+            frameBorder={0}
+            allowFullScreen
+            title="Embedded post"
+            style={{ display: 'block', width: '100%' }}
+          />
+        </div>
+        <a
+          href="https://www.linkedin.com/feed/update/urn:li:ugcPost:7474370924306120704"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: '13px', color: '#0A66C2', fontWeight: 600, textDecoration: 'none' }}
+        >
+          View on LinkedIn →
+        </a>
       </div>
     </section>
   );
