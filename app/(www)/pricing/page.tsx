@@ -5,10 +5,9 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import Navbar from "@/components/layout/Navbar"
 import Footer from "@/components/layout/Footer"
 import { getAppUrl } from "@/lib/domain-config"
-import { Check, ArrowRight, Info, X, UserCircle, LogOut, ChevronDown } from "lucide-react"
+import { Check, ArrowRight, Info, X, UserCircle } from "lucide-react"
 
 type BillingCycle = 'monthly' | 'annual'
 
@@ -352,31 +351,16 @@ export default function PricingPage() {
   const isAppContext = !!companyId
 
   return (
-    <div className="min-h-screen bg-white">
-      {!isAppContext && <Navbar />}
-
-      {/* App-context navbar — logo left, profile dropdown right */}
-      {isAppContext && (
-        <header className="sticky top-0 z-40 bg-white border-b border-gray-100">
-          <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 h-16 flex items-center justify-between">
-            {/* Logo */}
-            <h1 className="text-2xl font-bold">
-              <span className="text-slate-800">Hire</span>
-              <span className="sr-text-gradient">GenAI</span>
-            </h1>
-
-            {/* Profile button — go to settings */}
-            <a
-              href={getAppUrl('/settings?tab=payment')}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-gray-100 transition-colors"
-            >
-              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-                <UserCircle className="h-5 w-5 text-emerald-600" />
-              </div>
-            </a>
-          </div>
-        </header>
-      )}
+    <div className="min-h-screen bg-white pt-16">
+      {/* Minimal fixed header — logo only, no nav links, no CTA */}
+      <header style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, background: '#fff', borderBottom: '1px solid #e5e7eb', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px' }}>
+        <span style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.02em', userSelect: 'none' }}>
+          <span style={{ color: '#1e293b' }}>Hire</span><span style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>GenAI</span>
+        </span>
+        <a href={getAppUrl('/settings?tab=payment')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', background: '#f0fdf4', color: '#16a34a', textDecoration: 'none' }} title="Billing Settings">
+          <UserCircle size={22} />
+        </a>
+      </header>
 
       {checkoutError && (
         <div className="max-w-xl mx-auto mt-4 px-4">
