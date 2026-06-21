@@ -351,16 +351,7 @@ export default function PricingPage() {
   const isAppContext = !!companyId
 
   return (
-    <div className="min-h-screen bg-white pt-16">
-      {/* Minimal fixed header — logo only, no nav links, no CTA */}
-      <header style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, background: '#fff', borderBottom: '1px solid #e5e7eb', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px' }}>
-        <span style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.02em', userSelect: 'none' }}>
-          <span style={{ color: '#1e293b' }}>Hire</span><span style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>GenAI</span>
-        </span>
-        <a href={getAppUrl('/settings?tab=payment')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', background: '#f0fdf4', color: '#16a34a', textDecoration: 'none' }} title="Billing Settings">
-          <UserCircle size={22} />
-        </a>
-      </header>
+    <div className="min-h-screen bg-white">
 
       {checkoutError && (
         <div className="max-w-xl mx-auto mt-4 px-4">
@@ -371,7 +362,16 @@ export default function PricingPage() {
       )}
 
       {/* ── Header ── */}
-      <section className="sr-hero-bg py-11 text-center px-4">
+      <section className="sr-hero-bg pt-2 pb-11 text-center px-4">
+        {/* logo + settings merged into hero — no separate navbar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: '1200px', margin: '0 auto 28px', padding: '0 8px' }}>
+          <span style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.02em', userSelect: 'none' }}>
+            <span style={{ color: '#1e293b' }}>Hire</span><span style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>GenAI</span>
+          </span>
+          <a href={getAppUrl('/settings?tab=payment')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(22,163,74,0.1)', color: '#16a34a', textDecoration: 'none' }} title="Billing Settings">
+            <UserCircle size={22} />
+          </a>
+        </div>
         <span className="inline-block text-xs font-bold tracking-widest uppercase text-emerald-700 bg-emerald-50 border border-emerald-200 px-5 py-1.5 rounded-full mb-4">
           ⚡ AI Recruiting OS · Full ATS + AI Interview
         </span>
