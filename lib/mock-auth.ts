@@ -643,7 +643,10 @@ export class MockAuthService {
         }
         // Set cookie with 1 hour expiry to match session timeout
         const expires = new Date(Date.now() + 60 * 60 * 1000).toUTCString()
-        document.cookie = `session=${encodeURIComponent(JSON.stringify(cookieData))}; path=/; expires=${expires}; SameSite=Lax`
+        // Use root domain so cookie is shared across app. and www. subdomains
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        const domainPart = isLocalhost ? '' : `; domain=.${window.location.hostname.split('.').slice(-2).join('.')}`
+        document.cookie = `session=${encodeURIComponent(JSON.stringify(cookieData))}; path=/; expires=${expires}; SameSite=Lax${domainPart}`
         console.log('🍪 Session synced to cookie for user:', currentUser.user.email)
       }
     } catch (e) {
@@ -654,7 +657,9 @@ export class MockAuthService {
   // Clear session cookie
   static clearSessionCookie() {
     if (typeof window === "undefined") return
-    document.cookie = 'session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    const domainPart = isLocalhost ? '' : `; domain=.${window.location.hostname.split('.').slice(-2).join('.')}`
+    document.cookie = `session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT${domainPart}`
     console.log('🍪 Session cookie cleared')
   }
 }
