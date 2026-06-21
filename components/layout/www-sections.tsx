@@ -31,57 +31,95 @@ export function Hero() {
 
 // ── Product Preview ───────────────────────────────────────────────────────────
 export function ProductPreview() {
+  const [visible, setVisible] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const ref = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    // load storylane script
+    if (!document.querySelector('script[src*="storylane.io"]')) {
+      const s = document.createElement('script');
+      s.src = 'https://js.storylane.io/js/v2/storylane.js';
+      s.async = true;
+      document.head.appendChild(s);
+    }
+    // mobile check
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    // intersection observer for slide-up animation
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.1 });
+    if (ref.current) obs.observe(ref.current);
+    return () => { window.removeEventListener('resize', check); obs.disconnect(); };
+  }, []);
+
   return (
-    <section className="product-preview">
+    <section
+      ref={ref}
+      className="product-preview"
+      style={{ paddingBottom: '80px' }}
+    >
       <div className="container-wide">
-        <div className="preview-wrapper float">
-          <div className="preview-bar">
-            <div className="preview-dot"/><div className="preview-dot"/><div className="preview-dot"/>
-            <div className="preview-url">app.hiregenai.com / pipeline</div>
-          </div>
-          <div className="preview-content">
-            <div className="preview-sidebar">
-              <div className="preview-sidebar-logo">⚡ Hire-GenAI</div>
-              <div style={{ fontSize:'8px', fontWeight:700, color:'rgba(255,255,255,0.3)', letterSpacing:'0.1em', padding:'8px 12px 4px', textTransform:'uppercase' }}>MAIN</div>
-              {['Dashboard','Applications','Job Postings','Talent Pool'].map((item,i) => (
-                <div key={item} className={`preview-nav-item${i===0?' active':''}`}><div className="preview-nav-icon"/>{item}</div>
-              ))}
-              <div style={{ fontSize:'8px', fontWeight:700, color:'rgba(255,255,255,0.3)', letterSpacing:'0.1em', padding:'8px 12px 4px', textTransform:'uppercase' }}>MANAGEMENT</div>
-              {['Delegation','Support','Settings'].map((item) => (
-                <div key={item} className="preview-nav-item"><div className="preview-nav-icon"/>{item}</div>
-              ))}
+        <div
+          style={{
+            transition: 'opacity 0.8s ease, transform 0.8s ease',
+            opacity: visible ? 1 : 0,
+            transform: visible ? 'translateY(0)' : 'translateY(60px)',
+          }}
+        >
+          {isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+              <p style={{ color: 'var(--muted)', fontSize: '1rem', margin: 0 }}>
+                Click below for an interactive product tour
+              </p>
+              <button
+                onClick={() => (window as any).Storylane?.Play({ type: 'popup', demo_type: 'image', width: 1550, height: 895, scale: '0.95', demo_url: 'https://app.storylane.io/demo/kx2z3fuhmzqd?embed=popup', padding_bottom: 'calc(57.74% + 25px)' })}
+                style={{
+                  backgroundColor: '#22c55e', border: 'none', borderRadius: '8px',
+                  boxShadow: '0px 0px 20px rgba(34,197,94,0.35)', color: '#000',
+                  fontFamily: 'inherit', fontSize: '18px', fontWeight: 700,
+                  height: '52px', padding: '0 32px', cursor: 'pointer',
+                }}
+              >
+                TAKE A TOUR →
+              </button>
             </div>
-            <div className="preview-main">
-              <div className="preview-header">
-                <div className="preview-title-sm">📊 Hiring Pipeline — Senior Engineers</div>
-                <div className="preview-btn-sm">+ Add Candidate</div>
-              </div>
-              <div className="preview-pipeline">
-                {[
-                  { title:'Applied (24)', cards:[['Alex Johnson','Full Stack Engineer','94%'],['Sarah Chen','React Developer','88%']] },
-                  { title:'Screened (11)', cards:[['Marcus Davis','Backend Engineer','76%',true],['Priya Sharma','DevOps Engineer','91%']] },
-                  { title:'Interview (6)', cards:[['James Wilson','Platform Engineer','96%']] },
-                  { title:'Offer (2)', cards:[['Emily Rodriguez','Staff Engineer','98%']] },
-                ].map(col => (
-                  <div key={col.title} className="preview-col">
-                    <div className="preview-col-title">{col.title}</div>
-                    {col.cards.map(([name,role,score,med], i) => (
-                      <div key={`${col.title}-${i}`} className="preview-card">
-                        <div className="preview-card-name">{name}</div>
-                        <div className="preview-card-role">{role}</div>
-                        <div className={`preview-score${med?' medium':''}`}>AI Score: {score}</div>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-              <div className="preview-metrics">
-                {[['9 days','Avg. Time to Hire'],['4.8/5','Candidate NPS'],['92%','Offer Acceptance']].map(([v,l]) => (
-                  <div key={l} className="preview-metric"><div className="preview-metric-val">{v}</div><div className="preview-metric-label">{l}</div></div>
-                ))}
+          ) : (
+            /* wrapper matches old preview-wrapper: green glow + float animation */
+            <div
+              className="float"
+              style={{
+                position: 'relative',
+                maxWidth: '1100px',
+                margin: '0 auto',
+                borderRadius: '20px',
+                overflow: 'hidden',
+                border: '1px solid rgba(0,177,79,0.35)',
+                boxShadow: '0 40px 100px rgba(0,0,0,0.6), 0 0 60px rgba(0,177,79,0.3)',
+              }}
+            >
+              <div
+                className="sl-embed"
+                style={{ position: 'relative', paddingBottom: 'calc(57.74% + 25px)', width: '100%', height: 0, transform: 'scale(1)' }}
+              >
+                <iframe
+                  loading="lazy"
+                  className="sl-demo"
+                  src="https://app.storylane.io/demo/kx2z3fuhmzqd?embed=inline"
+                  name="sl-embed"
+                  allow="fullscreen"
+                  allowFullScreen
+                  style={{
+                    position: 'absolute', top: 0, left: 0,
+                    width: '100%', height: '100%',
+                    border: 'none',
+                    boxSizing: 'border-box',
+                    display: 'block',
+                  }}
+                />
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </section>
