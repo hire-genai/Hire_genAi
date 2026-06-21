@@ -939,6 +939,44 @@ export function Testimonials() {
   );
 }
 
+// ── LinkedIn Post ─────────────────────────────────────────────────────────────
+export function LinkedInPost() {
+  return (
+    <section className="reveal" style={{ padding: '48px 0', background: 'var(--bg)' }}>
+      <div className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+        <div className="section-label">Featured On</div>
+        <h2 className="section-title" style={{ marginBottom: '4px' }}>See Us in Action</h2>
+        <div style={{
+          borderRadius: '16px',
+          overflow: 'hidden',
+          border: '1px solid var(--border)',
+          boxShadow: '0 4px 32px rgba(0,0,0,0.25)',
+          maxWidth: '504px',
+          width: '100%',
+        }}>
+          <iframe
+            src="https://www.linkedin.com/embed/feed/update/urn:li:ugcPost:7474370924306120704"
+            height="600"
+            width="100%"
+            frameBorder={0}
+            allowFullScreen
+            title="Hire-GenAI LinkedIn post"
+            style={{ display: 'block' }}
+          />
+        </div>
+        <a
+          href="https://www.linkedin.com/feed/update/urn:li:ugcPost:7474370924306120704"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: '13px', color: '#0A66C2', fontWeight: 600, textDecoration: 'none' }}
+        >
+          View on LinkedIn →
+        </a>
+      </div>
+    </section>
+  );
+}
+
 // ── Company ───────────────────────────────────────────────────────────────────
 export function Company() {
   return (

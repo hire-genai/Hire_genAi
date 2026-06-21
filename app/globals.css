@@ -1210,3 +1210,10 @@ html { scroll-behavior: smooth; }
   .chatbot-toggle.open { display:none; }
 }
 
+
+
+.li-scroll-wrap { scrollbar-width: none; }
+.li-scroll-wrap::-webkit-scrollbar { width: 4px; background: transparent; }
+.li-scroll-wrap::-webkit-scrollbar-thumb { background: transparent; border-radius: 99px; }
+.li-scroll-wrap:hover { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent; }
+.li-scroll-wrap:hover::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); }

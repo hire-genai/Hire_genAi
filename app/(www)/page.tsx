@@ -1,5 +1,5 @@
 import { WwwNavbar } from '@/components/layout/www-nav';
-import { Hero, ProductPreview, TrustBar, Metrics, Features, DemoSection, ROISimulator, ROIAssessment, Pricing, TrustBanner, Testimonials, Company, FinalCTA, RevealObserver } from '@/components/layout/www-sections';
+import { Hero, ProductPreview, TrustBar, Metrics, Features, DemoSection, ROISimulator, ROIAssessment, Pricing, TrustBanner, Testimonials, LinkedInPost, Company, FinalCTA, RevealObserver } from '@/components/layout/www-sections';
 import WwwFooter from '@/components/layout/www-footer';
 
 export default function HomePage() {
@@ -16,6 +16,7 @@ export default function HomePage() {
         <Features />
         <DemoSection />
         <ROISimulator />
+        <LinkedInPost />
         <ROIAssessment />
         <Pricing />
         <Testimonials />
