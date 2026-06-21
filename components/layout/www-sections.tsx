@@ -943,25 +943,34 @@ export function Testimonials() {
 export function LinkedInPost() {
   return (
     <section className="reveal" style={{ padding: '48px 0', background: 'var(--bg)' }}>
-      <div className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+      <div className="container-wide" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
         <div className="section-label">Featured On</div>
         <h2 className="section-title" style={{ marginBottom: '4px' }}>See Us in Action</h2>
-        <div style={{
-          borderRadius: '16px',
-          overflow: 'hidden',
-          border: '1px solid var(--border)',
-          boxShadow: '0 4px 32px rgba(0,0,0,0.25)',
-          maxWidth: '504px',
-          width: '100%',
-        }}>
+        <style>{`
+          @keyframes li-float {
+            0%,100% { transform: translateY(0px);    box-shadow: 0 0 24px 4px rgba(0,177,79,0.25), 0 4px 32px rgba(0,0,0,0.3); }
+            50%      { transform: translateY(-12px);  box-shadow: 0 0 48px 12px rgba(0,177,79,0.45), 0 24px 48px rgba(0,0,0,0.25); }
+          }
+        `}</style>
+        <div
+          className="li-scroll-wrap"
+          style={{
+            borderRadius: '16px',
+            overflow: 'hidden',
+            border: '1px solid rgba(0,177,79,0.4)',
+            animation: 'li-float 4s ease-in-out infinite',
+            maxWidth: '750px',
+            width: '100%',
+          }}
+        >
           <iframe
-            src="https://www.linkedin.com/embed/feed/update/urn:li:ugcPost:7474370924306120704"
-            height="600"
-            width="100%"
+            src="https://www.linkedin.com/embed/feed/update/urn:li:ugcPost:7474370924306120704?compact=1"
+            height="520"
+            width="750"
             frameBorder={0}
             allowFullScreen
-            title="Hire-GenAI LinkedIn post"
-            style={{ display: 'block' }}
+            title="Embedded post"
+            style={{ display: 'block', width: '100%' }}
           />
         </div>
         <a
