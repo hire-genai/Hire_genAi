@@ -61,10 +61,9 @@ export async function GET(req: NextRequest) {
        FROM job_postings jp
        LEFT JOIN companies c ON c.id = jp.company_id
        LEFT JOIN (
-        SELECT a.job_id, COUNT(i.id) as interview_count
-        FROM applications a
-        JOIN interviews i ON i.application_id = a.id
-        GROUP BY a.job_id
+        SELECT job_id, COUNT(*) as interview_count
+        FROM video_interview_usage
+        GROUP BY job_id
        ) app_counts ON app_counts.job_id = jp.id
        LEFT JOIN (
         SELECT job_id, COUNT(*) as application_count

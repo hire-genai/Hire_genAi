@@ -643,7 +643,7 @@ export default function JobsPage() {
 
 									<div className="flex gap-2">
 										{/* Share / Get JD Link Button */}
-										{job.status === 'open' && (
+										{job.status !== 'draft' && (
 											<Button 
 												variant="outline" 
 												size="sm"

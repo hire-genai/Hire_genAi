@@ -547,7 +547,11 @@ export async function POST(request: NextRequest) {
           applicationId: applicationId || undefined,
           fileSizeKb: Math.round(file.size / 1024),
           parseSuccessful: true,
-          successRate: parsed.skills && parsed.skills.length > 0 ? 95 : 80
+          successRate: parsed.skills && parsed.skills.length > 0 ? 95 : 80,
+          apiKeySource: companyOpenAIKey ? 'database' : 'env',
+          promptTokens: parsed.usage?.promptTokens,
+          completionTokens: parsed.usage?.completionTokens,
+          modelUsed: parsed.usage ? 'gpt-4o' : undefined,
         })
         console.log('[Resume Parse] Billing tracking completed')
       } catch (billingErr) {

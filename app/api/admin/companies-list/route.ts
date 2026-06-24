@@ -58,7 +58,11 @@ export async function GET(req: NextRequest) {
         cs.plan_name,
         cs.status as subscription_status,
         cs.next_billing_time,
-        cs.cancel_at_cycle_end
+        cs.cancel_at_cycle_end,
+        COALESCE(est.ai_revenue, 0) as ai_revenue,
+        COALESCE(est.estimated_openai_cost, 0) as estimated_openai_cost,
+        COALESCE(act.actual_openai_cost, 0) as actual_openai_cost,
+        COALESCE(act.token_estimated_cost, 0) as token_estimated_cost
        FROM companies c
        LEFT JOIN company_billing cb ON cb.company_id = c.id
        LEFT JOIN (
@@ -76,6 +80,27 @@ export async function GET(req: NextRequest) {
            CASE cs2.status WHEN 'active' THEN 0 WHEN 'authenticated' THEN 1 WHEN 'created' THEN 2 ELSE 3 END
          LIMIT 1
        ) cs ON TRUE
+       LEFT JOIN (
+         SELECT company_id,
+           SUM(cost) as ai_revenue,
+           SUM(COALESCE(openai_base_cost, cost * 0.7)) as estimated_openai_cost
+         FROM (
+           SELECT company_id, cost, openai_base_cost FROM cv_parsing_usage
+           UNION ALL
+           SELECT company_id, cost, openai_base_cost FROM question_generation_usage
+           UNION ALL
+           SELECT company_id, cost, openai_base_cost FROM video_interview_usage
+         ) usage_all
+         GROUP BY company_id
+       ) est ON est.company_id = c.id
+       LEFT JOIN (
+         SELECT company_id,
+           SUM(CASE WHEN cost_source = 'costs_api'      THEN amount_usd ELSE 0 END) as actual_openai_cost,
+           SUM(CASE WHEN cost_source = 'usage_estimate' THEN amount_usd ELSE 0 END) as token_estimated_cost
+         FROM openai_cost_sync
+         WHERE company_id IS NOT NULL
+         GROUP BY company_id
+       ) act ON act.company_id = c.id
        ${whereClause}
        ORDER BY c.created_at DESC`,
       params
@@ -104,6 +129,18 @@ export async function GET(req: NextRequest) {
         userCount: Number(r.user_count ?? 0),
         jobCount: Number(r.job_count ?? 0),
         createdAt: r.created_at,
+        aiRevenue: parseFloat(String(r.ai_revenue ?? "0")),
+        estimatedOpenaiCost: parseFloat(String(r.estimated_openai_cost ?? "0")),
+        actualOpenaiCost: parseFloat(String(r.actual_openai_cost ?? "0")),
+        tokenEstimatedCost: parseFloat(String(r.token_estimated_cost ?? "0")),
+        // Source priority: actual (Costs API) → token estimate (Usage API) → formula (70%)
+        openaiCostSource: parseFloat(String(r.actual_openai_cost ?? "0")) > 0
+          ? "actual"
+          : parseFloat(String(r.token_estimated_cost ?? "0")) > 0
+          ? "usage_estimate"
+          : parseFloat(String(r.estimated_openai_cost ?? "0")) > 0
+          ? "formula_estimate"
+          : "none",
       }
     })
 

@@ -82,16 +82,6 @@ export async function GET(
       )
     }
 
-    // Note: application_deadline field exists but doesn't auto-close jobs
-
-    // Validate job status (must be open/published/draft for preview)
-    if (job.status !== 'open' && job.status !== 'published' && job.status !== 'draft') {
-      return NextResponse.json(
-        { error: 'This job is no longer accepting applications' },
-        { status: 403 }
-      )
-    }
-
     // Check if screening is enabled
     const screeningEnabled = job.enable_screening_questions === true
     let screeningConfig = job.screening_questions || {}

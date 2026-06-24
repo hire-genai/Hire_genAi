@@ -3267,13 +3267,17 @@ export class DatabaseService {
     parseSuccessful?: boolean
     successRate?: number
     apiKeySource?: 'database' | 'env' // Track where OpenAI key came from
+    // OpenAI token usage (optional — when provided, computes actual cost)
+    promptTokens?: number
+    completionTokens?: number
+    modelUsed?: string
   }) {
     if (!this.isDatabaseConfigured()) {
       throw new Error('Database not configured')
     }
 
     const apiKeySourceLabel = data.apiKeySource === 'database' ? 'Company Service Account (Database)' : '.env file'
-    
+
     console.log('\n' + '='.repeat(70))
     console.log('🎯 [CV PARSING] Starting billing calculation...')
     console.log('📋 Company ID:', data.companyId)
@@ -3284,13 +3288,37 @@ export class DatabaseService {
     console.log('🔑 OpenAI API Key Source:', apiKeySourceLabel)
     console.log('='.repeat(70))
 
-    // Get pricing from .env file ONLY (no OpenAI API, no external sources)
+    // Customer-facing price from .env (unchanged — this is the revenue side)
     const { getCVParsingCost } = await import('./config')
     const cvCost = getCVParsingCost()
-    
-    console.log('💰 [CV PARSING] Using pricing: $' + cvCost.toFixed(2) + ' (from COST_PER_CV_PARSING)')
-    
+
+    console.log('💰 [CV PARSING] Customer price: $' + cvCost.toFixed(4) + ' (from COST_PER_CV_PARSING)')
+
     const finalCost = cvCost
+
+    // Compute REAL OpenAI cost from token usage (the expense side)
+    const modelForCost = data.modelUsed || 'gpt-4o'
+    const promptTokens = data.promptTokens || 0
+    const completionTokens = data.completionTokens || 0
+    const totalTokens = promptTokens + completionTokens
+    let openaiBaseCost: number = 0
+    let pricingSource: string = 'token-based'
+    if (totalTokens > 0) {
+      try {
+        const { calculateOpenAICost } = await import('./openai-cost')
+        const calc = await calculateOpenAICost(modelForCost, promptTokens, completionTokens)
+        openaiBaseCost = calc.totalCost
+        pricingSource = calc.pricingSource === 'model-catalog' ? 'token-based' : 'token-based-fallback'
+        console.log('💸 [CV PARSING] OpenAI cost: $' + openaiBaseCost.toFixed(6) + ` (in=${promptTokens}, out=${completionTokens}, model=${modelForCost})`)
+      } catch (e) {
+        console.warn('[CV PARSING] cost calc failed, falling back to 0:', e)
+      }
+    } else {
+      // Legacy path — no tokens captured; admin queries fall back to 70% estimate
+      console.log('⚠️  [CV PARSING] No token usage provided — openai_base_cost will be NULL (legacy 70% fallback applies in analytics)')
+      pricingSource = 'legacy-no-tokens'
+    }
+    const profitMargin = finalCost > 0 ? ((finalCost - openaiBaseCost) / finalCost) * 100 : 0
     
     // If applicationId is provided but not candidateId, lookup candidateId from application
     let resolvedCandidateId = data.candidateId
@@ -3314,12 +3342,14 @@ export class DatabaseService {
         company_id, job_id, candidate_id, file_id, file_size_kb,
         parse_successful, unit_price, cost, success_rate,
         openai_base_cost, pricing_source, tokens_used, profit_margin_percent,
+        prompt_tokens, completion_tokens, model_used,
         created_at
       )
       VALUES (
         $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5,
         $6, $7, $8, $9,
         $10, $11, $12, $13,
+        $14, $15, $16,
         NOW()
       )
       RETURNING *
@@ -3332,13 +3362,16 @@ export class DatabaseService {
       data.fileId || null,
       data.fileSizeKb || 0,
       data.parseSuccessful !== false,
-      cvCost, // unit_price from .env
-      finalCost, // cost (same as unit_price, no markup)
+      cvCost,                                         // unit_price (customer)
+      finalCost,                                      // cost (customer-charged)
       data.successRate || null,
-      cvCost, // openai_base_cost (using env value, no OpenAI API)
-      'env-config', // pricing_source - from .env file
-      null, // tokens_used - not applicable for env pricing
-      0 // profit_margin_percent - no margin
+      totalTokens > 0 ? openaiBaseCost : null,        // openai_base_cost — REAL OpenAI cost
+      pricingSource,                                  // pricing_source
+      totalTokens > 0 ? totalTokens : null,           // tokens_used
+      totalTokens > 0 ? profitMargin : null,          // profit_margin_percent
+      promptTokens || null,
+      completionTokens || null,
+      totalTokens > 0 ? modelForCost : null,
     ]) as any[]
 
     console.log('💾 [CV PARSING] Saved usage record for candidate:', resolvedCandidateId)
@@ -3493,23 +3526,47 @@ export class DatabaseService {
     console.log('❓ Questions Generated:', data.questionCount)
     console.log('='.repeat(70))
 
-    // Get pricing from .env file ONLY (no OpenAI API, no external sources)
+    // Customer-facing price from .env (revenue side — unchanged)
     const { getQuestionGenerationCostPer10 } = await import('./config')
     const costPer10Questions = getQuestionGenerationCostPer10()
     const finalCost = (data.questionCount / 10) * costPer10Questions
-    
-    console.log('💰 [QUESTION GENERATION] Using .env pricing: $' + costPer10Questions.toFixed(2) + ' per 10 questions (COST_PER_10_QUESTIONS)')
-    console.log('💵 [QUESTION GENERATION] Total cost: $' + finalCost.toFixed(2) + ' for ' + data.questionCount + ' questions')
+
+    console.log('💰 [QUESTION GENERATION] Customer price: $' + costPer10Questions.toFixed(2) + ' per 10 questions (COST_PER_10_QUESTIONS)')
+    console.log('💵 [QUESTION GENERATION] Total customer cost: $' + finalCost.toFixed(4) + ' for ' + data.questionCount + ' questions')
+
+    // Compute REAL OpenAI cost from token usage (expense side)
+    const modelForCost = data.modelUsed || 'gpt-4o'
+    let openaiBaseCost = 0
+    let pricingSource = 'token-based'
+    if (totalTokens > 0) {
+      try {
+        const { calculateOpenAICost } = await import('./openai-cost')
+        const calc = await calculateOpenAICost(modelForCost, data.promptTokens, data.completionTokens)
+        openaiBaseCost = calc.totalCost
+        pricingSource = calc.pricingSource === 'model-catalog' ? 'token-based' : 'token-based-fallback'
+        console.log('💸 [QUESTION GENERATION] OpenAI cost: $' + openaiBaseCost.toFixed(6) + ` (in=${data.promptTokens}, out=${data.completionTokens}, model=${modelForCost})`)
+      } catch (e) {
+        console.warn('[QUESTION GENERATION] cost calc failed:', e)
+      }
+    } else {
+      pricingSource = 'legacy-no-tokens'
+      console.log('⚠️  [QUESTION GENERATION] No tokens provided — openai_base_cost NULL (analytics will fall back to 70% estimate)')
+    }
+    const profitMargin = finalCost > 0 ? ((finalCost - openaiBaseCost) / finalCost) * 100 : 0
 
     const query = `
       INSERT INTO question_generation_usage (
         company_id, job_id, draft_job_id, prompt_tokens, completion_tokens,
-        total_tokens, question_count, cost, model_used, created_at
+        total_tokens, question_count, cost, model_used,
+        openai_base_cost, profit_margin_percent, pricing_source,
+        created_at
       )
       VALUES (
-        $1::uuid, 
+        $1::uuid,
         CASE WHEN $2::text IS NULL OR $2::text = '' THEN NULL ELSE $2::uuid END,
-        $3, $4, $5, $6, $7, $8, $9, NOW()
+        $3, $4, $5, $6, $7, $8, $9,
+        $10, $11, $12,
+        NOW()
       )
       RETURNING *
     `
@@ -3523,7 +3580,10 @@ export class DatabaseService {
       totalTokens,
       data.questionCount,
       finalCost,
-      data.modelUsed || 'gpt-4o'
+      modelForCost,
+      totalTokens > 0 ? openaiBaseCost : null,
+      totalTokens > 0 ? profitMargin : null,
+      pricingSource,
     ]) as any[]
 
     console.log('💾 [QUESTION GENERATION] Cost stored in database successfully')
@@ -3724,6 +3784,10 @@ export class DatabaseService {
     completedQuestions?: number
     totalQuestions?: number
     videoQuality?: string
+    // OpenAI usage (optional — when Azure Realtime emits usage events, pass them here)
+    promptTokens?: number
+    completionTokens?: number
+    modelUsed?: string
   }) {
     if (!this.isDatabaseConfigured()) {
       throw new Error('Database not configured')
@@ -3738,26 +3802,70 @@ export class DatabaseService {
     console.log('⏱️  Duration:', data.durationMinutes, 'minutes')
     console.log('='.repeat(70))
 
-    // Get pricing from .env file ONLY (no OpenAI API, no external sources)
+    // Customer-facing price from .env (revenue side — unchanged)
     const { getVideoInterviewCostPerMinute } = await import('./config')
     const costPerMinute = getVideoInterviewCostPerMinute()
     const finalCost = costPerMinute * (data.durationMinutes || 1)
-    
-    console.log('💰 [VIDEO INTERVIEW] Using .env pricing: $' + costPerMinute.toFixed(2) + '/min (COST_PER_VIDEO_MINUTE)')
-    console.log('💵 [VIDEO INTERVIEW] Total cost: $' + finalCost.toFixed(2) + ' for ' + data.durationMinutes + ' minutes')
-    
+
+    console.log('💰 [VIDEO INTERVIEW] Customer price: $' + costPerMinute.toFixed(2) + '/min (COST_PER_VIDEO_MINUTE)')
+    console.log('💵 [VIDEO INTERVIEW] Total customer cost: $' + finalCost.toFixed(4) + ' for ' + data.durationMinutes + ' minutes')
+
+    // Real OpenAI cost — Azure Realtime API doesn't emit usage events synchronously here.
+    // If a future ingestion path passes prompt/completion tokens, use them; otherwise
+    // fall back to a per-minute estimate from the model_pricing catalog.
+    const realtimeModel = (data as any).modelUsed || 'gpt-4o-realtime-preview'
+    const inboundPromptTokens = (data as any).promptTokens as number | undefined
+    const inboundCompletionTokens = (data as any).completionTokens as number | undefined
+    let openaiBaseCost = 0
+    let pricingSource: string = 'minute-fallback'
+    let tokensUsed: number | null = null
+    let promptTokensCol: number | null = null
+    let completionTokensCol: number | null = null
+    let modelUsedCol: string | null = null
+    if (typeof inboundPromptTokens === 'number' && typeof inboundCompletionTokens === 'number' &&
+        (inboundPromptTokens + inboundCompletionTokens) > 0) {
+      try {
+        const { calculateOpenAICost } = await import('./openai-cost')
+        const calc = await calculateOpenAICost(realtimeModel, inboundPromptTokens, inboundCompletionTokens)
+        openaiBaseCost = calc.totalCost
+        pricingSource = calc.pricingSource === 'model-catalog' ? 'token-based' : 'token-based-fallback'
+        tokensUsed = calc.totalTokens
+        promptTokensCol = inboundPromptTokens
+        completionTokensCol = inboundCompletionTokens
+        modelUsedCol = realtimeModel
+        console.log('💸 [VIDEO INTERVIEW] OpenAI cost (token-based): $' + openaiBaseCost.toFixed(6))
+      } catch (e) {
+        console.warn('[VIDEO INTERVIEW] token cost calc failed, falling back to minute estimate:', e)
+      }
+    }
+    if (openaiBaseCost === 0) {
+      try {
+        const { estimateRealtimeMinuteCost } = await import('./openai-cost')
+        const est = await estimateRealtimeMinuteCost(realtimeModel, data.durationMinutes || 0)
+        openaiBaseCost = est.cost
+        pricingSource = est.pricingSource === 'model-catalog-per-minute' ? 'minute-catalog' : 'minute-fallback'
+        modelUsedCol = realtimeModel
+        console.log('💸 [VIDEO INTERVIEW] OpenAI cost (minute fallback): $' + openaiBaseCost.toFixed(6) + ` (${data.durationMinutes} min × catalog rate)`)
+      } catch (e) {
+        console.warn('[VIDEO INTERVIEW] minute estimate failed:', e)
+      }
+    }
+    const profitMargin = finalCost > 0 ? ((finalCost - openaiBaseCost) / finalCost) * 100 : 0
+
     const query = `
       INSERT INTO video_interview_usage (
         company_id, job_id, interview_id, candidate_id,
         duration_minutes, video_quality, minute_price, cost,
         completed_questions, total_questions,
         openai_base_cost, pricing_source, tokens_used, profit_margin_percent,
+        prompt_tokens, completion_tokens, model_used,
         created_at
       )
       VALUES (
         $1::uuid, $2::uuid, $3::uuid, $4::uuid,
         $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14,
+        $15, $16, $17,
         NOW()
       )
       RETURNING *
@@ -3770,14 +3878,17 @@ export class DatabaseService {
       data.candidateId || null,
       data.durationMinutes,
       data.videoQuality || 'HD',
-      costPerMinute, // minute_price from .env
-      finalCost, // cost (duration * minute_price)
+      costPerMinute,
+      finalCost,
       data.completedQuestions || 0,
       data.totalQuestions || 0,
-      finalCost, // openai_base_cost (using env value, no OpenAI API)
-      'env-config', // pricing_source - from .env file
-      null, // tokens_used - not applicable for env pricing
-      0 // profit_margin_percent - no margin
+      openaiBaseCost,                  // REAL OpenAI cost (token-based or minute-catalog)
+      pricingSource,
+      tokensUsed,
+      profitMargin,
+      promptTokensCol,
+      completionTokensCol,
+      modelUsedCol,
     ]) as any[]
 
     console.log('💾 [VIDEO INTERVIEW] Cost stored in database successfully')

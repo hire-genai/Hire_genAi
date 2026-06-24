@@ -5,11 +5,11 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { 
-  Briefcase, 
-  MapPin, 
-  Clock, 
-  DollarSign, 
+import {
+  Briefcase,
+  MapPin,
+  Clock,
+  DollarSign,
   Calendar,
   GraduationCap,
   Languages,
@@ -18,7 +18,9 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle,
-  Send
+  Send,
+  PauseCircle,
+  XCircle
 } from 'lucide-react'
 
 interface JobData {
@@ -63,6 +65,7 @@ export default function PublicJobDescriptionPage() {
   const [job, setJob] = useState<JobData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showClosedMsg, setShowClosedMsg] = useState(false)
 
   useEffect(() => {
     async function fetchJob() {
@@ -138,6 +141,38 @@ export default function PublicJobDescriptionPage() {
   }
 
   const salaryDisplay = formatSalary(job.salaryMin, job.salaryMax, job.currency)
+  const isAcceptingApplications = job.status === 'open' || job.status === 'published'
+
+  const statusBanner = (() => {
+    switch (job.status) {
+      case 'onhold':
+        return {
+          icon: <PauseCircle className="h-5 w-5 shrink-0" />,
+          title: 'Applications Temporarily Paused',
+          message: 'This position is on hold. The company may reopen applications soon.',
+          bg: 'bg-amber-50 border-amber-200',
+          text: 'text-amber-800',
+        }
+      case 'closed':
+        return {
+          icon: <CheckCircle className="h-5 w-5 shrink-0" />,
+          title: 'Position Filled',
+          message: 'This role has been filled. Applications are no longer being accepted.',
+          bg: 'bg-slate-50 border-slate-200',
+          text: 'text-slate-700',
+        }
+      case 'cancelled':
+        return {
+          icon: <XCircle className="h-5 w-5 shrink-0" />,
+          title: 'Position Cancelled',
+          message: 'This job posting has been cancelled by the company.',
+          bg: 'bg-red-50 border-red-200',
+          text: 'text-red-700',
+        }
+      default:
+        return null
+    }
+  })()
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-emerald-50/40">
@@ -165,6 +200,17 @@ export default function PublicJobDescriptionPage() {
             </div>
           </div>
         </section>
+
+        {/* Status banner for non-open jobs */}
+        {statusBanner && (
+          <div className={`mb-6 flex items-start gap-3 rounded-xl border px-5 py-4 ${statusBanner.bg} ${statusBanner.text}`}>
+            {statusBanner.icon}
+            <div>
+              <p className="font-semibold">{statusBanner.title}</p>
+              <p className="text-sm mt-0.5 opacity-80">{statusBanner.message}</p>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
@@ -308,22 +354,47 @@ export default function PublicJobDescriptionPage() {
                 <p className="text-sm text-emerald-700">Apply for this position now</p>
               </div>
               <div className="p-6 space-y-4">
-                <Button 
-                  onClick={handleApply} 
+                <Button
+                  onClick={() => {
+                    if (!isAcceptingApplications) {
+                      setShowClosedMsg(true)
+                      return
+                    }
+                    handleApply()
+                  }}
                   className="w-full bg-emerald-600 hover:bg-emerald-600/90 text-white text-base px-5 py-3 rounded-md font-semibold shadow-lg hover:shadow-2xl ring-1 ring-transparent hover:ring-emerald-300 ring-offset-1 ring-offset-white motion-safe:transition-shadow motion-safe:duration-300"
                   size="lg"
                 >
                   <Send className="w-5 h-5 mr-2" />
                   Apply Now
                 </Button>
-                
+
+                {/* Shown only after clicking Apply on a closed job */}
+                {showClosedMsg && (
+                  <div className={`flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${
+                    job.status === 'onhold'    ? 'bg-amber-50 border-amber-200 text-amber-800' :
+                    job.status === 'cancelled' ? 'bg-red-50 border-red-200 text-red-700' :
+                                                 'bg-slate-50 border-slate-200 text-slate-700'
+                  }`}>
+                    {job.status === 'onhold'    ? <PauseCircle className="h-4 w-4 shrink-0 mt-0.5" /> :
+                     job.status === 'cancelled' ? <XCircle className="h-4 w-4 shrink-0 mt-0.5" /> :
+                                                  <CheckCircle className="h-4 w-4 shrink-0 mt-0.5" />}
+                    <span>
+                      {job.status === 'onhold'
+                        ? 'Applications are temporarily paused for this role.'
+                        : job.status === 'cancelled'
+                        ? 'This position has been cancelled.'
+                        : 'This position has already been filled.'}
+                    </span>
+                  </div>
+                )}
+
                 {job.applicationDeadline && (
                   <div className="flex items-center gap-2 text-sm text-slate-600">
                     <Calendar className="h-4 w-4 text-emerald-600" />
                     <span>Apply by {new Date(job.applicationDeadline).toLocaleDateString()}</span>
                   </div>
                 )}
-
                 {job.expectedStartDate && (
                   <div className="flex items-center gap-2 text-sm text-slate-600">
                     <Briefcase className="h-4 w-4 text-emerald-600" />
