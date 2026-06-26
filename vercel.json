@@ -6,7 +6,7 @@
   "crons": [
     {
       "path": "/api/admin/sync-openai-costs?lookbackDays=30",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 2 * * *"
     }
   ]
 }
