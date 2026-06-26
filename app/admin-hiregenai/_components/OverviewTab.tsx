@@ -19,6 +19,14 @@ import { StatCardGridLoader, Skeleton } from "@/components/ui/skeleton-loader"
 interface KPIs {
   totalRevenue: number; monthRevenue: number; revenueChange: number
   totalExpenses: number; netProfit: number; profitMarginPercent: number
+  // Two-source cost model
+  totalActualOpenaiCost?: number
+  totalEstimatedOpenaiCost?: number
+  canonicalOpenaiCost?: number
+  canonicalNetProfit?: number
+  canonicalMarginPercent?: number
+  costSource?: "actual" | "estimated"
+  companiesWithActual?: number
 }
 interface PlatformStats {
   companies: number; users: number; openJobs: number
@@ -29,9 +37,36 @@ interface UsageBreakdown {
   questions: { count: number; cost: number }
   videoInterviews: { count: number; cost: number; minutes: number }
 }
-interface TrendItem { date: string; revenue: number; expenses: number; profit: number }
+interface TrendItem { date: string; revenue: number; expenses: number; actualCost: number; openaiCost: number; profit: number }
 interface Alert { id: string; alertType: string; severity: string; title: string; description: string; createdAt: string }
-interface TopCompany { name: string; spend: number }
+interface TopCompany {
+  id?: string
+  name: string
+  openaiProjectId?: string | null
+  spend: number
+  revenue?: number
+  openaiCost?: number             // canonical (actual if synced, else estimated)
+  actualOpenaiCost?: number | null
+  estimatedOpenaiCost?: number
+  costSource?: "actual" | "estimated"
+  profit?: number
+  marginPercent?: number
+  tokens?: number
+}
+interface FeatureMetric {
+  count: number
+  revenue: number
+  openaiCost: number
+  profit: number
+  marginPercent: number
+  tokens: number
+  minutes?: number
+}
+interface FeatureProfitability {
+  cvParsing: FeatureMetric
+  jdGeneration: FeatureMetric
+  aiInterview: FeatureMetric
+}
 interface Company {
   id: string; name: string; billingStatus: string; subscriptionStatus: string | null
   planName: string | null; trialDaysLeft: number; walletBalance: number; createdAt: string
@@ -96,11 +131,19 @@ export default function OverviewTab({ onReady }: OverviewTabProps) {
   const [kpis, setKpis] = useState<KPIs>({ totalRevenue: 0, monthRevenue: 0, revenueChange: 0, totalExpenses: 0, netProfit: 0, profitMarginPercent: 20 })
   const [platformStats, setPlatformStats] = useState<PlatformStats>({ companies: 0, users: 0, openJobs: 0, completedInterviews: 0, newCompanies: 0 })
   const [usageBreakdown, setUsageBreakdown] = useState<UsageBreakdown>({ cvParses: { count: 0, cost: 0 }, questions: { count: 0, cost: 0 }, videoInterviews: { count: 0, cost: 0, minutes: 0 } })
+  const [featureProfit, setFeatureProfit] = useState<FeatureProfitability>({
+    cvParsing:    { count: 0, revenue: 0, openaiCost: 0, profit: 0, marginPercent: 0, tokens: 0 },
+    jdGeneration: { count: 0, revenue: 0, openaiCost: 0, profit: 0, marginPercent: 0, tokens: 0 },
+    aiInterview:  { count: 0, revenue: 0, openaiCost: 0, profit: 0, marginPercent: 0, tokens: 0, minutes: 0 },
+  })
   const [topCompanies, setTopCompanies] = useState<TopCompany[]>([])
   const [trend, setTrend] = useState<TrendItem[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [tickets, setTickets] = useState<TicketItem[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
 
   const fetchData = useCallback(async (startDateStr: string, endDateStr: string) => {
     setLoading(true)
@@ -117,9 +160,11 @@ export default function OverviewTab({ onReady }: OverviewTabProps) {
         setKpis(statsData.kpis)
         setPlatformStats(statsData.platformStats ?? { companies: 0, users: 0, openJobs: 0, completedInterviews: 0, newCompanies: 0 })
         setUsageBreakdown(statsData.usageBreakdown ?? { cvParses: { count: 0, cost: 0 }, questions: { count: 0, cost: 0 }, videoInterviews: { count: 0, cost: 0, minutes: 0 } })
+        if (statsData.featureProfitability) setFeatureProfit(statsData.featureProfitability)
         setTopCompanies(statsData.topCompanies ?? [])
         setTrend(statsData.trend ?? [])
         setAlerts(statsData.alerts ?? [])
+        setLastSyncedAt(statsData.lastSyncedAt ?? null)
       }
       if (ticketsData.success) setTickets(ticketsData.tickets ?? [])
       if (companiesData.ok) setCompanies(companiesData.companies ?? [])
@@ -163,7 +208,36 @@ export default function OverviewTab({ onReady }: OverviewTabProps) {
   const ltvCacRatio = ltv > 0 ? (ltv / cac).toFixed(1) : "—"
 
   const totalAI = usageBreakdown.cvParses.count + usageBreakdown.questions.count + usageBreakdown.videoInterviews.count
-  const margin = kpis.totalRevenue > 0 ? ((kpis.netProfit / kpis.totalRevenue) * 100).toFixed(1) : "0"
+
+  // Use canonical (actual-if-available, else estimated) for headline numbers
+  const headlineCost = kpis.canonicalOpenaiCost ?? kpis.totalExpenses
+  const headlineProfit = kpis.canonicalNetProfit ?? kpis.netProfit
+  const headlineMarginNum = kpis.canonicalMarginPercent ?? (kpis.totalRevenue > 0 ? (kpis.netProfit / kpis.totalRevenue) * 100 : 0)
+  const margin = headlineMarginNum.toFixed(1)
+  const isActualSource = kpis.costSource === "actual"
+
+  async function triggerSync() {
+    if (syncing) return
+    setSyncing(true)
+    setSyncMessage(null)
+    try {
+      const res = await fetch("/api/admin/sync-openai-costs?lookbackDays=30", { method: "POST" })
+      const json = await res.json()
+      if (json.ok) {
+        setSyncMessage(`✓ Synced ${json.rowsUpserted} rows · ${json.projectsMatched} companies matched · $${(json.totalCostUsd || 0).toFixed(4)}`)
+        // Re-fetch dashboard data
+        const end = new Date().toISOString().split("T")[0]
+        const start = new Date(Date.now() - 90 * 86400000).toISOString().split("T")[0]
+        fetchData(start, end)
+      } else {
+        setSyncMessage(`✗ Sync failed: ${json.error || "unknown error"}`)
+      }
+    } catch (err: any) {
+      setSyncMessage(`✗ Sync failed: ${err.message}`)
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   // ─── Loading ────────────────────────────────────────────────────────────────
   if (loading) return (
@@ -232,12 +306,16 @@ export default function OverviewTab({ onReady }: OverviewTabProps) {
         </Card>
         <Card className="bg-gradient-to-br from-orange-900 to-slate-900 border-orange-700">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-orange-200">Total Expenses</CardTitle>
+            <CardTitle className="text-sm font-medium text-orange-200">OpenAI Cost</CardTitle>
             <TrendingDown className="h-4 w-4 text-orange-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-orange-100">${kpis.totalExpenses.toFixed(2)}</div>
-            <p className="text-xs text-orange-300 mt-1">AI & infrastructure costs</p>
+            <div className="text-3xl font-bold text-orange-100">${headlineCost.toFixed(2)}</div>
+            <p className="text-xs mt-1">
+              <span className={isActualSource ? "text-emerald-400" : "text-amber-400"}>
+                {isActualSource ? "● Actual (Costs API)" : "● Token-based estimate"}
+              </span>
+            </p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-purple-900 to-slate-900 border-purple-700">
@@ -246,12 +324,42 @@ export default function OverviewTab({ onReady }: OverviewTabProps) {
             <Briefcase className="h-4 w-4 text-purple-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-purple-100">${kpis.netProfit.toFixed(2)}</div>
+            <div className="text-3xl font-bold text-purple-100">${headlineProfit.toFixed(2)}</div>
             <p className="text-xs text-purple-300 mt-1">
               <span className="text-emerald-400">{margin}% margin</span>
+              <span className="text-slate-500 ml-2">{isActualSource ? "(actual cost)" : "(estimated)"}</span>
             </p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* ── 2b. OpenAI Costs API sync banner ── */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3 text-sm">
+          <div className={`h-2 w-2 rounded-full ${lastSyncedAt ? "bg-emerald-400" : "bg-amber-400"}`} />
+          <div>
+            <div className="text-slate-200 font-semibold">OpenAI Actual Cost Sync</div>
+            <div className="text-xs text-slate-500">
+              {lastSyncedAt
+                ? <>Last synced {new Date(lastSyncedAt).toLocaleString()} · {kpis.companiesWithActual ?? 0} companies matched · auto-syncs every 6 hours</>
+                : <>Not synced yet — KPI cards showing token estimates. Click Sync Now for real OpenAI billing data.</>
+              }
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {syncMessage && (
+            <span className={`text-xs ${syncMessage.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>{syncMessage}</span>
+          )}
+          <button
+            onClick={triggerSync}
+            disabled={syncing}
+            title="Pulls last 30 days of actual OpenAI billing from OpenAI Costs API"
+            className="bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+          >
+            {syncing ? "Syncing…" : "Sync Now"}
+          </button>
+        </div>
       </div>
 
       {/* ── 3. Charts: Revenue Trend + Plan Distribution ── */}
@@ -259,7 +367,12 @@ export default function OverviewTab({ onReady }: OverviewTabProps) {
         <Card className="bg-slate-900 border-slate-800">
           <CardHeader>
             <CardTitle className="text-white text-base">📈 Revenue Trend</CardTitle>
-            <CardDescription>Revenue vs Expenses over selected period</CardDescription>
+            <CardDescription>
+              Revenue · OpenAI Cost · Net Profit
+              <span className="ml-2 text-[10px] text-amber-400">
+                {trend.some(t => t.actualCost > 0) ? "● cost = actual (OpenAI API)" : "● cost = estimated (tokens)"}
+              </span>
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {trend.length > 0 ? (
@@ -267,20 +380,25 @@ export default function OverviewTab({ onReady }: OverviewTabProps) {
                 <LineChart data={trend}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                   <XAxis dataKey="date" stroke="#94a3b8" fontSize={10} />
-                  <YAxis stroke="#94a3b8" fontSize={10} />
-                  <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #475569" }} labelStyle={{ color: "#e2e8f0" }} formatter={(v: number) => `$${v.toFixed(4)}`} />
+                  <YAxis stroke="#94a3b8" fontSize={10} tickFormatter={(v: number) => `$${v.toFixed(2)}`} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #475569" }}
+                    labelStyle={{ color: "#e2e8f0" }}
+                    formatter={(v: number, name: string) => [`$${v.toFixed(4)}`, name]}
+                  />
                   <Legend />
-                  <Line type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} name="Revenue" dot={false} />
-                  <Line type="monotone" dataKey="expenses" stroke="#f97316" strokeWidth={2} name="Expenses" dot={false} />
-                  <Line type="monotone" dataKey="profit" stroke="#a78bfa" strokeWidth={2} name="Profit" dot={false} />
+                  <Line type="monotone" dataKey="revenue"    stroke="#10b981" strokeWidth={2} name="Revenue"      dot={false} />
+                  <Line type="monotone" dataKey="openaiCost" stroke="#f97316" strokeWidth={2} name="OpenAI Cost"  dot={false} />
+                  <Line type="monotone" dataKey="profit"     stroke="#a78bfa" strokeWidth={2} name="Net Profit"   dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
               <div className="text-center py-10 text-slate-500 text-sm">No trend data for this period</div>
             )}
             <div className="mt-2 flex justify-between text-xs text-slate-500">
-              <span>Period spend: ${kpis.monthRevenue.toFixed(3)}</span>
-              <span>Expenses: ${kpis.totalExpenses.toFixed(3)}</span>
+              <span>Revenue: ${kpis.totalRevenue.toFixed(3)}</span>
+              <span>OpenAI Cost: ${kpis.canonicalOpenaiCost?.toFixed(3) ?? kpis.totalExpenses.toFixed(3)}</span>
+              <span>Profit: ${headlineProfit.toFixed(3)}</span>
             </div>
           </CardContent>
         </Card>
@@ -423,72 +541,81 @@ export default function OverviewTab({ onReady }: OverviewTabProps) {
         </Card>
       </div>
 
-      {/* ── 6. AI Adoption & Usage Analytics ── */}
+      {/* ── 6. Feature Profitability (per-feature Revenue / OpenAI Cost / Profit / Margin) ── */}
       <Card className="bg-slate-900 border-slate-800">
         <CardHeader>
           <CardTitle className="text-white text-sm flex items-center gap-2">
-            <Cpu className="h-4 w-4 text-violet-400" /> AI Adoption & Usage Analytics
+            <Cpu className="h-4 w-4 text-violet-400" /> Feature Profitability
+            <span className="ml-2 text-[10px] uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded">Estimated</span>
           </CardTitle>
-          <CardDescription>Feature consumption for selected period</CardDescription>
+          <CardDescription>
+            <span className="text-slate-400">OpenAI only bills at company level, not per feature.</span>
+            {" "}<span className="text-amber-400">Est. Cost = tokens × model price</span>
+            {" · "}<span className="text-slate-500">Actual total cost is shown in the KPI cards above.</span>
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
-              { label: "Total AI Operations", value: totalAI.toLocaleString(), color: "text-violet-400" },
-              { label: "Video Interview Minutes", value: usageBreakdown.videoInterviews.minutes.toFixed(0), color: "text-blue-400" },
-              { label: "Total AI Spend", value: `$${(usageBreakdown.cvParses.cost + usageBreakdown.questions.cost + usageBreakdown.videoInterviews.cost).toFixed(3)}`, color: "text-emerald-400" },
-            ].map(s => (
-              <div key={s.label} className="bg-slate-800 rounded-xl p-3">
-                <p className="text-xs text-slate-500">{s.label}</p>
-                <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-              </div>
-            ))}
-          </div>
-          <div className="space-y-4">
-            {[
-              { label: "CV Parsing", count: usageBreakdown.cvParses.count, cost: usageBreakdown.cvParses.cost, color: "bg-amber-500", textColor: "text-amber-400", icon: FileText },
-              { label: "Question Generation", count: usageBreakdown.questions.count, cost: usageBreakdown.questions.cost, color: "bg-blue-500", textColor: "text-blue-400", icon: BarChart3 },
-              { label: "AI Video Interviews", count: usageBreakdown.videoInterviews.count, cost: usageBreakdown.videoInterviews.cost, color: "bg-violet-500", textColor: "text-violet-400", icon: Video },
-            ].map(f => {
-              const Icon = f.icon
-              const pct = totalAI > 0 ? (f.count / totalAI) * 100 : 0
+              { key: "cvParsing",    label: "CV Parsing",      icon: FileText,  accent: "text-amber-400",  metric: featureProfit.cvParsing },
+              { key: "jdGeneration", label: "JD Generation",   icon: BarChart3, accent: "text-blue-400",   metric: featureProfit.jdGeneration },
+              { key: "aiInterview",  label: "AI Interview",    icon: Video,     accent: "text-violet-400", metric: featureProfit.aiInterview },
+            ].map(({ key, label, icon: Icon, accent, metric }) => {
+              const profitPositive = metric.profit >= 0
               return (
-                <div key={f.label}>
-                  <div className="flex items-center justify-between mb-1.5">
+                <div key={key} className="bg-slate-800/60 border border-slate-700 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <Icon className={`h-3.5 w-3.5 ${f.textColor}`} />
-                      <span className="text-sm text-slate-300">{f.label}</span>
+                      <Icon className={`h-4 w-4 ${accent}`} />
+                      <span className="text-sm font-semibold text-slate-200">{label}</span>
                     </div>
-                    <div className="flex items-center gap-3 text-right">
-                      <span className={`font-bold text-sm ${f.textColor}`}>{f.count}</span>
-                      <span className="text-slate-600 text-xs">${f.cost.toFixed(3)}</span>
-                    </div>
+                    <span className="text-[10px] text-slate-500">{metric.count.toLocaleString()} ops</span>
                   </div>
-                  <div className="h-2 bg-slate-800 rounded-full">
-                    <div className={`h-2 ${f.color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between"><span className="text-slate-400">Revenue</span><span className="text-emerald-400 font-bold">${metric.revenue.toFixed(4)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">AI Cost</span><span className="text-orange-400 font-bold">${metric.openaiCost.toFixed(4)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">Profit</span><span className={`font-bold ${profitPositive ? "text-purple-300" : "text-red-400"}`}>${metric.profit.toFixed(4)}</span></div>
+                    <div className="flex justify-between border-t border-slate-700 pt-1.5 mt-1.5">
+                      <span className="text-slate-500">Margin</span>
+                      <span className={`font-bold ${metric.marginPercent >= 0 ? "text-emerald-300" : "text-red-400"}`}>{metric.marginPercent.toFixed(1)}%</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] text-slate-600">
+                      <span>Tokens</span>
+                      <span>{metric.tokens.toLocaleString()}{key === "aiInterview" && metric.minutes ? ` · ${metric.minutes.toFixed(0)} min` : ""}</span>
+                    </div>
                   </div>
                 </div>
               )
             })}
           </div>
-          {topCompanies.length > 0 && (
-            <div className="mt-5 pt-4 border-t border-slate-800">
-              <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide mb-3">Top Companies by Spend</p>
-              <div className="space-y-2">
-                {topCompanies.map((c, i) => (
-                  <div key={c.name}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-400"><span className="text-slate-600 mr-2">{i + 1}</span>{c.name}</span>
-                      <span className="text-emerald-400 font-bold">${c.spend.toFixed(3)}</span>
-                    </div>
-                    <div className="h-1.5 bg-slate-800 rounded-full">
-                      <div className="h-1.5 bg-emerald-500 rounded-full" style={{ width: `${(c.spend / (topCompanies[0]?.spend || 1)) * 100}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
+
+          {/* Per-company profitability moved to /admin-hiregenai/companies */}
+
+          {/* Summary row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5 pt-4 border-t border-slate-800">
+            <div className="bg-slate-800 rounded-lg p-3">
+              <p className="text-[10px] text-slate-500 uppercase">Total AI Ops</p>
+              <p className="text-xl font-bold text-violet-400">{totalAI.toLocaleString()}</p>
             </div>
-          )}
+            <div className="bg-slate-800 rounded-lg p-3">
+              <p className="text-[10px] text-slate-500 uppercase">AI Revenue</p>
+              <p className="text-xl font-bold text-emerald-400">
+                ${(featureProfit.cvParsing.revenue + featureProfit.jdGeneration.revenue + featureProfit.aiInterview.revenue).toFixed(3)}
+              </p>
+            </div>
+            <div className="bg-slate-800 rounded-lg p-3">
+              <p className="text-[10px] text-slate-500 uppercase">OpenAI Spend</p>
+              <p className="text-xl font-bold text-orange-400">
+                ${(featureProfit.cvParsing.openaiCost + featureProfit.jdGeneration.openaiCost + featureProfit.aiInterview.openaiCost).toFixed(3)}
+              </p>
+            </div>
+            <div className="bg-slate-800 rounded-lg p-3">
+              <p className="text-[10px] text-slate-500 uppercase">AI Profit</p>
+              <p className="text-xl font-bold text-purple-300">
+                ${(featureProfit.cvParsing.profit + featureProfit.jdGeneration.profit + featureProfit.aiInterview.profit).toFixed(3)}
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

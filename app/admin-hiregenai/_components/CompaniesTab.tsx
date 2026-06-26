@@ -21,6 +21,11 @@ interface Company {
   userCount: number
   jobCount: number
   createdAt: string
+  aiRevenue: number
+  estimatedOpenaiCost: number
+  actualOpenaiCost: number
+  tokenEstimatedCost: number
+  openaiCostSource: "actual" | "usage_estimate" | "formula_estimate" | "none"
 }
 
 interface CompaniesTabProps {
@@ -146,7 +151,7 @@ export default function CompaniesTab({ onReady }: CompaniesTabProps) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-700">
-                  {["Company", "Joined", "Account", "Plan", "Users", "Jobs", "Wallet", "This Month", "Total Spent"].map((h) => (
+                  {["Company", "Joined", "Account", "Plan", "Users", "Jobs", "Wallet", "Service Cost", "AI Cost", "Profit", "Margin"].map((h) => (
                     <th key={h} className="py-3 px-4">
                       <div className="h-4 w-20 bg-slate-700 animate-pulse rounded" />
                     </th>
@@ -190,13 +195,24 @@ export default function CompaniesTab({ onReady }: CompaniesTabProps) {
                       <th className="text-center py-3 px-4 text-slate-300 font-medium">Users</th>
                       <th className="text-center py-3 px-4 text-slate-300 font-medium">Jobs</th>
                       <th className="text-right py-3 px-4 text-slate-300 font-medium">Wallet</th>
-                      <th className="text-right py-3 px-4 text-slate-300 font-medium">This Month</th>
-                      <th className="text-right py-3 px-4 text-slate-300 font-medium">Total Spent</th>
+                      <th className="text-right py-3 px-4 text-emerald-300 font-medium" title="Sum of all AI operation charges billed to company">Service Cost</th>
+                      <th className="text-right py-3 px-4 text-orange-300 font-medium" title="Actual OpenAI billing from Costs API">AI Cost</th>
+                      <th className="text-right py-3 px-4 text-purple-300 font-medium" title="Service Cost − AI Cost">Profit</th>
+                      <th className="text-right py-3 px-4 text-purple-300 font-medium">Margin</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredCompanies.map((company) => {
                       const planBadge = getPlanBadge(company)
+                      const src = company.openaiCostSource
+                      const effectiveCost =
+                        src === "actual"           ? company.actualOpenaiCost :
+                        src === "usage_estimate"   ? company.tokenEstimatedCost :
+                        src === "formula_estimate" ? company.estimatedOpenaiCost : 0
+                      const revenue = company.aiRevenue ?? 0
+                      const profit = revenue - effectiveCost
+                      const margin = revenue > 0 ? (profit / revenue) * 100 : 0
+                      const usingEstimate = src === "usage_estimate" || src === "formula_estimate"
                       return (
                         <tr key={company.id} className="border-b border-slate-800 hover:bg-slate-800/50">
                           <td className="py-3 px-4">
@@ -224,11 +240,36 @@ export default function CompaniesTab({ onReady }: CompaniesTabProps) {
                           <td className="py-3 px-4 text-right text-emerald-400 font-semibold">
                             ${company.walletBalance.toFixed(2)}
                           </td>
-                          <td className="py-3 px-4 text-right text-slate-300">
-                            ${company.monthSpent.toFixed(2)}
+                          <td className="py-3 px-4 text-right text-emerald-400 font-semibold">
+                            ${revenue.toFixed(2)}
                           </td>
-                          <td className="py-3 px-4 text-right text-slate-300">
-                            ${company.totalSpent.toFixed(2)}
+                          <td className="py-3 px-4 text-right">
+                            {src === "actual" && (
+                              <span className="text-orange-300 font-semibold">${company.actualOpenaiCost.toFixed(4)}</span>
+                            )}
+                            {src === "usage_estimate" && (
+                              <span className="text-yellow-400 font-semibold">
+                                ~${company.tokenEstimatedCost.toFixed(4)}
+                                <span className="text-[10px] text-yellow-600 ml-1" title="Estimated from token usage — Costs API sync pending">est</span>
+                              </span>
+                            )}
+                            {src === "formula_estimate" && (
+                              <span className="text-slate-400 font-semibold">
+                                ~${company.estimatedOpenaiCost.toFixed(4)}
+                                <span className="text-[10px] text-slate-600 ml-1" title="Estimated from 70% of service charge">est</span>
+                              </span>
+                            )}
+                            {src === "none" && (
+                              <span className="text-slate-600 text-xs">pending sync</span>
+                            )}
+                          </td>
+                          <td className={`py-3 px-4 text-right font-semibold ${profit >= 0 ? "text-purple-300" : "text-red-400"}`}>
+                            <span>${profit.toFixed(2)}</span>
+                            {usingEstimate && <span className="text-[10px] text-slate-500 ml-1">est</span>}
+                          </td>
+                          <td className={`py-3 px-4 text-right ${margin >= 0 ? "text-emerald-300" : "text-red-400"}`}>
+                            <span>{margin.toFixed(1)}%</span>
+                            {usingEstimate && <span className="text-[10px] text-slate-500 ml-1">est</span>}
                           </td>
                         </tr>
                       )
