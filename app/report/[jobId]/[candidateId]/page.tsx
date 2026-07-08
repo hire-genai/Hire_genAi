@@ -327,9 +327,9 @@ export default function CandidateReportPage({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                   <h2 className="text-base sm:text-lg print:text-base font-bold text-gray-900 truncate">{candidate.name}</h2>
-                  <Badge className={`text-[10px] print:text-[9px] ${shouldHire ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                    {shouldHire ? <CheckCircle className="h-3 w-3 mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
-                    {shouldHire ? 'HIRE' : 'NOT HIRE'}
+                  <Badge className={`text-[10px] print:text-[9px] ${isQualified ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    {isQualified ? <CheckCircle className="h-3 w-3 mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
+                    {isQualified ? 'QUALIFIED' : 'UNQUALIFIED'}
                   </Badge>
                 </div>
                 <p className="text-xs sm:text-sm print:text-xs text-gray-600 truncate">{candidate.position}</p>

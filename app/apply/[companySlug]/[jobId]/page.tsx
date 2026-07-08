@@ -18,7 +18,6 @@ import {
   FileText,
   CheckCircle2
 } from 'lucide-react'
-import WebcamCapture from '@/components/webcam-capture'
 
 interface JobData {
   id: string
@@ -51,7 +50,6 @@ export default function ApplyPage() {
   const [resumeFile, setResumeFile] = useState<File | null>(null)
 
   const [confirmationStatus, setConfirmationStatus] = useState<'agree' | 'disagree' | ''>('')
-  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null)
   const [infoCorrectChecked, setInfoCorrectChecked] = useState(false)
   const [parsingOpen, setParsingOpen] = useState(false)
   const [parseStep, setParseStep] = useState<'idle' | 'uploading' | 'parsing' | 'evaluating' | 'done'>('idle')
@@ -210,37 +208,14 @@ export default function ApplyPage() {
       if (!formData.expectedSalary.trim()) missing.push('Expected salary')
       if (!formData.location.trim()) missing.push('Location')
       if (!formData.availableStartDate.trim()) missing.push('Available start date')
+      if (!formData.linkedinUrl.trim()) missing.push('LinkedIn URL')
       if (!resumeFile) missing.push('Resume')
-      if (!capturedPhoto) missing.push('Photo (webcam capture)')
       if (confirmationStatus !== 'agree') missing.push('Confirmation (Agree)')
 
       if (missing.length > 0) {
         alert(`Please fill: ${missing.join(', ')}.`)
         setIsSubmitting(false)
         return
-      }
-
-      // Upload photo if captured
-      let photoUploadUrl: string | null = null
-      if (capturedPhoto) {
-        try {
-          const photoRes = await fetch('/api/photos/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              imageData: capturedPhoto,
-              candidateId: `candidate_${Date.now()}`,
-            }),
-          })
-          if (photoRes.ok) {
-            const photoData = await photoRes.json()
-            photoUploadUrl = photoData.photoUrl
-          } else {
-            console.warn('Photo upload failed (non-fatal)')
-          }
-        } catch (photoErr) {
-          console.warn('Photo upload error (non-fatal):', photoErr)
-        }
       }
 
       // Filter valid languages
@@ -275,7 +250,7 @@ export default function ApplyPage() {
           type: resumeFile.type,
           size: resumeFile.size,
         } : null,
-        photoUrl: photoUploadUrl,
+        photoUrl: null,
         coverLetter: formData.coverLetter || null,
         confirmationStatus,
         source: 'direct_application',
@@ -435,290 +410,241 @@ export default function ApplyPage() {
           </div>
         </div>
 
-        {/* Form */}
+        {/* Form — single consolidated card */}
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* General Information */}
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-semibold text-sm text-slate-900 mb-3">General Information</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="firstName" className="text-xs">First name *</Label>
-                <Input id="firstName" value={formData.firstName} onChange={(e) => setFormData(p => ({ ...p, firstName: e.target.value }))} placeholder="John" className={`h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 ${fromScreening ? 'bg-slate-100 cursor-not-allowed' : ''}`} required disabled={isSubmitting} readOnly={fromScreening} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="lastName" className="text-xs">Last name *</Label>
-                <Input id="lastName" value={formData.lastName} onChange={(e) => setFormData(p => ({ ...p, lastName: e.target.value }))} placeholder="Doe" className={`h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 ${fromScreening ? 'bg-slate-100 cursor-not-allowed' : ''}`} required disabled={isSubmitting} readOnly={fromScreening} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="email" className="text-xs">Email *</Label>
-                <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))} placeholder="you@example.com" className={`h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 ${fromScreening ? 'bg-slate-100 cursor-not-allowed' : ''}`} required disabled={isSubmitting} readOnly={fromScreening} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="phone" className="text-xs">Phone *</Label>
-                <Input id="phone" type="tel" value={formData.phone} onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))} placeholder="+1 555 000 1111" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
-              </div>
-              <div className="col-span-2 space-y-1">
-                <Label className="text-xs">Expected salary *</Label>
-                <div className="grid grid-cols-[100px_1fr_auto] gap-2">
-                  <select value={formData.expectedCurrency} onChange={(e) => setFormData(p => ({ ...p, expectedCurrency: e.target.value }))} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none">
-                    <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
-                    <option value="INR">INR</option>
-                  </select>
-                  <Input inputMode="decimal" value={formData.expectedSalary} onChange={(e) => setFormData(p => ({ ...p, expectedSalary: e.target.value }))} placeholder="1000" className={`h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 ${fromScreening ? 'bg-slate-100 cursor-not-allowed' : ''}`} required disabled={isSubmitting} readOnly={fromScreening} />
-                  <span className="flex items-center text-xs text-slate-500">/month</span>
+          <section className="rounded-xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
+
+            {/* Personal Details */}
+            <div className="p-5">
+              <h3 className="font-semibold text-sm text-slate-800 mb-3">Personal Details</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="firstName" className="text-xs">First name *</Label>
+                  <Input id="firstName" value={formData.firstName} onChange={(e) => setFormData(p => ({ ...p, firstName: e.target.value }))} placeholder="John" className={`h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 ${fromScreening ? 'bg-slate-100 cursor-not-allowed' : ''}`} required disabled={isSubmitting} readOnly={fromScreening} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="lastName" className="text-xs">Last name *</Label>
+                  <Input id="lastName" value={formData.lastName} onChange={(e) => setFormData(p => ({ ...p, lastName: e.target.value }))} placeholder="Doe" className={`h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 ${fromScreening ? 'bg-slate-100 cursor-not-allowed' : ''}`} required disabled={isSubmitting} readOnly={fromScreening} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="email" className="text-xs">Email *</Label>
+                  <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))} placeholder="you@example.com" className={`h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 ${fromScreening ? 'bg-slate-100 cursor-not-allowed' : ''}`} required disabled={isSubmitting} readOnly={fromScreening} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="phone" className="text-xs">Phone *</Label>
+                  <Input id="phone" type="tel" value={formData.phone} onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))} placeholder="+1 555 000 1111" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <Label className="text-xs">Expected salary *</Label>
+                  <div className="grid grid-cols-[100px_1fr_auto] gap-2">
+                    <select value={formData.expectedCurrency} onChange={(e) => setFormData(p => ({ ...p, expectedCurrency: e.target.value }))} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none">
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                      <option value="INR">INR</option>
+                    </select>
+                    <Input inputMode="decimal" value={formData.expectedSalary} onChange={(e) => setFormData(p => ({ ...p, expectedSalary: e.target.value }))} placeholder="1000" className={`h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600 ${fromScreening ? 'bg-slate-100 cursor-not-allowed' : ''}`} required disabled={isSubmitting} readOnly={fromScreening} />
+                    <span className="flex items-center text-xs text-slate-500">/month</span>
+                  </div>
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <Label htmlFor="location" className="text-xs">Location *</Label>
+                  <Input id="location" value={formData.location} onChange={(e) => setFormData(p => ({ ...p, location: e.target.value }))} placeholder="Berlin, Germany" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
                 </div>
               </div>
-              <div className="col-span-2 space-y-1">
-                <Label htmlFor="location" className="text-xs">Location *</Label>
-                <Input id="location" value={formData.location} onChange={(e) => setFormData(p => ({ ...p, location: e.target.value }))} placeholder="Berlin, Germany" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
+            </div>
+
+            {/* Professional Links & Availability */}
+            <div className="p-5">
+              <h3 className="font-semibold text-sm text-slate-800 mb-3">Professional Links & Availability</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="linkedin" className="text-xs">LinkedIn URL *</Label>
+                  <Input id="linkedin" value={formData.linkedinUrl} onChange={(e) => setFormData(p => ({ ...p, linkedinUrl: e.target.value }))} placeholder="https://linkedin.com/in/..." className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="portfolio" className="text-xs">Portfolio / Website</Label>
+                  <Input id="portfolio" value={formData.portfolioUrl} onChange={(e) => setFormData(p => ({ ...p, portfolioUrl: e.target.value }))} placeholder="https://yoursite.com" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" disabled={isSubmitting} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="start" className="text-xs">Available Start Date *</Label>
+                  <Input id="start" type="date" value={formData.availableStartDate} onChange={(e) => setFormData(p => ({ ...p, availableStartDate: e.target.value }))} className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
+                </div>
+                <div className="flex items-end pb-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input id="relocate" type="checkbox" checked={formData.relocate} onChange={(e) => setFormData(p => ({ ...p, relocate: e.target.checked }))} className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-600" />
+                    <span className="text-xs text-slate-700">Willing to relocate</span>
+                  </label>
+                </div>
               </div>
             </div>
-          </section>
 
-          {/* Source Information */}
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-semibold text-sm text-slate-900 mb-3">How did you hear about us?</h3>
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <Label htmlFor="sourceType" className="text-xs">Source Type</Label>
-                <select
-                  id="sourceType"
-                  value={formData.sourceType}
-                  onChange={(e) => setFormData(p => ({ ...p, sourceType: e.target.value, subSource: '', agencyName: '', referralEmployeeName: '', referralEmployeeEmail: '' }))}
-                  className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none"
-                  disabled={isSubmitting}
-                >
-                  <option value="">Select source...</option>
-                  <option value="Direct">Direct</option>
-                  <option value="Agency">Agency</option>
-                  <option value="Employee Referral">Employee Referral</option>
-                </select>
+            {/* Resume Upload */}
+            <div className="p-5">
+              <h3 className="font-semibold text-sm text-slate-800 mb-3">Resume</h3>
+              <Label className="text-xs mb-1.5 block">Upload Resume *</Label>
+              <div
+                className={`flex items-center gap-3 rounded-lg border border-dashed px-3 py-3 cursor-pointer transition-colors ${
+                  isDragging ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 hover:border-emerald-400 hover:bg-emerald-50/40'
+                }`}
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => { e.preventDefault(); setIsDragging(false); const f = e.dataTransfer.files?.[0]; if (f) handleFileSelect(f) }}
+              >
+                <Upload className="h-5 w-5 text-emerald-500 shrink-0" />
+                {resumeFile ? (
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <FileText className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <span className="text-sm text-slate-700 truncate">{resumeFile.name}</span>
+                    <span className="text-xs text-slate-400 shrink-0">{Math.round(resumeFile.size / 1024)} KB</span>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setResumeFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }} className="ml-auto text-xs text-slate-400 hover:text-red-500 shrink-0">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-sm text-slate-500">Drop file or <span className="text-emerald-600 font-medium">browse</span></span>
+                )}
+                <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileSelect(f) }} />
               </div>
+              <p className="text-[10px] text-slate-400 mt-1">PDF, DOC, DOCX, TXT — max 10 MB</p>
+            </div>
 
-              {/* Conditional fields based on source type */}
-              {formData.sourceType === 'Direct' && (
+            {/* Cover Letter */}
+            <div className="p-5">
+              <h3 className="font-semibold text-sm text-slate-800 mb-3">Cover Letter</h3>
+              <textarea value={formData.coverLetter} onChange={(e) => setFormData(p => ({ ...p, coverLetter: e.target.value }))} placeholder="Tell us why you're interested in this role..." rows={3} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 text-sm resize-y hover:border-emerald-400" disabled={isSubmitting} />
+            </div>
+
+            {/* Languages */}
+            <div className="p-5">
+              <h3 className="font-semibold text-sm text-slate-800 mb-3">Languages</h3>
+              <div className="space-y-2">
+                {languages.map((lang, index) => (
+                  <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                    <select value={lang.language} onChange={(e) => updateLanguage(index, 'language', e.target.value)} disabled={isSubmitting} className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none">
+                      <option value="">Language</option>
+                      {languageOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                    <select value={lang.proficiency} onChange={(e) => updateLanguage(index, 'proficiency', e.target.value)} disabled={isSubmitting} className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none">
+                      <option value="">Proficiency</option>
+                      {proficiencyLevels.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+                    </select>
+                    <Button type="button" variant="outline" size="icon" onClick={() => removeLanguage(index)} disabled={isSubmitting || languages.length === 1} className="h-9 w-9 border-slate-300 text-slate-400 hover:text-red-500 hover:border-red-300"><X className="w-3.5 h-3.5" /></Button>
+                  </div>
+                ))}
+                <Button type="button" variant="outline" onClick={addLanguage} disabled={isSubmitting} className="h-8 text-xs border-slate-300 text-emerald-600 hover:text-emerald-700 hover:border-emerald-400 hover:bg-emerald-50">
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Language
+                </Button>
+              </div>
+            </div>
+
+            {/* How did you hear about us */}
+            <div className="p-5">
+              <h3 className="font-semibold text-sm text-slate-800 mb-3">How did you hear about us?</h3>
+              <div className="space-y-3">
                 <div className="space-y-1">
-                  <Label htmlFor="subSource" className="text-xs">Where did you find us?</Label>
+                  <Label htmlFor="sourceType" className="text-xs">Source Type</Label>
                   <select
-                    id="subSource"
-                    value={formData.subSource}
-                    onChange={(e) => setFormData(p => ({ ...p, subSource: e.target.value }))}
+                    id="sourceType"
+                    value={formData.sourceType}
+                    onChange={(e) => setFormData(p => ({ ...p, sourceType: e.target.value, subSource: '', agencyName: '', referralEmployeeName: '', referralEmployeeEmail: '' }))}
                     className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none"
                     disabled={isSubmitting}
                   >
-                    <option value="">Select...</option>
-                    <optgroup label="Job Boards">
-                      <option value="LinkedIn">LinkedIn (Job Posts)</option>
-                      <option value="Indeed">Indeed</option>
-                      <option value="Glassdoor">Glassdoor</option>
-                      <option value="Monster">Monster</option>
-                      <option value="CareerBuilder">CareerBuilder</option>
-                      <option value="Dice">Dice (Tech/IT)</option>
-                      <option value="GitHub">GitHub (Technical/Developers)</option>
-                      <option value="Behance">Behance (Creative/Design)</option>
-                      <option value="Wellfound">Wellfound (formerly AngelList - Startups)</option>
-                      <option value="FlexJobs">FlexJobs (Remote)</option>
-                      <option value="IndustrySpecific">Industry-specific job boards</option>
-                    </optgroup>
-                    <optgroup label="Social Media">
-                      <option value="FacebookJobTab">Facebook (Job Tab)</option>
-                      <option value="FacebookGroups">Facebook (Groups)</option>
-                      <option value="FacebookAds">Facebook (Ads)</option>
-                      <option value="Twitter">Twitter/X</option>
-                      <option value="Instagram">Instagram</option>
-                      <option value="TikTok">TikTok (for creative/younger talent)</option>
-                      <option value="Reddit">Reddit (Niche forums/specialized communities)</option>
-                      <option value="SlackChannels">Slack Channels/Communities</option>
-                      <option value="YouTube">YouTube (Company Culture/Video CVs)</option>
-                      <option value="Quora">Quora</option>
-                    </optgroup>
-                    <optgroup label="Company Sources">
-                      <option value="CompanyCareersWebsite">Company Careers Website</option>
-                      <option value="EmployeeReferralProgram">Employee Referral Program (Highest quality source)</option>
-                      <option value="InternalTransfer">Internal Transfer/Promotion</option>
-                      <option value="BoomerangEmployee">"Boomerang" Employee (Re-hiring past employees)</option>
-                      <option value="AlumniNetwork">Alumni Network</option>
-                    </optgroup>
-                    <optgroup label="Events & Recruiting">
-                      <option value="IndustryConferences">Industry Conferences/Trade Shows</option>
-                      <option value="JobFairs">Job Fairs/Career Expos (Virtual or In-person)</option>
-                      <option value="UniversityRecruiting">University/Campus Recruiting</option>
-                      <option value="RecruitmentAgencies">Recruitment Agencies/Headhunters</option>
-                      <option value="ProfessionalAssociations">Professional Associations</option>
-                    </optgroup>
-                    <optgroup label="Search & Discovery">
-                      <option value="GoogleForJobs">Google for Jobs</option>
-                      <option value="InternetSearch">General Internet Search/Direct Visit</option>
-                      <option value="PublicityMedia">Publicity/Media/Billboard</option>
-                    </optgroup>
+                    <option value="">Select source...</option>
+                    <option value="Direct">Direct</option>
+                    <option value="Agency">Agency</option>
+                    <option value="Employee Referral">Employee Referral</option>
                   </select>
                 </div>
-              )}
-
-              {formData.sourceType === 'Agency' && (
-                <div className="space-y-1">
-                  <Label htmlFor="agencyName" className="text-xs">Agency Name</Label>
-                  <Input
-                    id="agencyName"
-                    value={formData.agencyName}
-                    onChange={(e) => setFormData(p => ({ ...p, agencyName: e.target.value }))}
-                    placeholder="e.g., ABC Consulting"
-                    className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600"
-                    disabled={isSubmitting}
-                  />
-                </div>
-              )}
-
-              {formData.sourceType === 'Employee Referral' && (
-                <div className="grid grid-cols-2 gap-3">
+                {formData.sourceType === 'Direct' && (
                   <div className="space-y-1">
-                    <Label htmlFor="referralEmployeeName" className="text-xs">Employee Name</Label>
-                    <Input
-                      id="referralEmployeeName"
-                      value={formData.referralEmployeeName}
-                      onChange={(e) => setFormData(p => ({ ...p, referralEmployeeName: e.target.value }))}
-                      placeholder="John Doe"
-                      className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600"
-                      disabled={isSubmitting}
-                    />
+                    <Label htmlFor="subSource" className="text-xs">Where did you find us?</Label>
+                    <select id="subSource" value={formData.subSource} onChange={(e) => setFormData(p => ({ ...p, subSource: e.target.value }))} className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none" disabled={isSubmitting}>
+                      <option value="">Select...</option>
+                      <optgroup label="Job Boards">
+                        <option value="LinkedIn">LinkedIn (Job Posts)</option>
+                        <option value="Indeed">Indeed</option>
+                        <option value="Glassdoor">Glassdoor</option>
+                        <option value="Monster">Monster</option>
+                        <option value="CareerBuilder">CareerBuilder</option>
+                        <option value="Dice">Dice (Tech/IT)</option>
+                        <option value="GitHub">GitHub (Technical/Developers)</option>
+                        <option value="Behance">Behance (Creative/Design)</option>
+                        <option value="Wellfound">Wellfound (formerly AngelList - Startups)</option>
+                        <option value="FlexJobs">FlexJobs (Remote)</option>
+                        <option value="IndustrySpecific">Industry-specific job boards</option>
+                      </optgroup>
+                      <optgroup label="Social Media">
+                        <option value="FacebookJobTab">Facebook (Job Tab)</option>
+                        <option value="FacebookGroups">Facebook (Groups)</option>
+                        <option value="FacebookAds">Facebook (Ads)</option>
+                        <option value="Twitter">Twitter/X</option>
+                        <option value="Instagram">Instagram</option>
+                        <option value="TikTok">TikTok</option>
+                        <option value="Reddit">Reddit</option>
+                        <option value="SlackChannels">Slack Channels/Communities</option>
+                        <option value="YouTube">YouTube</option>
+                        <option value="Quora">Quora</option>
+                      </optgroup>
+                      <optgroup label="Company Sources">
+                        <option value="CompanyCareersWebsite">Company Careers Website</option>
+                        <option value="EmployeeReferralProgram">Employee Referral Program</option>
+                        <option value="InternalTransfer">Internal Transfer/Promotion</option>
+                        <option value="BoomerangEmployee">Boomerang Employee</option>
+                        <option value="AlumniNetwork">Alumni Network</option>
+                      </optgroup>
+                      <optgroup label="Events & Recruiting">
+                        <option value="IndustryConferences">Industry Conferences/Trade Shows</option>
+                        <option value="JobFairs">Job Fairs/Career Expos</option>
+                        <option value="UniversityRecruiting">University/Campus Recruiting</option>
+                        <option value="RecruitmentAgencies">Recruitment Agencies/Headhunters</option>
+                        <option value="ProfessionalAssociations">Professional Associations</option>
+                      </optgroup>
+                      <optgroup label="Search & Discovery">
+                        <option value="GoogleForJobs">Google for Jobs</option>
+                        <option value="InternetSearch">General Internet Search</option>
+                        <option value="PublicityMedia">Publicity/Media/Billboard</option>
+                      </optgroup>
+                    </select>
                   </div>
+                )}
+                {formData.sourceType === 'Agency' && (
                   <div className="space-y-1">
-                    <Label htmlFor="referralEmployeeEmail" className="text-xs">Employee Email</Label>
-                    <Input
-                      id="referralEmployeeEmail"
-                      type="email"
-                      value={formData.referralEmployeeEmail}
-                      onChange={(e) => setFormData(p => ({ ...p, referralEmployeeEmail: e.target.value }))}
-                      placeholder="john@company.com"
-                      className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600"
-                      disabled={isSubmitting}
-                    />
+                    <Label htmlFor="agencyName" className="text-xs">Agency Name</Label>
+                    <Input id="agencyName" value={formData.agencyName} onChange={(e) => setFormData(p => ({ ...p, agencyName: e.target.value }))} placeholder="e.g., ABC Consulting" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" disabled={isSubmitting} />
                   </div>
-                </div>
-              )}
-            </div>
-          </section>
-
-
-          {/* Resume Upload + Photo — merged into one card */}
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-semibold text-sm text-slate-900 mb-3">Resume & Photo</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Resume — compact file picker */}
-              <div>
-                <Label className="text-xs mb-1.5 block">Upload Resume *</Label>
-                <div
-                  className={`flex items-center gap-3 rounded-lg border border-dashed px-3 py-3 cursor-pointer transition-colors ${
-                    isDragging ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 hover:border-emerald-400 hover:bg-emerald-50/40'
-                  }`}
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
-                  onDragLeave={() => setIsDragging(false)}
-                  onDrop={(e) => { e.preventDefault(); setIsDragging(false); const f = e.dataTransfer.files?.[0]; if (f) handleFileSelect(f) }}
-                >
-                  <Upload className="h-5 w-5 text-emerald-500 shrink-0" />
-                  {resumeFile ? (
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <FileText className="h-4 w-4 text-emerald-600 shrink-0" />
-                      <span className="text-sm text-slate-700 truncate">{resumeFile.name}</span>
-                      <span className="text-xs text-slate-400 shrink-0">{Math.round(resumeFile.size / 1024)} KB</span>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setResumeFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }} className="ml-auto text-xs text-slate-400 hover:text-red-500 shrink-0">
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                )}
+                {formData.sourceType === 'Employee Referral' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="referralEmployeeName" className="text-xs">Employee Name</Label>
+                      <Input id="referralEmployeeName" value={formData.referralEmployeeName} onChange={(e) => setFormData(p => ({ ...p, referralEmployeeName: e.target.value }))} placeholder="John Doe" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" disabled={isSubmitting} />
                     </div>
-                  ) : (
-                    <span className="text-sm text-slate-500">Drop file or <span className="text-emerald-600 font-medium">browse</span></span>
-                  )}
-                  <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileSelect(f) }} />
-                </div>
-                <p className="text-[10px] text-slate-400 mt-1">PDF, DOC, DOCX, TXT — max 10 MB</p>
-              </div>
-
-              {/* Photo — compact webcam */}
-              <div>
-                <Label className="text-xs mb-1.5 block">Capture Photo *</Label>
-                <WebcamCapture
-                  onCapture={(imageData) => setCapturedPhoto(imageData)}
-                  capturedImage={capturedPhoto}
-                  onClear={() => setCapturedPhoto(null)}
-                  disabled={isSubmitting}
-                />
+                    <div className="space-y-1">
+                      <Label htmlFor="referralEmployeeEmail" className="text-xs">Employee Email</Label>
+                      <Input id="referralEmployeeEmail" type="email" value={formData.referralEmployeeEmail} onChange={(e) => setFormData(p => ({ ...p, referralEmployeeEmail: e.target.value }))} placeholder="john@company.com" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" disabled={isSubmitting} />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          </section>
 
-          {/* Cover Letter */}
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-semibold text-sm text-slate-900 mb-3">Cover Letter</h3>
-            <textarea value={formData.coverLetter} onChange={(e) => setFormData(p => ({ ...p, coverLetter: e.target.value }))} placeholder="Tell us why you're interested in this role..." rows={3} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 text-sm resize-y hover:border-emerald-400" disabled={isSubmitting} />
-          </section>
-
-          {/* Languages */}
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-semibold text-sm text-slate-900 mb-3">Languages</h3>
-            <div className="space-y-2">
-              {languages.map((lang, index) => (
-                <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
-                  <select value={lang.language} onChange={(e) => updateLanguage(index, 'language', e.target.value)} disabled={isSubmitting} className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none">
-                    <option value="">Language</option>
-                    {languageOptions.map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                  <select value={lang.proficiency} onChange={(e) => updateLanguage(index, 'proficiency', e.target.value)} disabled={isSubmitting} className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm focus:border-emerald-600 focus:ring-emerald-600 focus:outline-none">
-                    <option value="">Proficiency</option>
-                    {proficiencyLevels.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
-                  </select>
-                  <Button type="button" variant="outline" size="icon" onClick={() => removeLanguage(index)} disabled={isSubmitting || languages.length === 1} className="h-9 w-9 border-slate-300 text-slate-400 hover:text-red-500 hover:border-red-300"><X className="w-3.5 h-3.5" /></Button>
-                </div>
-              ))}
-              <Button type="button" variant="outline" onClick={addLanguage} disabled={isSubmitting} className="h-8 text-xs border-slate-300 text-emerald-600 hover:text-emerald-700 hover:border-emerald-400 hover:bg-emerald-50">
-                <Plus className="w-3.5 h-3.5 mr-1" /> Add Language
-              </Button>
+            {/* Confirmation */}
+            <div className="p-5 bg-amber-50 space-y-3">
+              <p className="text-xs text-slate-700 leading-relaxed">
+                Kindly confirm that you have not applied to <strong>{job.clientCompanyName || job.company.name}</strong> in the last 12 months (whether direct or through another agency).
+              </p>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setConfirmationStatus('agree')} className={`rounded-md border px-4 py-1.5 text-xs font-medium transition-all ${confirmationStatus === 'agree' ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-600 hover:border-emerald-400'}`}>Agree</button>
+                <button type="button" onClick={() => setConfirmationStatus('disagree')} className={`rounded-md border px-4 py-1.5 text-xs font-medium transition-all ${confirmationStatus === 'disagree' ? 'bg-red-600 border-red-600 text-white' : 'bg-white border-slate-300 text-slate-600 hover:border-red-400'}`}>Disagree</button>
+              </div>
+              <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                <input type="checkbox" checked={infoCorrectChecked} onChange={(e) => setInfoCorrectChecked(e.target.checked)} disabled={isSubmitting} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-600 shrink-0" />
+                <span className="text-xs text-slate-700 leading-relaxed">All the information must be correct and must not change during later rounds of Interview or Negotiation.</span>
+              </label>
             </div>
-          </section>
 
-          {/* Additional Info */}
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-semibold text-sm text-slate-900 mb-3">Additional Information</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="linkedin" className="text-xs">LinkedIn URL</Label>
-                <Input id="linkedin" value={formData.linkedinUrl} onChange={(e) => setFormData(p => ({ ...p, linkedinUrl: e.target.value }))} placeholder="https://linkedin.com/in/..." className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" disabled={isSubmitting} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="portfolio" className="text-xs">Portfolio / Website</Label>
-                <Input id="portfolio" value={formData.portfolioUrl} onChange={(e) => setFormData(p => ({ ...p, portfolioUrl: e.target.value }))} placeholder="https://yoursite.com" className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" disabled={isSubmitting} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="start" className="text-xs">Available Start Date *</Label>
-                <Input id="start" type="date" value={formData.availableStartDate} onChange={(e) => setFormData(p => ({ ...p, availableStartDate: e.target.value }))} className="h-9 text-sm border-slate-300 focus:border-emerald-600 focus:ring-emerald-600" required disabled={isSubmitting} />
-              </div>
-              <div className="flex items-end pb-1">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input id="relocate" type="checkbox" checked={formData.relocate} onChange={(e) => setFormData(p => ({ ...p, relocate: e.target.checked }))} className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-600" />
-                  <span className="text-xs text-slate-700">Willing to relocate</span>
-                </label>
-              </div>
-            </div>
-          </section>
-
-          {/* Confirmation */}
-          <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm space-y-3">
-            <p className="text-xs text-slate-700 leading-relaxed">
-              Kindly confirm that you have not applied to <strong>{job.clientCompanyName || job.company.name}</strong> in the last 12 months (whether direct or through another agency).
-            </p>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setConfirmationStatus('agree')} className={`rounded-md border px-4 py-1.5 text-xs font-medium transition-all ${confirmationStatus === 'agree' ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-600 hover:border-emerald-400'}`}>Agree</button>
-              <button type="button" onClick={() => setConfirmationStatus('disagree')} className={`rounded-md border px-4 py-1.5 text-xs font-medium transition-all ${confirmationStatus === 'disagree' ? 'bg-red-600 border-red-600 text-white' : 'bg-white border-slate-300 text-slate-600 hover:border-red-400'}`}>Disagree</button>
-            </div>
-          </section>
-
-          {/* Info correctness */}
-          <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-            <label className="flex items-start gap-2.5 cursor-pointer select-none">
-              <input type="checkbox" checked={infoCorrectChecked} onChange={(e) => setInfoCorrectChecked(e.target.checked)} disabled={isSubmitting} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-600 shrink-0" />
-              <span className="text-xs text-slate-700 leading-relaxed">All the information must be correct and must not change during later rounds of Interview or Negotiation.</span>
-            </label>
           </section>
 
           {/* Submit */}

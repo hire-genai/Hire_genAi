@@ -13,7 +13,6 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: 'HireGenAI - AI-Powered Recruitment',
   description: 'AI-powered recruitment platform that pre-screens and interviews candidates',
-  generator: 'v0.app',
   icons: {
     icon: [
       {

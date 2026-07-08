@@ -27,10 +27,12 @@ import {
 	Share2,
 	Check,
 	Zap,
+	ExternalLink,
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useMobileMenu } from '@/components/dashboard/mobile-menu-context'
 import { JobPostingForm } from '@/components/dashboard/job-posting-form'
@@ -95,6 +97,7 @@ interface Job {
 
 export default function JobsPage() {
 	const { company, user } = useAuth()
+	const router = useRouter()
 	const [activeStatus, setActiveStatus] = useState<JobStatusType>('all')
 	const [searchQuery, setSearchQuery] = useState('')
 	const [departmentFilter, setDepartmentFilter] = useState('all')
@@ -416,15 +419,28 @@ export default function JobsPage() {
 						Manage and track all your open positions
 					</p>
 				</div>
-				<Button
-					className="gap-2 bg-black hover:bg-gray-800 text-white border-0"
-					size="sm"
-					onClick={handlePostNewJob}
-					disabled={isCheckingTrial}
-				>
-					{isCheckingTrial ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-					Post New Job
-				</Button>
+				<div className="flex items-center gap-2">
+					{jobs.length > 0 && jobs[0]?.companySlug && (
+						<Button
+							variant="outline"
+							size="sm"
+							className="gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400"
+							onClick={() => router.push(`/jobs/${jobs[0].companySlug}`)}
+						>
+							<ExternalLink className="h-3 w-3" />
+							View All Jobs
+						</Button>
+					)}
+					<Button
+						className="gap-2 bg-black hover:bg-gray-800 text-white border-0"
+						size="sm"
+						onClick={handlePostNewJob}
+						disabled={isCheckingTrial}
+					>
+						{isCheckingTrial ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+						Post New Job
+					</Button>
+				</div>
 			</div>
 
 			{/* Loading State */}
