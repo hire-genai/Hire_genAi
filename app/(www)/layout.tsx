@@ -4,8 +4,27 @@ import ChatbotWizard from '@/components/ChatbotWizard'
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'HireGenAI - AI-Powered Recruitment',
-  description: 'AI-powered recruitment platform that pre-screens and interviews candidates',
+  title: {
+    default: 'HireGenAI - AI-Powered Recruitment',
+    template: '%s | HireGenAI',
+  },
+  description: 'Hire 10x faster with AI. HireGenAI automates CV screening, AI video interviews, and candidate scoring — so your team focuses on what matters most.',
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://hire-genai.com',
+    siteName: 'HireGenAI',
+    title: 'HireGenAI - Hire Smarter. 10× Faster with AI.',
+    description: 'Transform your recruitment pipeline with generative AI that screens, scores, and schedules — so your team focuses on what matters most.',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'HireGenAI - AI-Powered Recruitment Platform',
+      },
+    ],
+  },
 }
 
 export default function MarketingLayout({
