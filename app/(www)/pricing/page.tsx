@@ -237,7 +237,6 @@ const FAQ_ITEMS = [
   },
 ]
 
-// Shortened support label map
 function shortSupport(support: string): string {
   if (support.startsWith("Standard Support")) return "Standard Support · 72h"
   if (support.startsWith("Priority Support")) return "Priority Support · 48h"
@@ -257,15 +256,12 @@ export default function PricingPage() {
   const [currentPlanName, setCurrentPlanName] = useState<string | null>(null)
   const [hasActivePlan, setHasActivePlan] = useState(false)
 
-  // Read company_id from URL — present when opened from app settings page
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const cid = params.get('company_id')
     setCompanyId(cid)
   }, [])
 
-  // When opened from app, fetch the active subscription so we can highlight
-  // the user's current plan with a "Current Plan" badge.
   useEffect(() => {
     if (!companyId) return
     ;(async () => {
@@ -276,7 +272,6 @@ export default function PricingPage() {
           const name: string = data.subscription?.planName || ''
           setCurrentPlanName(name)
           setHasActivePlan(true)
-          // Auto-switch billing toggle to match the user's plan cadence
           const lower = name.toLowerCase()
           if (lower.includes('annual') || lower.includes('yearly') || lower.includes('year')) {
             setBilling('annual')
@@ -290,8 +285,6 @@ export default function PricingPage() {
     })()
   }, [companyId])
 
-  // Match a pricing card to the user's current Stripe plan_name.
-  // Stripe products are named like "Starter Monthly", "Professional Annual", etc.
   const isCurrentPlan = (planName: string): boolean => {
     if (!currentPlanName) return false
     const cur = currentPlanName.toLowerCase()
@@ -311,7 +304,6 @@ export default function PricingPage() {
   }, [])
 
   const handleSelect = async (planName: string) => {
-    // App context — user is logged in, call Stripe checkout directly
     if (companyId) {
       if (planName === 'Free Trial') return
       setCheckoutLoading(planName)
@@ -337,7 +329,6 @@ export default function PricingPage() {
       return
     }
 
-    // www context — not logged in, go to signup
     if (planName === 'Free Trial') {
       router.push(getAppUrl('/signup'))
       return
@@ -347,57 +338,58 @@ export default function PricingPage() {
   }
 
   const isAnnual = billing === 'annual'
-
   const isAppContext = !!companyId
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#03110A]">
 
       {checkoutError && (
         <div className="max-w-xl mx-auto mt-4 px-4">
-          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-700 text-sm flex items-center gap-2">
+          <div className="bg-red-900/30 border border-red-700/50 rounded-lg px-4 py-3 text-red-300 text-sm flex items-center gap-2">
             <span className="font-semibold">Error:</span> {checkoutError}
           </div>
         </div>
       )}
 
       {/* ── Header ── */}
-      <section className="sr-hero-bg pt-2 pb-11 text-center px-4">
-        {/* logo + settings merged into hero — no separate navbar */}
+      <section
+        className="pt-2 pb-11 text-center px-4"
+        style={{ background: 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,177,79,0.22) 0%, transparent 70%), linear-gradient(180deg, #03110A 0%, #071A0E 100%)' }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: '1200px', margin: '0 auto 28px', padding: '0 8px' }}>
           <span style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.02em', userSelect: 'none' }}>
-            <span style={{ color: '#1e293b' }}>Hire</span><span style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>GenAI</span>
+            <span style={{ color: '#ffffff' }}>Hire</span><span style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>GenAI</span>
           </span>
-          <a href={getAppUrl('/settings?tab=payment')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(22,163,74,0.1)', color: '#16a34a', textDecoration: 'none' }} title="Billing Settings">
+          <a href={getAppUrl('/settings?tab=payment')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(22,163,74,0.15)', color: '#4ade80', textDecoration: 'none' }} title="Billing Settings">
             <UserCircle size={22} />
           </a>
         </div>
-        <span className="inline-block text-xs font-bold tracking-widest uppercase text-emerald-700 bg-emerald-50 border border-emerald-200 px-5 py-1.5 rounded-full mb-4">
+        <span className="inline-block text-xs font-bold tracking-widest uppercase text-emerald-400 bg-emerald-900/30 border border-emerald-700/50 px-5 py-1.5 rounded-full mb-4">
           ⚡ AI Recruiting OS · Full ATS + AI Interview
         </span>
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-800 leading-tight tracking-tight mb-3">
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight tracking-tight mb-3">
           Simple, transparent pricing.<br />
           <span className="sr-text-gradient">Pay for what you use.</span>
         </h1>
-        <p className="text-slate-500 text-base max-w-2xl mx-auto mb-4">
-          All paid plans include <strong className="text-slate-700">every ATS feature</strong> — Dashboard, Job Listings,
+        <p className="text-slate-400 text-base max-w-2xl mx-auto mb-4">
+          All paid plans include <strong className="text-slate-200">every ATS feature</strong> — Dashboard, Job Listings,
           Talent Pool, Application List, Delegation, Feedback, and full analytics.<br />
-          <span className="text-slate-600">No hidden user limits. Only support level &amp; usage caps change.</span>
+          <span className="text-slate-300">No hidden user limits. Only support level &amp; usage caps change.</span>
         </p>
-        <div className="inline-flex items-center gap-2 bg-white border border-gray-200 shadow-sm text-slate-600 text-sm font-semibold px-4 py-2 rounded-full">
+        <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 shadow-sm text-slate-300 text-sm font-semibold px-4 py-2 rounded-full">
           🧑‍🤝‍🧑 Unlimited team members on every paid plan — invite your whole recruiting team.
         </div>
       </section>
 
       {/* ── Billing toggle ── */}
       <div className="flex justify-center pt-8 pb-1">
-        <div className="inline-flex bg-gray-100 rounded-full p-1 gap-1">
+        <div className="inline-flex bg-white/10 rounded-full p-1 gap-1">
           <button
             onClick={() => setBilling('monthly')}
             className={`px-6 py-2 rounded-full text-sm font-semibold transition-all ${
               billing === 'monthly'
-                ? 'bg-white text-slate-800 shadow-sm'
-                : 'text-slate-400 hover:text-slate-600'
+                ? 'bg-white/15 text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-300'
             }`}
           >
             Monthly
@@ -406,12 +398,12 @@ export default function PricingPage() {
             onClick={() => setBilling('annual')}
             className={`px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${
               billing === 'annual'
-                ? 'bg-white text-slate-800 shadow-sm'
-                : 'text-slate-400 hover:text-slate-600'
+                ? 'bg-white/15 text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-300'
             }`}
           >
             Annual
-            <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+            <span className="text-xs font-bold bg-emerald-900/50 text-emerald-400 px-2 py-0.5 rounded-full">
               Save 17%
             </span>
           </button>
@@ -419,7 +411,7 @@ export default function PricingPage() {
       </div>
 
       {isAnnual && (
-        <p className="text-center text-sm font-medium text-emerald-700 pb-1 px-4 pt-1">
+        <p className="text-center text-sm font-medium text-emerald-400 pb-1 px-4 pt-1">
           📅 Annual: pay for 10 months · stay active for 12 · wallet credits &amp; usage increase by 20%
         </p>
       )}
@@ -427,12 +419,12 @@ export default function PricingPage() {
       {/* ── 6 Pricing cards ── */}
       <section className="px-4 py-6 max-w-[1380px] mx-auto">
         {/* ROI Assessment CTA */}
-        <div className="text-center mb-4 pb-3 border-b border-gray-200">
-          <p className="text-slate-600 text-sm mb-1">
+        <div className="text-center mb-4 pb-3 border-b border-white/10">
+          <p className="text-slate-400 text-sm mb-1">
             Not sure which package is right for you?
           </p>
-          <p className="text-slate-700 font-semibold text-sm">
-            Take our <Link href="/roi" className="text-emerald-600 hover:text-emerald-700 underline">ROI Assessment</Link> to receive a personalized recommendation based on your hiring volume, recruitment costs, and expected savings.
+          <p className="text-slate-300 font-semibold text-sm">
+            Take our <Link href="/roi" className="text-emerald-400 hover:text-emerald-300 underline">ROI Assessment</Link> to receive a personalized recommendation based on your hiring volume, recruitment costs, and expected savings.
           </p>
         </div>
 
@@ -449,13 +441,12 @@ export default function PricingPage() {
                 key={plan.name}
                 className={`relative flex flex-col rounded-2xl overflow-hidden transition-all duration-200 ${
                   isCurrent
-                    ? 'bg-white ring-2 ring-emerald-600 shadow-xl sm:scale-[1.02]'
+                    ? 'bg-[#071A0E] ring-2 ring-emerald-500 shadow-xl sm:scale-[1.02]'
                     : plan.popular
-                    ? 'bg-white ring-2 ring-emerald-500 shadow-xl sm:scale-[1.02]'
-                    : 'bg-white border border-gray-200 shadow-md hover:bg-emerald-50/25 hover:border-emerald-200 hover:shadow-xl hover:-translate-y-1'
+                    ? 'bg-[#071A0E] ring-2 ring-emerald-500 shadow-xl sm:scale-[1.02]'
+                    : 'bg-[#071A0E] border border-white/10 shadow-md hover:bg-emerald-900/10 hover:border-emerald-700/50 hover:shadow-xl hover:-translate-y-1'
                 }`}
               >
-                {/* Current Plan badge — pinned top-right when this is the user's active plan */}
                 {isCurrent && (
                   <div className="absolute top-3 right-3 z-10 bg-emerald-600 text-white text-[10px] font-extrabold tracking-wider uppercase px-3 py-1 rounded-full shadow-md flex items-center gap-1">
                     <Check className="w-3 h-3" />
@@ -463,10 +454,9 @@ export default function PricingPage() {
                   </div>
                 )}
 
-                {/* Top label strip (only when present) */}
                 {plan.topLabel && (
                   <div className={`text-center text-xs font-extrabold py-1.5 tracking-wide ${
-                    plan.popular ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-white'
+                    plan.popular ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-200'
                   }`}>
                     {plan.popular && '⭐ '}{plan.topLabel}
                   </div>
@@ -476,27 +466,27 @@ export default function PricingPage() {
 
                   {/* ── Row 1: plan name + tagline ── */}
                   <div>
-                    <h3 className="text-lg font-extrabold text-slate-800 leading-tight">{plan.name}</h3>
-                    <p className="text-xs text-slate-500 mt-0.5 leading-snug">{plan.tagline}</p>
+                    <h3 className="text-lg font-extrabold text-white leading-tight">{plan.name}</h3>
+                    <p className="text-xs text-slate-400 mt-0.5 leading-snug">{plan.tagline}</p>
                   </div>
 
                   {/* ── Row 2: price + wallet value ── */}
                   <div>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-extrabold text-slate-900">
+                      <span className="text-3xl font-extrabold text-white">
                         ${(price as number).toLocaleString()}
                       </span>
                       <span className="text-slate-400 text-sm ml-1">
                         {isAnnual ? '/ year' : '/ month'}
                       </span>
                     </div>
-                    <div className="mt-2 flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                    <div className="mt-2 flex items-center gap-2 bg-emerald-900/20 border border-emerald-700/40 rounded-lg px-3 py-2">
                       <span className="text-base">💳</span>
                       <div>
-                        <p className="text-xs font-bold text-emerald-800 leading-tight">
+                        <p className="text-xs font-bold text-emerald-300 leading-tight">
                           ${(isAnnual ? plan.annualWallet : plan.monthlyWallet)?.toLocaleString()} AI credits included
                         </p>
-                        <p className="text-[10px] text-emerald-600 leading-tight">
+                        <p className="text-[10px] text-emerald-400 leading-tight">
                           {isAnnual ? '+20% extra credits vs monthly billing' : 'Full amount loaded into your AI wallet'}
                         </p>
                       </div>
@@ -505,18 +495,18 @@ export default function PricingPage() {
 
                   {/* ── Row 3: usage capacity ── */}
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">Typical monthly AI usage</p>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Typical monthly AI usage</p>
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                        <div className="text-xl font-extrabold text-slate-900">{cvs}</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">candidates screened</div>
+                      <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                        <div className="text-xl font-extrabold text-white">{cvs}</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">candidates screened</div>
                       </div>
-                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                        <div className="text-xl font-extrabold text-slate-900">{ints}</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">AI video rounds</div>
+                      <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                        <div className="text-xl font-extrabold text-white">{ints}</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">AI video rounds</div>
                       </div>
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1.5 leading-snug">
+                    <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">
                       {isEnterprise
                         ? '📌 Illustrative averages — no preset limits. Volume scales to your needs.'
                         : '📌 Illustrative averages — soft guidance only. No hard stop at these numbers.'}
@@ -524,7 +514,7 @@ export default function PricingPage() {
                   </div>
 
                   {/* ── Row 4: what you actually get ── */}
-                  <div className="border border-slate-100 rounded-xl overflow-hidden divide-y divide-slate-100">
+                  <div className="border border-white/10 rounded-xl overflow-hidden divide-y divide-white/10">
                     {[
                       { icon: "⚡", label: "AI CV Reports", desc: "Every resume scored, ranked & explained instantly" },
                       { icon: "🎥", label: "AI Video Interviews + Reports", desc: "Automated rounds — questions, recording & post-interview AI summary" },
@@ -534,11 +524,11 @@ export default function PricingPage() {
                       { icon: "🔄", label: "Delegation, Feedback & Audit", desc: "Assign to team, collect feedback, full audit trail" },
                       { icon: "📊", label: "Recruiter · Manager · Director", desc: "Dedicated KPI dashboards for every role in your team" },
                     ].map(({ icon, label, desc }) => (
-                      <div key={label} className="flex items-start gap-2.5 px-3 py-2.5 bg-white hover:bg-slate-50 transition-colors">
+                      <div key={label} className="flex items-start gap-2.5 px-3 py-2.5 bg-transparent hover:bg-white/5 transition-colors">
                         <span className="text-base mt-0.5 flex-shrink-0">{icon}</span>
                         <div>
-                          <p className="text-xs font-semibold text-slate-800 leading-tight">{label}</p>
-                          <p className="text-[11px] text-slate-400 leading-snug mt-0.5">{desc}</p>
+                          <p className="text-xs font-semibold text-slate-200 leading-tight">{label}</p>
+                          <p className="text-[11px] text-slate-500 leading-snug mt-0.5">{desc}</p>
                         </div>
                       </div>
                     ))}
@@ -551,17 +541,17 @@ export default function PricingPage() {
                     </span>
                   </div>
 
-                  {/* ── Row 5: CTA ── */}
+                  {/* ── Row 6: CTA ── */}
                   <div className="space-y-1.5">
                     <button
                       onClick={() => handleSelect(plan.name)}
                       disabled={checkoutLoading === plan.name || isCurrent}
                       className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                         isCurrent
-                          ? 'bg-emerald-50 text-emerald-700 border-2 border-emerald-600'
+                          ? 'bg-emerald-900/20 text-emerald-400 border-2 border-emerald-600'
                           : plan.popular
                           ? 'sr-button-primary'
-                          : 'bg-slate-800 hover:bg-emerald-700 text-white'
+                          : 'bg-white/10 hover:bg-emerald-700 text-white border border-white/20'
                       }`}
                     >
                       {checkoutLoading === plan.name ? (
@@ -580,7 +570,7 @@ export default function PricingPage() {
                         <>{plan.cta} <ArrowRight className="w-4 h-4" /></>
                       )}
                     </button>
-                    <p className="text-center text-xs text-slate-400">
+                    <p className="text-center text-xs text-slate-500">
                       Unlimited team members · Cancel anytime
                     </p>
                   </div>
@@ -598,22 +588,21 @@ export default function PricingPage() {
           <div className="flex flex-col items-center gap-1 pb-10 pt-2">
             <button
               onClick={() => handleSelect('Free Trial')}
-              className="inline-flex items-center gap-1.5 text-slate-400 hover:text-emerald-600 text-sm font-medium transition-colors group"
+              className="inline-flex items-center gap-1.5 text-slate-500 hover:text-emerald-400 text-sm font-medium transition-colors group"
             >
               Not ready to commit?
-              <span className="underline underline-offset-2 font-semibold text-emerald-600 group-hover:no-underline">
+              <span className="underline underline-offset-2 font-semibold text-emerald-400 group-hover:no-underline">
                 Skip for Free — start your 7-day trial
               </span>
-              <ArrowRight className="w-3.5 h-3.5 text-emerald-600" />
+              <ArrowRight className="w-3.5 h-3.5 text-emerald-400" />
             </button>
-            <span className="text-xs text-slate-300">No credit card required · cancel anytime</span>
+            <span className="text-xs text-slate-600">No credit card required · cancel anytime</span>
           </div>
 
-
           {/* ── FAQ ── */}
-          <section className="py-16 bg-slate-50 px-4">
+          <section className="py-16 px-4" style={{ background: 'linear-gradient(180deg, #071A0E 0%, #03110A 100%)' }}>
             <div className="max-w-2xl mx-auto">
-              <h2 className="text-3xl font-extrabold text-slate-800 text-center mb-2">
+              <h2 className="text-3xl font-extrabold text-white text-center mb-2">
                 Common Questions
               </h2>
               <p className="text-slate-400 text-sm text-center mb-10">
@@ -621,9 +610,9 @@ export default function PricingPage() {
               </p>
               <div className="space-y-4">
                 {FAQ_ITEMS.map(({ q, a }) => (
-                  <div key={q} className="sr-card p-5">
-                    <h3 className="font-semibold text-slate-800 mb-1.5">{q}</h3>
-                    <p className="text-slate-500 text-sm leading-relaxed">{a}</p>
+                  <div key={q} className="bg-[#071A0E] border border-white/10 rounded-lg p-5 hover:border-emerald-700/40 transition-colors">
+                    <h3 className="font-semibold text-slate-200 mb-1.5">{q}</h3>
+                    <p className="text-slate-400 text-sm leading-relaxed">{a}</p>
                   </div>
                 ))}
               </div>
