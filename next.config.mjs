@@ -3,6 +3,21 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+
+  // ── Favicon / icon URL aliases ───────────────────────────────────────────
+  // app/icon.tsx serves at /icon; app/apple-icon.tsx serves at /apple-icon.
+  // Google crawls /favicon.ico first. These internal rewrites (no HTTP
+  // redirect — content served directly at the requested URL) ensure every
+  // canonical favicon URL returns HTTP 200 with the correct HireGenAI logo.
+  async rewrites() {
+    return [
+      { source: '/favicon.ico',          destination: '/icon' },
+      { source: '/icon.png',             destination: '/icon' },
+      { source: '/apple-touch-icon.png', destination: '/apple-icon' },
+      { source: '/site.webmanifest',     destination: '/manifest.webmanifest' },
+    ]
+  },
+
   images: {
     unoptimized: true,
   },

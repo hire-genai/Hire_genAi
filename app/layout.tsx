@@ -26,7 +26,17 @@ export const metadata: Metadata = {
     follow: true,
     googleBot: { index: true, follow: true },
   },
-  manifest: '/manifest.webmanifest',
+  // /favicon.ico, /icon.png, /apple-touch-icon.png are served via next.config.mjs
+  // rewrites pointing to the code-generated app/icon.tsx and app/apple-icon.tsx.
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icon.svg', type: 'image/svg+xml' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+  },
+  manifest: '/site.webmanifest',
   openGraph: {
     type: 'website',
     locale: 'en_US',
@@ -36,7 +46,7 @@ export const metadata: Metadata = {
     description: 'Transform your recruitment pipeline with generative AI that screens, scores, and schedules — so your team focuses on what matters most.',
     images: [
       {
-        url: '/og-image.png',
+        url: '/opengraph-image',
         width: 1200,
         height: 630,
         alt: 'HireGenAI - AI-Powered Recruitment Platform',
@@ -49,7 +59,7 @@ export const metadata: Metadata = {
     creator: '@hiregenai',
     title: 'HireGenAI - Hire Smarter. 10× Faster with AI.',
     description: 'Transform your recruitment pipeline with generative AI that screens, scores, and schedules.',
-    images: ['/og-image.png'],
+    images: ['/opengraph-image'],
   },
 }
 

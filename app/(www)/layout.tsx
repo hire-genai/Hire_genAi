@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     description: 'Transform your recruitment pipeline with generative AI that screens, scores, and schedules — so your team focuses on what matters most.',
     images: [
       {
-        url: '/og-image.png',
+        url: '/opengraph-image',
         width: 1200,
         height: 630,
         alt: 'HireGenAI - AI-Powered Recruitment Platform',
