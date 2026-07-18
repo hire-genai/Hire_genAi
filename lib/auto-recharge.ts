@@ -14,9 +14,7 @@ import { randomUUID } from 'crypto'
  * 5. Checks for pending/in-progress recharge to prevent duplicates (idempotency)
  * 6. Creates a direct payment using POST /v1/payments with saved token
  * 
- * Uses Razorpay's direct token payment API instead of order+recurring flow
- * for more reliable auto-recharge.
- * 
+ *
  * @param companyId - The company UUID to check and potentially auto-recharge
  * @param force - Optional parameter for testing purposes
  * @returns Object with success status and details
@@ -115,7 +113,7 @@ export async function checkAndAutoRecharge(companyId: string, force = false): Pr
       }
     }
 
-    // ─── 5. Use Stripe auto-recharge (Razorpay removed) ───
+    // ─── 5. Use Stripe auto-recharge ───
     console.log(`[Auto-Recharge] Using Stripe auto-recharge for company ${companyId}`)
     return checkAndAutoRechargeStripe(companyId, force)
 

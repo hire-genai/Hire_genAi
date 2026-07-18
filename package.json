@@ -57,7 +57,6 @@
     "core-js": "^3.48.0",
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.1",
-    "face-api.js": "^0.22.2",
     "geist": "^1.7.0",
     "googleapis": "^171.4.0",
     "input-otp": "1.4.1",
