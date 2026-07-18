@@ -188,7 +188,7 @@ export default function InterviewStartPage() {
                     return
                   }
                   setIsStarting(true)
-                  router.push(`/interview/${applicationId}/verify`)
+                  router.push(`/interview/${applicationId}`)
                 }}
               >
                 {isStarting ? (

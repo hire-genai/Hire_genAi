@@ -779,7 +779,7 @@ export default function InterviewPage() {
 
         if (res.ok && json?.ok) {
           if (!json.canInterview) {
-            router.push(`/interview/${encodeURIComponent(applicationId)}/post-verify`)
+            router.push(`/interview/${encodeURIComponent(applicationId)}/success`)
             return
           }
         }
@@ -1426,9 +1426,7 @@ ${questions?.[0]?.criteria?.join(", ") || "Communication, Technical skills, Cult
           console.error("❌ Failed to run evaluation:", e)
         })
 
-        // Immediate redirect to post-verify page
-        console.log("🔄 Redirecting to post-verify page...")
-        router.push(`/interview/${encodeURIComponent(applicationId)}/post-verify`)
+        router.push(`/interview/${encodeURIComponent(applicationId)}/success`)
         return
       } else {
         console.error("❌ Failed to mark interview as completed")
@@ -1437,8 +1435,7 @@ ${questions?.[0]?.criteria?.join(", ") || "Communication, Technical skills, Cult
       console.error("❌ Error ending interview:", error)
     }
 
-    // Fallback redirect on error
-    router.push(`/interview/${encodeURIComponent(applicationId)}/post-verify`)
+    router.push(`/interview/${encodeURIComponent(applicationId)}/success`)
   }
 
   // Show loading spinner while interview is ending/redirecting

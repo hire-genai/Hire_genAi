@@ -1121,7 +1121,7 @@ export default function BillingContent({ companyId }: BillingContentProps) {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="min-w-0 flex-1">
               <h2 className="text-2xl font-bold tracking-tight text-slate-800 truncate">Payment History</h2>
-              <p className="text-slate-500 text-sm mt-1">Invoices & receipts · Powered by Razorpay</p>
+              <p className="text-slate-500 text-sm mt-1">Invoices & receipts</p>
             </div>
             <div className="w-[180px] flex-shrink-0">
               <div className="relative">

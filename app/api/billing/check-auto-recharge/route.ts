@@ -71,8 +71,6 @@ export async function POST(request: NextRequest) {
  */
 async function processAutoRecharge(companyId: string, amount: number) {
   try {
-    // For now, simulate successful payment
-    // In production, integrate with Razorpay API
     const paymentId = `auto_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
     // Update company balance
